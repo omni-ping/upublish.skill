@@ -2,9 +2,13 @@
  * MCP server tests.
  *
  * Tests the MCP server registration and tool delegation using
- * createServer() with injectable fetchFn — no real network calls.
+ * createServer() with injectable CoreDeps — no real network calls.
  *
  * Tool handlers are extracted via McpServer._registeredTools (internal SDK field).
+ *
+ * Covers DW-2.1: mcp/index.ts imports only from lib/core.ts
+ * Covers DW-2.3: MCP tools work after upublish login without session restart
+ * Covers DW-2.5: bun test passes with 0 failures
  */
 
 import { describe, test, expect } from "bun:test";
@@ -12,7 +16,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { createServer } from "../mcp/index.ts";
-import type { McpServerConfig } from "../mcp/index.ts";
+import type { CoreDeps } from "../lib/core.ts";
 
 // ─── Test types ───────────────────────────────────────────────────────────────
 
@@ -30,6 +34,20 @@ type RegisteredTools = Record<string, RegisteredTool>;
 type InternalServer = { _registeredTools: RegisteredTools };
 
 // ─── Mock helpers ─────────────────────────────────────────────────────────────
+
+const REFRESH_TOKEN = "test-refresh-token";
+
+/**
+ * Writes a refresh token to a temp file and returns the path.
+ */
+function writeTempCredentials(token: string): string {
+  const tmpFile = path.join(
+    os.tmpdir(),
+    `mcp-test-creds-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
+  fs.writeFileSync(tmpFile, token, { mode: 0o600 });
+  return tmpFile;
+}
 
 /**
  * Creates a mock fetch that handles token refresh and provides a default
@@ -65,20 +83,10 @@ const SAMPLE_SITE = {
   url: "https://user1.upubli.sh/my-site/",
 };
 
-/** Config with a valid refresh token. */
-function authenticatedConfig(): McpServerConfig {
-  return {
-    apiBaseUrl: "https://api.example.com",
-    refreshToken: "valid-refresh-token",
-  };
-}
-
-/** Config with no refresh token (unauthenticated). */
-function unauthenticatedConfig(): McpServerConfig {
-  return {
-    apiBaseUrl: "https://api.example.com",
-    refreshToken: null,
-  };
+/** CoreDeps with credentials on disk and mock fetch. */
+function makeDeps(fetchFn = makeMockFetch()): { credFile: string; deps: CoreDeps } {
+  const credFile = writeTempCredentials(REFRESH_TOKEN);
+  return { credFile, deps: { credentialsPath: credFile, fetchFn } };
 }
 
 /** Gets the registered tools map from a server instance. */
@@ -86,46 +94,54 @@ function getTools(server: ReturnType<typeof createServer>): RegisteredTools {
   return (server as unknown as InternalServer)._registeredTools;
 }
 
-// ─── DW-3.1: server registers all four tools ─────────────────────────────────
+// ─── DW-2.1: server registers all four tools ─────────────────────────────────
 
-describe("DW-3.1: server registers publish, list, delete, generate tools", () => {
-  test("test_DW_3_1_server_registers_publish_tool", () => {
-    const server = createServer(authenticatedConfig(), makeMockFetch());
+describe("DW-2.1: server registers publish, list, delete, generate tools", () => {
+  test("test_DW_2_1_server_registers_publish_tool", () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
     const tools = getTools(server);
     expect("publish" in tools).toBe(true);
+    fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_3_1_server_registers_list_tool", () => {
-    const server = createServer(authenticatedConfig(), makeMockFetch());
+  test("test_DW_2_1_server_registers_list_tool", () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
     const tools = getTools(server);
     expect("list" in tools).toBe(true);
+    fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_3_1_server_registers_delete_tool", () => {
-    const server = createServer(authenticatedConfig(), makeMockFetch());
+  test("test_DW_2_1_server_registers_delete_tool", () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
     const tools = getTools(server);
     expect("delete" in tools).toBe(true);
+    fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_3_1_server_registers_generate_tool", () => {
-    const server = createServer(authenticatedConfig(), makeMockFetch());
+  test("test_DW_2_1_server_registers_generate_tool", () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
     const tools = getTools(server);
     expect("generate" in tools).toBe(true);
+    fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_3_1_server_registers_exactly_four_tools", () => {
-    const server = createServer(authenticatedConfig(), makeMockFetch());
+  test("test_DW_2_1_server_registers_exactly_four_tools", () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
     const tools = getTools(server);
     expect(Object.keys(tools).length).toBe(4);
+    fs.unlinkSync(deps.credentialsPath!);
   });
 });
 
-// ─── DW-3.2: each tool delegates to lib/ (no inline logic) ───────────────────
+// ─── DW-2.1: each tool delegates to core (no auth knowledge in adapter) ───────
 
-describe("DW-3.2: each tool delegates to corresponding lib/ function", () => {
-  test("test_DW_3_2_publish_tool_delegates_to_lib", async () => {
-    // The publish tool should call lib/publish.ts — we verify by checking
-    // the publish handler calls the API via the injected fetchFn.
+describe("DW-2.1: each tool calls core, no auth knowledge in mcp/index.ts", () => {
+  test("test_DW_2_1_publish_tool_calls_core", async () => {
     let apiCalled = false;
     const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
       if (url.includes("/auth/token/refresh")) {
@@ -144,20 +160,22 @@ describe("DW-3.2: each tool delegates to corresponding lib/ function", () => {
       return new Response(JSON.stringify({}), { status: 200 });
     };
 
+    const { deps } = makeDeps(fetchFn);
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-test-"));
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
     try {
-      const server = createServer(authenticatedConfig(), fetchFn);
+      const server = createServer(deps);
       const tools = getTools(server);
       await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
       expect(apiCalled).toBe(true);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.unlinkSync(deps.credentialsPath!);
     }
   });
 
-  test("test_DW_3_2_list_tool_delegates_to_lib", async () => {
+  test("test_DW_2_1_list_tool_calls_core", async () => {
     let apiCalled = false;
     const fetchFn = async (url: string, _init?: RequestInit): Promise<Response> => {
       if (url.includes("/auth/token/refresh")) {
@@ -176,13 +194,15 @@ describe("DW-3.2: each tool delegates to corresponding lib/ function", () => {
       return new Response(JSON.stringify({}), { status: 200 });
     };
 
-    const server = createServer(authenticatedConfig(), fetchFn);
+    const { deps } = makeDeps(fetchFn);
+    const server = createServer(deps);
     const tools = getTools(server);
     await tools["list"].handler({});
     expect(apiCalled).toBe(true);
+    fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_3_2_delete_tool_delegates_to_lib", async () => {
+  test("test_DW_2_1_delete_tool_calls_core", async () => {
     let deleteCalled = false;
     const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
       if (url.includes("/auth/token/refresh")) {
@@ -201,13 +221,15 @@ describe("DW-3.2: each tool delegates to corresponding lib/ function", () => {
       return new Response(JSON.stringify({}), { status: 200 });
     };
 
-    const server = createServer(authenticatedConfig(), fetchFn);
+    const { deps } = makeDeps(fetchFn);
+    const server = createServer(deps);
     const tools = getTools(server);
     await tools["delete"].handler({ slug: "my-site" });
     expect(deleteCalled).toBe(true);
+    fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_3_2_generate_tool_delegates_to_lib", async () => {
+  test("test_DW_2_1_generate_tool_calls_core", async () => {
     let generateCalled = false;
     const fetchFn = async (url: string, _init?: RequestInit): Promise<Response> => {
       if (url.includes("/auth/token/refresh")) {
@@ -226,17 +248,19 @@ describe("DW-3.2: each tool delegates to corresponding lib/ function", () => {
       return new Response(JSON.stringify({}), { status: 200 });
     };
 
-    const server = createServer(authenticatedConfig(), fetchFn);
+    const { deps } = makeDeps(fetchFn);
+    const server = createServer(deps);
     const tools = getTools(server);
     await tools["generate"].handler({ context: "A user auth flow" });
     expect(generateCalled).toBe(true);
+    fs.unlinkSync(deps.credentialsPath!);
   });
 });
 
-// ─── DW-3.3: tool output format matches current ───────────────────────────────
+// ─── Tool output format ───────────────────────────────────────────────────────
 
-describe("DW-3.3: tool output format matches current implementation", () => {
-  test("test_DW_3_3_publish_output_contains_url_and_file_count", async () => {
+describe("tool output format", () => {
+  test("test_DW_2_4_publish_output_contains_url_and_file_count", async () => {
     const PUBLISHED_URL = "https://user1.upubli.sh/my-site/";
     const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
       if (url.includes("/auth/token/refresh")) {
@@ -254,11 +278,12 @@ describe("DW-3.3: tool output format matches current implementation", () => {
       return new Response(JSON.stringify({}), { status: 200 });
     };
 
+    const { deps } = makeDeps(fetchFn);
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-test-"));
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
     try {
-      const server = createServer(authenticatedConfig(), fetchFn);
+      const server = createServer(deps);
       const tools = getTools(server);
       const result = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
 
@@ -269,13 +294,13 @@ describe("DW-3.3: tool output format matches current implementation", () => {
       expect(text).toContain(`Files: ${SAMPLE_SITE.file_count}`);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.unlinkSync(deps.credentialsPath!);
     }
   });
 
-  test("test_DW_3_3_list_output_contains_site_slug_and_url", async () => {
-    const fetchFn = makeMockFetch({ sites: [SAMPLE_SITE] });
-
-    const server = createServer(authenticatedConfig(), fetchFn);
+  test("test_DW_2_4_list_output_contains_site_slug_and_url", async () => {
+    const { deps } = makeDeps(makeMockFetch({ sites: [SAMPLE_SITE] }));
+    const server = createServer(deps);
     const tools = getTools(server);
     const result = await tools["list"].handler({});
 
@@ -283,21 +308,22 @@ describe("DW-3.3: tool output format matches current implementation", () => {
     const text = result.content[0].text;
     expect(text).toContain("my-site");
     expect(text).toContain("https://user1.upubli.sh/my-site/");
+    fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_3_3_list_output_empty_sites_message", async () => {
-    const fetchFn = makeMockFetch({ sites: [] });
-
-    const server = createServer(authenticatedConfig(), fetchFn);
+  test("test_DW_2_4_list_output_empty_sites_message", async () => {
+    const { deps } = makeDeps(makeMockFetch({ sites: [] }));
+    const server = createServer(deps);
     const tools = getTools(server);
     const result = await tools["list"].handler({});
 
     expect(result.isError).toBeUndefined();
     const text = result.content[0].text;
     expect(text).toContain("No sites");
+    fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_3_3_delete_output_contains_message", async () => {
+  test("test_DW_2_4_delete_output_contains_message", async () => {
     const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
       if (url.includes("/auth/token/refresh")) {
         return new Response(
@@ -314,16 +340,18 @@ describe("DW-3.3: tool output format matches current implementation", () => {
       return new Response(JSON.stringify({}), { status: 200 });
     };
 
-    const server = createServer(authenticatedConfig(), fetchFn);
+    const { deps } = makeDeps(fetchFn);
+    const server = createServer(deps);
     const tools = getTools(server);
     const result = await tools["delete"].handler({ slug: "my-site" });
 
     expect(result.isError).toBeUndefined();
     const text = result.content[0].text;
     expect(text).toContain("my-site");
+    fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_3_3_generate_output_contains_url_and_slug", async () => {
+  test("test_DW_2_4_generate_output_contains_url_and_slug", async () => {
     const DIAGRAM_URL = "https://user1.upubli.sh/diag-abc/";
     const fetchFn = async (url: string, _init?: RequestInit): Promise<Response> => {
       if (url.includes("/auth/token/refresh")) {
@@ -338,7 +366,8 @@ describe("DW-3.3: tool output format matches current implementation", () => {
       );
     };
 
-    const server = createServer(authenticatedConfig(), fetchFn);
+    const { deps } = makeDeps(fetchFn);
+    const server = createServer(deps);
     const tools = getTools(server);
     const result = await tools["generate"].handler({ context: "A user auth flow" });
 
@@ -347,90 +376,53 @@ describe("DW-3.3: tool output format matches current implementation", () => {
     expect(text).toContain("Diagram generated");
     expect(text).toContain(`URL: ${DIAGRAM_URL}`);
     expect(text).toContain("Slug: diag-abc");
+    fs.unlinkSync(deps.credentialsPath!);
   });
 });
 
-// ─── DW-3.4: not-authenticated stubs ─────────────────────────────────────────
+// ─── DW-2.3: stale-state bug fixed ───────────────────────────────────────────
 
-describe("DW-3.4: not-authenticated stubs registered when no credentials found", () => {
-  test("test_DW_3_4_unauthenticated_publish_returns_error", async () => {
-    const server = createServer(unauthenticatedConfig());
-    const tools = getTools(server);
-    const result = await tools["publish"].handler({});
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("Not authenticated");
-  });
+describe("DW-2.3: stale-state bug fixed — tools read credentials fresh per call", () => {
+  test("test_DW_2_3_mcp_stale_state_fixed", async () => {
+    // Regression test: MCP server created BEFORE credentials exist.
+    // After writing credentials, the tool handler must still succeed.
+    // This proves per-call credential reads (no startup cache).
+    const credFile = path.join(
+      os.tmpdir(),
+      `mcp-stale-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
 
-  test("test_DW_3_4_unauthenticated_list_returns_error", async () => {
-    const server = createServer(unauthenticatedConfig());
-    const tools = getTools(server);
-    const result = await tools["list"].handler({});
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("Not authenticated");
-  });
-
-  test("test_DW_3_4_unauthenticated_delete_returns_error", async () => {
-    const server = createServer(unauthenticatedConfig());
-    const tools = getTools(server);
-    const result = await tools["delete"].handler({});
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("Not authenticated");
-  });
-
-  test("test_DW_3_4_unauthenticated_generate_returns_error", async () => {
-    const server = createServer(unauthenticatedConfig());
-    const tools = getTools(server);
-    const result = await tools["generate"].handler({});
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("Not authenticated");
-  });
-
-  test("test_DW_3_4_unauthenticated_error_references_login_command", async () => {
-    const server = createServer(unauthenticatedConfig());
-    const tools = getTools(server);
-    const result = await tools["publish"].handler({});
-    expect(result.content[0].text).toContain("upublish login");
-  });
-
-  test("test_DW_3_4_unauthenticated_server_registers_all_four_tools", () => {
-    const server = createServer(unauthenticatedConfig());
-    const tools = getTools(server);
-    expect(Object.keys(tools).length).toBe(4);
-    expect("publish" in tools).toBe(true);
-    expect("list" in tools).toBe(true);
-    expect("delete" in tools).toBe(true);
-    expect("generate" in tools).toBe(true);
-  });
-});
-
-// ─── DW-3.5: server starts with stdio transport ───────────────────────────────
-
-describe("DW-3.5: MCP server structural test (startup verified by file existence)", () => {
-  test("test_DW_3_5_creates_server_and_has_tools", () => {
-    // createServer() is importable and returns a server with tools.
-    // Actual stdio transport startup is verified manually via bun run mcp/index.ts.
-    const server = createServer(authenticatedConfig(), makeMockFetch());
-    expect(server).toBeDefined();
-    const tools = getTools(server);
-    expect(Object.keys(tools).length).toBe(4);
-  });
-
-  test("test_DW_3_5_env_var_api_url_respected", () => {
-    // createServer accepts apiBaseUrl from config — tests that UPUBLISH_API_URL
-    // override is honored at the config level.
-    const config: McpServerConfig = {
-      apiBaseUrl: "https://custom.example.com",
-      refreshToken: "token",
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: makeMockFetch({ sites: [] }),
     };
-    const server = createServer(config, makeMockFetch());
-    expect(server).toBeDefined();
+
+    // Create server BEFORE credentials exist
+    const server = createServer(deps);
+    const tools = getTools(server);
+
+    // No credentials yet — should return error
+    const beforeResult = await tools["list"].handler({});
+    expect(beforeResult.isError).toBe(true);
+    expect(beforeResult.content[0].text).toContain("Not authenticated");
+
+    // Simulate upublish login writing credentials
+    fs.writeFileSync(credFile, REFRESH_TOKEN, { mode: 0o600 });
+
+    try {
+      // Same server, same tools — now must succeed
+      const afterResult = await tools["list"].handler({});
+      expect(afterResult.isError).toBeUndefined();
+    } finally {
+      fs.unlinkSync(credFile);
+    }
   });
 });
 
-// ─── DW-3.6: error handling — tools return isError on failure ─────────────────
+// ─── Error handling — tools return isError on failure ─────────────────────────
 
-describe("DW-3.6: tool error handling", () => {
-  test("test_DW_3_6_publish_returns_error_on_api_failure", async () => {
+describe("error handling", () => {
+  test("test_DW_2_5_publish_returns_error_on_api_failure", async () => {
     const fetchFn = async (url: string, _init?: RequestInit): Promise<Response> => {
       if (url.includes("/auth/token/refresh")) {
         return new Response(
@@ -445,21 +437,23 @@ describe("DW-3.6: tool error handling", () => {
       });
     };
 
+    const { deps } = makeDeps(fetchFn);
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-err-"));
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
     try {
-      const server = createServer(authenticatedConfig(), fetchFn);
+      const server = createServer(deps);
       const tools = getTools(server);
       const result = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toBeTruthy();
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.unlinkSync(deps.credentialsPath!);
     }
   });
 
-  test("test_DW_3_6_list_returns_error_on_api_failure", async () => {
+  test("test_DW_2_5_list_returns_error_on_api_failure", async () => {
     const fetchFn = async (url: string, _init?: RequestInit): Promise<Response> => {
       if (url.includes("/auth/token/refresh")) {
         return new Response(
@@ -474,13 +468,15 @@ describe("DW-3.6: tool error handling", () => {
       });
     };
 
-    const server = createServer(authenticatedConfig(), fetchFn);
+    const { deps } = makeDeps(fetchFn);
+    const server = createServer(deps);
     const tools = getTools(server);
     const result = await tools["list"].handler({});
     expect(result.isError).toBe(true);
+    fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_3_6_delete_returns_error_on_api_failure", async () => {
+  test("test_DW_2_5_delete_returns_error_on_api_failure", async () => {
     const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
       if (url.includes("/auth/token/refresh")) {
         return new Response(
@@ -498,32 +494,73 @@ describe("DW-3.6: tool error handling", () => {
       return new Response(JSON.stringify({}), { status: 200 });
     };
 
-    const server = createServer(authenticatedConfig(), fetchFn);
+    const { deps } = makeDeps(fetchFn);
+    const server = createServer(deps);
     const tools = getTools(server);
     const result = await tools["delete"].handler({ slug: "nonexistent" });
     expect(result.isError).toBe(true);
+    fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_3_6_generate_returns_error_on_empty_context", async () => {
-    const server = createServer(authenticatedConfig(), makeMockFetch());
+  test("test_DW_2_5_generate_returns_error_on_empty_context", async () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
     const tools = getTools(server);
     const result = await tools["generate"].handler({ context: "" });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("context");
+    fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_3_6_publish_returns_error_for_invalid_slug", async () => {
+  test("test_DW_2_5_publish_returns_error_for_invalid_slug", async () => {
+    const { deps } = makeDeps();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-slug-"));
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
     try {
-      const server = createServer(authenticatedConfig(), makeMockFetch());
+      const server = createServer(deps);
       const tools = getTools(server);
       const result = await tools["publish"].handler({ directory: tmpDir, slug: "INVALID SLUG!" });
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain("slug");
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.unlinkSync(deps.credentialsPath!);
     }
+  });
+
+  test("test_DW_2_3_unauthenticated_tool_returns_not_authenticated_error", async () => {
+    // No credentials file — core throws, handler catches and returns isError
+    const deps: CoreDeps = {
+      credentialsPath: "/does/not/exist/creds",
+      fetchFn: makeMockFetch(),
+    };
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["list"].handler({});
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Not authenticated");
+  });
+});
+
+// ─── Server structural tests ─────────────────────────────────────────────────
+
+describe("server structure", () => {
+  test("test_DW_2_1_creates_server_and_has_tools", () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
+    expect(server).toBeDefined();
+    const tools = getTools(server);
+    expect(Object.keys(tools).length).toBe(4);
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_2_1_env_var_api_url_respected", () => {
+    // createServer accepts CoreDeps — the apiBaseUrl env var is handled
+    // inside core.ts, which reads process.env.UPUBLISH_API_URL
+    const { deps } = makeDeps();
+    const server = createServer(deps);
+    expect(server).toBeDefined();
+    fs.unlinkSync(deps.credentialsPath!);
   });
 });

@@ -25,6 +25,7 @@ import {
   login as authLogin,
 } from "./auth.ts";
 import type { LoginDeps, LoginResult } from "./auth.ts";
+
 import { ApiClient } from "./api-client.ts";
 import { listSites } from "./list.ts";
 import type { ListResult } from "./list.ts";
@@ -35,6 +36,18 @@ import type { DeleteResult } from "./delete.ts";
 import { generate as domainGenerate } from "./generate.ts";
 import type { GenerateResult } from "./generate.ts";
 import type { FetchFn, Visibility } from "./types.ts";
+
+// ─── Re-exports for adapters ──────────────────────────────────────────────────
+
+// Adapters import only from core.ts — re-export types they need so they
+// don't have to reach into lib/auth.ts or other submodules.
+export type { LoginDeps, LoginResult };
+export type { PublishResult };
+export type { ListResult };
+export type { DeleteResult };
+export type { GenerateResult };
+export type { Visibility };
+export type { Site } from "./types.ts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
