@@ -426,6 +426,61 @@ const deleteCmd = defineCommand({
   },
 });
 
+// ─── Status command ──────────────────────────────────────────────────────────
+
+export interface StatusArgs {
+  json: boolean;
+}
+
+export interface StatusCommandDeps {
+  apiClient: ApiClient | null;
+}
+
+export async function runStatusCommand(
+  args: StatusArgs,
+  deps: StatusCommandDeps,
+): Promise<void> {
+  if (!deps.apiClient) {
+    if (args.json) {
+      console.log(JSON.stringify({ authenticated: false, error: "No credentials found" }));
+    } else {
+      console.log(red("Not authenticated. No credentials found."));
+      console.log("Run `upublish login` to sign in.");
+    }
+    process.exit(1);
+  }
+
+  try {
+    const result = await deps.apiClient.get<{ username: string }>("/auth/me");
+    if (args.json) {
+      console.log(JSON.stringify({ authenticated: true, username: result.username }));
+    } else {
+      console.log(green("Authenticated"));
+      console.log(`Logged in as: ${bold(result.username)}`);
+    }
+  } catch (err) {
+    if (args.json) {
+      console.log(JSON.stringify({ authenticated: false, error: (err as Error).message }));
+    } else {
+      console.log(red("Authentication failed."));
+      console.log(`Error: ${(err as Error).message}`);
+      console.log("Run `upublish login` to re-authenticate.");
+    }
+    process.exit(1);
+  }
+}
+
+const statusCmd = defineCommand({
+  meta: { name: "status", description: "Check authentication status" },
+  args: {
+    json: { type: "boolean", description: "Output result as JSON", default: false },
+  },
+  async run({ args }) {
+    const apiClient = await loadApiClient();
+    await runStatusCommand({ json: args.json }, { apiClient });
+  },
+});
+
 const mcpCmd = defineCommand({
   meta: { name: "mcp", description: "Start the MCP stdio server (used by AI assistants)" },
   async run() {
@@ -473,6 +528,7 @@ const main = defineCommand({
   },
   subCommands: {
     login: loginCmd,
+    status: statusCmd,
     publish: publishCmd,
     list: listCmd,
     delete: deleteCmd,

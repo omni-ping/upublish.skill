@@ -62,13 +62,13 @@ After registering, tell the user: "MCP server configured. Restart your session t
 ### 3. Authenticated?
 
 ```sh
-cat ~/.upublish/credentials
+upublish status
 ```
 
 | State | Action |
 |---|---|
-| File exists and is non-empty | Done — upublish is ready |
-| File missing or empty | Run `upublish login` (opens browser for Google sign-in) |
+| Shows "Authenticated" with username | Done — upublish is ready |
+| Shows "Not authenticated" or any error | Run `upublish login` (opens browser for Google sign-in) |
 
 ## When everything passes
 
