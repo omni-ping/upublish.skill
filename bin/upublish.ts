@@ -426,6 +426,19 @@ const deleteCmd = defineCommand({
   },
 });
 
+const mcpCmd = defineCommand({
+  meta: { name: "mcp", description: "Start the MCP stdio server (used by AI assistants)" },
+  async run() {
+    const { createServer } = await import("../mcp/index.ts");
+    const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
+
+    const refreshToken = await readCredentials(defaultCredentialsPath());
+    const server = createServer({ apiBaseUrl: API_BASE_URL, refreshToken });
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+  },
+});
+
 const generateCmd = defineCommand({
   meta: { name: "generate", description: "Generate an Excalidraw diagram from context text" },
   args: {
@@ -464,6 +477,7 @@ const main = defineCommand({
     list: listCmd,
     delete: deleteCmd,
     generate: generateCmd,
+    mcp: mcpCmd,
   },
 });
 

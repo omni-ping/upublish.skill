@@ -89,16 +89,17 @@ describe("DW-5.1 install.sh installs CLI", () => {
 // ─── DW-5.2: npx skills add omni-ping/upublish.skill ─────────────────────────
 
 describe("DW-5.2 npx skills add omni-ping/upublish.skill", () => {
-  test("test_DW_5_2_skill_md_valid_for_skills_add", () => {
-    // SKILL.md must exist with correct frontmatter
-    expect(fileExists("SKILL.md")).toBe(true);
-    const content = readText("SKILL.md");
-    // Must have frontmatter with name and description
-    expect(content).toMatch(/^---\n/);
-    expect(content).toContain("name: upublish");
-    expect(content).toContain("description:");
-    // Frontmatter must close
-    expect(content).toMatch(/---\n.*---\n/s);
+  test("test_DW_5_2_skills_valid_for_skills_add", () => {
+    // skills/ must exist with ask and setup
+    expect(fileExists("skills/ask/SKILL.md")).toBe(true);
+    expect(fileExists("skills/setup/SKILL.md")).toBe(true);
+    const ask = readText("skills/ask/SKILL.md");
+    expect(ask).toMatch(/^---\n/);
+    expect(ask).toContain("name: ask");
+    expect(ask).toContain("description:");
+    const setup = readText("skills/setup/SKILL.md");
+    expect(setup).toMatch(/^---\n/);
+    expect(setup).toContain("name: setup");
   });
 
   test("test_DW_5_2_repo_name_matches_install_command", () => {
@@ -130,9 +131,8 @@ describe("DW-5.3 MCP tools appear in Claude Code", () => {
     expect(args.some((a) => a.includes("mcp") && a.includes("index.ts"))).toBe(true);
   });
 
-  test("test_DW_5_3_skill_md_instructs_restart_for_tools", () => {
-    const content = readText("SKILL.md");
-    // Must mention restart to activate tools
+  test("test_DW_5_3_setup_skill_mentions_restart", () => {
+    const content = readText("skills/setup/SKILL.md");
     expect(content.toLowerCase()).toContain("restart");
   });
 });
@@ -246,8 +246,9 @@ describe("DW-5.6 manual end-to-end prerequisites", () => {
     expect(fileExists("lib/auth.ts")).toBe(true);
     // 5. lib/publish.ts for publishing
     expect(fileExists("lib/publish.ts")).toBe(true);
-    // 6. SKILL.md for Claude Code skill activation
-    expect(fileExists("SKILL.md")).toBe(true);
+    // 6. Skills for agent activation
+    expect(fileExists("skills/ask/SKILL.md")).toBe(true);
+    expect(fileExists("skills/setup/SKILL.md")).toBe(true);
   });
 });
 

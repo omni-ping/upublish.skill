@@ -57,7 +57,14 @@ cat ~/.upublish/credentials
 Run the login flow — this opens a browser for Google sign-in:
 
 ```sh
-bun run <skill-dir>/../bin/upublish.ts login
+upublish login
+```
+
+If `upublish` is not in PATH yet (first-time setup), install it first:
+
+```sh
+npm install -g @upublish/cli
+upublish login
 ```
 
 This is the only step that needs user interaction. After sign-in, credentials are stored at `~/.upublish/credentials`.

@@ -131,26 +131,26 @@ describe("DW-4.4 gemini-extension.json", () => {
 // ─── DW-4.5: SKILL.md updated for new repo structure ─────────────────────────
 
 describe("DW-4.5 SKILL.md uses CLI auth", () => {
-  test("test_DW_4_5_skill_md_uses_cli_auth", () => {
-    expect(fileExists("SKILL.md")).toBe(true);
-    const content = readText("SKILL.md");
-    // Must reference upublish login
-    expect(content).toContain("upublish login");
+  test("test_DW_4_5_ask_skill_exists", () => {
+    expect(fileExists("skills/ask/SKILL.md")).toBe(true);
+    const content = readText("skills/ask/SKILL.md");
+    expect(content).toContain("mcp_upublish_publish");
   });
 
-  test("test_DW_4_5_no_setup_script_reference", () => {
-    const content = readText("SKILL.md");
-    // Must NOT reference old setup.ts script
+  test("test_DW_4_5_setup_skill_references_cli_auth", () => {
+    expect(fileExists("skills/setup/SKILL.md")).toBe(true);
+    const content = readText("skills/setup/SKILL.md");
+    expect(content).toContain("upublish login");
     expect(content).not.toContain("scripts/setup.ts");
   });
 
-  test("test_DW_4_5_has_required_sections", () => {
-    const content = readText("SKILL.md");
-    // Must have frontmatter with name and description
-    expect(content).toContain("name: upublish");
-    expect(content).toContain("description:");
-    // Must reference MCP tools
-    expect(content).toContain("mcp_upublish_publish");
+  test("test_DW_4_5_skills_have_frontmatter", () => {
+    const ask = readText("skills/ask/SKILL.md");
+    expect(ask).toContain("name: ask");
+    expect(ask).toContain("description:");
+    const setup = readText("skills/setup/SKILL.md");
+    expect(setup).toContain("name: setup");
+    expect(setup).toContain("description:");
   });
 });
 
@@ -224,10 +224,9 @@ describe("DW-4.8 no absolute paths in manifests or docs", () => {
   });
 
   test("test_DW_4_8_no_absolute_paths_in_docs", () => {
-    const docs = ["SKILL.md", "GEMINI.md"];
+    const docs = ["skills/ask/SKILL.md", "skills/setup/SKILL.md", "GEMINI.md"];
     for (const doc of docs) {
       const content = readText(doc);
-      // Should not contain hardcoded /Users/r/ or similar
       expect(content).not.toMatch(/\/Users\/[a-z]+\//);
     }
   });
