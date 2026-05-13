@@ -11,30 +11,16 @@ npm install -g @upublish/cli
 upublish login
 ```
 
-### Add to your AI assistant
-
-#### Claude Code
+### Codex
 
 ```sh
 npx skills add omni-ping/upublish.skill
 ```
 
-#### Codex
-
-```sh
-codex install omni-ping/upublish.skill
-```
-
-#### Gemini CLI
+### Gemini CLI
 
 ```sh
 gemini extensions install github:omni-ping/upublish.skill
-```
-
-#### curl | bash
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/omni-ping/upublish.skill/main/install.sh | sh
 ```
 
 ---
