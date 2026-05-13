@@ -6,21 +6,27 @@ Publish static sites to the web instantly. One directory becomes a live URL at `
 
 ## Install
 
-```sh
-npm install -g @upublish/cli
-upublish login
-```
-
 ### Codex
 
 ```sh
-npx skills add omni-ping/upublish.skill
+npx skills add omni-ping/upublish.skill -g --agent codex
 ```
+
+Then inside Codex:
+1. `/upublish:setup` — installs CLI, configures MCP, authenticates
+2. `/upublish:ask` — publish, list, delete, manage sites
 
 ### Gemini CLI
 
 ```sh
 gemini extensions install github:omni-ping/upublish.skill
+```
+
+### npm (standalone CLI)
+
+```sh
+npm install -g @upublish/cli
+upublish login
 ```
 
 ---
