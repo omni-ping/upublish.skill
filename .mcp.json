@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "upublish": {
+      "command": "bun",
+      "args": ["mcp/index.ts"]
+    }
+  }
+}

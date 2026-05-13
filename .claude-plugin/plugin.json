@@ -1,0 +1,12 @@
+{
+  "name": "upublish",
+  "version": "0.1.0",
+  "description": "Publish static sites to upubli.sh instantly. One directory becomes a live URL. Supports public, unlisted, and passcode-protected sites.",
+  "mcpServers": {
+    "upublish": {
+      "command": "bun",
+      "args": ["${extensionPath}/mcp/index.ts"],
+      "cwd": "${extensionPath}"
+    }
+  }
+}
