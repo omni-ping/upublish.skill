@@ -1,14 +1,35 @@
 {
-  "name": "@upublish/skill",
+  "name": "@upublish/cli",
   "version": "0.1.0",
   "private": false,
   "type": "module",
   "bin": {
-    "upublish": "bin/upublish.ts"
+    "upublish": "dist/cli.js"
   },
   "scripts": {
     "test": "bun test lib/",
     "test:all": "bun test"
+  },
+  "files": [
+    "bin/",
+    "mcp/",
+    "lib/",
+    "dist/",
+    "references/",
+    "SKILL.md",
+    "GEMINI.md",
+    "gemini-extension.json",
+    ".claude-plugin/",
+    ".codex-plugin/",
+    ".mcp.json",
+    "install.sh"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/omni-ping/upublish.skill"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",

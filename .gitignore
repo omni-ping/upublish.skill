@@ -1,4 +1,5 @@
 node_modules/
 dist/
+!dist/cli.js
 *.tsbuildinfo
 .DS_Store
