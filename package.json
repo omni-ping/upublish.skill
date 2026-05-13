@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": false,
   "type": "module",
+  "bin": {
+    "upublish": "bin/upublish.ts"
+  },
   "scripts": {
     "test": "bun test lib/",
     "test:all": "bun test"
