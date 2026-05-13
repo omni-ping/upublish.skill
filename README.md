@@ -1,10 +1,16 @@
 # upublish
 
-Publish static sites to the web instantly. One directory becomes a live URL at `username.upubli.sh/slug/`.
-
----
+Creativity at the speed of AI. Our AI companions are great at producing content — now give them a place to help share it.
 
 ## Install
+
+### Claude Code
+
+```sh
+claude plugin install omni-ping/upublish.claude
+```
+
+Then: `/upublish:setup` to get started, `/upublish:ask` to publish.
 
 ### Codex
 
@@ -12,17 +18,13 @@ Publish static sites to the web instantly. One directory becomes a live URL at `
 npx skills add omni-ping/upublish.skill -g --agent codex
 ```
 
-Then inside Codex:
-1. `/upublish:setup` — installs CLI, configures MCP, authenticates
-2. `/upublish:ask` — publish, list, delete, manage sites
+Then: `/upublish-setup` to get started, `/upublish` to publish.
 
 ### Gemini CLI
 
-```sh
-gemini extensions install github:omni-ping/upublish.skill
-```
+Coming soon.
 
-### npm (standalone CLI)
+### Standalone CLI
 
 ```sh
 npm install -g @omniping/upublish
@@ -34,16 +36,9 @@ upublish login
 ## Quick start
 
 ```sh
-# Authenticate (first time only)
 upublish login
-
-# Publish a directory
 upublish publish ./my-site --slug my-site
-
-# List your sites
 upublish list
-
-# Delete a site
 upublish delete my-site
 ```
 
@@ -56,28 +51,11 @@ Published sites appear at `https://username.upubli.sh/slug/` immediately.
 | Command | Description |
 |---------|-------------|
 | `upublish login` | Authenticate via Google OAuth |
+| `upublish status` | Check authentication status |
 | `upublish publish <dir> --slug <slug>` | Publish a directory |
 | `upublish list` | List your published sites |
 | `upublish delete <slug>` | Delete a site |
 | `upublish generate --context <text>` | Generate a diagram from text |
+| `upublish mcp` | Start the MCP server (used by AI assistants) |
 
 All commands accept `--json` for machine-readable output.
-
----
-
-## MCP tools (AI assistants)
-
-When installed as a skill/plugin, these tools are available to your AI assistant:
-
-- `mcp_upublish_publish` — publish a directory to the web
-- `mcp_upublish_list` — list published sites
-- `mcp_upublish_delete` — delete a site
-- `mcp_upublish_generate` — generate a diagram
-
----
-
-## Requirements
-
-- [Bun](https://bun.sh) (for Claude Code / curl install)
-- Node.js 18+ (for npm install)
-- A Google account (for login)
