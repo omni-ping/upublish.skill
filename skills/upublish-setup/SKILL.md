@@ -11,37 +11,55 @@ Get upublish working in this environment. This skill checks each prerequisite an
 
 Run each check in order. Stop at the first failure, fix it, then continue.
 
-### 1. Bun installed?
+### 1. CLI installed?
 
 ```sh
-which bun
+which upublish
 ```
 
-If missing, install it:
-```sh
-curl -fsSL https://bun.sh/install | bash && source ~/.bashrc
-```
-
-### 2. Dependencies installed?
-
-Find the skill directory — it's where this SKILL.md lives.
+If missing:
 
 ```sh
-cd <skill-dir>/.. && bun install
+npm install -g @upublish/cli
 ```
 
-Only needed if `node_modules/` is missing.
-
-### 3. MCP tools available?
+### 2. MCP server registered?
 
 Look for `mcp_upublish_publish` in your available tools.
 
 | State | Action |
 |---|---|
-| Tools available and calls succeed | Skip to step 4 |
-| Tools not found | The MCP server needs to be registered. Tell the user to restart their session after setup completes. |
+| Tools available | Skip to step 3 |
+| Tools not found | Register the MCP server (see below), then tell the user to restart their session |
 
-### 4. Authenticated?
+#### Register MCP server
+
+Detect which agent is running and add the MCP config to the right location.
+
+**Codex** — append to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.upublish]
+command = "npx"
+args = ["-y", "@upublish/cli", "mcp"]
+```
+
+**Claude Code** — add to `.mcp.json` or project settings:
+
+```json
+{
+  "mcpServers": {
+    "upublish": {
+      "command": "npx",
+      "args": ["-y", "@upublish/cli", "mcp"]
+    }
+  }
+}
+```
+
+After registering, tell the user: "MCP server configured. Restart your session to activate the upublish tools."
+
+### 3. Authenticated?
 
 ```sh
 cat ~/.upublish/credentials
@@ -50,24 +68,7 @@ cat ~/.upublish/credentials
 | State | Action |
 |---|---|
 | File exists and is non-empty | Done — upublish is ready |
-| File missing or empty | Run auth (see below) |
-
-### Auth
-
-Run the login flow — this opens a browser for Google sign-in:
-
-```sh
-upublish login
-```
-
-If `upublish` is not in PATH yet (first-time setup), install it first:
-
-```sh
-npm install -g @upublish/cli
-upublish login
-```
-
-This is the only step that needs user interaction. After sign-in, credentials are stored at `~/.upublish/credentials`.
+| File missing or empty | Run `upublish login` (opens browser for Google sign-in) |
 
 ## When everything passes
 
@@ -75,4 +76,4 @@ Tell the user:
 
 > upublish is ready. You can now use `/upublish` to publish sites, list your sites, or manage visibility.
 
-If MCP tools weren't available and this is the first setup, also tell them to restart their session so the tools activate.
+If MCP tools weren't available and this is the first setup, remind them to restart their session first.
