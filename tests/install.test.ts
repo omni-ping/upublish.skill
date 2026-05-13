@@ -186,20 +186,20 @@ describe("DW-5.5 npm global install works as npx fallback", () => {
   });
 
   test("test_DW_5_5_node_shim_file_exists", () => {
-    // dist/cli.js must exist as a Node.js-compatible entry point
-    expect(fileExists("dist/cli.js")).toBe(true);
+    // dist/cli.cjs must exist as a Node.js-compatible entry point
+    expect(fileExists("dist/cli.cjs")).toBe(true);
   });
 
   test("test_DW_5_5_node_shim_uses_child_process", () => {
     // The Node.js shim must use child_process to delegate to bun
-    expect(fileExists("dist/cli.js")).toBe(true);
-    const content = readText("dist/cli.js");
+    expect(fileExists("dist/cli.cjs")).toBe(true);
+    const content = readText("dist/cli.cjs");
     expect(content).toContain("child_process");
   });
 
   test("test_DW_5_5_node_shim_uses_safe_subprocess_call", () => {
     // The shim must use execFileSync or spawnSync (not shell exec with string interpolation)
-    const content = readText("dist/cli.js");
+    const content = readText("dist/cli.cjs");
     const hasSafeCall =
       content.includes("execFileSync") ||
       content.includes("spawnSync") ||

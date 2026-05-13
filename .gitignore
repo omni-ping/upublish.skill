@@ -1,6 +1,6 @@
 node_modules/
 dist/
-!dist/cli.js
+!dist/cli.cjs
 *.tsbuildinfo
 .DS_Store
 .env
