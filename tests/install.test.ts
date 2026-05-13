@@ -91,15 +91,15 @@ describe("DW-5.1 install.sh installs CLI", () => {
 describe("DW-5.2 npx skills add omni-ping/upublish.skill", () => {
   test("test_DW_5_2_skills_valid_for_skills_add", () => {
     // skills/ must exist with ask and setup
-    expect(fileExists("skills/ask/SKILL.md")).toBe(true);
-    expect(fileExists("skills/setup/SKILL.md")).toBe(true);
-    const ask = readText("skills/ask/SKILL.md");
+    expect(fileExists("skills/upublish/SKILL.md")).toBe(true);
+    expect(fileExists("skills/upublish-setup/SKILL.md")).toBe(true);
+    const ask = readText("skills/upublish/SKILL.md");
     expect(ask).toMatch(/^---\n/);
-    expect(ask).toContain("name: ask");
+    expect(ask).toContain("name: upublish");
     expect(ask).toContain("description:");
-    const setup = readText("skills/setup/SKILL.md");
+    const setup = readText("skills/upublish-setup/SKILL.md");
     expect(setup).toMatch(/^---\n/);
-    expect(setup).toContain("name: setup");
+    expect(setup).toContain("name: upublish-setup");
   });
 
   test("test_DW_5_2_repo_name_matches_install_command", () => {
@@ -132,7 +132,7 @@ describe("DW-5.3 MCP tools appear in Claude Code", () => {
   });
 
   test("test_DW_5_3_setup_skill_mentions_restart", () => {
-    const content = readText("skills/setup/SKILL.md");
+    const content = readText("skills/upublish-setup/SKILL.md");
     expect(content.toLowerCase()).toContain("restart");
   });
 });
@@ -247,8 +247,8 @@ describe("DW-5.6 manual end-to-end prerequisites", () => {
     // 5. lib/publish.ts for publishing
     expect(fileExists("lib/publish.ts")).toBe(true);
     // 6. Skills for agent activation
-    expect(fileExists("skills/ask/SKILL.md")).toBe(true);
-    expect(fileExists("skills/setup/SKILL.md")).toBe(true);
+    expect(fileExists("skills/upublish/SKILL.md")).toBe(true);
+    expect(fileExists("skills/upublish-setup/SKILL.md")).toBe(true);
   });
 });
 

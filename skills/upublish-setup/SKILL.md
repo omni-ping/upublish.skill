@@ -1,6 +1,6 @@
 ---
-name: setup
-description: Set up upublish — install CLI, configure MCP tools, and authenticate. Run this before using /upublish:ask for the first time, or when tools are missing or auth has expired.
+name: upublish-setup
+description: Set up upublish — install CLI, configure MCP tools, and authenticate. Run this before using /upublish for the first time, or when tools are missing or auth has expired.
 ---
 
 # upublish setup
@@ -73,6 +73,6 @@ This is the only step that needs user interaction. After sign-in, credentials ar
 
 Tell the user:
 
-> upublish is ready. You can now use `/upublish:ask` to publish sites, list your sites, or manage visibility.
+> upublish is ready. You can now use `/upublish` to publish sites, list your sites, or manage visibility.
 
 If MCP tools weren't available and this is the first setup, also tell them to restart their session so the tools activate.

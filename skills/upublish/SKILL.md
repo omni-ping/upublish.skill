@@ -1,5 +1,5 @@
 ---
-name: ask
+name: upublish
 description: Publish static sites to upubli.sh — the instant web publishing platform. Use this skill whenever the user wants to publish HTML/CSS/JS files to the web, share a site with a URL, make a page public or password-protected, deploy a static site, put something online, or manage published sites. Also triggers on "upublish", "upubli.sh", "publish this site", "make this live", "put this on the web", "share this page", or any mention of site visibility, passcode protection, or unlisted pages.
 ---
 
@@ -14,7 +14,7 @@ Check if MCP tools are available — look for `mcp_upublish_publish` in your too
 | State | Action |
 |---|---|
 | MCP tools available, calls succeed | Continue below |
-| MCP tools missing or return "Not authenticated" | Tell the user to run `/upublish:setup` first |
+| MCP tools missing or return "Not authenticated" | Tell the user to run `/upublish-setup` first |
 
 ## Route to the right workflow
 
