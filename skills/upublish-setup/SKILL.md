@@ -20,7 +20,7 @@ which upublish
 If missing:
 
 ```sh
-npm install -g @upublish/cli
+npm install -g @omniping/upublish
 ```
 
 ### 2. MCP server registered?
@@ -41,7 +41,7 @@ Detect which agent is running and add the MCP config to the right location.
 ```toml
 [mcp_servers.upublish]
 command = "npx"
-args = ["-y", "@upublish/cli", "mcp"]
+args = ["-y", "@omniping/upublish", "mcp"]
 ```
 
 **Claude Code** — add to `.mcp.json` or project settings:
@@ -51,7 +51,7 @@ args = ["-y", "@upublish/cli", "mcp"]
   "mcpServers": {
     "upublish": {
       "command": "npx",
-      "args": ["-y", "@upublish/cli", "mcp"]
+      "args": ["-y", "@omniping/upublish", "mcp"]
     }
   }
 }

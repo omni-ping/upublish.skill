@@ -19,4 +19,4 @@ Initial release as a standalone skill repo.
 - Codex plugin (`.codex-plugin/plugin.json` + `.mcp.json`)
 - Gemini extension (`gemini-extension.json` + GEMINI.md)
 - `curl | bash` installer (`install.sh`)
-- npm package (`@upublish/cli`) with Node.js shim for environments without Bun
+- npm package (`@omniping/upublish`) with Node.js shim for environments without Bun

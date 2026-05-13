@@ -1,5 +1,5 @@
 {
-  "name": "@upublish/cli",
+  "name": "@omniping/upublish",
   "version": "0.1.0",
   "private": false,
   "type": "module",

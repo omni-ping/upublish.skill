@@ -170,12 +170,12 @@ describe("DW-5.4 Codex plugin install checklist", () => {
   });
 });
 
-// ─── DW-5.5: npm install -g @upublish/cli && upublish login ──────────────────
+// ─── DW-5.5: npm install -g @omniping/upublish && upublish login ──────────────────
 
 describe("DW-5.5 npm global install works as npx fallback", () => {
   test("test_DW_5_5_package_name_is_upublish_cli", () => {
     const pkg = readJson("package.json") as Record<string, unknown>;
-    expect(pkg.name).toBe("@upublish/cli");
+    expect(pkg.name).toBe("@omniping/upublish");
   });
 
   test("test_DW_5_5_bin_entry_exists", () => {

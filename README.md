@@ -25,7 +25,7 @@ gemini extensions install github:omni-ping/upublish.skill
 ### npm (standalone CLI)
 
 ```sh
-npm install -g @upublish/cli
+npm install -g @omniping/upublish
 upublish login
 ```
 
