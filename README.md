@@ -6,43 +6,35 @@ Publish static sites to the web instantly. One directory becomes a live URL at `
 
 ## Install
 
-### Claude Code
-
-```sh
-npx skills add omni-ping/upublish.skill
-```
-
-Restart Claude Code. The `upublish` MCP tools appear automatically.
-
-### npm (global CLI)
-
 ```sh
 npm install -g @upublish/cli
 upublish login
 ```
 
-### curl | bash
+### Add to your AI assistant
+
+#### Claude Code
+
+```sh
+npx skills add omni-ping/upublish.skill
+```
+
+#### Codex
+
+```sh
+codex install omni-ping/upublish.skill
+```
+
+#### Gemini CLI
+
+```sh
+gemini extensions install github:omni-ping/upublish.skill
+```
+
+#### curl | bash
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/omni-ping/upublish.skill/main/install.sh | sh
-```
-
-Installs Bun (if needed), clones the repo, and prompts for login.
-
-### Codex
-
-Install the plugin from the Codex plugin directory, or add to your Codex config:
-
-```json
-{
-  "plugins": ["omni-ping/upublish.skill"]
-}
-```
-
-### Gemini CLI
-
-```sh
-gemini extension install omni-ping/upublish.skill
 ```
 
 ---
