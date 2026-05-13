@@ -2,31 +2,29 @@
  * CLI subcommand tests.
  *
  * Tests the subcommand runner functions directly — no subprocess spawning.
- * Each test imports the run() function for a subcommand and calls it with
- * mock deps, capturing console.log output and process.exit calls.
+ * Each test imports the run*Command function and calls it with mock deps,
+ * capturing console.log output and process.exit calls.
+ *
+ * After the hexagonal refactor, command deps carry a core function override
+ * instead of an ApiClient. This removes all auth knowledge from the adapter.
+ *
+ * Covers DW-2.2: bin/upublish.ts imports only from lib/core.ts
+ * Covers DW-2.4: CLI commands produce correct output
+ * Covers DW-2.5: bun test passes with 0 failures
  */
 
 import { describe, test, expect, beforeEach, afterEach, mock, spyOn } from "bun:test";
-import type { Site } from "../lib/types.ts";
+import type { Site } from "../lib/core.ts";
 import {
   runLoginCommand,
   runPublishCommand,
   runListCommand,
   runDeleteCommand,
   runGenerateCommand,
+  runStatusCommand,
 } from "../bin/upublish.ts";
 
-// ─── Mock helpers ─────────────────────────────────────────────────────────────
-
-/** Creates a mock ApiClient with all methods as stubs. */
-function makeMockApiClient() {
-  return {
-    get: mock(async () => ({})),
-    post: mock(async () => ({})),
-    postForm: mock(async () => ({})),
-    delete: mock(async () => ({})),
-  };
-}
+// ─── Sample data ──────────────────────────────────────────────────────────────
 
 const SAMPLE_SITE: Site = {
   id: "abc123",
@@ -66,10 +64,10 @@ afterEach(() => {
   exitSpy.mockRestore();
 });
 
-// ─── DW-2.1: login ───────────────────────────────────────────────────────────
+// ─── DW-2.4: login ───────────────────────────────────────────────────────────
 
 describe("login command", () => {
-  test("test_DW_2_1_login_command_calls_login_lib", async () => {
+  test("test_DW_2_4_login_command_calls_login_core", async () => {
     const loginMock = mock(async (_deps: unknown) => ({
       username: "test@example.com",
       credentialsFilePath: "/tmp/test-creds",
@@ -77,13 +75,13 @@ describe("login command", () => {
 
     await runLoginCommand(
       { json: false },
-      { loginFn: loginMock }
+      { loginFn: loginMock },
     );
 
     expect(loginMock).toHaveBeenCalledTimes(1);
   });
 
-  test("test_DW_2_1_login_command_prints_success", async () => {
+  test("test_DW_2_4_login_command_prints_success", async () => {
     const loginMock = mock(async () => ({
       username: "test@example.com",
       credentialsFilePath: "/tmp/test-creds",
@@ -91,14 +89,14 @@ describe("login command", () => {
 
     await runLoginCommand(
       { json: false },
-      { loginFn: loginMock }
+      { loginFn: loginMock },
     );
 
     const combined = logOutput.join("\n");
     expect(combined).toContain("test@example.com");
   });
 
-  test("test_DW_2_1_login_json_flag_outputs_json", async () => {
+  test("test_DW_2_4_login_json_flag_outputs_json", async () => {
     const loginMock = mock(async () => ({
       username: "test@example.com",
       credentialsFilePath: "/tmp/test-creds",
@@ -106,7 +104,7 @@ describe("login command", () => {
 
     await runLoginCommand(
       { json: true },
-      { loginFn: loginMock }
+      { loginFn: loginMock },
     );
 
     const jsonLine = logOutput.find((line) => {
@@ -119,11 +117,10 @@ describe("login command", () => {
   });
 });
 
-// ─── DW-2.2: publish ─────────────────────────────────────────────────────────
+// ─── DW-2.4: publish ─────────────────────────────────────────────────────────
 
 describe("publish command", () => {
-  test("test_DW_2_2_publish_command_calls_publish_lib", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_publish_command_calls_core_publish", async () => {
     const publishMock = mock(async () => ({
       url: "https://my-site.upubli.sh",
       site: SAMPLE_SITE,
@@ -131,17 +128,16 @@ describe("publish command", () => {
 
     await runPublishCommand(
       { dir: "/tmp", slug: "my-site", title: undefined, visibility: undefined, passcode: undefined, json: false },
-      { apiClient: mockApiClient as never, publishFn: publishMock }
+      { publishFn: publishMock },
     );
 
     expect(publishMock).toHaveBeenCalledTimes(1);
-    const callArg = publishMock.mock.calls[0][0] as { slug: string; directory: string };
-    expect(callArg.slug).toBe("my-site");
-    expect(callArg.directory).toBe("/tmp");
+    const [args] = publishMock.mock.calls[0] as [{ slug: string; directory: string }];
+    expect(args.slug).toBe("my-site");
+    expect(args.directory).toBe("/tmp");
   });
 
-  test("test_DW_2_2_publish_command_prints_url", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_publish_command_prints_url", async () => {
     const publishMock = mock(async () => ({
       url: "https://my-site.upubli.sh",
       site: SAMPLE_SITE,
@@ -149,38 +145,53 @@ describe("publish command", () => {
 
     await runPublishCommand(
       { dir: "/tmp", slug: "my-site", title: undefined, visibility: undefined, passcode: undefined, json: false },
-      { apiClient: mockApiClient as never, publishFn: publishMock }
+      { publishFn: publishMock },
     );
 
     const combined = logOutput.join("\n");
     expect(combined).toContain("https://my-site.upubli.sh");
   });
 
-  test("test_DW_2_2_publish_exits_1_on_error", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_publish_exits_1_on_error", async () => {
     const publishMock = mock(async () => { throw new Error("Upload failed"); });
 
     await expect(
       runPublishCommand(
         { dir: "/tmp", slug: "my-site", title: undefined, visibility: undefined, passcode: undefined, json: false },
-        { apiClient: mockApiClient as never, publishFn: publishMock }
-      )
+        { publishFn: publishMock },
+      ),
     ).rejects.toThrow("process.exit(1)");
 
     expect(exitCode).toBe(1);
   });
+
+  test("test_DW_2_4_publish_not_authenticated_exits_1", async () => {
+    const publishMock = mock(async () => {
+      throw new Error("Not authenticated. Run `upublish login` to sign in.");
+    });
+
+    await expect(
+      runPublishCommand(
+        { dir: "/tmp", slug: "my-site", title: undefined, visibility: undefined, passcode: undefined, json: false },
+        { publishFn: publishMock },
+      ),
+    ).rejects.toThrow("process.exit(1)");
+
+    expect(exitCode).toBe(1);
+    const combined = logOutput.join("\n");
+    expect(combined).toContain("Not authenticated");
+  });
 });
 
-// ─── DW-2.3: list ────────────────────────────────────────────────────────────
+// ─── DW-2.4: list ────────────────────────────────────────────────────────────
 
 describe("list command", () => {
-  test("test_DW_2_3_list_command_formats_sites", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_list_command_formats_sites", async () => {
     const listMock = mock(async () => ({ sites: [SAMPLE_SITE] }));
 
     await runListCommand(
       { json: false },
-      { apiClient: mockApiClient as never, listFn: listMock }
+      { listFn: listMock },
     );
 
     const combined = logOutput.join("\n");
@@ -188,28 +199,26 @@ describe("list command", () => {
     expect(combined).toContain("https://my-site.upubli.sh");
   });
 
-  test("test_DW_2_3_list_command_shows_no_sites_message", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_list_command_shows_no_sites_message", async () => {
     const listMock = mock(async () => ({ sites: [] }));
 
     await runListCommand(
       { json: false },
-      { apiClient: mockApiClient as never, listFn: listMock }
+      { listFn: listMock },
     );
 
     const combined = logOutput.join("\n");
     expect(combined).toContain("No sites");
   });
 
-  test("test_DW_2_3_list_exits_1_on_error", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_list_exits_1_on_error", async () => {
     const listMock = mock(async () => { throw new Error("API error 401: Unauthorized"); });
 
     await expect(
       runListCommand(
         { json: false },
-        { apiClient: mockApiClient as never, listFn: listMock }
-      )
+        { listFn: listMock },
+      ),
     ).rejects.toThrow("process.exit(1)");
 
     expect(exitCode).toBe(1);
@@ -219,27 +228,25 @@ describe("list command", () => {
 // ─── DW-2.4: delete ──────────────────────────────────────────────────────────
 
 describe("delete command", () => {
-  test("test_DW_2_4_delete_command_calls_delete_lib", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_delete_command_calls_core_delete", async () => {
     const deleteMock = mock(async () => ({ message: "Site deleted." }));
 
     await runDeleteCommand(
       { slug: "my-site", json: false },
-      { apiClient: mockApiClient as never, deleteFn: deleteMock }
+      { deleteFn: deleteMock },
     );
 
     expect(deleteMock).toHaveBeenCalledTimes(1);
-    const [, slug] = deleteMock.mock.calls[0] as [unknown, string];
+    const [slug] = deleteMock.mock.calls[0] as [string];
     expect(slug).toBe("my-site");
   });
 
   test("test_DW_2_4_delete_command_prints_confirmation", async () => {
-    const mockApiClient = makeMockApiClient();
     const deleteMock = mock(async () => ({ message: "Site deleted." }));
 
     await runDeleteCommand(
       { slug: "my-site", json: false },
-      { apiClient: mockApiClient as never, deleteFn: deleteMock }
+      { deleteFn: deleteMock },
     );
 
     const combined = logOutput.join("\n");
@@ -247,25 +254,23 @@ describe("delete command", () => {
   });
 
   test("test_DW_2_4_delete_exits_1_on_error", async () => {
-    const mockApiClient = makeMockApiClient();
     const deleteMock = mock(async () => { throw new Error("Site not found"); });
 
     await expect(
       runDeleteCommand(
         { slug: "my-site", json: false },
-        { apiClient: mockApiClient as never, deleteFn: deleteMock }
-      )
+        { deleteFn: deleteMock },
+      ),
     ).rejects.toThrow("process.exit(1)");
 
     expect(exitCode).toBe(1);
   });
 });
 
-// ─── DW-2.5: generate ────────────────────────────────────────────────────────
+// ─── DW-2.4: generate ────────────────────────────────────────────────────────
 
 describe("generate command", () => {
-  test("test_DW_2_5_generate_command_calls_generate_lib", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_generate_command_calls_core_generate", async () => {
     const generateMock = mock(async () => ({
       url: "https://diagram.upubli.sh",
       slug: "diagram-abc",
@@ -273,16 +278,15 @@ describe("generate command", () => {
 
     await runGenerateCommand(
       { context: "A user auth flow", diagramType: undefined, slug: undefined, json: false },
-      { apiClient: mockApiClient as never, generateFn: generateMock }
+      { generateFn: generateMock },
     );
 
     expect(generateMock).toHaveBeenCalledTimes(1);
-    const callArg = generateMock.mock.calls[0][0] as { context: string };
-    expect(callArg.context).toBe("A user auth flow");
+    const [args] = generateMock.mock.calls[0] as [{ context: string }];
+    expect(args.context).toBe("A user auth flow");
   });
 
-  test("test_DW_2_5_generate_command_prints_url", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_generate_command_prints_url", async () => {
     const generateMock = mock(async () => ({
       url: "https://diagram.upubli.sh",
       slug: "diagram-abc",
@@ -290,33 +294,106 @@ describe("generate command", () => {
 
     await runGenerateCommand(
       { context: "A user auth flow", diagramType: undefined, slug: undefined, json: false },
-      { apiClient: mockApiClient as never, generateFn: generateMock }
+      { generateFn: generateMock },
     );
 
     const combined = logOutput.join("\n");
     expect(combined).toContain("https://diagram.upubli.sh");
   });
 
-  test("test_DW_2_5_generate_exits_1_on_error", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_generate_exits_1_on_error", async () => {
     const generateMock = mock(async () => { throw new Error("context is required"); });
 
     await expect(
       runGenerateCommand(
         { context: "", diagramType: undefined, slug: undefined, json: false },
-        { apiClient: mockApiClient as never, generateFn: generateMock }
-      )
+        { generateFn: generateMock },
+      ),
     ).rejects.toThrow("process.exit(1)");
 
     expect(exitCode).toBe(1);
   });
 });
 
-// ─── DW-2.6: --json flag ─────────────────────────────────────────────────────
+// ─── DW-2.4: status ──────────────────────────────────────────────────────────
+
+describe("status command", () => {
+  test("test_DW_2_4_status_authenticated_prints_username", async () => {
+    const statusMock = mock(async () => ({
+      authenticated: true as const,
+      username: "test@example.com",
+    }));
+
+    await runStatusCommand(
+      { json: false },
+      { statusFn: statusMock },
+    );
+
+    const combined = logOutput.join("\n");
+    expect(combined).toContain("test@example.com");
+  });
+
+  test("test_DW_2_4_status_unauthenticated_exits_1", async () => {
+    const statusMock = mock(async () => ({
+      authenticated: false as const,
+    }));
+
+    await expect(
+      runStatusCommand(
+        { json: false },
+        { statusFn: statusMock },
+      ),
+    ).rejects.toThrow("process.exit(1)");
+
+    expect(exitCode).toBe(1);
+  });
+
+  test("test_DW_2_4_status_json_authenticated", async () => {
+    const statusMock = mock(async () => ({
+      authenticated: true as const,
+      username: "test@example.com",
+    }));
+
+    await runStatusCommand(
+      { json: true },
+      { statusFn: statusMock },
+    );
+
+    const jsonLine = logOutput.find((line) => {
+      try { JSON.parse(line); return true; } catch { return false; }
+    });
+    expect(jsonLine).toBeDefined();
+    const parsed = JSON.parse(jsonLine!);
+    expect(parsed.authenticated).toBe(true);
+    expect(parsed.username).toBe("test@example.com");
+  });
+
+  test("test_DW_2_4_status_json_unauthenticated_exits_1", async () => {
+    const statusMock = mock(async () => ({
+      authenticated: false as const,
+      error: "No credentials found",
+    }));
+
+    await expect(
+      runStatusCommand(
+        { json: true },
+        { statusFn: statusMock },
+      ),
+    ).rejects.toThrow("process.exit(1)");
+
+    const jsonLine = logOutput.find((line) => {
+      try { JSON.parse(line); return true; } catch { return false; }
+    });
+    expect(jsonLine).toBeDefined();
+    const parsed = JSON.parse(jsonLine!);
+    expect(parsed.authenticated).toBe(false);
+  });
+});
+
+// ─── DW-2.4: --json flag ─────────────────────────────────────────────────────
 
 describe("--json flag", () => {
-  test("test_DW_2_6_json_flag_publish", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_json_flag_publish", async () => {
     const publishMock = mock(async () => ({
       url: "https://my-site.upubli.sh",
       site: SAMPLE_SITE,
@@ -324,7 +401,7 @@ describe("--json flag", () => {
 
     await runPublishCommand(
       { dir: "/tmp", slug: "my-site", title: undefined, visibility: undefined, passcode: undefined, json: true },
-      { apiClient: mockApiClient as never, publishFn: publishMock }
+      { publishFn: publishMock },
     );
 
     const jsonLine = logOutput.find((line) => {
@@ -336,13 +413,12 @@ describe("--json flag", () => {
     expect(parsed.site).toBeDefined();
   });
 
-  test("test_DW_2_6_json_flag_list", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_json_flag_list", async () => {
     const listMock = mock(async () => ({ sites: [SAMPLE_SITE] }));
 
     await runListCommand(
       { json: true },
-      { apiClient: mockApiClient as never, listFn: listMock }
+      { listFn: listMock },
     );
 
     const jsonLine = logOutput.find((line) => {
@@ -354,13 +430,12 @@ describe("--json flag", () => {
     expect(parsed.sites[0].slug).toBe("my-site");
   });
 
-  test("test_DW_2_6_json_flag_delete", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_json_flag_delete", async () => {
     const deleteMock = mock(async () => ({ message: "Site deleted." }));
 
     await runDeleteCommand(
       { slug: "my-site", json: true },
-      { apiClient: mockApiClient as never, deleteFn: deleteMock }
+      { deleteFn: deleteMock },
     );
 
     const jsonLine = logOutput.find((line) => {
@@ -371,8 +446,7 @@ describe("--json flag", () => {
     expect(parsed.message).toBe("Site deleted.");
   });
 
-  test("test_DW_2_6_json_flag_generate", async () => {
-    const mockApiClient = makeMockApiClient();
+  test("test_DW_2_4_json_flag_generate", async () => {
     const generateMock = mock(async () => ({
       url: "https://diagram.upubli.sh",
       slug: "diagram-abc",
@@ -380,7 +454,7 @@ describe("--json flag", () => {
 
     await runGenerateCommand(
       { context: "A user auth flow", diagramType: undefined, slug: undefined, json: true },
-      { apiClient: mockApiClient as never, generateFn: generateMock }
+      { generateFn: generateMock },
     );
 
     const jsonLine = logOutput.find((line) => {
@@ -393,69 +467,10 @@ describe("--json flag", () => {
   });
 });
 
-// ─── DW-2.7: unauthenticated ─────────────────────────────────────────────────
+// ─── DW-2.2: version ─────────────────────────────────────────────────────────
 
-describe("unauthenticated commands", () => {
-  test("test_DW_2_7_unauthenticated_publish_exits_1", async () => {
-    await expect(
-      runPublishCommand(
-        { dir: "/tmp", slug: "my-site", title: undefined, visibility: undefined, passcode: undefined, json: false },
-        { apiClient: null as never, publishFn: mock(async () => ({} as never)) }
-      )
-    ).rejects.toThrow("process.exit(1)");
-
-    expect(exitCode).toBe(1);
-    const combined = logOutput.join("\n");
-    expect(combined).toContain("Not logged in");
-    expect(combined).toContain("upublish login");
-  });
-
-  test("test_DW_2_7_unauthenticated_list_exits_1", async () => {
-    await expect(
-      runListCommand(
-        { json: false },
-        { apiClient: null as never, listFn: mock(async () => ({} as never)) }
-      )
-    ).rejects.toThrow("process.exit(1)");
-
-    expect(exitCode).toBe(1);
-    const combined = logOutput.join("\n");
-    expect(combined).toContain("Not logged in");
-  });
-
-  test("test_DW_2_7_unauthenticated_delete_exits_1", async () => {
-    await expect(
-      runDeleteCommand(
-        { slug: "my-site", json: false },
-        { apiClient: null as never, deleteFn: mock(async () => ({} as never)) }
-      )
-    ).rejects.toThrow("process.exit(1)");
-
-    expect(exitCode).toBe(1);
-    const combined = logOutput.join("\n");
-    expect(combined).toContain("Not logged in");
-  });
-
-  test("test_DW_2_7_unauthenticated_generate_exits_1", async () => {
-    await expect(
-      runGenerateCommand(
-        { context: "test", diagramType: undefined, slug: undefined, json: false },
-        { apiClient: null as never, generateFn: mock(async () => ({} as never)) }
-      )
-    ).rejects.toThrow("process.exit(1)");
-
-    expect(exitCode).toBe(1);
-    const combined = logOutput.join("\n");
-    expect(combined).toContain("Not logged in");
-  });
-});
-
-// ─── DW-2.8: version + help ───────────────────────────────────────────────────
-
-describe("version and help", () => {
-  test("test_DW_2_8_version_in_package_json", async () => {
-    // Version is provided by citty from package.json meta.version
-    // We verify the package.json has a non-empty version field
+describe("version", () => {
+  test("test_DW_2_2_version_in_package_json", async () => {
     const pkg = await import("../package.json");
     expect(typeof pkg.version).toBe("string");
     expect(pkg.version.length).toBeGreaterThan(0);

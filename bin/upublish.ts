@@ -2,10 +2,13 @@
 /**
  * upublish CLI entry point.
  *
- * Subcommands: login, publish, list, delete, generate
+ * Subcommands: login, publish, list, delete, generate, status, mcp
  *
  * Each exported run*Command function accepts args and injectable deps so
  * tests can call them directly without spawning a subprocess.
+ *
+ * Deps bags carry optional core function overrides — no ApiClient, no
+ * credential reads, no token provider construction in this file.
  *
  * When run as the main module, citty's runMain() wires up real deps and
  * process.argv.
@@ -13,23 +16,26 @@
 
 import { defineCommand, runMain } from "citty";
 import open from "open";
-import { login, createTokenProvider, readCredentials, defaultCredentialsPath } from "../lib/auth.ts";
-import { publish } from "../lib/publish.ts";
-import { listSites } from "../lib/list.ts";
-import { deleteSite } from "../lib/delete.ts";
-import { generate } from "../lib/generate.ts";
-import { ApiClient } from "../lib/api-client.ts";
-import type { LoginDeps, CallbackServer, LoginResult } from "../lib/auth.ts";
-import type { PublishResult } from "../lib/publish.ts";
-import type { ListResult } from "../lib/list.ts";
-import type { DeleteResult } from "../lib/delete.ts";
-import type { GenerateResult, GenerateOpts } from "../lib/generate.ts";
-import type { PublishOpts } from "../lib/publish.ts";
-import type { Visibility } from "../lib/types.ts";
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const API_BASE_URL = process.env.UPUBLISH_API_URL ?? "https://api.upubli.sh";
+import {
+  list,
+  publish,
+  deleteOp,
+  generate,
+  login as coreLogin,
+  status as coreStatus,
+} from "../lib/core.ts";
+import type {
+  PublishArgs as CorePublishArgs,
+  GenerateArgs as CoreGenerateArgs,
+  StatusResult,
+  LoginDeps,
+  LoginResult,
+  PublishResult,
+  ListResult,
+  DeleteResult,
+  GenerateResult,
+  Visibility,
+} from "../lib/core.ts";
 
 // ─── ANSI color helpers ───────────────────────────────────────────────────────
 
@@ -55,7 +61,7 @@ function bold(s: string): string {
  * The server reads tokens from query params on the /callback path.
  * Returns port, a promise that resolves on first callback, and a close fn.
  */
-async function createCallbackServer(): Promise<CallbackServer> {
+async function createCallbackServer(): Promise<import("../lib/auth.ts").CallbackServer> {
   let resolveTokens: (tokens: import("../lib/auth.ts").TokenResponse) => void;
   let rejectTokens: (err: Error) => void;
 
@@ -119,25 +125,6 @@ async function createCallbackServer(): Promise<CallbackServer> {
   };
 }
 
-// ─── Auth guard ───────────────────────────────────────────────────────────────
-
-/**
- * Reads credentials and returns an ApiClient.
- * Returns null if no credentials are stored (caller should check and exit 1).
- */
-async function loadApiClient(): Promise<ApiClient | null> {
-  const credFile = defaultCredentialsPath();
-  const refreshToken = await readCredentials(credFile);
-  if (!refreshToken) return null;
-
-  const tokenProvider = createTokenProvider({
-    refreshToken,
-    apiBaseUrl: API_BASE_URL,
-  });
-
-  return new ApiClient(API_BASE_URL, tokenProvider);
-}
-
 // ─── Command args and deps types ─────────────────────────────────────────────
 
 export interface LoginArgs {
@@ -158,8 +145,7 @@ export interface PublishArgs {
 }
 
 export interface PublishCommandDeps {
-  apiClient: ApiClient | null;
-  publishFn?: (opts: PublishOpts) => Promise<PublishResult>;
+  publishFn?: (args: CorePublishArgs) => Promise<PublishResult>;
 }
 
 export interface ListArgs {
@@ -167,8 +153,7 @@ export interface ListArgs {
 }
 
 export interface ListCommandDeps {
-  apiClient: ApiClient | null;
-  listFn?: (apiClient: ApiClient) => Promise<ListResult>;
+  listFn?: () => Promise<ListResult>;
 }
 
 export interface DeleteArgs {
@@ -177,8 +162,7 @@ export interface DeleteArgs {
 }
 
 export interface DeleteCommandDeps {
-  apiClient: ApiClient | null;
-  deleteFn?: (apiClient: ApiClient, slug: string) => Promise<DeleteResult>;
+  deleteFn?: (slug: string) => Promise<DeleteResult>;
 }
 
 export interface GenerateArgs {
@@ -189,8 +173,15 @@ export interface GenerateArgs {
 }
 
 export interface GenerateCommandDeps {
-  apiClient: ApiClient | null;
-  generateFn?: (opts: GenerateOpts) => Promise<GenerateResult>;
+  generateFn?: (args: CoreGenerateArgs) => Promise<GenerateResult>;
+}
+
+export interface StatusArgs {
+  json: boolean;
+}
+
+export interface StatusCommandDeps {
+  statusFn?: () => Promise<StatusResult>;
 }
 
 // ─── Subcommand runners (exported for testing) ───────────────────────────────
@@ -203,10 +194,10 @@ export async function runLoginCommand(
   args: LoginArgs,
   deps: LoginCommandDeps = {},
 ): Promise<void> {
-  const loginFn = deps.loginFn ?? login;
+  const loginFn = deps.loginFn ?? coreLogin;
 
   const result = await loginFn({
-    apiBaseUrl: API_BASE_URL,
+    apiBaseUrl: process.env.UPUBLISH_API_URL ?? "https://api.upubli.sh",
     openBrowser: (url) => open(url).then(() => undefined),
     startCallbackServer: createCallbackServer,
     log: (msg) => console.log(msg),
@@ -222,23 +213,17 @@ export async function runLoginCommand(
 
 /**
  * Runs the publish subcommand.
- * Validates authentication, zips directory, uploads to API, prints URL.
+ * Delegates entirely to core.publish() — no auth logic here.
+ * core.publish() throws "Not authenticated" if no credentials are stored.
  */
 export async function runPublishCommand(
   args: PublishArgs,
-  deps: PublishCommandDeps,
+  deps: PublishCommandDeps = {},
 ): Promise<void> {
-  // Auth guard
-  if (!deps.apiClient) {
-    console.log(red("Not logged in. Run `upublish login` first."));
-    process.exit(1);
-  }
-
   const publishFn = deps.publishFn ?? publish;
 
   try {
     const result = await publishFn({
-      apiClient: deps.apiClient,
       directory: args.dir,
       slug: args.slug,
       title: args.title,
@@ -260,22 +245,16 @@ export async function runPublishCommand(
 
 /**
  * Runs the list subcommand.
- * Fetches all sites and prints them formatted, or a "no sites" message.
+ * Delegates entirely to core.list() — no auth logic here.
  */
 export async function runListCommand(
   args: ListArgs,
-  deps: ListCommandDeps,
+  deps: ListCommandDeps = {},
 ): Promise<void> {
-  // Auth guard
-  if (!deps.apiClient) {
-    console.log(red("Not logged in. Run `upublish login` first."));
-    process.exit(1);
-  }
-
-  const listFn = deps.listFn ?? listSites;
+  const listFn = deps.listFn ?? list;
 
   try {
-    const result = await listFn(deps.apiClient);
+    const result = await listFn();
 
     if (args.json) {
       console.log(JSON.stringify(result));
@@ -300,22 +279,16 @@ export async function runListCommand(
 
 /**
  * Runs the delete subcommand.
- * Deletes the named site and prints confirmation.
+ * Delegates entirely to core.deleteOp() — no auth logic here.
  */
 export async function runDeleteCommand(
   args: DeleteArgs,
-  deps: DeleteCommandDeps,
+  deps: DeleteCommandDeps = {},
 ): Promise<void> {
-  // Auth guard
-  if (!deps.apiClient) {
-    console.log(red("Not logged in. Run `upublish login` first."));
-    process.exit(1);
-  }
-
-  const deleteFn = deps.deleteFn ?? deleteSite;
+  const deleteFn = deps.deleteFn ?? deleteOp;
 
   try {
-    const result = await deleteFn(deps.apiClient, args.slug);
+    const result = await deleteFn(args.slug);
 
     if (args.json) {
       console.log(JSON.stringify(result));
@@ -331,25 +304,18 @@ export async function runDeleteCommand(
 
 /**
  * Runs the generate subcommand.
- * Generates an Excalidraw diagram from context text and prints the URL.
+ * Delegates entirely to core.generate() — no auth logic here.
  */
 export async function runGenerateCommand(
   args: GenerateArgs,
-  deps: GenerateCommandDeps,
+  deps: GenerateCommandDeps = {},
 ): Promise<void> {
-  // Auth guard
-  if (!deps.apiClient) {
-    console.log(red("Not logged in. Run `upublish login` first."));
-    process.exit(1);
-  }
-
   const generateFn = deps.generateFn ?? generate;
 
   try {
     const result = await generateFn({
-      apiClient: deps.apiClient,
       context: args.context,
-      diagramType: args.diagramType as GenerateOpts["diagramType"],
+      diagramType: args.diagramType as CoreGenerateArgs["diagramType"],
       slug: args.slug,
     });
 
@@ -363,6 +329,42 @@ export async function runGenerateCommand(
     console.log(red(`Error: ${(err as Error).message}`));
     process.exit(1);
   }
+}
+
+/**
+ * Runs the status subcommand.
+ * Delegates entirely to core.status() — no auth logic here.
+ */
+export async function runStatusCommand(
+  args: StatusArgs,
+  deps: StatusCommandDeps = {},
+): Promise<void> {
+  const statusFn = deps.statusFn ?? coreStatus;
+  const result = await statusFn();
+
+  if (result.authenticated) {
+    if (args.json) {
+      console.log(JSON.stringify({ authenticated: true, username: result.username }));
+    } else {
+      console.log(green("Authenticated"));
+      console.log(`Logged in as: ${bold(result.username)}`);
+    }
+    return;
+  }
+
+  // Not authenticated
+  if (args.json) {
+    console.log(
+      JSON.stringify({
+        authenticated: false,
+        error: "error" in result ? result.error : "No credentials found",
+      }),
+    );
+  } else {
+    console.log(red("Not authenticated. No credentials found."));
+    console.log("Run `upublish login` to sign in.");
+  }
+  process.exit(1);
 }
 
 // ─── citty subcommand definitions ────────────────────────────────────────────
@@ -388,18 +390,14 @@ const publishCmd = defineCommand({
     json: { type: "boolean", description: "Output result as JSON", default: false },
   },
   async run({ args }) {
-    const apiClient = await loadApiClient();
-    await runPublishCommand(
-      {
-        dir: args.dir,
-        slug: args.slug,
-        title: args.title,
-        visibility: args.visibility,
-        passcode: args.passcode,
-        json: args.json,
-      },
-      { apiClient },
-    );
+    await runPublishCommand({
+      dir: args.dir,
+      slug: args.slug,
+      title: args.title,
+      visibility: args.visibility,
+      passcode: args.passcode,
+      json: args.json,
+    });
   },
 });
 
@@ -409,8 +407,7 @@ const listCmd = defineCommand({
     json: { type: "boolean", description: "Output result as JSON", default: false },
   },
   async run({ args }) {
-    const apiClient = await loadApiClient();
-    await runListCommand({ json: args.json }, { apiClient });
+    await runListCommand({ json: args.json });
   },
 });
 
@@ -421,54 +418,9 @@ const deleteCmd = defineCommand({
     json: { type: "boolean", description: "Output result as JSON", default: false },
   },
   async run({ args }) {
-    const apiClient = await loadApiClient();
-    await runDeleteCommand({ slug: args.slug, json: args.json }, { apiClient });
+    await runDeleteCommand({ slug: args.slug, json: args.json });
   },
 });
-
-// ─── Status command ──────────────────────────────────────────────────────────
-
-export interface StatusArgs {
-  json: boolean;
-}
-
-export interface StatusCommandDeps {
-  apiClient: ApiClient | null;
-}
-
-export async function runStatusCommand(
-  args: StatusArgs,
-  deps: StatusCommandDeps,
-): Promise<void> {
-  if (!deps.apiClient) {
-    if (args.json) {
-      console.log(JSON.stringify({ authenticated: false, error: "No credentials found" }));
-    } else {
-      console.log(red("Not authenticated. No credentials found."));
-      console.log("Run `upublish login` to sign in.");
-    }
-    process.exit(1);
-  }
-
-  try {
-    const result = await deps.apiClient.get<{ username: string }>("/auth/me");
-    if (args.json) {
-      console.log(JSON.stringify({ authenticated: true, username: result.username }));
-    } else {
-      console.log(green("Authenticated"));
-      console.log(`Logged in as: ${bold(result.username)}`);
-    }
-  } catch (err) {
-    if (args.json) {
-      console.log(JSON.stringify({ authenticated: false, error: (err as Error).message }));
-    } else {
-      console.log(red("Authentication failed."));
-      console.log(`Error: ${(err as Error).message}`);
-      console.log("Run `upublish login` to re-authenticate.");
-    }
-    process.exit(1);
-  }
-}
 
 const statusCmd = defineCommand({
   meta: { name: "status", description: "Check authentication status" },
@@ -476,8 +428,7 @@ const statusCmd = defineCommand({
     json: { type: "boolean", description: "Output result as JSON", default: false },
   },
   async run({ args }) {
-    const apiClient = await loadApiClient();
-    await runStatusCommand({ json: args.json }, { apiClient });
+    await runStatusCommand({ json: args.json });
   },
 });
 
@@ -487,8 +438,7 @@ const mcpCmd = defineCommand({
     const { createServer } = await import("../mcp/index.ts");
     const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
 
-    const refreshToken = await readCredentials(defaultCredentialsPath());
-    const server = createServer({ apiBaseUrl: API_BASE_URL, refreshToken });
+    const server = createServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
   },
@@ -503,16 +453,12 @@ const generateCmd = defineCommand({
     json: { type: "boolean", description: "Output result as JSON", default: false },
   },
   async run({ args }) {
-    const apiClient = await loadApiClient();
-    await runGenerateCommand(
-      {
-        context: args.context,
-        diagramType: args["diagram-type"],
-        slug: args.slug,
-        json: args.json,
-      },
-      { apiClient },
-    );
+    await runGenerateCommand({
+      context: args.context,
+      diagramType: args["diagram-type"],
+      slug: args.slug,
+      json: args.json,
+    });
   },
 });
 
