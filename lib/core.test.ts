@@ -1,7 +1,7 @@
 /**
  * Tests for lib/core.ts — high-level operations with internal credential/API wiring.
  *
- * Covers DW-1.1: core.ts exports list(), publish(), delete(), generate(), login(), status()
+ * Covers DW-1.1: core.ts exports list(), publish(), delete(), login(), status()
  * Covers DW-1.2: each function reads credentials from disk on every call
  * Covers DW-1.3: functions accept optional CoreDeps for test injection
  * Covers DW-1.4: calling core.list() with no credentials throws "Not authenticated"
@@ -17,7 +17,6 @@ import {
   list,
   publish,
   deleteOp,
-  generate,
   login,
   status,
 } from "./core.ts";
@@ -273,36 +272,6 @@ describe("DW-1.1/1.4/1.6: core.deleteOp()", () => {
     };
 
     await expect(deleteOp("my-site", deps)).rejects.toThrow("Not authenticated");
-  });
-});
-
-// ─── DW-1.1 + DW-1.4 + DW-1.6: core.generate() ──────────────────────────────
-
-describe("DW-1.1/1.4/1.6: core.generate()", () => {
-  it("test_DW_1_1_core_exports_generate", async () => {
-    const credFile = writeTempCredentials(REFRESH_TOKEN);
-    tmpFiles.push(credFile);
-
-    const deps: CoreDeps = {
-      credentialsPath: credFile,
-      fetchFn: mockFetchWithTokenRefresh("/api/generate", 200, {
-        url: "https://diagram.upubli.sh",
-        slug: "my-diagram",
-      }),
-    };
-
-    const result = await generate({ context: "a flowchart" }, deps);
-    expect(result.url).toBe("https://diagram.upubli.sh");
-    expect(result.slug).toBe("my-diagram");
-  });
-
-  it("test_DW_1_4_generate_no_credentials_throws", async () => {
-    const deps: CoreDeps = {
-      credentialsPath: "/does/not/exist/credentials",
-      fetchFn: mockFetch(200, {}),
-    };
-
-    await expect(generate({ context: "a flowchart" }, deps)).rejects.toThrow("Not authenticated");
   });
 });
 

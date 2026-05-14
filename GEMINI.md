@@ -10,8 +10,6 @@ Use upublish when the user wants to:
 - Deploy a static site or demo
 - Make a page public, password-protected, or unlisted
 - Manage (list, delete) previously published sites
-- Generate an Excalidraw diagram and publish it
-
 Trigger phrases: "publish this site", "make this live", "put this on the web", "share this page", "upublish", "upubli.sh".
 
 ## Step 1: Verify upublish is working
@@ -44,7 +42,6 @@ If any step fails, read the error and fix it. Do not show raw errors to the user
 | Publish a directory as a live site | `references/publishing.md` |
 | List, delete, or manage existing sites | `references/managing.md` |
 | Control who can access a site (passcode, unlisted) | `references/visibility.md` |
-| Generate a diagram and publish it | `references/generating.md` |
 | Fix something that's broken | `references/troubleshooting.md` |
 
 ## Available tools
@@ -52,7 +49,6 @@ If any step fails, read the error and fix it. Do not show raw errors to the user
 - `mcp_upublish_publish` — publish a directory as a live site
 - `mcp_upublish_list` — list all published sites with URLs
 - `mcp_upublish_delete` — delete a published site (permanent, confirm first)
-- `mcp_upublish_generate` — generate an Excalidraw diagram and publish it
 
 ## Quick reference
 

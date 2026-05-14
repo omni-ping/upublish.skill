@@ -46,6 +46,5 @@ upublish login
 | `upublish publish <dir> --slug <slug>` | Publish a directory |
 | `upublish list` | List your published sites |
 | `upublish delete <slug>` | Delete a site |
-| `upublish generate --context <text>` | Generate a diagram from text |
 
 All commands accept `--json` for machine-readable output.

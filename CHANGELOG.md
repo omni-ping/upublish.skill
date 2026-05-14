@@ -27,9 +27,8 @@ Initial release as a standalone skill repo.
 - `upublish publish <dir> --slug <slug>` — zip and publish a static site
 - `upublish list` — list all published sites
 - `upublish delete <slug>` — delete a published site
-- `upublish generate --context <text>` — generate a diagram from text
 - `--json` flag on all commands
-- MCP server with publish, list, delete, and generate tools
+- MCP server with publish, list, and delete tools
 - Codex plugin (`.codex-plugin/plugin.json`)
 - Gemini extension (`gemini-extension.json` + `GEMINI.md`)
 - npm package (`@omniping/upublish`)

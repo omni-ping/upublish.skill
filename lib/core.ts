@@ -9,7 +9,6 @@
  *   list()      — fetch all published sites
  *   publish()   — package and upload a directory
  *   deleteOp()  — delete a site by slug
- *   generate()  — generate a diagram from context text
  *   login()     — run the OAuth flow and store credentials
  *   status()    — check authentication state against the API
  *
@@ -33,8 +32,6 @@ import { publish as domainPublish } from "./publish.ts";
 import type { PublishResult } from "./publish.ts";
 import { deleteSite } from "./delete.ts";
 import type { DeleteResult } from "./delete.ts";
-import { generate as domainGenerate } from "./generate.ts";
-import type { GenerateResult } from "./generate.ts";
 import type { FetchFn, Visibility } from "./types.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
@@ -45,7 +42,6 @@ export type { LoginDeps, LoginResult };
 export type { PublishResult };
 export type { ListResult };
 export type { DeleteResult };
-export type { GenerateResult };
 export type { Visibility };
 export type { Site } from "./types.ts";
 
@@ -74,15 +70,6 @@ export interface PublishArgs {
   visibility?: Visibility;
   /** Passcode for passcode-protected sites. */
   passcode?: string;
-}
-
-export interface GenerateArgs {
-  /** Text description or context to generate a diagram from. */
-  context: string;
-  /** Optional hint for diagram type. */
-  diagramType?: "flowchart" | "sequence" | "architecture";
-  /** Optional slug for the published site. */
-  slug?: string;
 }
 
 export type StatusResult =
@@ -155,24 +142,6 @@ export async function deleteOp(
 ): Promise<DeleteResult> {
   const apiClient = await buildApiClient(deps);
   return deleteSite(apiClient, slug);
-}
-
-/**
- * Generates an Excalidraw diagram from context text and publishes it.
- * Throws "Not authenticated" if no credentials are stored.
- * Throws if context is empty.
- */
-export async function generate(
-  args: GenerateArgs,
-  deps?: CoreDeps,
-): Promise<GenerateResult> {
-  const apiClient = await buildApiClient(deps);
-  return domainGenerate({
-    apiClient,
-    context: args.context,
-    diagramType: args.diagramType,
-    slug: args.slug,
-  });
 }
 
 /**

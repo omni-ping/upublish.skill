@@ -2,7 +2,7 @@
 /**
  * upublish CLI entry point.
  *
- * Subcommands: login, publish, list, delete, generate, status, configure, hello, mcp
+ * Subcommands: login, publish, list, delete, status, configure, hello, mcp
  *
  * Each exported run*Command function accepts args and injectable deps so
  * tests can call them directly without spawning a subprocess.
@@ -20,20 +20,17 @@ import {
   list,
   publish,
   deleteOp,
-  generate,
   login as coreLogin,
   status as coreStatus,
 } from "../lib/core.ts";
 import type {
   PublishArgs as CorePublishArgs,
-  GenerateArgs as CoreGenerateArgs,
   StatusResult,
   LoginDeps,
   LoginResult,
   PublishResult,
   ListResult,
   DeleteResult,
-  GenerateResult,
   Visibility,
 } from "../lib/core.ts";
 
@@ -163,17 +160,6 @@ export interface DeleteArgs {
 
 export interface DeleteCommandDeps {
   deleteFn?: (slug: string) => Promise<DeleteResult>;
-}
-
-export interface GenerateArgs {
-  context: string;
-  diagramType?: string;
-  slug?: string;
-  json: boolean;
-}
-
-export interface GenerateCommandDeps {
-  generateFn?: (args: CoreGenerateArgs) => Promise<GenerateResult>;
 }
 
 export interface StatusArgs {
@@ -309,35 +295,6 @@ export async function runDeleteCommand(
     } else {
       console.log(green(`Deleted: ${bold(args.slug)}`));
       if (result.message) console.log(result.message);
-    }
-  } catch (err) {
-    console.log(red(`Error: ${(err as Error).message}`));
-    process.exit(1);
-  }
-}
-
-/**
- * Runs the generate subcommand.
- * Delegates entirely to core.generate() — no auth logic here.
- */
-export async function runGenerateCommand(
-  args: GenerateArgs,
-  deps: GenerateCommandDeps = {},
-): Promise<void> {
-  const generateFn = deps.generateFn ?? generate;
-
-  try {
-    const result = await generateFn({
-      context: args.context,
-      diagramType: args.diagramType as CoreGenerateArgs["diagramType"],
-      slug: args.slug,
-    });
-
-    if (args.json) {
-      console.log(JSON.stringify(result));
-    } else {
-      console.log(green("Generated!"));
-      console.log(bold(result.url));
     }
   } catch (err) {
     console.log(red(`Error: ${(err as Error).message}`));
@@ -535,24 +492,6 @@ const mcpCmd = defineCommand({
   },
 });
 
-const generateCmd = defineCommand({
-  meta: { name: "generate", description: "Generate an Excalidraw diagram from context text" },
-  args: {
-    context: { type: "string", description: "Text description to generate a diagram from", required: true },
-    "diagram-type": { type: "string", description: "Diagram type: flowchart, sequence, architecture" },
-    slug: { type: "string", description: "Optional slug for the published diagram" },
-    json: { type: "boolean", description: "Output result as JSON", default: false },
-  },
-  async run({ args }) {
-    await runGenerateCommand({
-      context: args.context,
-      diagramType: args["diagram-type"],
-      slug: args.slug,
-      json: args.json,
-    });
-  },
-});
-
 const configureCmd = defineCommand({
   meta: { name: "configure", description: "Install upublish plugin for your AI platform" },
   args: {
@@ -590,7 +529,6 @@ const main = defineCommand({
     publish: publishCmd,
     list: listCmd,
     delete: deleteCmd,
-    generate: generateCmd,
     configure: configureCmd,
     hello: helloCmd,
     mcp: mcpCmd,

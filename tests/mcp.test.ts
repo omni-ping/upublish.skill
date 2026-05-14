@@ -96,7 +96,7 @@ function getTools(server: ReturnType<typeof createServer>): RegisteredTools {
 
 // ─── DW-2.1: server registers all four tools ─────────────────────────────────
 
-describe("DW-2.1: server registers publish, list, delete, generate tools", () => {
+describe("DW-2.1: server registers publish, list, delete tools", () => {
   test("test_DW_2_1_server_registers_publish_tool", () => {
     const { deps } = makeDeps();
     const server = createServer(deps);
@@ -121,19 +121,11 @@ describe("DW-2.1: server registers publish, list, delete, generate tools", () =>
     fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_2_1_server_registers_generate_tool", () => {
+  test("test_DW_2_1_server_registers_exactly_three_tools", () => {
     const { deps } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    expect("generate" in tools).toBe(true);
-    fs.unlinkSync(deps.credentialsPath!);
-  });
-
-  test("test_DW_2_1_server_registers_exactly_four_tools", () => {
-    const { deps } = makeDeps();
-    const server = createServer(deps);
-    const tools = getTools(server);
-    expect(Object.keys(tools).length).toBe(4);
+    expect(Object.keys(tools).length).toBe(3);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
@@ -229,32 +221,6 @@ describe("DW-2.1: each tool calls core, no auth knowledge in mcp/index.ts", () =
     fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_2_1_generate_tool_calls_core", async () => {
-    let generateCalled = false;
-    const fetchFn = async (url: string, _init?: RequestInit): Promise<Response> => {
-      if (url.includes("/auth/token/refresh")) {
-        return new Response(
-          JSON.stringify({ access_token: "token", expires_in: 3600 }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
-      }
-      if (url.includes("/api/generate")) {
-        generateCalled = true;
-        return new Response(
-          JSON.stringify({ url: "https://user1.upubli.sh/diag-abc/", slug: "diag-abc" }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
-      }
-      return new Response(JSON.stringify({}), { status: 200 });
-    };
-
-    const { deps } = makeDeps(fetchFn);
-    const server = createServer(deps);
-    const tools = getTools(server);
-    await tools["generate"].handler({ context: "A user auth flow" });
-    expect(generateCalled).toBe(true);
-    fs.unlinkSync(deps.credentialsPath!);
-  });
 });
 
 // ─── Tool output format ───────────────────────────────────────────────────────
@@ -351,33 +317,6 @@ describe("tool output format", () => {
     fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_2_4_generate_output_contains_url_and_slug", async () => {
-    const DIAGRAM_URL = "https://user1.upubli.sh/diag-abc/";
-    const fetchFn = async (url: string, _init?: RequestInit): Promise<Response> => {
-      if (url.includes("/auth/token/refresh")) {
-        return new Response(
-          JSON.stringify({ access_token: "token", expires_in: 3600 }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
-      }
-      return new Response(
-        JSON.stringify({ url: DIAGRAM_URL, slug: "diag-abc" }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-    };
-
-    const { deps } = makeDeps(fetchFn);
-    const server = createServer(deps);
-    const tools = getTools(server);
-    const result = await tools["generate"].handler({ context: "A user auth flow" });
-
-    expect(result.isError).toBeUndefined();
-    const text = result.content[0].text;
-    expect(text).toContain("Diagram generated");
-    expect(text).toContain(`URL: ${DIAGRAM_URL}`);
-    expect(text).toContain("Slug: diag-abc");
-    fs.unlinkSync(deps.credentialsPath!);
-  });
 });
 
 // ─── DW-2.3: stale-state bug fixed ───────────────────────────────────────────
@@ -502,16 +441,6 @@ describe("error handling", () => {
     fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_2_5_generate_returns_error_on_empty_context", async () => {
-    const { deps } = makeDeps();
-    const server = createServer(deps);
-    const tools = getTools(server);
-    const result = await tools["generate"].handler({ context: "" });
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("context");
-    fs.unlinkSync(deps.credentialsPath!);
-  });
-
   test("test_DW_2_5_publish_returns_error_for_invalid_slug", async () => {
     const { deps } = makeDeps();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-slug-"));
@@ -551,7 +480,7 @@ describe("server structure", () => {
     const server = createServer(deps);
     expect(server).toBeDefined();
     const tools = getTools(server);
-    expect(Object.keys(tools).length).toBe(4);
+    expect(Object.keys(tools).length).toBe(3);
     fs.unlinkSync(deps.credentialsPath!);
   });
 

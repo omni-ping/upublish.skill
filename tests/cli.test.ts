@@ -20,7 +20,6 @@ import {
   runPublishCommand,
   runListCommand,
   runDeleteCommand,
-  runGenerateCommand,
   runStatusCommand,
   runConfigureCommand,
   runHelloCommand,
@@ -269,54 +268,6 @@ describe("delete command", () => {
   });
 });
 
-// ─── DW-2.4: generate ────────────────────────────────────────────────────────
-
-describe("generate command", () => {
-  test("test_DW_2_4_generate_command_calls_core_generate", async () => {
-    const generateMock = mock(async () => ({
-      url: "https://diagram.upubli.sh",
-      slug: "diagram-abc",
-    }));
-
-    await runGenerateCommand(
-      { context: "A user auth flow", diagramType: undefined, slug: undefined, json: false },
-      { generateFn: generateMock },
-    );
-
-    expect(generateMock).toHaveBeenCalledTimes(1);
-    const [args] = generateMock.mock.calls[0] as [{ context: string }];
-    expect(args.context).toBe("A user auth flow");
-  });
-
-  test("test_DW_2_4_generate_command_prints_url", async () => {
-    const generateMock = mock(async () => ({
-      url: "https://diagram.upubli.sh",
-      slug: "diagram-abc",
-    }));
-
-    await runGenerateCommand(
-      { context: "A user auth flow", diagramType: undefined, slug: undefined, json: false },
-      { generateFn: generateMock },
-    );
-
-    const combined = logOutput.join("\n");
-    expect(combined).toContain("https://diagram.upubli.sh");
-  });
-
-  test("test_DW_2_4_generate_exits_1_on_error", async () => {
-    const generateMock = mock(async () => { throw new Error("context is required"); });
-
-    await expect(
-      runGenerateCommand(
-        { context: "", diagramType: undefined, slug: undefined, json: false },
-        { generateFn: generateMock },
-      ),
-    ).rejects.toThrow("process.exit(1)");
-
-    expect(exitCode).toBe(1);
-  });
-});
-
 // ─── DW-2.4: status ──────────────────────────────────────────────────────────
 
 describe("status command", () => {
@@ -448,25 +399,6 @@ describe("--json flag", () => {
     expect(parsed.message).toBe("Site deleted.");
   });
 
-  test("test_DW_2_4_json_flag_generate", async () => {
-    const generateMock = mock(async () => ({
-      url: "https://diagram.upubli.sh",
-      slug: "diagram-abc",
-    }));
-
-    await runGenerateCommand(
-      { context: "A user auth flow", diagramType: undefined, slug: undefined, json: true },
-      { generateFn: generateMock },
-    );
-
-    const jsonLine = logOutput.find((line) => {
-      try { JSON.parse(line); return true; } catch { return false; }
-    });
-    expect(jsonLine).toBeDefined();
-    const parsed = JSON.parse(jsonLine!);
-    expect(parsed.url).toBe("https://diagram.upubli.sh");
-    expect(parsed.slug).toBe("diagram-abc");
-  });
 });
 
 // ─── DW-1: configure ────────────────────────────────────────────────────────

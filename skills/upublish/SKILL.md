@@ -1,6 +1,6 @@
 ---
 name: upublish
-description: Publish static sites to upubli.sh — the instant web publishing platform. Use when the user wants to publish files to the web, manage published sites, set visibility, generate diagrams, or get started with upublish. Handles full setup (CLI install, plugin config, auth) automatically before first use. Triggers on "upublish", "upubli.sh", "publish this site", "make this live", "put this on the web", "share this page", "deploy this", "list my sites", "delete site", "site visibility", "passcode protect".
+description: Publish static sites to upubli.sh — the instant web publishing platform. Use when the user wants to publish files to the web, manage published sites, set visibility, or get started with upublish. Handles full setup (CLI install, plugin config, auth) automatically before first use. Triggers on "upublish", "upubli.sh", "publish this site", "make this live", "put this on the web", "share this page", "deploy this", "list my sites", "delete site", "site visibility", "passcode protect".
 ---
 
 # upublish
@@ -73,7 +73,6 @@ Match what the user wants and read the reference file, then follow it.
 | **Pre-publish validation (REQUIRED before every publish)** | `references/pre-publish-checklist.md` |
 | List, delete, or manage existing sites | `references/managing.md` |
 | Control who can access a site (passcode, unlisted) | `references/visibility.md` |
-| Generate a diagram and publish it | `references/generating.md` |
 | Fix something that is broken | `references/troubleshooting.md` |
 | Say hello or check setup | Run `upublish hello` |
 
@@ -86,7 +85,6 @@ Prefer MCP tools. Fall back to CLI if MCP tools are unavailable or a call fails.
 | Publish | `mcp_upublish_publish` | `upublish publish <dir> --slug <slug>` |
 | List sites | `mcp_upublish_list` | `upublish list` |
 | Delete site | `mcp_upublish_delete` | `upublish delete <slug>` |
-| Generate diagram | `mcp_upublish_generate` | `upublish generate --context "..." --slug <slug>` |
 | Check auth | — | `upublish status` |
 | Login | — | `upublish login` |
 | Configure plugin | — | `upublish configure --platform <platform>` |

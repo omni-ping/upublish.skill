@@ -142,14 +142,13 @@ describe("DW-4.6 GEMINI.md complete context", () => {
   });
 });
 
-// ─── DW-4.7: references/ has all 5 docs ──────────────────────────────────────
+// ─── DW-4.7: references/ has all reference docs ─────────────────────────────
 
-describe("DW-4.7 all 5 reference docs exist", () => {
+describe("DW-4.7 all reference docs exist", () => {
   const docs = [
     "references/publishing.md",
     "references/managing.md",
     "references/visibility.md",
-    "references/generating.md",
     "references/troubleshooting.md",
   ];
 

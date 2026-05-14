@@ -18,7 +18,6 @@ import {
   list,
   publish,
   deleteOp,
-  generate,
 } from "../lib/core.ts";
 import type { CoreDeps, Site } from "../lib/core.ts";
 
@@ -214,56 +213,6 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
       try {
         const result = await deleteOp(slug as string, coreDeps);
         return okResponse(result.message);
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
-  );
-
-  server.registerTool(
-    "generate",
-    {
-      title: "Generate Diagram",
-      description:
-        "Generates an Excalidraw diagram from a text description and publishes it " +
-        "as a static website on upubli.sh.",
-      inputSchema: {
-        context: z
-          .string()
-          .describe(
-            "A description of what to visualize — system architecture, workflow, " +
-            "process, sequence of steps, or any concept to represent as a diagram.",
-          ),
-        diagramType: z
-          .enum(["flowchart", "sequence", "architecture"])
-          .optional()
-          .describe(
-            "Optional hint for diagram type. If not specified, the server chooses.",
-          ),
-        slug: z
-          .string()
-          .optional()
-          .describe(
-            "Optional URL-safe slug for the published diagram site.",
-          ),
-      },
-    },
-    async ({ context, diagramType, slug }) => {
-      try {
-        const result = await generate(
-          {
-            context: context as string,
-            diagramType: diagramType as "flowchart" | "sequence" | "architecture" | undefined,
-            slug: slug as string | undefined,
-          },
-          coreDeps,
-        );
-
-        return okResponse(
-          `Diagram generated and published!\n` +
-          `URL: ${result.url}\n` +
-          `Slug: ${result.slug}`,
-        );
       } catch (err) {
         return errResponse(err);
       }
