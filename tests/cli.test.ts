@@ -23,6 +23,7 @@ import {
   runGenerateCommand,
   runStatusCommand,
   runConfigureCommand,
+  runHelloCommand,
 } from "../bin/upublish.ts";
 
 // ─── Sample data ──────────────────────────────────────────────────────────────
@@ -574,6 +575,78 @@ describe("configure command", () => {
     expect(exitCode).toBe(1);
     const combined = logOutput.join("\n");
     expect(combined).toContain("failed");
+  });
+});
+
+// ─── DW-2: hello ───────────────────────────────────────────────────────────
+
+describe("hello command", () => {
+  test("test_DW_2_1_hello_authenticated_prints_welcome_with_username", async () => {
+    const statusMock = mock(async () => ({
+      authenticated: true as const,
+      username: "alice@example.com",
+    }));
+
+    await runHelloCommand(
+      {},
+      { statusFn: statusMock },
+    );
+
+    expect(statusMock).toHaveBeenCalledTimes(1);
+    const combined = logOutput.join("\n");
+    expect(combined).toContain("alice@example.com");
+    expect(combined).toContain("Welcome");
+  });
+
+  test("test_DW_2_1_hello_authenticated_mentions_mbti_coming_soon", async () => {
+    const statusMock = mock(async () => ({
+      authenticated: true as const,
+      username: "alice@example.com",
+    }));
+
+    await runHelloCommand(
+      {},
+      { statusFn: statusMock },
+    );
+
+    const combined = logOutput.join("\n").toLowerCase();
+    expect(combined).toContain("coming soon");
+  });
+
+  test("test_DW_2_2_hello_unauthenticated_directs_to_login", async () => {
+    const statusMock = mock(async () => ({
+      authenticated: false as const,
+    }));
+
+    await expect(
+      runHelloCommand(
+        {},
+        { statusFn: statusMock },
+      ),
+    ).rejects.toThrow("process.exit(1)");
+
+    expect(exitCode).toBe(1);
+    const combined = logOutput.join("\n");
+    expect(combined).toContain("upublish login");
+  });
+
+  test("test_DW_2_3_hello_exported_with_injectable_deps", async () => {
+    // Verify runHelloCommand is a function (exported correctly)
+    expect(typeof runHelloCommand).toBe("function");
+
+    // Verify it accepts and uses injected deps (statusFn is called, not the real status)
+    const statusMock = mock(async () => ({
+      authenticated: true as const,
+      username: "test@example.com",
+    }));
+
+    await runHelloCommand(
+      {},
+      { statusFn: statusMock },
+    );
+
+    // The mock was used, proving deps injection works
+    expect(statusMock).toHaveBeenCalled();
   });
 });
 

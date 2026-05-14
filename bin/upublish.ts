@@ -2,7 +2,7 @@
 /**
  * upublish CLI entry point.
  *
- * Subcommands: login, publish, list, delete, generate, status, configure, mcp
+ * Subcommands: login, publish, list, delete, generate, status, configure, hello, mcp
  *
  * Each exported run*Command function accepts args and injectable deps so
  * tests can call them directly without spawning a subprocess.
@@ -190,6 +190,12 @@ export interface ConfigureArgs {
 
 export interface ConfigureCommandDeps {
   execFn?: (command: string, args: string[]) => Promise<{ exitCode: number }>;
+}
+
+export interface HelloArgs {}
+
+export interface HelloCommandDeps {
+  statusFn?: () => Promise<StatusResult>;
 }
 
 // ─── Subcommand runners (exported for testing) ───────────────────────────────
@@ -427,6 +433,31 @@ export async function runConfigureCommand(
   console.log(green(`upublish configured for ${args.platform}!`));
 }
 
+/**
+ * Runs the hello subcommand.
+ * Checks auth status and prints a welcome message with the username.
+ * If not authenticated, directs user to `upublish login`.
+ */
+export async function runHelloCommand(
+  _args: HelloArgs,
+  deps: HelloCommandDeps = {},
+): Promise<void> {
+  const statusFn = deps.statusFn ?? coreStatus;
+  const result = await statusFn();
+
+  if (result.authenticated) {
+    console.log(green(`Welcome, ${bold(result.username)}!`));
+    console.log("Your upublish setup is working.");
+    console.log("");
+    console.log("Coming soon: personalized MBTI-based publishing flow.");
+    return;
+  }
+
+  console.log(red("Not authenticated."));
+  console.log("Run `upublish login` to sign in first.");
+  process.exit(1);
+}
+
 // ─── citty subcommand definitions ────────────────────────────────────────────
 
 const loginCmd = defineCommand({
@@ -536,6 +567,13 @@ const configureCmd = defineCommand({
   },
 });
 
+const helloCmd = defineCommand({
+  meta: { name: "hello", description: "Confirm your setup is working and say hello" },
+  async run() {
+    await runHelloCommand({});
+  },
+});
+
 // ─── Main command ─────────────────────────────────────────────────────────────
 
 const pkg = await import("../package.json");
@@ -554,6 +592,7 @@ const main = defineCommand({
     delete: deleteCmd,
     generate: generateCmd,
     configure: configureCmd,
+    hello: helloCmd,
     mcp: mcpCmd,
   },
 });
