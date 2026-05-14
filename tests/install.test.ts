@@ -80,16 +80,15 @@ describe("DW-5.1 install.sh installs CLI", () => {
 
 describe("DW-5.2 npx skills add omni-ping/upublish.skill", () => {
   test("test_DW_5_2_skills_valid_for_skills_add", () => {
-    // skills/ must exist with ask and setup
+    // skills/ must exist with root skill (setup consolidated into root bootstrap)
     expect(fileExists("skills/upublish/SKILL.md")).toBe(true);
-    expect(fileExists("skills/upublish-setup/SKILL.md")).toBe(true);
     const ask = readText("skills/upublish/SKILL.md");
     expect(ask).toMatch(/^---\n/);
     expect(ask).toContain("name: upublish");
     expect(ask).toContain("description:");
-    const setup = readText("skills/upublish-setup/SKILL.md");
-    expect(setup).toMatch(/^---\n/);
-    expect(setup).toContain("name: upublish-setup");
+    // Root skill must include bootstrap/setup flow (formerly upublish-setup)
+    expect(ask).toContain("upublish configure");
+    expect(ask).toContain("upublish login");
   });
 
   test("test_DW_5_2_repo_name_matches_install_command", () => {
@@ -113,8 +112,9 @@ describe("DW-5.3 MCP tools available", () => {
     expect(args.some((a) => a.includes("mcp") && a.includes("index.ts"))).toBe(true);
   });
 
-  test("test_DW_5_3_setup_skill_mentions_restart", () => {
-    const content = readText("skills/upublish-setup/SKILL.md");
+  test("test_DW_5_3_root_skill_mentions_restart", () => {
+    // Restart instruction now in root skill bootstrap flow (setup consolidated)
+    const content = readText("skills/upublish/SKILL.md");
     expect(content.toLowerCase()).toContain("restart");
   });
 });
@@ -228,9 +228,8 @@ describe("DW-5.6 manual end-to-end prerequisites", () => {
     expect(fileExists("lib/auth.ts")).toBe(true);
     // 5. lib/publish.ts for publishing
     expect(fileExists("lib/publish.ts")).toBe(true);
-    // 6. Skills for agent activation
+    // 6. Root skill for agent activation (setup consolidated into root bootstrap)
     expect(fileExists("skills/upublish/SKILL.md")).toBe(true);
-    expect(fileExists("skills/upublish-setup/SKILL.md")).toBe(true);
   });
 });
 

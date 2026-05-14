@@ -97,27 +97,25 @@ describe("DW-4.5 SKILL.md uses CLI auth", () => {
     expect(content).toContain("mcp_upublish_publish");
   });
 
-  test("test_DW_4_5_setup_skill_references_cli_auth", () => {
-    expect(fileExists("skills/upublish-setup/SKILL.md")).toBe(true);
-    const content = readText("skills/upublish-setup/SKILL.md");
+  test("test_DW_4_5_root_skill_references_cli_auth", () => {
+    // Setup consolidated into root skill bootstrap flow
+    const content = readText("skills/upublish/SKILL.md");
     expect(content).toContain("upublish login");
     expect(content).not.toContain("scripts/setup.ts");
   });
 
-  test("test_DW_4_5_setup_skill_references_gemini", () => {
-    const content = readText("skills/upublish-setup/SKILL.md");
-    // Must detect Gemini CLI and provide registration instructions
+  test("test_DW_4_5_root_skill_references_configure", () => {
+    // Root skill uses upublish configure for platform plugin install
+    const content = readText("skills/upublish/SKILL.md");
+    expect(content).toContain("upublish configure");
+    // Platform detection covers gemini
     expect(content.toLowerCase()).toContain("gemini");
-    expect(content).toContain("gemini extensions install");
   });
 
-  test("test_DW_4_5_skills_have_frontmatter", () => {
+  test("test_DW_4_5_root_skill_has_frontmatter", () => {
     const ask = readText("skills/upublish/SKILL.md");
     expect(ask).toContain("name: upublish");
     expect(ask).toContain("description:");
-    const setup = readText("skills/upublish-setup/SKILL.md");
-    expect(setup).toContain("name: upublish-setup");
-    expect(setup).toContain("description:");
   });
 });
 
@@ -190,7 +188,7 @@ describe("DW-4.8 no absolute paths in manifests or docs", () => {
   });
 
   test("test_DW_4_8_no_absolute_paths_in_docs", () => {
-    const docs = ["skills/upublish/SKILL.md", "skills/upublish-setup/SKILL.md", "GEMINI.md"];
+    const docs = ["skills/upublish/SKILL.md", "GEMINI.md"];
     for (const doc of docs) {
       const content = readText(doc);
       expect(content).not.toMatch(/\/Users\/[a-z]+\//);
