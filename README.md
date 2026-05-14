@@ -4,21 +4,29 @@ Publish static sites to [upubli.sh](https://upubli.sh) instantly. One directory 
 
 ## Install
 
+### Claude Code
+
 ```sh
-npm install -g @omniping/upublish
-upublish login
+/plugin marketplace add omni-ping/upublish.skill
+/plugin install upublish@omni-ping-upublish
 ```
 
-## CLI commands
+### Codex
 
-| Command | Description |
-|---------|-------------|
-| `upublish login` | Authenticate via Google OAuth |
-| `upublish status` | Check authentication status |
-| `upublish publish <dir> --slug <slug>` | Publish a directory |
-| `upublish list` | List your published sites |
-| `upublish delete <slug>` | Delete a site |
-| `upublish configure --platform <platform>` | Install plugin for Claude, Gemini, or Codex |
-| `upublish hello` | Confirm setup is working |
+```sh
+npx skills add omni-ping/upublish.skill -g --agent codex
+```
 
-All commands accept `--json` for machine-readable output.
+### Gemini CLI
+
+```sh
+gemini extensions install omni-ping/upublish.skill
+```
+
+## Getting started
+
+1. Install the plugin (see above)
+2. Type `/upublish` — the skill will install the CLI and configure everything
+3. Restart your session to load the MCP tools
+4. `/upublish hello` to confirm setup
+5. `/upublish` to publish, list, delete, or manage sites
