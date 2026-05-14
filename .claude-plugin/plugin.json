@@ -2,7 +2,9 @@
   "name": "upublish",
   "version": "0.4.0",
   "description": "Publish static sites to upubli.sh instantly. One directory becomes a live URL.",
-  "skills": "../skills/",
+  "author": {
+    "name": "omni-ping"
+  },
   "mcpServers": {
     "upublish": {
       "command": "npx",
