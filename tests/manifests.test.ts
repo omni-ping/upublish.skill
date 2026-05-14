@@ -70,9 +70,10 @@ describe("DW-4.4 gemini-extension.json", () => {
     expect(hasPackage).toBe(true);
   });
 
-  test("test_DW_4_4_version_is_0_3_0", () => {
-    const data = readJson("gemini-extension.json") as Record<string, unknown>;
-    expect(data.version).toBe("0.3.0");
+  test("test_DW_4_4_version_matches_package_json", () => {
+    const gemini = readJson("gemini-extension.json") as Record<string, unknown>;
+    const pkg = readJson("package.json") as Record<string, unknown>;
+    expect(gemini.version).toBe(pkg.version);
   });
 
   test("test_DW_4_4_keeps_cwd_with_extensionPath", () => {
