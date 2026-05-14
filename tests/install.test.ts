@@ -48,27 +48,17 @@ describe("DW-5.1 install.sh installs CLI", () => {
     expect(content).not.toContain("declare -a");
   });
 
-  test("test_DW_5_1_install_sh_installs_bun_if_missing", () => {
+  test("test_DW_5_1_install_sh_checks_node_and_npm", () => {
     const content = readText("install.sh");
-    // Must check for bun and install if missing
-    expect(content).toContain("bun");
-    expect(content).toContain("bun.sh/install");
+    // Must check for node and npm
+    expect(content).toContain("node");
+    expect(content).toContain("npm");
   });
 
-  test("test_DW_5_1_install_sh_clones_repo", () => {
+  test("test_DW_5_1_install_sh_uses_npm_install", () => {
     const content = readText("install.sh");
-    // Must clone the repo
-    expect(content).toContain("omni-ping/upublish.skill");
-    // Must use git clone
-    expect(content).toContain("git clone");
-  });
-
-  test("test_DW_5_1_install_sh_adds_to_path", () => {
-    const content = readText("install.sh");
-    // Must add to PATH
-    expect(content).toContain("PATH");
-    // Must reference a bin directory
-    expect(content).toContain("bin");
+    // Must install via npm (not git clone)
+    expect(content).toContain("npm install -g @omniping/upublish");
   });
 
   test("test_DW_5_1_install_sh_exits_nonzero_on_failure", () => {

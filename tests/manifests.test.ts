@@ -46,15 +46,29 @@ describe("DW-4.1 .claude-plugin/plugin.json", () => {
     expect(data.name).toBe("upublish");
   });
 
-  test("test_DW_4_1_mcp_server_references_mcp_index", () => {
+  test("test_DW_4_1_mcp_server_uses_npx_command", () => {
     const data = readJson(".claude-plugin/plugin.json") as Record<string, unknown>;
     const servers = data.mcpServers as Record<string, unknown>;
     const upublish = servers.upublish as Record<string, unknown>;
     expect(upublish).toBeDefined();
-    // args must include mcp/index.ts path
+    // Command must be npx (published package, not bun dev server)
+    expect(upublish.command).toBe("npx");
+    // args must include @omniping/upublish
     const args = upublish.args as string[];
-    const hasIndexTs = args.some((a) => a.includes("mcp") && a.includes("index.ts"));
-    expect(hasIndexTs).toBe(true);
+    const hasPackage = args.some((a) => a.includes("@omniping/upublish"));
+    expect(hasPackage).toBe(true);
+  });
+
+  test("test_DW_4_1_version_is_0_2_0", () => {
+    const data = readJson(".claude-plugin/plugin.json") as Record<string, unknown>;
+    expect(data.version).toBe("0.2.0");
+  });
+
+  test("test_DW_4_1_no_cwd_field", () => {
+    const data = readJson(".claude-plugin/plugin.json") as Record<string, unknown>;
+    const servers = data.mcpServers as Record<string, unknown>;
+    const upublish = servers.upublish as Record<string, unknown>;
+    expect(upublish.cwd).toBeUndefined();
   });
 });
 
@@ -82,6 +96,11 @@ describe("DW-4.2 .codex-plugin/plugin.json", () => {
   test("test_DW_4_2_has_mcp_servers_reference", () => {
     const data = readJson(".codex-plugin/plugin.json") as Record<string, unknown>;
     expect(data.mcpServers).toBeDefined();
+  });
+
+  test("test_DW_4_2_version_is_0_2_0", () => {
+    const data = readJson(".codex-plugin/plugin.json") as Record<string, unknown>;
+    expect(data.version).toBe("0.2.0");
   });
 });
 
@@ -117,9 +136,26 @@ describe("DW-4.4 gemini-extension.json", () => {
     expect(data.mcpServers).toBeDefined();
   });
 
-  test("test_DW_4_4_uses_extensionPath_variable", () => {
-    const raw = readText("gemini-extension.json");
-    expect(raw).toContain("${extensionPath}");
+  test("test_DW_4_4_uses_npx_command", () => {
+    const data = readJson("gemini-extension.json") as Record<string, unknown>;
+    const servers = data.mcpServers as Record<string, unknown>;
+    const upublish = servers.upublish as Record<string, unknown>;
+    expect(upublish.command).toBe("npx");
+    const args = upublish.args as string[];
+    const hasPackage = args.some((a) => a.includes("@omniping/upublish"));
+    expect(hasPackage).toBe(true);
+  });
+
+  test("test_DW_4_4_version_is_0_2_0", () => {
+    const data = readJson("gemini-extension.json") as Record<string, unknown>;
+    expect(data.version).toBe("0.2.0");
+  });
+
+  test("test_DW_4_4_keeps_cwd_with_extensionPath", () => {
+    const data = readJson("gemini-extension.json") as Record<string, unknown>;
+    const servers = data.mcpServers as Record<string, unknown>;
+    const upublish = servers.upublish as Record<string, unknown>;
+    expect(upublish.cwd).toBe("${extensionPath}");
   });
 
   test("test_DW_4_4_has_context_file_name", () => {
@@ -142,6 +178,13 @@ describe("DW-4.5 SKILL.md uses CLI auth", () => {
     const content = readText("skills/upublish-setup/SKILL.md");
     expect(content).toContain("upublish login");
     expect(content).not.toContain("scripts/setup.ts");
+  });
+
+  test("test_DW_4_5_setup_skill_references_gemini", () => {
+    const content = readText("skills/upublish-setup/SKILL.md");
+    // Must detect Gemini CLI and provide registration instructions
+    expect(content.toLowerCase()).toContain("gemini");
+    expect(content).toContain("gemini extensions install");
   });
 
   test("test_DW_4_5_skills_have_frontmatter", () => {
@@ -229,6 +272,36 @@ describe("DW-4.8 no absolute paths in manifests or docs", () => {
       const content = readText(doc);
       expect(content).not.toMatch(/\/Users\/[a-z]+\//);
     }
+  });
+});
+
+// ─── DW-1.7: install.sh uses npm install ────────────────────────────────────
+
+describe("DW-1.7 install.sh uses npm install", () => {
+  test("test_DW_1_7_install_sh_uses_npm_install", () => {
+    expect(fileExists("install.sh")).toBe(true);
+    const content = readText("install.sh");
+    expect(content).toContain("npm install -g @omniping/upublish");
+  });
+
+  test("test_DW_1_7_install_sh_no_git_clone", () => {
+    const content = readText("install.sh");
+    expect(content).not.toContain("git clone");
+  });
+
+  test("test_DW_1_7_install_sh_no_bun_install", () => {
+    const content = readText("install.sh");
+    expect(content).not.toContain("bun install");
+  });
+
+  test("test_DW_1_7_install_sh_checks_os", () => {
+    const content = readText("install.sh");
+    expect(content).toContain("uname");
+  });
+
+  test("test_DW_1_7_install_sh_runs_login", () => {
+    const content = readText("install.sh");
+    expect(content).toContain("upublish login");
   });
 });
 

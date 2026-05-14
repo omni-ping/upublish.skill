@@ -57,6 +57,25 @@ args = ["-y", "@omniping/upublish", "mcp"]
 }
 ```
 
+**Gemini CLI** — install the extension directly:
+
+```sh
+gemini extensions install https://github.com/omni-ping/upublish.skill
+```
+
+Or manually add to `~/.gemini/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "upublish": {
+      "command": "npx",
+      "args": ["-y", "@omniping/upublish", "mcp"]
+    }
+  }
+}
+```
+
 After registering, tell the user: "MCP server configured. Restart your session to activate the upublish tools."
 
 ### 3. Authenticated?
