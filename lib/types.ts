@@ -6,7 +6,7 @@
  */
 
 /** Site visibility mode. */
-export type Visibility = "public" | "unlisted" | "passcode" | "signed" | "identity";
+export type Visibility = "public" | "unlisted" | "passcode";
 
 /** A published site on upubli.sh. */
 export interface Site {

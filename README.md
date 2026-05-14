@@ -4,38 +4,10 @@ Publish static sites to [upubli.sh](https://upubli.sh) instantly. One directory 
 
 ## Install
 
-### Claude Code
-
-```sh
-claude plugin install omni-ping/upublish.claude
-```
-
-Then: `/upublish:setup` to authenticate, `/upublish` to publish.
-
-See [omni-ping/upublish.claude](https://github.com/omni-ping/upublish.claude) for details.
-
-### Codex / Cursor / other agents
-
-```sh
-npx skills add omni-ping/upublish.skill -g --agent codex
-```
-
-Then: `/upublish-setup` to authenticate, `/upublish` to publish.
-
-### Gemini CLI
-
-```sh
-gemini extensions install omni-ping/upublish.skill
-```
-
-### Standalone CLI
-
 ```sh
 npm install -g @omniping/upublish
 upublish login
 ```
-
----
 
 ## CLI commands
 
@@ -46,5 +18,7 @@ upublish login
 | `upublish publish <dir> --slug <slug>` | Publish a directory |
 | `upublish list` | List your published sites |
 | `upublish delete <slug>` | Delete a site |
+| `upublish configure --platform <platform>` | Install plugin for Claude, Gemini, or Codex |
+| `upublish hello` | Confirm setup is working |
 
 All commands accept `--json` for machine-readable output.

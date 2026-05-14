@@ -1,0 +1,22 @@
+{
+  "name": "omni-ping-upublish",
+  "owner": {
+    "name": "omni-ping"
+  },
+  "description": "Publish static sites to upubli.sh instantly",
+  "version": "1.0.0",
+  "repository": "https://github.com/omni-ping/upublish.skill",
+  "plugins": [
+    {
+      "name": "upublish",
+      "source": ".",
+      "description": "Publish static sites to upubli.sh instantly. One directory becomes a live URL.",
+      "version": "0.4.0",
+      "author": {
+        "name": "omni-ping"
+      },
+      "keywords": ["publishing", "static-site", "deployment"],
+      "category": "productivity"
+    }
+  ]
+}

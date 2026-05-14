@@ -1,10 +1,24 @@
 # Changelog
 
+## [0.4.0] — 2026-05-14
+
+### Added
+
+- `upublish configure --platform <claude|gemini|codex>` — install platform plugin
+- `upublish hello` — onboarding entry point, confirms setup is working
+- Unified `/upublish` skill as single bootstrap entry point (replaces separate setup skill)
+- `.claude-plugin` manifest for Claude Code plugin install
+
+### Removed
+
+- `upublish generate` — diagram generation feature removed
+- `upublish-setup` skill — consolidated into root `/upublish` skill
+
 ## [0.3.0] — 2026-05-13
 
 ### Added
 
-- Pre-publish checklist (`references/pre-publish-checklist.md`) — 5-point validation run before every publish to catch broken asset paths, missing files, localhost references, and other common issues
+- Pre-publish checklist (`references/pre-publish-checklist.md`) — 5-point validation run before every publish
 
 ## [0.2.0] — 2026-05-13
 

@@ -23,8 +23,8 @@ import type { CoreDeps, Site } from "../lib/core.ts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const PACKAGE_NAME = "@upublish/mcp-skills";
-export const PACKAGE_VERSION = "0.1.0";
+export const PACKAGE_NAME = "@omniping/upublish";
+export const PACKAGE_VERSION = "0.4.0";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 

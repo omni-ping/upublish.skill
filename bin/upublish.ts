@@ -433,7 +433,7 @@ const publishCmd = defineCommand({
     dir: { type: "positional", description: "Directory to publish", required: true },
     slug: { type: "string", description: "Site slug (URL identifier)", required: true },
     title: { type: "string", description: "Site title (defaults to slug)" },
-    visibility: { type: "string", description: "Visibility: public, unlisted, passcode, signed, identity" },
+    visibility: { type: "string", description: "Visibility: public, unlisted, passcode" },
     passcode: { type: "string", description: "Passcode (required when visibility=passcode)" },
     json: { type: "boolean", description: "Output result as JSON", default: false },
   },
