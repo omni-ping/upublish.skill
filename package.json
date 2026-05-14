@@ -16,10 +16,9 @@
     "lib/",
     "dist/",
     "references/",
-    "SKILL.md",
+    "skills/",
     "GEMINI.md",
     "gemini-extension.json",
-    ".claude-plugin/",
     ".codex-plugin/",
     ".mcp.json",
     "install.sh"

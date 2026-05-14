@@ -28,50 +28,6 @@ function fileExists(relPath: string): boolean {
   return existsSync(join(ROOT, relPath));
 }
 
-// ─── DW-4.1: .claude-plugin/plugin.json ──────────────────────────────────────
-
-describe("DW-4.1 .claude-plugin/plugin.json", () => {
-  test("test_DW_4_1_claude_plugin_json_exists_and_valid", () => {
-    expect(fileExists(".claude-plugin/plugin.json")).toBe(true);
-    const data = readJson(".claude-plugin/plugin.json") as Record<string, unknown>;
-    expect(typeof data.name).toBe("string");
-    expect(typeof data.version).toBe("string");
-    expect(typeof data.description).toBe("string");
-    // Must have MCP server reference
-    expect(data.mcpServers).toBeDefined();
-  });
-
-  test("test_DW_4_1_name_is_upublish", () => {
-    const data = readJson(".claude-plugin/plugin.json") as Record<string, unknown>;
-    expect(data.name).toBe("upublish");
-  });
-
-  test("test_DW_4_1_mcp_server_uses_npx_command", () => {
-    const data = readJson(".claude-plugin/plugin.json") as Record<string, unknown>;
-    const servers = data.mcpServers as Record<string, unknown>;
-    const upublish = servers.upublish as Record<string, unknown>;
-    expect(upublish).toBeDefined();
-    // Command must be npx (published package, not bun dev server)
-    expect(upublish.command).toBe("npx");
-    // args must include @omniping/upublish
-    const args = upublish.args as string[];
-    const hasPackage = args.some((a) => a.includes("@omniping/upublish"));
-    expect(hasPackage).toBe(true);
-  });
-
-  test("test_DW_4_1_version_is_0_2_0", () => {
-    const data = readJson(".claude-plugin/plugin.json") as Record<string, unknown>;
-    expect(data.version).toBe("0.2.0");
-  });
-
-  test("test_DW_4_1_no_cwd_field", () => {
-    const data = readJson(".claude-plugin/plugin.json") as Record<string, unknown>;
-    const servers = data.mcpServers as Record<string, unknown>;
-    const upublish = servers.upublish as Record<string, unknown>;
-    expect(upublish.cwd).toBeUndefined();
-  });
-});
-
 // ─── DW-4.2: .codex-plugin/plugin.json ───────────────────────────────────────
 
 describe("DW-4.2 .codex-plugin/plugin.json", () => {
@@ -253,7 +209,6 @@ describe("DW-4.7 all 5 reference docs exist", () => {
 describe("DW-4.8 no absolute paths in manifests or docs", () => {
   test("test_DW_4_8_no_absolute_paths_in_manifests", () => {
     const manifests = [
-      ".claude-plugin/plugin.json",
       ".codex-plugin/plugin.json",
       ".mcp.json",
       "gemini-extension.json",
