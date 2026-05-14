@@ -38,11 +38,14 @@ Publishing to an existing slug **replaces the entire site**. All previous files 
 1. User says "publish this site"
 2. Identify the directory containing the files (ask if unclear)
 3. Suggest a slug based on the directory name or project
-4. Call `mcp_upublish_publish` with the directory and slug
-5. Share the production URL with the user
+4. **Run the pre-publish checklist** — read `references/pre-publish-checklist.md` and complete every check. Fix any issues before proceeding.
+5. Call `mcp_upublish_publish` with the directory and slug
+6. Share the production URL with the user
 
 ## Common mistakes
 
+- **Don't skip the pre-publish checklist.** Broken asset paths are the #1 cause of sites that publish successfully but look broken. Always run through `references/pre-publish-checklist.md` before publishing.
+- **Don't use absolute paths for assets.** Paths like `/styles.css` resolve to the domain root, not the slug directory. Use `./styles.css` instead.
 - **Don't create a temp directory just to publish one file.** If the user has a single HTML file, create a directory with just that file, then publish the directory.
 - **Don't guess the slug.** If the directory could map to multiple reasonable slugs, ask the user.
 - **Don't forget to share the URL.** The tool returns the production URL — always include it in your response.

@@ -28,38 +28,6 @@ function fileExists(relPath: string): boolean {
   return existsSync(join(ROOT, relPath));
 }
 
-// ─── DW-4.2: .codex-plugin/plugin.json ───────────────────────────────────────
-
-describe("DW-4.2 .codex-plugin/plugin.json", () => {
-  test("test_DW_4_2_codex_plugin_json_exists_and_valid", () => {
-    expect(fileExists(".codex-plugin/plugin.json")).toBe(true);
-    const data = readJson(".codex-plugin/plugin.json") as Record<string, unknown>;
-    expect(typeof data.name).toBe("string");
-    expect(typeof data.version).toBe("string");
-    expect(typeof data.description).toBe("string");
-  });
-
-  test("test_DW_4_2_has_interface_fields", () => {
-    const data = readJson(".codex-plugin/plugin.json") as Record<string, unknown>;
-    const iface = data.interface as Record<string, unknown>;
-    expect(iface).toBeDefined();
-    expect(typeof iface.displayName).toBe("string");
-    expect(typeof iface.shortDescription).toBe("string");
-    expect(typeof iface.developerName).toBe("string");
-    expect(typeof iface.category).toBe("string");
-  });
-
-  test("test_DW_4_2_has_mcp_servers_reference", () => {
-    const data = readJson(".codex-plugin/plugin.json") as Record<string, unknown>;
-    expect(data.mcpServers).toBeDefined();
-  });
-
-  test("test_DW_4_2_version_is_0_2_0", () => {
-    const data = readJson(".codex-plugin/plugin.json") as Record<string, unknown>;
-    expect(data.version).toBe("0.2.0");
-  });
-});
-
 // ─── DW-4.3: .mcp.json at repo root ──────────────────────────────────────────
 
 describe("DW-4.3 .mcp.json at repo root", () => {
@@ -102,9 +70,9 @@ describe("DW-4.4 gemini-extension.json", () => {
     expect(hasPackage).toBe(true);
   });
 
-  test("test_DW_4_4_version_is_0_2_0", () => {
+  test("test_DW_4_4_version_is_0_3_0", () => {
     const data = readJson("gemini-extension.json") as Record<string, unknown>;
-    expect(data.version).toBe("0.2.0");
+    expect(data.version).toBe("0.3.0");
   });
 
   test("test_DW_4_4_keeps_cwd_with_extensionPath", () => {

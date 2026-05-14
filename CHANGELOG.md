@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.0] — 2026-05-13
+
+### Added
+
+- Pre-publish checklist (`references/pre-publish-checklist.md`) — 5-point validation run before every publish to catch broken asset paths, missing files, localhost references, and other common issues
+
 ## [0.2.0] — 2026-05-13
 
 ### Changed
