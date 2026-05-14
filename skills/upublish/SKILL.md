@@ -23,6 +23,7 @@ Read the reference file for what the user wants, then follow it.
 | User wants to... | Read |
 |---|---|
 | Publish a directory as a live site | `references/publishing.md` |
+| **Pre-publish validation (REQUIRED before every publish)** | `references/pre-publish-checklist.md` |
 | List, delete, or manage existing sites | `references/managing.md` |
 | Control who can access a site (passcode, unlisted) | `references/visibility.md` |
 | Generate a diagram and publish it | `references/generating.md` |
