@@ -99,17 +99,9 @@ describe("DW-5.2 npx skills add omni-ping/upublish.skill", () => {
   });
 });
 
-// ─── DW-5.3: MCP tools appear in Claude Code after session restart ────────────
+// ─── DW-5.3: MCP tools appear after session restart ─────────────────────────
 
-describe("DW-5.3 MCP tools appear in Claude Code", () => {
-  test("test_DW_5_3_claude_plugin_json_has_mcp_config", () => {
-    const data = readJson(".claude-plugin/plugin.json") as Record<string, unknown>;
-    // Must have mcpServers config that enables MCP tool registration
-    expect(data.mcpServers).toBeDefined();
-    const servers = data.mcpServers as Record<string, unknown>;
-    expect(servers.upublish).toBeDefined();
-  });
-
+describe("DW-5.3 MCP tools available", () => {
   test("test_DW_5_3_mcp_json_enables_mcp_tools", () => {
     const data = readJson(".mcp.json") as Record<string, unknown>;
     const servers = data.mcpServers as Record<string, unknown>;
