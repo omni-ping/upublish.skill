@@ -22,6 +22,7 @@ import {
   runDeleteCommand,
   runGenerateCommand,
   runStatusCommand,
+  runConfigureCommand,
 } from "../bin/upublish.ts";
 
 // ─── Sample data ──────────────────────────────────────────────────────────────
@@ -464,6 +465,115 @@ describe("--json flag", () => {
     const parsed = JSON.parse(jsonLine!);
     expect(parsed.url).toBe("https://diagram.upubli.sh");
     expect(parsed.slug).toBe("diagram-abc");
+  });
+});
+
+// ─── DW-1: configure ────────────────────────────────────────────────────────
+
+describe("configure command", () => {
+  test("test_DW_1_1_configure_claude_runs_plugin_install", async () => {
+    const execMock = mock(async (_cmd: string, _args: string[]) => ({ exitCode: 0 }));
+
+    await runConfigureCommand(
+      { platform: "claude" },
+      { execFn: execMock },
+    );
+
+    expect(execMock).toHaveBeenCalledTimes(1);
+    const [cmd, args] = execMock.mock.calls[0] as [string, string[]];
+    expect(cmd).toBe("claude");
+    expect(args).toEqual(["plugin", "install", "omni-ping/upublish.skill"]);
+  });
+
+  test("test_DW_1_2_configure_gemini_runs_extension_install", async () => {
+    const execMock = mock(async (_cmd: string, _args: string[]) => ({ exitCode: 0 }));
+
+    await runConfigureCommand(
+      { platform: "gemini" },
+      { execFn: execMock },
+    );
+
+    expect(execMock).toHaveBeenCalledTimes(1);
+    const [cmd, args] = execMock.mock.calls[0] as [string, string[]];
+    expect(cmd).toBe("gemini");
+    expect(args).toEqual(["extensions", "install", "omni-ping/upublish.skill"]);
+  });
+
+  test("test_DW_1_3_configure_codex_runs_skills_add", async () => {
+    const execMock = mock(async (_cmd: string, _args: string[]) => ({ exitCode: 0 }));
+
+    await runConfigureCommand(
+      { platform: "codex" },
+      { execFn: execMock },
+    );
+
+    expect(execMock).toHaveBeenCalledTimes(1);
+    const [cmd, args] = execMock.mock.calls[0] as [string, string[]];
+    expect(cmd).toBe("npx");
+    expect(args).toEqual(["skills", "add", "omni-ping/upublish.skill", "-g", "--agent", "codex"]);
+  });
+
+  test("test_DW_1_4_configure_exported_with_injectable_deps", async () => {
+    // Verify runConfigureCommand is a function (exported correctly)
+    expect(typeof runConfigureCommand).toBe("function");
+
+    // Verify it accepts and uses injected deps (execFn is called, not the real spawn)
+    const execMock = mock(async (_cmd: string, _args: string[]) => ({ exitCode: 0 }));
+
+    await runConfigureCommand(
+      { platform: "claude" },
+      { execFn: execMock },
+    );
+
+    // The mock was used, proving deps injection works
+    expect(execMock).toHaveBeenCalled();
+  });
+
+  test("test_DW_1_5_configure_invalid_platform_prints_error", async () => {
+    const execMock = mock(async (_cmd: string, _args: string[]) => ({ exitCode: 0 }));
+
+    await expect(
+      runConfigureCommand(
+        { platform: "invalid-platform" },
+        { execFn: execMock },
+      ),
+    ).rejects.toThrow("process.exit(1)");
+
+    expect(exitCode).toBe(1);
+    expect(execMock).not.toHaveBeenCalled();
+
+    const combined = logOutput.join("\n");
+    expect(combined).toContain("invalid-platform");
+    expect(combined).toContain("claude");
+    expect(combined).toContain("gemini");
+    expect(combined).toContain("codex");
+  });
+
+  test("test_DW_1_6_configure_prints_success_message", async () => {
+    const execMock = mock(async (_cmd: string, _args: string[]) => ({ exitCode: 0 }));
+
+    await runConfigureCommand(
+      { platform: "claude" },
+      { execFn: execMock },
+    );
+
+    const combined = logOutput.join("\n");
+    expect(combined).toContain("claude");
+  });
+
+  test("test_DW_1_6_configure_nonzero_exit_reports_error", async () => {
+    const execMock = mock(async (_cmd: string, _args: string[]) => ({ exitCode: 1 }));
+
+    await expect(
+      runConfigureCommand(
+        { platform: "claude" },
+        { execFn: execMock },
+      ),
+    ).rejects.toThrow("process.exit(1)");
+
+    expect(exitCode).toBe(1);
+    const combined = logOutput.join("\n");
+    expect(combined).toContain("failed");
   });
 });
 

@@ -2,7 +2,7 @@
 /**
  * upublish CLI entry point.
  *
- * Subcommands: login, publish, list, delete, generate, status, mcp
+ * Subcommands: login, publish, list, delete, generate, status, configure, mcp
  *
  * Each exported run*Command function accepts args and injectable deps so
  * tests can call them directly without spawning a subprocess.
@@ -182,6 +182,14 @@ export interface StatusArgs {
 
 export interface StatusCommandDeps {
   statusFn?: () => Promise<StatusResult>;
+}
+
+export interface ConfigureArgs {
+  platform: string;
+}
+
+export interface ConfigureCommandDeps {
+  execFn?: (command: string, args: string[]) => Promise<{ exitCode: number }>;
 }
 
 // ─── Subcommand runners (exported for testing) ───────────────────────────────
@@ -367,6 +375,58 @@ export async function runStatusCommand(
   process.exit(1);
 }
 
+// ─── Platform install commands ──────────────────────────────────────────────
+
+const PLATFORM_COMMANDS: Record<string, { command: string; args: string[] }> = {
+  claude: { command: "claude", args: ["plugin", "install", "omni-ping/upublish.skill"] },
+  gemini: { command: "gemini", args: ["extensions", "install", "omni-ping/upublish.skill"] },
+  codex: { command: "npx", args: ["skills", "add", "omni-ping/upublish.skill", "-g", "--agent", "codex"] },
+};
+
+const VALID_PLATFORMS = Object.keys(PLATFORM_COMMANDS);
+
+/**
+ * Default exec function using Bun.spawn with inherited stdio.
+ * Array-based args — no shell interpretation.
+ */
+async function defaultExecFn(command: string, args: string[]): Promise<{ exitCode: number }> {
+  const proc = Bun.spawn([command, ...args], { stdio: ["inherit", "inherit", "inherit"] });
+  const exitCode = await proc.exited;
+  return { exitCode };
+}
+
+/**
+ * Runs the configure subcommand.
+ * Installs the upublish plugin for the specified platform.
+ * Does not require authentication.
+ */
+export async function runConfigureCommand(
+  args: ConfigureArgs,
+  deps: ConfigureCommandDeps = {},
+): Promise<void> {
+  const execFn = deps.execFn ?? defaultExecFn;
+  const platformEntry = PLATFORM_COMMANDS[args.platform];
+
+  if (!platformEntry) {
+    console.log(red(`Unknown platform: "${args.platform}"`));
+    console.log(`Valid platforms: ${VALID_PLATFORMS.join(", ")}`);
+    process.exit(1);
+  }
+
+  console.log(`Configuring upublish for ${bold(args.platform)}...`);
+  console.log(`Running: ${platformEntry.command} ${platformEntry.args.join(" ")}`);
+
+  const result = await execFn(platformEntry.command, platformEntry.args);
+
+  if (result.exitCode !== 0) {
+    console.log(red(`Configuration failed (exit code ${result.exitCode}).`));
+    console.log(`Try running the command manually: ${platformEntry.command} ${platformEntry.args.join(" ")}`);
+    process.exit(1);
+  }
+
+  console.log(green(`upublish configured for ${args.platform}!`));
+}
+
 // ─── citty subcommand definitions ────────────────────────────────────────────
 
 const loginCmd = defineCommand({
@@ -462,6 +522,20 @@ const generateCmd = defineCommand({
   },
 });
 
+const configureCmd = defineCommand({
+  meta: { name: "configure", description: "Install upublish plugin for your AI platform" },
+  args: {
+    platform: {
+      type: "string",
+      description: "Platform to configure: claude, gemini, codex",
+      required: true,
+    },
+  },
+  async run({ args }) {
+    await runConfigureCommand({ platform: args.platform });
+  },
+});
+
 // ─── Main command ─────────────────────────────────────────────────────────────
 
 const pkg = await import("../package.json");
@@ -479,6 +553,7 @@ const main = defineCommand({
     list: listCmd,
     delete: deleteCmd,
     generate: generateCmd,
+    configure: configureCmd,
     mcp: mcpCmd,
   },
 });
