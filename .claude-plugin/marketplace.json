@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "upublish",
-      "source": ".",
+      "source": "./",
       "description": "Publish static sites to upubli.sh instantly. One directory becomes a live URL.",
       "version": "0.4.0",
       "author": {
