@@ -24,6 +24,8 @@ function mockFetch(
     });
 }
 
+const NS_ID = "ns-test";
+
 describe("DW-1.4: deleteSite", () => {
   it("test_DW_1_4_delete_site_returns_message", async () => {
     let capturedUrl = "";
@@ -39,10 +41,10 @@ describe("DW-1.4: deleteSite", () => {
     };
 
     const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
-    const result = await deleteSite(apiClient, "my-portfolio");
+    const result = await deleteSite(apiClient, NS_ID, "my-portfolio");
 
     expect(result.message).toBe("Site 'my-portfolio' deleted successfully");
-    expect(capturedUrl).toBe(`${BASE_URL}/api/sites/my-portfolio`);
+    expect(capturedUrl).toBe(`${BASE_URL}/api/ns/${NS_ID}/sites/my-portfolio`);
     expect(capturedMethod).toBe("DELETE");
   });
 
@@ -53,8 +55,8 @@ describe("DW-1.4: deleteSite", () => {
       mockFetch(200, {}),
     );
 
-    await expect(deleteSite(apiClient, "")).rejects.toThrow("slug is required");
-    await expect(deleteSite(apiClient, "   ")).rejects.toThrow(
+    await expect(deleteSite(apiClient, NS_ID, "")).rejects.toThrow("slug is required");
+    await expect(deleteSite(apiClient, NS_ID, "   ")).rejects.toThrow(
       "slug is required",
     );
   });
@@ -66,7 +68,7 @@ describe("DW-1.4: deleteSite", () => {
       mockFetch(404, { error: "Site not found" }),
     );
 
-    await expect(deleteSite(apiClient, "missing-site")).rejects.toThrow(
+    await expect(deleteSite(apiClient, NS_ID, "missing-site")).rejects.toThrow(
       "API error 404",
     );
   });
@@ -83,8 +85,8 @@ describe("DW-1.4: deleteSite", () => {
     };
 
     const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
-    await deleteSite(apiClient, "my site");
+    await deleteSite(apiClient, NS_ID, "my site");
 
-    expect(capturedUrl).toBe(`${BASE_URL}/api/sites/my%20site`);
+    expect(capturedUrl).toBe(`${BASE_URL}/api/ns/${NS_ID}/sites/my%20site`);
   });
 });

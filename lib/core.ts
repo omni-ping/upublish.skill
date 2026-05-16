@@ -32,6 +32,7 @@ import { publish as domainPublish } from "./publish.ts";
 import type { PublishResult } from "./publish.ts";
 import { deleteSite } from "./delete.ts";
 import type { DeleteResult } from "./delete.ts";
+import { resolveNamespace } from "./namespace.ts";
 import type { FetchFn, Visibility } from "./types.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
@@ -70,6 +71,11 @@ export interface PublishArgs {
   visibility?: Visibility;
   /** Passcode for passcode-protected sites. */
   passcode?: string;
+  /**
+   * Optional namespace name to publish into. When omitted, the default
+   * namespace is resolved from GET /api/space.
+   */
+  namespace?: string;
 }
 
 export type StatusResult =
@@ -104,12 +110,16 @@ async function buildApiClient(deps?: CoreDeps): Promise<ApiClient> {
 // ─── Core operations ──────────────────────────────────────────────────────────
 
 /**
- * Fetches all published sites for the authenticated user.
+ * Fetches all published sites in the default (or named) namespace.
  * Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param namespaceName - Optional namespace name. Defaults to the user's default namespace.
+ * @param deps - Optional CoreDeps for test injection.
  */
-export async function list(deps?: CoreDeps): Promise<ListResult> {
+export async function list(namespaceName?: string, deps?: CoreDeps): Promise<ListResult> {
   const apiClient = await buildApiClient(deps);
-  return listSites(apiClient);
+  const nsId = await resolveNamespace(apiClient, namespaceName);
+  return listSites(apiClient, nsId);
 }
 
 /**
@@ -122,8 +132,10 @@ export async function publish(
   deps?: CoreDeps,
 ): Promise<PublishResult> {
   const apiClient = await buildApiClient(deps);
+  const nsId = await resolveNamespace(apiClient, args.namespace);
   return domainPublish({
     apiClient,
+    nsId,
     directory: args.directory,
     slug: args.slug,
     title: args.title,
@@ -133,15 +145,21 @@ export async function publish(
 }
 
 /**
- * Deletes a published site by slug.
+ * Deletes a published site by slug within the default (or named) namespace.
  * Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param slug - The URL-safe identifier of the site to delete.
+ * @param namespaceName - Optional namespace name. Defaults to the user's default namespace.
+ * @param deps - Optional CoreDeps for test injection.
  */
 export async function deleteOp(
   slug: string,
+  namespaceName?: string,
   deps?: CoreDeps,
 ): Promise<DeleteResult> {
   const apiClient = await buildApiClient(deps);
-  return deleteSite(apiClient, slug);
+  const nsId = await resolveNamespace(apiClient, namespaceName);
+  return deleteSite(apiClient, nsId, slug);
 }
 
 /**

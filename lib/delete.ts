@@ -21,9 +21,10 @@ interface DeleteSiteResponse {
 // ─── Delete ──────────────────────────────────────────────────────────────────
 
 /**
- * Deletes a published site by slug.
+ * Deletes a published site by slug within a namespace.
  *
  * @param apiClient - Authenticated API client.
+ * @param nsId - The namespace ID the site belongs to.
  * @param slug - The URL-safe identifier of the site to delete.
  * @returns Object containing the API confirmation message.
  * @throws Error if slug is empty.
@@ -31,6 +32,7 @@ interface DeleteSiteResponse {
  */
 export async function deleteSite(
   apiClient: ApiClient,
+  nsId: string,
   slug: string,
 ): Promise<DeleteResult> {
   if (!slug || slug.trim().length === 0) {
@@ -38,7 +40,7 @@ export async function deleteSite(
   }
 
   const result = await apiClient.delete<DeleteSiteResponse>(
-    `/api/sites/${encodeURIComponent(slug)}`,
+    `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}`,
   );
 
   return { message: result.message };

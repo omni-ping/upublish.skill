@@ -60,7 +60,7 @@ describe("DW-1.3: listSites", () => {
       mockFetch(200, { sites: [SITE_A, SITE_B] }),
     );
 
-    const result = await listSites(apiClient);
+    const result = await listSites(apiClient, "ns-test");
 
     expect(result.sites).toHaveLength(2);
     expect(result.sites[0].slug).toBe("portfolio");
@@ -74,7 +74,7 @@ describe("DW-1.3: listSites", () => {
       mockFetch(200, { sites: [] }),
     );
 
-    const result = await listSites(apiClient);
+    const result = await listSites(apiClient, "ns-test");
     expect(result.sites).toHaveLength(0);
   });
 
@@ -85,10 +85,10 @@ describe("DW-1.3: listSites", () => {
       mockFetch(500, { error: "Internal server error" }),
     );
 
-    await expect(listSites(apiClient)).rejects.toThrow("API error 500");
+    await expect(listSites(apiClient, "ns-test")).rejects.toThrow("API error 500");
   });
 
-  it("sends GET to /api/sites", async () => {
+  it("sends GET to /api/ns/:nsId/sites", async () => {
     let capturedUrl = "";
     let capturedMethod = "";
 
@@ -102,9 +102,9 @@ describe("DW-1.3: listSites", () => {
     };
 
     const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
-    await listSites(apiClient);
+    await listSites(apiClient, "ns-test");
 
-    expect(capturedUrl).toBe(`${BASE_URL}/api/sites`);
+    expect(capturedUrl).toBe(`${BASE_URL}/api/ns/ns-test/sites`);
     expect(capturedMethod).toBe("GET");
   });
 
@@ -115,7 +115,7 @@ describe("DW-1.3: listSites", () => {
       mockFetch(200, { sites: [SITE_B] }),
     );
 
-    const result = await listSites(apiClient);
+    const result = await listSites(apiClient, "ns-test");
     expect(result.sites[0].visibility).toBe("unlisted");
   });
 });

@@ -17,6 +17,8 @@ import type { Site, Visibility } from "./types.ts";
 export interface PublishOpts {
   /** Authenticated API client. */
   apiClient: ApiClient;
+  /** Namespace ID to publish the site into. */
+  nsId: string;
   /** Path to the directory containing files to publish. */
   directory: string;
   /** URL-safe identifier for the site. */
@@ -100,7 +102,7 @@ function collectFiles(
  * @throws Error on API failure (propagated from ApiClient).
  */
 export async function publish(opts: PublishOpts): Promise<PublishResult> {
-  const { apiClient, directory, slug, title, visibility, passcode } = opts;
+  const { apiClient, nsId, directory, slug, title, visibility, passcode } = opts;
 
   // Validate directory exists and is a directory
   try {
@@ -148,7 +150,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   if (passcode) formData.set("passcode", passcode);
 
   const result = await apiClient.postForm<PublishResponse>(
-    "/api/sites",
+    `/api/ns/${nsId}/sites`,
     formData,
   );
 

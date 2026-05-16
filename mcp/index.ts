@@ -130,9 +130,15 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
           .describe(
             "Passcode for passcode-protected sites. Required when visibility is 'passcode'.",
           ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name to publish into. When omitted, the default namespace is used.",
+          ),
       },
     },
-    async ({ directory, slug, title, visibility, passcode }) => {
+    async ({ directory, slug, title, visibility, passcode, namespace }) => {
       try {
         const result = await publish(
           {
@@ -141,6 +147,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             title: title as string | undefined,
             visibility: visibility as "public" | "unlisted" | "passcode" | undefined,
             passcode: passcode as string | undefined,
+            namespace: namespace as string | undefined,
           },
           coreDeps,
         );
@@ -172,11 +179,18 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
       description:
         "Lists all static websites you have published to upubli.sh. " +
         "Shows each site's name, URL, file count, and total size.",
-      inputSchema: {},
+      inputSchema: {
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name to list sites from. When omitted, the default namespace is used.",
+          ),
+      },
     },
-    async (_args) => {
+    async ({ namespace }) => {
       try {
-        const result = await list(coreDeps);
+        const result = await list(namespace as string | undefined, coreDeps);
         const { sites } = result;
 
         if (sites.length === 0) {
@@ -207,11 +221,17 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             "The URL-safe identifier of the site to delete. " +
             "Use the `list` tool to find available slugs.",
           ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+          ),
       },
     },
-    async ({ slug }) => {
+    async ({ slug, namespace }) => {
       try {
-        const result = await deleteOp(slug as string, coreDeps);
+        const result = await deleteOp(slug as string, namespace as string | undefined, coreDeps);
         return okResponse(result.message);
       } catch (err) {
         return errResponse(err);

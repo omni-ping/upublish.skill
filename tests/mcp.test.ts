@@ -49,15 +49,29 @@ function writeTempCredentials(token: string): string {
   return tmpFile;
 }
 
+const DEFAULT_NS_ID = "ns-default";
+
 /**
- * Creates a mock fetch that handles token refresh and provides a default
- * API response. Pass overrides to customize the API response.
+ * Creates a mock fetch that handles token refresh, namespace resolution,
+ * and provides a default API response. Pass overrides to customize the API response.
  */
 function makeMockFetch(apiResponse: unknown = { sites: [] }) {
   return async (url: string, _init?: RequestInit): Promise<Response> => {
     if (url.includes("/auth/token/refresh")) {
       return new Response(
         JSON.stringify({ access_token: "mock-access-token", expires_in: 3600 }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (url.endsWith("/api/space") || url.includes("/api/space?")) {
+      return new Response(
+        JSON.stringify({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (/\/api\/ns$/.test(url) || /\/api\/ns\?/.test(url)) {
+      return new Response(
+        JSON.stringify({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "user.upubli.sh" }] }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     }
@@ -142,7 +156,19 @@ describe("DW-2.1: each tool calls core, no auth knowledge in mcp/index.ts", () =
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
-      if (url.includes("/api/sites") && init?.method === "POST") {
+      if (url.endsWith("/api/space")) {
+        return new Response(
+          JSON.stringify({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.endsWith("/api/ns") && init?.method !== "POST") {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "x.upubli.sh" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/sites") && init?.method === "POST") {
         apiCalled = true;
         return new Response(
           JSON.stringify({ site: SAMPLE_SITE, url: "https://user1.upubli.sh/my-site/" }),
@@ -176,7 +202,19 @@ describe("DW-2.1: each tool calls core, no auth knowledge in mcp/index.ts", () =
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
-      if (url.includes("/api/sites")) {
+      if (url.endsWith("/api/space")) {
+        return new Response(
+          JSON.stringify({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "x.upubli.sh" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/sites")) {
         apiCalled = true;
         return new Response(
           JSON.stringify({ sites: [] }),
@@ -203,7 +241,19 @@ describe("DW-2.1: each tool calls core, no auth knowledge in mcp/index.ts", () =
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
-      if (url.includes("/api/sites/") && init?.method === "DELETE") {
+      if (url.endsWith("/api/space")) {
+        return new Response(
+          JSON.stringify({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "x.upubli.sh" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/sites/") && init?.method === "DELETE") {
         deleteCalled = true;
         return new Response(
           JSON.stringify({ message: "Site deleted." }),
@@ -235,7 +285,19 @@ describe("tool output format", () => {
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
-      if (url.includes("/api/sites") && init?.method === "POST") {
+      if (url.endsWith("/api/space")) {
+        return new Response(
+          JSON.stringify({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "x.upubli.sh" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/sites") && init?.method === "POST") {
         return new Response(
           JSON.stringify({ site: SAMPLE_SITE, url: PUBLISHED_URL }),
           { status: 200, headers: { "Content-Type": "application/json" } },
@@ -294,6 +356,18 @@ describe("tool output format", () => {
       if (url.includes("/auth/token/refresh")) {
         return new Response(
           JSON.stringify({ access_token: "token", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.endsWith("/api/space")) {
+        return new Response(
+          JSON.stringify({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "x.upubli.sh" }] }),
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
@@ -420,6 +494,18 @@ describe("error handling", () => {
       if (url.includes("/auth/token/refresh")) {
         return new Response(
           JSON.stringify({ access_token: "token", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.endsWith("/api/space")) {
+        return new Response(
+          JSON.stringify({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "x.upubli.sh" }] }),
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }

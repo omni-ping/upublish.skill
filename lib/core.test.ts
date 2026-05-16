@@ -48,9 +48,17 @@ function mockFetch(
     });
 }
 
+const NS_ID = "ns-test-id";
+
 /**
- * Returns a mockFetch that handles both the token refresh endpoint and
- * a single API endpoint with a given response.
+ * Returns a mockFetch that handles token refresh, namespace resolution
+ * (GET /api/space and GET /api/ns), and a primary API endpoint.
+ *
+ * Routing priority (most-specific match first):
+ *   1. /auth/token/refresh → access token response
+ *   2. /api/space          → default namespace response
+ *   3. /api/ns (exact, no path segment after) → namespace list
+ *   4. The caller-supplied apiPath  → apiBody with apiStatus
  */
 function mockFetchWithTokenRefresh(
   apiPath: string,
@@ -64,7 +72,22 @@ function mockFetchWithTokenRefresh(
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     }
-    if (url.includes(apiPath)) {
+    if (url.endsWith("/api/space") || url.includes("/api/space?")) {
+      return new Response(
+        JSON.stringify({ space: { id: "sp1", default_namespace_id: NS_ID, tier: "free" } }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    // Match /api/ns exactly (not /api/ns/something/...)
+    if (/\/api\/ns$/.test(url) || /\/api\/ns\?/.test(url)) {
+      return new Response(
+        JSON.stringify({ namespaces: [{ id: NS_ID, name: "default", domain: "user.upubli.sh" }] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    // Match the primary endpoint — try exact suffix match (last path segment)
+    // so /api/sites matches /api/ns/:nsId/sites and direct /api/sites
+    if (url.includes(apiPath) || url.endsWith(apiPath.replace(/^.*\//, "/"))) {
       return new Response(JSON.stringify(apiBody), {
         status: apiStatus,
         headers: { "Content-Type": "application/json" },
@@ -95,7 +118,7 @@ describe("DW-1.1/1.6: core.list()", () => {
       fetchFn: mockFetchWithTokenRefresh("/api/sites", 200, { sites: [] }),
     };
 
-    const result = await list(deps);
+    const result = await list(undefined, deps);
     expect(result.sites).toEqual([]);
   });
 
@@ -122,7 +145,7 @@ describe("DW-1.1/1.6: core.list()", () => {
       fetchFn: mockFetchWithTokenRefresh("/api/sites", 200, { sites: [SITE] }),
     };
 
-    const result = await list(deps);
+    const result = await list(undefined, deps);
     expect(result.sites).toHaveLength(1);
     expect(result.sites[0].slug).toBe("my-site");
   });
@@ -133,7 +156,7 @@ describe("DW-1.1/1.6: core.list()", () => {
       fetchFn: mockFetch(200, { sites: [] }),
     };
 
-    await expect(list(deps)).rejects.toThrow("Not authenticated");
+    await expect(list(undefined, deps)).rejects.toThrow("Not authenticated");
   });
 
   it("test_DW_1_2_list_reads_credentials_per_call", async () => {
@@ -146,13 +169,13 @@ describe("DW-1.1/1.6: core.list()", () => {
       fetchFn: mockFetchWithTokenRefresh("/api/sites", 200, { sites: [] }),
     };
 
-    await expect(list(deps)).rejects.toThrow("Not authenticated");
+    await expect(list(undefined, deps)).rejects.toThrow("Not authenticated");
 
     // Write credentials between calls
     fs.writeFileSync(credFile, REFRESH_TOKEN, { mode: 0o600 });
 
     // Second call: credentials now present → succeeds (proves per-call read)
-    const result = await list(deps);
+    const result = await list(undefined, deps);
     expect(result.sites).toEqual([]);
   });
 });
@@ -261,7 +284,7 @@ describe("DW-1.1/1.4/1.6: core.deleteOp()", () => {
       fetchFn: mockFetchWithTokenRefresh("/api/sites/my-site", 200, { message: "Deleted" }),
     };
 
-    const result = await deleteOp("my-site", deps);
+    const result = await deleteOp("my-site", undefined, deps);
     expect(result.message).toBe("Deleted");
   });
 
@@ -271,7 +294,7 @@ describe("DW-1.1/1.4/1.6: core.deleteOp()", () => {
       fetchFn: mockFetch(200, { message: "Deleted" }),
     };
 
-    await expect(deleteOp("my-site", deps)).rejects.toThrow("Not authenticated");
+    await expect(deleteOp("my-site", undefined, deps)).rejects.toThrow("Not authenticated");
   });
 });
 

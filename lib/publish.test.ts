@@ -144,11 +144,12 @@ describe("DW-1.2: publish", () => {
     const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
     const result = await publish({
       apiClient,
+      nsId: "ns-test",
       directory: tmpDir,
       slug: "my-site",
     });
 
-    expect(capturedUrl).toBe(`${BASE_URL}/api/sites`);
+    expect(capturedUrl).toBe(`${BASE_URL}/api/ns/ns-test/sites`);
     expect(capturedMethod).toBe("POST");
     expect(result.url).toBe(SAMPLE_URL);
     expect(result.site.slug).toBe("my-site");
@@ -165,6 +166,7 @@ describe("DW-1.2: publish", () => {
 
     const result = await publish({
       apiClient,
+      nsId: "ns-test",
       directory: tmpDir,
       slug: "my-site",
     });
@@ -185,6 +187,7 @@ describe("DW-1.2: publish", () => {
     await expect(
       publish({
         apiClient,
+        nsId: "ns-test",
         directory: "/nonexistent/path/xyz",
         slug: "my-site",
       }),
@@ -201,7 +204,7 @@ describe("DW-1.2: publish", () => {
     );
 
     await expect(
-      publish({ apiClient, directory: tmpDir, slug: "ab" }),
+      publish({ apiClient, nsId: "ns-test", directory: tmpDir, slug: "ab" }),
     ).rejects.toThrow("Invalid slug");
   });
 
@@ -213,7 +216,7 @@ describe("DW-1.2: publish", () => {
     );
 
     await expect(
-      publish({ apiClient, directory: tmpDir, slug: "my-site" }),
+      publish({ apiClient, nsId: "ns-test", directory: tmpDir, slug: "my-site" }),
     ).rejects.toThrow("empty");
   });
 
@@ -229,6 +232,7 @@ describe("DW-1.2: publish", () => {
     await expect(
       publish({
         apiClient,
+        nsId: "ns-test",
         directory: tmpDir,
         slug: "my-site",
         visibility: "passcode",
@@ -247,7 +251,7 @@ describe("DW-1.2: publish", () => {
     );
 
     await expect(
-      publish({ apiClient, directory: filePath, slug: "my-site" }),
+      publish({ apiClient, nsId: "ns-test", directory: filePath, slug: "my-site" }),
     ).rejects.toThrow("not a directory");
   });
 
@@ -261,7 +265,7 @@ describe("DW-1.2: publish", () => {
     );
 
     await expect(
-      publish({ apiClient, directory: tmpDir, slug: "my-site" }),
+      publish({ apiClient, nsId: "ns-test", directory: tmpDir, slug: "my-site" }),
     ).rejects.toThrow("Slug already taken");
   });
 
@@ -278,7 +282,7 @@ describe("DW-1.2: publish", () => {
     };
 
     const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
-    await publish({ apiClient, directory: tmpDir, slug: "my-site" });
+    await publish({ apiClient, nsId: "ns-test", directory: tmpDir, slug: "my-site" });
 
     expect(capturedForm).toBeInstanceOf(FormData);
     expect((capturedForm as FormData).get("title")).toBe("my-site");
@@ -299,6 +303,7 @@ describe("DW-1.2: publish", () => {
     const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
     await publish({
       apiClient,
+      nsId: "ns-test",
       directory: tmpDir,
       slug: "my-site",
       visibility: "passcode",

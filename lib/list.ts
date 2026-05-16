@@ -22,13 +22,14 @@ interface ListSitesResponse {
 // ─── List ────────────────────────────────────────────────────────────────────
 
 /**
- * Fetches all published sites for the authenticated user.
+ * Fetches all published sites for the authenticated user within a namespace.
  *
  * @param apiClient - Authenticated API client.
+ * @param nsId - The namespace ID to list sites within.
  * @returns Object containing an array of sites.
  * @throws Error on API failure (propagated from ApiClient).
  */
-export async function listSites(apiClient: ApiClient): Promise<ListResult> {
-  const response = await apiClient.get<ListSitesResponse>("/api/sites");
+export async function listSites(apiClient: ApiClient, nsId: string): Promise<ListResult> {
+  const response = await apiClient.get<ListSitesResponse>(`/api/ns/${nsId}/sites`);
   return { sites: response.sites };
 }
