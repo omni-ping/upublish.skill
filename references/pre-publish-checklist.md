@@ -81,4 +81,56 @@ ls /path/to/dir/index.html
 grep -rn '<base' /path/to/dir --include="*.html"
 ```
 
-Report what you found and fixed. If everything passes, proceed to publish.
+Report what you found and fixed. If everything passes, proceed to the security scan.
+
+## 6. Security scan
+
+Scan for files and patterns that should never be published to a public URL.
+
+### Dangerous files
+
+```bash
+# Files that should never ship
+find <dir> -name '.env' -o -name '.env.*' -o -name 'credentials' -o -name '*.pem' -o -name '*.key'
+find <dir> -name '.git' -type d
+find <dir> -name 'node_modules' -type d
+find <dir> -name '.DS_Store' -o -name 'Thumbs.db'
+find <dir> -name '*.map' -type f
+```
+
+| File/pattern | Risk | Action |
+|-------------|------|--------|
+| `.env`, `.env.*` | API keys, secrets | **Block publish.** Tell the user. |
+| `.git/` | Full repo history, credentials | **Remove.** Never publish a `.git` directory. |
+| `node_modules/` | Massive, may contain native binaries | **Remove.** Publish the build output, not the source tree. |
+| `.DS_Store`, `Thumbs.db` | OS metadata, no harm but unprofessional | Remove silently. |
+| `*.map` (source maps) | Exposes original source code | Flag to user — remove unless they want debuggability. |
+| `*.pem`, `*.key` | Private keys | **Block publish.** Tell the user immediately. |
+
+### Secrets in source code
+
+```bash
+# Scan for common API key patterns in HTML/CSS/JS files
+grep -rn 'sk-[a-zA-Z0-9]' <dir> --include='*.html' --include='*.js'
+grep -rn 'AKIA[A-Z0-9]' <dir> --include='*.html' --include='*.js'
+grep -rn 'api[_-]key\|apikey\|secret[_-]key\|password' <dir> --include='*.html' --include='*.js' -i
+```
+
+| Pattern | What it likely is |
+|---------|------------------|
+| `sk-` followed by 40+ chars | OpenAI API key |
+| `AKIA` followed by 16 uppercase chars | AWS access key ID |
+| `api_key`, `apikey`, `secret_key` | Generic API credentials |
+| `password` in JS (not HTML labels) | Hardcoded credential |
+
+If any match looks like a real secret (not a placeholder or label), **stop and warn the user** before publishing. Don't publish files containing secrets.
+
+### Server-side code
+
+```bash
+find <dir> -name '*.php' -o -name '*.py' -o -name '*.rb' -o -name '*.asp' -o -name '*.jsp'
+```
+
+These won't execute on upublish (static hosting only) but their presence suggests the user is publishing the wrong directory. Flag it.
+
+After the security scan passes, proceed to publish.

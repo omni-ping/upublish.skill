@@ -42,6 +42,25 @@ Publishing to an existing slug **replaces the entire site**. All previous files 
 5. Call `mcp_upublish_publish` with the directory and slug
 6. Share the production URL with the user
 
+## Size limits
+
+| Limit | Value | What happens |
+|-------|-------|-------------|
+| Single file | 25 MB | Files over this may fail to upload or cause timeouts |
+| Total archive | No hard limit documented | Practically, keep under 100 MB for reliable uploads |
+| Slug length | 3-63 characters | Rejected at API level |
+
+### When the site is too big
+
+| Cause | Fix |
+|-------|-----|
+| Large images (hero, photos) | Compress — see `references/optimization.md` |
+| Video files | Host on YouTube/Vimeo and embed. Don't upload video to upublish. |
+| `node_modules/` included | Publish the build output directory, not the source tree |
+| Source maps (`.map` files) | Remove them — they often double the JS size |
+| Full font families | Subset to Latin or switch to system fonts |
+| Uncompressed data files | Use gzip/brotli-compressed JSON, or external hosting for large datasets |
+
 ## Common mistakes
 
 - **Don't skip the pre-publish checklist.** Broken asset paths are the #1 cause of sites that publish successfully but look broken. Always run through `references/pre-publish-checklist.md` before publishing.

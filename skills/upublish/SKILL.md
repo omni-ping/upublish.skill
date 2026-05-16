@@ -71,8 +71,11 @@ Match what the user wants and read the reference file, then follow it.
 |---|---|
 | Publish a directory as a live site | `references/publishing.md` |
 | **Pre-publish validation (REQUIRED before every publish)** | `references/pre-publish-checklist.md` |
+| Figure out what type of content this is | `references/content-types/taxonomy.md` → then the specific content type reference |
 | List, delete, or manage existing sites | `references/managing.md` |
 | Control who can access a site (passcode, unlisted) | `references/visibility.md` |
+| Optimize site performance or reduce size | `references/optimization.md` |
+| Add SEO tags, social previews, or favicon | `references/seo-social.md` |
 | Fix something that is broken | `references/troubleshooting.md` |
 | Say hello or check setup | Run `upublish hello` |
 
