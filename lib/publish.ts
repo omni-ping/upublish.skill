@@ -29,6 +29,11 @@ export interface PublishOpts {
   visibility?: Visibility;
   /** Passcode for passcode-protected sites. */
   passcode?: string;
+  /**
+   * Label for the initial passcode. Defaults to "default" when
+   * visibility is "passcode" and no label is provided.
+   */
+  passcodeLabel?: string;
 }
 
 export interface PublishResult {
@@ -102,7 +107,7 @@ function collectFiles(
  * @throws Error on API failure (propagated from ApiClient).
  */
 export async function publish(opts: PublishOpts): Promise<PublishResult> {
-  const { apiClient, nsId, directory, slug, title, visibility, passcode } = opts;
+  const { apiClient, nsId, directory, slug, title, visibility, passcode, passcodeLabel } = opts;
 
   // Validate directory exists and is a directory
   try {
@@ -148,6 +153,9 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   );
   if (visibility) formData.set("visibility", visibility);
   if (passcode) formData.set("passcode", passcode);
+  if (visibility === "passcode" && passcode) {
+    formData.set("passcode_label", passcodeLabel ?? "default");
+  }
 
   const result = await apiClient.postForm<PublishResponse>(
     `/api/ns/${nsId}/sites`,

@@ -19,6 +19,9 @@ import {
   publish,
   deleteOp,
   logout,
+  addPasscode,
+  listPasscodes,
+  revokePasscode,
 } from "../lib/core.ts";
 import type { CoreDeps, Site } from "../lib/core.ts";
 
@@ -234,6 +237,150 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
       try {
         const result = await deleteOp(slug as string, namespace as string | undefined, coreDeps);
         return okResponse(result.message);
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "passcode_add",
+    {
+      title: "Add Passcode",
+      description:
+        "Adds a passcode to a passcode-protected site on upubli.sh. " +
+        "Each passcode can have a unique label for identification (e.g. 'Client A'). " +
+        "The site must already have visibility set to 'passcode'.",
+      inputSchema: {
+        slug: z
+          .string()
+          .describe("The URL-safe identifier of the site to add a passcode to."),
+        code: z
+          .string()
+          .describe("The passcode string that visitors will use to access the site."),
+        label: z
+          .string()
+          .describe(
+            "Human-readable label for this passcode (e.g. 'Client A', 'Team B'). " +
+            "Used to identify and revoke specific passcodes.",
+          ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+          ),
+      },
+    },
+    async ({ slug, code, label, namespace }) => {
+      try {
+        const result = await addPasscode(
+          slug as string,
+          code as string,
+          label as string,
+          namespace as string | undefined,
+          coreDeps,
+        );
+        return okResponse(
+          `Passcode added to ${slug as string}\n` +
+          `ID:    ${result.passcode.id}\n` +
+          `Label: ${result.passcode.label}`,
+        );
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "passcode_list",
+    {
+      title: "List Passcodes",
+      description:
+        "Lists all passcodes for a passcode-protected site on upubli.sh. " +
+        "Shows each passcode's ID, label, and creation date.",
+      inputSchema: {
+        slug: z
+          .string()
+          .describe("The URL-safe identifier of the site to list passcodes for."),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+          ),
+      },
+    },
+    async ({ slug, namespace }) => {
+      try {
+        const result = await listPasscodes(
+          slug as string,
+          namespace as string | undefined,
+          coreDeps,
+        );
+
+        if (result.passcodes.length === 0) {
+          return okResponse(`No passcodes found for site '${slug as string}'.`);
+        }
+
+        const lines = result.passcodes.map((pc) => {
+          const created = new Date(pc.created_at).toLocaleDateString();
+          return `  ID: ${pc.id}\n  Label: ${pc.label}\n  Created: ${created}`;
+        });
+
+        return okResponse(
+          `Passcodes for ${slug as string} (${result.passcodes.length}):\n\n` +
+          lines.join("\n\n"),
+        );
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "passcode_revoke",
+    {
+      title: "Revoke Passcode",
+      description:
+        "Revokes (removes) a passcode from a passcode-protected site on upubli.sh. " +
+        "Specify either the passcode ID or its label. " +
+        "Use the passcode_list tool to find available IDs and labels.",
+      inputSchema: {
+        slug: z
+          .string()
+          .describe("The URL-safe identifier of the site to revoke a passcode from."),
+        id: z
+          .string()
+          .optional()
+          .describe("The passcode ID to revoke. Takes precedence over label."),
+        label: z
+          .string()
+          .optional()
+          .describe(
+            "The passcode label to revoke (resolved to ID via list). " +
+            "Used only when id is not provided.",
+          ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+          ),
+      },
+    },
+    async ({ slug, id, label, namespace }) => {
+      try {
+        const result = await revokePasscode(
+          slug as string,
+          { id: id as string | undefined, label: label as string | undefined },
+          namespace as string | undefined,
+          coreDeps,
+        );
+        const identifier = id ? `id=${id as string}` : `label="${label as string}"`;
+        return okResponse(
+          `Passcode revoked from ${slug as string} (${identifier})\n${result.message}`,
+        );
       } catch (err) {
         return errResponse(err);
       }

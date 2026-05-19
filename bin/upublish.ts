@@ -23,6 +23,9 @@ import {
   login as coreLogin,
   status as coreStatus,
   logout as coreLogout,
+  addPasscode as coreAddPasscode,
+  listPasscodes as coreListPasscodes,
+  revokePasscode as coreRevokePasscode,
 } from "../lib/core.ts";
 import type {
   PublishArgs as CorePublishArgs,
@@ -34,6 +37,9 @@ import type {
   DeleteResult,
   LogoutResult,
   Visibility,
+  AddPasscodeResult,
+  ListPasscodesResult,
+  RevokePasscodeResult,
 } from "../lib/core.ts";
 
 // ─── ANSI color helpers ───────────────────────────────────────────────────────
@@ -140,11 +146,43 @@ export interface PublishArgs {
   title?: string;
   visibility?: string;
   passcode?: string;
+  label?: string;
   json: boolean;
 }
 
 export interface PublishCommandDeps {
   publishFn?: (args: CorePublishArgs) => Promise<PublishResult>;
+}
+
+export interface PasscodeAddArgs {
+  slug: string;
+  passcode: string;
+  label: string;
+  json: boolean;
+}
+
+export interface PasscodeAddCommandDeps {
+  addPasscodeFn?: (slug: string, code: string, label: string) => Promise<AddPasscodeResult>;
+}
+
+export interface PasscodeListArgs {
+  slug: string;
+  json: boolean;
+}
+
+export interface PasscodeListCommandDeps {
+  listPasscodesFn?: (slug: string) => Promise<ListPasscodesResult>;
+}
+
+export interface PasscodeRevokeArgs {
+  slug: string;
+  id?: string;
+  label?: string;
+  json: boolean;
+}
+
+export interface PasscodeRevokeCommandDeps {
+  revokePasscodeFn?: (slug: string, opts: { id?: string; label?: string }) => Promise<RevokePasscodeResult>;
 }
 
 export interface ListArgs {
@@ -239,6 +277,7 @@ export async function runPublishCommand(
       title: args.title,
       visibility: args.visibility as Visibility | undefined,
       passcode: args.passcode,
+      passcodeLabel: args.label,
     });
 
     if (args.json) {
@@ -346,6 +385,102 @@ export async function runStatusCommand(
     console.log("Run `upublish login` to sign in.");
   }
   process.exit(1);
+}
+
+// ─── Passcode subcommand runners ─────────────────────────────────────────────
+
+/**
+ * Runs the passcode add subcommand.
+ * Adds a new passcode to a passcode-protected site.
+ */
+export async function runPasscodeAddCommand(
+  args: PasscodeAddArgs,
+  deps: PasscodeAddCommandDeps = {},
+): Promise<void> {
+  const addFn = deps.addPasscodeFn ?? ((slug, code, label) => coreAddPasscode(slug, code, label));
+
+  try {
+    const result = await addFn(args.slug, args.passcode, args.label);
+
+    if (args.json) {
+      console.log(JSON.stringify(result));
+    } else {
+      console.log(green(`Passcode added to ${bold(args.slug)}`));
+      console.log(`  ID:    ${result.passcode.id}`);
+      console.log(`  Label: ${result.passcode.label}`);
+    }
+  } catch (err) {
+    console.log(red(`Error: ${(err as Error).message}`));
+    process.exit(1);
+  }
+}
+
+/**
+ * Runs the passcode list subcommand.
+ * Lists all passcodes for a site.
+ */
+export async function runPasscodeListCommand(
+  args: PasscodeListArgs,
+  deps: PasscodeListCommandDeps = {},
+): Promise<void> {
+  const listFn = deps.listPasscodesFn ?? ((slug) => coreListPasscodes(slug));
+
+  try {
+    const result = await listFn(args.slug);
+
+    if (args.json) {
+      console.log(JSON.stringify(result));
+      return;
+    }
+
+    if (result.passcodes.length === 0) {
+      console.log(`No passcodes found for ${bold(args.slug)}.`);
+      return;
+    }
+
+    console.log(bold(`Passcodes for ${args.slug} (${result.passcodes.length}):`));
+    console.log(`  ${"ID".padEnd(36)}  ${"Label".padEnd(24)}  Created`);
+    console.log(`  ${"-".repeat(36)}  ${"-".repeat(24)}  -------`);
+    for (const pc of result.passcodes) {
+      const created = new Date(pc.created_at).toLocaleDateString();
+      console.log(`  ${pc.id.padEnd(36)}  ${pc.label.padEnd(24)}  ${created}`);
+    }
+  } catch (err) {
+    console.log(red(`Error: ${(err as Error).message}`));
+    process.exit(1);
+  }
+}
+
+/**
+ * Runs the passcode revoke subcommand.
+ * Removes a passcode by ID or label.
+ */
+export async function runPasscodeRevokeCommand(
+  args: PasscodeRevokeArgs,
+  deps: PasscodeRevokeCommandDeps = {},
+): Promise<void> {
+  const revokeFn =
+    deps.revokePasscodeFn ??
+    ((slug, opts) => coreRevokePasscode(slug, opts));
+
+  if (!args.id && !args.label) {
+    console.log(red("Error: Either --id or --label must be provided."));
+    process.exit(1);
+  }
+
+  try {
+    const result = await revokeFn(args.slug, { id: args.id, label: args.label });
+
+    if (args.json) {
+      console.log(JSON.stringify(result));
+    } else {
+      const identifier = args.id ? `id=${args.id}` : `label="${args.label}"`;
+      console.log(green(`Passcode revoked from ${bold(args.slug)} (${identifier})`));
+    }
+  } catch (err) {
+    console.log(red(`Error: ${(err as Error).message}`));
+    process.exit(1);
+  }
 }
 
 // ─── Platform install commands ──────────────────────────────────────────────
@@ -473,6 +608,7 @@ const publishCmd = defineCommand({
     title: { type: "string", description: "Site title (defaults to slug)" },
     visibility: { type: "string", description: "Visibility: public, unlisted, passcode" },
     passcode: { type: "string", description: "Passcode (required when visibility=passcode)" },
+    label: { type: "string", description: "Label for the initial passcode (defaults to \"default\")" },
     json: { type: "boolean", description: "Output result as JSON", default: false },
   },
   async run({ args }) {
@@ -482,6 +618,7 @@ const publishCmd = defineCommand({
       title: args.title,
       visibility: args.visibility,
       passcode: args.passcode,
+      label: args.label,
       json: args.json,
     });
   },
@@ -561,6 +698,64 @@ const logoutCmd = defineCommand({
   },
 });
 
+// ─── Passcode subcommand group ────────────────────────────────────────────────
+
+const passcodeAddCmd = defineCommand({
+  meta: { name: "add", description: "Add a passcode to a site" },
+  args: {
+    slug: { type: "positional", description: "Site slug", required: true },
+    passcode: { type: "string", description: "Passcode string", required: true },
+    label: { type: "string", description: "Human-readable label (e.g. \"Client A\")", required: true },
+    json: { type: "boolean", description: "Output result as JSON", default: false },
+  },
+  async run({ args }) {
+    await runPasscodeAddCommand({
+      slug: args.slug,
+      passcode: args.passcode,
+      label: args.label,
+      json: args.json,
+    });
+  },
+});
+
+const passcodeListCmd = defineCommand({
+  meta: { name: "list", description: "List passcodes for a site" },
+  args: {
+    slug: { type: "positional", description: "Site slug", required: true },
+    json: { type: "boolean", description: "Output result as JSON", default: false },
+  },
+  async run({ args }) {
+    await runPasscodeListCommand({ slug: args.slug, json: args.json });
+  },
+});
+
+const passcodeRevokeCmd = defineCommand({
+  meta: { name: "revoke", description: "Revoke a passcode from a site" },
+  args: {
+    slug: { type: "positional", description: "Site slug", required: true },
+    id: { type: "string", description: "Passcode ID to revoke" },
+    label: { type: "string", description: "Passcode label to revoke" },
+    json: { type: "boolean", description: "Output result as JSON", default: false },
+  },
+  async run({ args }) {
+    await runPasscodeRevokeCommand({
+      slug: args.slug,
+      id: args.id,
+      label: args.label,
+      json: args.json,
+    });
+  },
+});
+
+const passcodeCmd = defineCommand({
+  meta: { name: "passcode", description: "Manage passcodes for passcode-protected sites" },
+  subCommands: {
+    add: passcodeAddCmd,
+    list: passcodeListCmd,
+    revoke: passcodeRevokeCmd,
+  },
+});
+
 // ─── Main command ─────────────────────────────────────────────────────────────
 
 const pkg = await import("../package.json");
@@ -578,6 +773,7 @@ const main = defineCommand({
     publish: publishCmd,
     list: listCmd,
     delete: deleteCmd,
+    passcode: passcodeCmd,
     configure: configureCmd,
     hello: helloCmd,
     mcp: mcpCmd,

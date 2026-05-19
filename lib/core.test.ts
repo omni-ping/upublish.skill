@@ -13,6 +13,8 @@
  * Covers DW-2.3: core.logout() returns { loggedOut: true } on success, { loggedOut: false, error } on failure
  * Covers DW-2.6: Tests cover core logout (happy path, no credentials file, server unreachable)
  * Covers DW-2.7: core.logout() with no credentials file returns { loggedOut: true } (no-op success)
+ *
+ * Covers DW-5.7: core.ts exports addPasscode, listPasscodes, revokePasscode with CoreDeps injection
  */
 
 import { describe, it, expect, afterEach } from "bun:test";
@@ -26,6 +28,9 @@ import {
   login,
   status,
   logout,
+  addPasscode,
+  listPasscodes,
+  revokePasscode,
 } from "./core.ts";
 import type { CoreDeps } from "./core.ts";
 import type { LoginDeps } from "./auth.ts";
@@ -561,5 +566,189 @@ describe("DW-2.3: core.logout() returns loggedOut:false on delete error", () => 
     }
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
+// ─── DW-5.7: core passcode functions ─────────────────────────────────────────
+
+/**
+ * Returns a mockFetch that handles token refresh, namespace resolution,
+ * and a caller-specified set of URL→response mappings (matched by substring).
+ */
+function mockFetchMulti(
+  routes: Array<{ match: string; status: number; body: unknown }>,
+): (url: string, init?: RequestInit) => Promise<Response> {
+  return async (url: string) => {
+    if (url.includes("/auth/token/refresh")) {
+      return new Response(
+        JSON.stringify({ access_token: "mock-access-token", expires_in: 3600 }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (url.endsWith("/api/space") || url.includes("/api/space?")) {
+      return new Response(
+        JSON.stringify({ space: { id: "sp1", default_namespace_id: NS_ID, tier: "free" } }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    for (const route of routes) {
+      if (url.includes(route.match)) {
+        return new Response(JSON.stringify(route.body), {
+          status: route.status,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+    return new Response("Not found", { status: 404 });
+  };
+}
+
+describe("DW-5.7: core.addPasscode()", () => {
+  it("test_DW_5_7_core_exports_add_passcode", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([
+        {
+          match: "/passcodes",
+          status: 201,
+          body: { id: "pc-1", label: "Client A", created_at: "2026-01-01T00:00:00Z" },
+        },
+      ]),
+    };
+
+    const result = await addPasscode("my-site", "mycode", "Client A", undefined, deps);
+    expect(result.passcode.id).toBe("pc-1");
+    expect(result.passcode.label).toBe("Client A");
+  });
+
+  it("test_DW_5_7_add_passcode_no_credentials_throws", async () => {
+    const deps: CoreDeps = { credentialsPath: "/does/not/exist/credentials" };
+    await expect(addPasscode("my-site", "mycode", "Client A", undefined, deps)).rejects.toThrow("Not authenticated");
+  });
+});
+
+describe("DW-5.7: core.listPasscodes()", () => {
+  it("test_DW_5_7_core_exports_list_passcodes", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const passcodes = [
+      { id: "pc-1", label: "Client A", created_at: "2026-01-01T00:00:00Z" },
+      { id: "pc-2", label: "Client B", created_at: "2026-02-01T00:00:00Z" },
+    ];
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([
+        { match: "/passcodes", status: 200, body: { passcodes } },
+      ]),
+    };
+
+    const result = await listPasscodes("my-site", undefined, deps);
+    expect(result.passcodes).toHaveLength(2);
+    expect(result.passcodes[0].label).toBe("Client A");
+  });
+
+  it("test_DW_5_7_list_passcodes_no_credentials_throws", async () => {
+    const deps: CoreDeps = { credentialsPath: "/does/not/exist/credentials" };
+    await expect(listPasscodes("my-site", undefined, deps)).rejects.toThrow("Not authenticated");
+  });
+});
+
+describe("DW-5.7: core.revokePasscode()", () => {
+  it("test_DW_5_7_core_exports_revoke_passcode_by_id", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([
+        { match: "/passcodes/pc-1", status: 200, body: { message: "Passcode revoked" } },
+      ]),
+    };
+
+    const result = await revokePasscode("my-site", { id: "pc-1" }, undefined, deps);
+    expect(result.message).toBe("Passcode revoked");
+  });
+
+  it("test_DW_5_7_revoke_passcode_by_label_resolves_id", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const passcodes = [
+      { id: "pc-1", label: "Client A", created_at: "2026-01-01T00:00:00Z" },
+    ];
+
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      if (url.includes("/auth/token/refresh")) {
+        return new Response(
+          JSON.stringify({ access_token: "mock-access-token", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.endsWith("/api/space")) {
+        return new Response(
+          JSON.stringify({ space: { id: "sp1", default_namespace_id: NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      const method = init?.method ?? "GET";
+      if (url.includes("/passcodes/pc-1") && method === "DELETE") {
+        return new Response(JSON.stringify({ message: "Passcode revoked" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (url.includes("/passcodes") && method === "GET") {
+        return new Response(JSON.stringify({ passcodes }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response("Not found", { status: 404 });
+    };
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+
+    const result = await revokePasscode("my-site", { label: "Client A" }, undefined, deps);
+    expect(result.message).toBe("Passcode revoked");
+  });
+
+  it("test_DW_5_7_revoke_passcode_label_not_found_throws", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([
+        { match: "/passcodes", status: 200, body: { passcodes: [] } },
+      ]),
+    };
+
+    await expect(
+      revokePasscode("my-site", { label: "Nonexistent" }, undefined, deps),
+    ).rejects.toThrow('No passcode with label "Nonexistent" found');
+  });
+
+  it("test_DW_5_7_revoke_passcode_no_id_or_label_throws", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([]),
+    };
+
+    await expect(
+      revokePasscode("my-site", {}, undefined, deps),
+    ).rejects.toThrow("Either id or label must be provided");
+  });
+
+  it("test_DW_5_7_revoke_passcode_no_credentials_throws", async () => {
+    const deps: CoreDeps = { credentialsPath: "/does/not/exist/credentials" };
+    await expect(revokePasscode("my-site", { id: "pc-1" }, undefined, deps)).rejects.toThrow("Not authenticated");
   });
 });

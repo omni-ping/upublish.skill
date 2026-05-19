@@ -317,4 +317,80 @@ describe("DW-1.2: publish", () => {
       "secret123",
     );
   });
+
+  it("test_DW_5_1_publish_sends_default_label_when_visibility_passcode", async () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hi</h1>");
+
+    let capturedForm: FormData | null = null;
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      capturedForm = init?.body as FormData;
+      return new Response(
+        JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      );
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    await publish({
+      apiClient,
+      nsId: "ns-test",
+      directory: tmpDir,
+      slug: "my-site",
+      visibility: "passcode",
+      passcode: "mycode",
+    });
+
+    // When no label is provided and visibility=passcode, label defaults to "default"
+    expect((capturedForm as FormData | null)?.get("passcode_label")).toBe("default");
+  });
+
+  it("test_DW_5_2_publish_sends_custom_label_when_provided", async () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hi</h1>");
+
+    let capturedForm: FormData | null = null;
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      capturedForm = init?.body as FormData;
+      return new Response(
+        JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      );
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    await publish({
+      apiClient,
+      nsId: "ns-test",
+      directory: tmpDir,
+      slug: "my-site",
+      visibility: "passcode",
+      passcode: "mycode",
+      passcodeLabel: "Client A",
+    });
+
+    expect((capturedForm as FormData | null)?.get("passcode_label")).toBe("Client A");
+  });
+
+  it("does not send passcode_label when visibility is not passcode", async () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hi</h1>");
+
+    let capturedForm: FormData | null = null;
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      capturedForm = init?.body as FormData;
+      return new Response(
+        JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      );
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    await publish({
+      apiClient,
+      nsId: "ns-test",
+      directory: tmpDir,
+      slug: "my-site",
+      visibility: "public",
+    });
+
+    expect((capturedForm as FormData | null)?.get("passcode_label")).toBeNull();
+  });
 });

@@ -34,6 +34,17 @@ import { publish as domainPublish } from "./publish.ts";
 import type { PublishResult } from "./publish.ts";
 import { deleteSite } from "./delete.ts";
 import type { DeleteResult } from "./delete.ts";
+import {
+  addPasscode as domainAddPasscode,
+  listPasscodes as domainListPasscodes,
+  revokePasscode as domainRevokePasscode,
+} from "./passcode.ts";
+import type {
+  AddPasscodeResult,
+  ListPasscodesResult,
+  RevokePasscodeResult,
+  SitePasscode,
+} from "./passcode.ts";
 import { resolveNamespace } from "./namespace.ts";
 import type { FetchFn, Visibility } from "./types.ts";
 
@@ -45,6 +56,7 @@ export type { LoginDeps, LoginResult };
 export type { PublishResult };
 export type { ListResult };
 export type { DeleteResult };
+export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
 export type { Visibility };
 export type { Site } from "./types.ts";
 
@@ -73,6 +85,11 @@ export interface PublishArgs {
   visibility?: Visibility;
   /** Passcode for passcode-protected sites. */
   passcode?: string;
+  /**
+   * Label for the initial passcode. Defaults to "default" when
+   * visibility is "passcode" and no label is provided.
+   */
+  passcodeLabel?: string;
   /**
    * Optional namespace name to publish into. When omitted, the default
    * namespace is resolved from GET /api/space.
@@ -147,6 +164,7 @@ export async function publish(
     title: args.title,
     visibility: args.visibility,
     passcode: args.passcode,
+    passcodeLabel: args.passcodeLabel,
   });
 }
 
@@ -166,6 +184,86 @@ export async function deleteOp(
   const apiClient = await buildApiClient(deps);
   const nsId = await resolveNamespace(apiClient, namespaceName);
   return deleteSite(apiClient, nsId, slug);
+}
+
+/**
+ * Adds a passcode to a site.
+ * Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param slug - The site slug.
+ * @param code - The passcode string.
+ * @param label - Human-readable label for the passcode.
+ * @param namespaceName - Optional namespace name. Defaults to the user's default namespace.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function addPasscode(
+  slug: string,
+  code: string,
+  label: string,
+  namespaceName?: string,
+  deps?: CoreDeps,
+): Promise<AddPasscodeResult> {
+  const apiClient = await buildApiClient(deps);
+  const nsId = await resolveNamespace(apiClient, namespaceName);
+  return domainAddPasscode(apiClient, nsId, slug, code, label);
+}
+
+/**
+ * Lists all passcodes for a site.
+ * Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param slug - The site slug.
+ * @param namespaceName - Optional namespace name. Defaults to the user's default namespace.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function listPasscodes(
+  slug: string,
+  namespaceName?: string,
+  deps?: CoreDeps,
+): Promise<ListPasscodesResult> {
+  const apiClient = await buildApiClient(deps);
+  const nsId = await resolveNamespace(apiClient, namespaceName);
+  return domainListPasscodes(apiClient, nsId, slug);
+}
+
+/**
+ * Revokes a passcode by ID, or by label (resolved via list).
+ * Throws "Not authenticated" if no credentials are stored.
+ * Throws if the label does not match any passcode.
+ *
+ * @param slug - The site slug.
+ * @param id - The passcode ID to revoke. Takes precedence over label.
+ * @param label - The passcode label to revoke (resolved to ID via list). Used only when id is omitted.
+ * @param namespaceName - Optional namespace name. Defaults to the user's default namespace.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function revokePasscode(
+  slug: string,
+  opts: { id?: string; label?: string },
+  namespaceName?: string,
+  deps?: CoreDeps,
+): Promise<RevokePasscodeResult> {
+  const apiClient = await buildApiClient(deps);
+  const nsId = await resolveNamespace(apiClient, namespaceName);
+
+  if (opts.id) {
+    return domainRevokePasscode(apiClient, nsId, slug, opts.id);
+  }
+
+  if (opts.label) {
+    // Resolve label to ID
+    const { passcodes } = await domainListPasscodes(apiClient, nsId, slug);
+    const found = passcodes.find((p) => p.label === opts.label);
+    if (!found) {
+      const available = passcodes.map((p) => `"${p.label}"`).join(", ") || "(none)";
+      throw new Error(
+        `No passcode with label "${opts.label}" found. Available labels: ${available}`,
+      );
+    }
+    return domainRevokePasscode(apiClient, nsId, slug, found.id);
+  }
+
+  throw new Error("Either id or label must be provided to revoke a passcode.");
 }
 
 /**
