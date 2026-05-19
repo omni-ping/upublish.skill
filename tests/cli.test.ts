@@ -23,6 +23,7 @@ import {
   runStatusCommand,
   runConfigureCommand,
   runHelloCommand,
+  runLogoutCommand,
 } from "../bin/upublish.ts";
 
 // ─── Sample data ──────────────────────────────────────────────────────────────
@@ -579,6 +580,68 @@ describe("hello command", () => {
 
     // The mock was used, proving deps injection works
     expect(statusMock).toHaveBeenCalled();
+  });
+});
+
+// ─── DW-2.4: logout ──────────────────────────────────────────────────────────
+
+describe("logout command", () => {
+  test("test_DW_2_4_logout_command_prints_confirmation", async () => {
+    const logoutMock = mock(async () => ({ loggedOut: true as const }));
+
+    await runLogoutCommand(
+      { json: false },
+      { logoutFn: logoutMock },
+    );
+
+    expect(logoutMock).toHaveBeenCalledTimes(1);
+    const combined = logOutput.join("\n");
+    expect(combined.length).toBeGreaterThan(0);
+  });
+
+  test("test_DW_2_4_logout_command_exits_0_on_success", async () => {
+    const logoutMock = mock(async () => ({ loggedOut: true as const }));
+
+    // Should not throw (no process.exit call on success)
+    await runLogoutCommand({ json: false }, { logoutFn: logoutMock });
+
+    expect(exitCode).toBeUndefined();
+  });
+
+  test("test_DW_2_4_logout_json_flag_outputs_json", async () => {
+    const logoutMock = mock(async () => ({ loggedOut: true as const }));
+
+    await runLogoutCommand({ json: true }, { logoutFn: logoutMock });
+
+    const jsonLine = logOutput.find((line) => {
+      try { JSON.parse(line); return true; } catch { return false; }
+    });
+    expect(jsonLine).toBeDefined();
+    const parsed = JSON.parse(jsonLine!);
+    expect(parsed.loggedOut).toBe(true);
+  });
+
+  test("test_DW_2_4_logout_failure_exits_1", async () => {
+    const logoutMock = mock(async () => ({
+      loggedOut: false as const,
+      error: "Permission denied",
+    }));
+
+    await expect(
+      runLogoutCommand({ json: false }, { logoutFn: logoutMock }),
+    ).rejects.toThrow("process.exit(1)");
+
+    expect(exitCode).toBe(1);
+    const combined = logOutput.join("\n");
+    expect(combined).toContain("Permission denied");
+  });
+
+  test("test_DW_2_4_logout_exported_with_injectable_deps", async () => {
+    expect(typeof runLogoutCommand).toBe("function");
+
+    const logoutMock = mock(async () => ({ loggedOut: true as const }));
+    await runLogoutCommand({ json: false }, { logoutFn: logoutMock });
+    expect(logoutMock).toHaveBeenCalled();
   });
 });
 
