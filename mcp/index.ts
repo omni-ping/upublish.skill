@@ -18,6 +18,7 @@ import {
   list,
   publish,
   deleteOp,
+  logout,
 } from "../lib/core.ts";
 import type { CoreDeps, Site } from "../lib/core.ts";
 
@@ -236,6 +237,28 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
       } catch (err) {
         return errResponse(err);
       }
+    },
+  );
+
+  server.registerTool(
+    "logout",
+    {
+      title: "Logout",
+      description:
+        "Signs out of upubli.sh by revoking the refresh token server-side and " +
+        "deleting local credentials. Safe to call even when not logged in or " +
+        "when the server is unreachable (local credentials are always cleared).",
+      inputSchema: {},
+    },
+    async () => {
+      const result = await logout(coreDeps);
+      if (result.loggedOut) {
+        return okResponse("Logged out successfully. Local credentials have been removed.");
+      }
+      return {
+        content: [{ type: "text" as const, text: `Logout failed: ${result.error}` }],
+        isError: true,
+      };
     },
   );
 

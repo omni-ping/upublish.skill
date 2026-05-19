@@ -11,12 +11,14 @@
  *   deleteOp()  — delete a site by slug
  *   login()     — run the OAuth flow and store credentials
  *   status()    — check authentication state against the API
+ *   logout()    — revoke refresh token server-side and delete local credentials
  *
  * All functions accept an optional CoreDeps for test injection:
  *   credentialsPath  — override credentials file location
  *   fetchFn          — override HTTP fetch (avoids real network calls in tests)
  */
 
+import * as fs from "node:fs";
 import {
   readCredentials,
   defaultCredentialsPath,
@@ -81,6 +83,10 @@ export interface PublishArgs {
 export type StatusResult =
   | { authenticated: true; username: string }
   | { authenticated: false; error?: string };
+
+export type LogoutResult =
+  | { loggedOut: true }
+  | { loggedOut: false; error: string };
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -208,4 +214,54 @@ export async function status(deps?: CoreDeps): Promise<StatusResult> {
   } catch (err) {
     return { authenticated: false, error: (err as Error).message };
   }
+}
+
+/**
+ * Logs out the current user: revokes the refresh token server-side (best-effort)
+ * and deletes the local credentials file.
+ *
+ * - If no credentials file exists, returns { loggedOut: true } immediately (no-op).
+ * - Server revocation is best-effort: network failures are silently ignored so
+ *   the user can log out while offline.
+ * - If the credentials file cannot be deleted, returns { loggedOut: false, error }.
+ * - Never throws for expected failures — always returns a structured result.
+ */
+export async function logout(deps?: CoreDeps): Promise<LogoutResult> {
+  const credFile = deps?.credentialsPath ?? defaultCredentialsPath();
+  const fetchFn: FetchFn = deps?.fetchFn ?? ((url, init) => fetch(url, init));
+
+  // Read credentials — if none exist, already logged out
+  let refreshToken: string | null;
+  try {
+    refreshToken = await readCredentials(credFile);
+  } catch (err) {
+    return { loggedOut: false, error: (err as Error).message };
+  }
+
+  if (!refreshToken) {
+    return { loggedOut: true };
+  }
+
+  // Best-effort revoke — ignore all errors (offline logout must still succeed)
+  try {
+    await fetchFn(`${API_BASE_URL}/auth/token/revoke`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+  } catch {
+    // Silently ignore network errors — best-effort revoke
+  }
+
+  // Delete local credentials file
+  try {
+    fs.unlinkSync(credFile);
+  } catch (err) {
+    return { loggedOut: false, error: (err as Error).message };
+  }
+
+  return { loggedOut: true };
 }

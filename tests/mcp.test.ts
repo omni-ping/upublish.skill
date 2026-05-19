@@ -135,11 +135,19 @@ describe("DW-2.1: server registers publish, list, delete tools", () => {
     fs.unlinkSync(deps.credentialsPath!);
   });
 
-  test("test_DW_2_1_server_registers_exactly_three_tools", () => {
+  test("test_DW_2_1_server_registers_logout_tool", () => {
     const { deps } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    expect(Object.keys(tools).length).toBe(3);
+    expect("logout" in tools).toBe(true);
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_2_1_server_registers_exactly_four_tools", () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
+    const tools = getTools(server);
+    expect(Object.keys(tools).length).toBe(4);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
@@ -558,6 +566,49 @@ describe("error handling", () => {
   });
 });
 
+// ─── DW-2.5: logout tool ─────────────────────────────────────────────────────
+
+describe("DW-2.5: logout tool calls core.logout() and returns text result", () => {
+  test("test_DW_2_5_mcp_logout_tool_returns_text_result", async () => {
+    const { credFile, deps } = makeDeps(
+      async (url: string) => {
+        if (url.includes("/auth/token/revoke")) {
+          return new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      },
+    );
+
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["logout"].handler({});
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].type).toBe("text");
+    expect(result.content[0].text.length).toBeGreaterThan(0);
+    // Credentials file deleted by logout
+    expect(fs.existsSync(credFile)).toBe(false);
+  });
+
+  test("test_DW_2_5_mcp_logout_tool_succeeds_when_already_logged_out", async () => {
+    const deps: CoreDeps = {
+      credentialsPath: "/does/not/exist/no-creds",
+      fetchFn: async () => new Response(JSON.stringify({}), { status: 200 }),
+    };
+
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["logout"].handler({});
+
+    // No credentials = already logged out = success
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].type).toBe("text");
+  });
+});
+
 // ─── Server structural tests ─────────────────────────────────────────────────
 
 describe("server structure", () => {
@@ -566,7 +617,7 @@ describe("server structure", () => {
     const server = createServer(deps);
     expect(server).toBeDefined();
     const tools = getTools(server);
-    expect(Object.keys(tools).length).toBe(3);
+    expect(Object.keys(tools).length).toBe(4);
     fs.unlinkSync(deps.credentialsPath!);
   });
 

@@ -22,6 +22,7 @@ import {
   deleteOp,
   login as coreLogin,
   status as coreStatus,
+  logout as coreLogout,
 } from "../lib/core.ts";
 import type {
   PublishArgs as CorePublishArgs,
@@ -31,6 +32,7 @@ import type {
   PublishResult,
   ListResult,
   DeleteResult,
+  LogoutResult,
   Visibility,
 } from "../lib/core.ts";
 
@@ -182,6 +184,14 @@ export interface HelloArgs {}
 
 export interface HelloCommandDeps {
   statusFn?: () => Promise<StatusResult>;
+}
+
+export interface LogoutArgs {
+  json: boolean;
+}
+
+export interface LogoutCommandDeps {
+  logoutFn?: () => Promise<LogoutResult>;
 }
 
 // ─── Subcommand runners (exported for testing) ───────────────────────────────
@@ -415,6 +425,34 @@ export async function runHelloCommand(
   process.exit(1);
 }
 
+/**
+ * Runs the logout subcommand.
+ * Revokes the refresh token server-side (best-effort) and deletes local credentials.
+ */
+export async function runLogoutCommand(
+  args: LogoutArgs,
+  deps: LogoutCommandDeps = {},
+): Promise<void> {
+  const logoutFn = deps.logoutFn ?? coreLogout;
+  const result = await logoutFn();
+
+  if (result.loggedOut) {
+    if (args.json) {
+      console.log(JSON.stringify({ loggedOut: true }));
+    } else {
+      console.log(green("Logged out."));
+    }
+    return;
+  }
+
+  if (args.json) {
+    console.log(JSON.stringify({ loggedOut: false, error: result.error }));
+  } else {
+    console.log(red(`Logout failed: ${result.error}`));
+  }
+  process.exit(1);
+}
+
 // ─── citty subcommand definitions ────────────────────────────────────────────
 
 const loginCmd = defineCommand({
@@ -513,6 +551,16 @@ const helloCmd = defineCommand({
   },
 });
 
+const logoutCmd = defineCommand({
+  meta: { name: "logout", description: "Sign out and revoke credentials" },
+  args: {
+    json: { type: "boolean", description: "Output result as JSON", default: false },
+  },
+  async run({ args }) {
+    await runLogoutCommand({ json: args.json });
+  },
+});
+
 // ─── Main command ─────────────────────────────────────────────────────────────
 
 const pkg = await import("../package.json");
@@ -525,6 +573,7 @@ const main = defineCommand({
   },
   subCommands: {
     login: loginCmd,
+    logout: logoutCmd,
     status: statusCmd,
     publish: publishCmd,
     list: listCmd,
