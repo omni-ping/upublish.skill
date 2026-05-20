@@ -1,6 +1,6 @@
 {
   "name": "upublish",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "description": "Publish static sites to upubli.sh instantly. One directory becomes a live URL.",
   "author": {
     "name": "omni-ping"
@@ -8,7 +8,10 @@
   "mcpServers": {
     "upublish": {
       "command": "sh",
-      "args": ["-c", "exec bun run \"${CLAUDE_PLUGIN_ROOT}/dist/mcp.js\""]
+      "args": [
+        "-c",
+        "exec bun run \"${CLAUDE_PLUGIN_ROOT}/dist/mcp.js\""
+      ]
     }
   }
 }

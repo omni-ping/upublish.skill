@@ -28,7 +28,7 @@ import type { CoreDeps, Site } from "../lib/core.ts";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.5.5";
+export const PACKAGE_VERSION = "0.5.6";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
