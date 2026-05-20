@@ -8,7 +8,7 @@
   "mcpServers": {
     "upublish": {
       "command": "bun",
-      "args": ["run", "bin/upublish.ts", "mcp"]
+      "args": ["dist/mcp.js"]
     }
   }
 }
