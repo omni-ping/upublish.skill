@@ -7,11 +7,8 @@
   },
   "mcpServers": {
     "upublish": {
-      "command": "bun",
-      "args": [
-        "run",
-        "${CLAUDE_PLUGIN_ROOT}/dist/mcp.js"
-      ]
+      "command": "sh",
+      "args": ["-c", "exec bun run \"${CLAUDE_PLUGIN_ROOT}/dist/mcp.js\""]
     }
   }
 }
