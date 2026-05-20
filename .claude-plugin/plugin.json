@@ -7,8 +7,8 @@
   },
   "mcpServers": {
     "upublish": {
-      "command": "npx",
-      "args": ["-y", "@omniping/upublish", "mcp"]
+      "command": "bun",
+      "args": ["run", "bin/upublish.ts", "mcp"]
     }
   }
 }
