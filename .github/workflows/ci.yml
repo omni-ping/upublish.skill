@@ -15,12 +15,91 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun test lib/
 
-  publish:
+  bump-version:
     needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: >
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'push' &&
+      !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Use a token with push access so the commit triggers no new workflow run
+          # (we add [skip ci] to the commit message as the primary guard)
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          # Read current version from package.json
+          CURRENT=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT"
+
+          # Increment patch component
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+          # Update package.json
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          # Update .claude-plugin/plugin.json
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('.claude-plugin/plugin.json', 'utf8'));
+            p.version = '$NEW_VERSION';
+            fs.writeFileSync('.claude-plugin/plugin.json', JSON.stringify(p, null, 2) + '\n');
+          "
+
+          # Update .codex-plugin/plugin.json
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('.codex-plugin/plugin.json', 'utf8'));
+            p.version = '$NEW_VERSION';
+            fs.writeFileSync('.codex-plugin/plugin.json', JSON.stringify(p, null, 2) + '\n');
+          "
+
+          # Update mcp/index.ts PACKAGE_VERSION constant
+          sed -i "s/^export const PACKAGE_VERSION = \".*\";$/export const PACKAGE_VERSION = \"$NEW_VERSION\";/" mcp/index.ts
+
+          # Verify all four files were updated
+          echo "--- Verification ---"
+          node -p "require('./package.json').version"
+          node -p "require('./.claude-plugin/plugin.json').version"
+          node -p "require('./.codex-plugin/plugin.json').version"
+          grep "PACKAGE_VERSION" mcp/index.ts
+
+      - name: Commit and push version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json .claude-plugin/plugin.json .codex-plugin/plugin.json mcp/index.ts
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
+          git push
+
+  publish:
+    needs: bump-version
+    if: >
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'push' &&
+      !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Fetch the latest commit (which includes the version bump)
+          ref: main
+
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: |
