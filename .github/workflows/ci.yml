@@ -69,6 +69,13 @@ jobs:
 
           sed -i "s/^export const PACKAGE_VERSION = \".*\";$/export const PACKAGE_VERSION = \"$NEW_VERSION\";/" mcp/index.ts
 
+          node -e "
+            const fs = require('fs');
+            const g = JSON.parse(fs.readFileSync('gemini-extension.json', 'utf8'));
+            g.version = '$NEW_VERSION';
+            fs.writeFileSync('gemini-extension.json', JSON.stringify(g, null, 2) + '\n');
+          "
+
       - name: Rebuild MCP bundle
         run: bun build mcp/index.ts --target=bun --outfile=dist/mcp.js
 
@@ -76,28 +83,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json .claude-plugin/plugin.json .codex-plugin/plugin.json mcp/index.ts
+          git add package.json .claude-plugin/plugin.json .codex-plugin/plugin.json mcp/index.ts gemini-extension.json
           git add -f dist/mcp.js
           git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
           git push
-
-  publish:
-    needs: bump-version
-    if: >
-      github.ref == 'refs/heads/main' &&
-      github.event_name == 'push' &&
-      !contains(github.event.head_commit.message, '[skip ci]')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: |
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
-          npm publish --access public
-          rm -f .npmrc
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

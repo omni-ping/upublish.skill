@@ -117,4 +117,10 @@
 
 ---
 ## Execution Log
-_To be filled during /code-foundations:build_
+
+### Phase 1: Add MCP login + status tools (Gate: Full)
+- [x] BUILD: Discovery + design + TDD implementation complete
+- [x] REVIEW: Verification passed (DW-1.1 through DW-1.8 SATISFIED; DW-1.9 pre-existing failures in manifests.test.ts/install.test.ts — not regressions, Phase 2 scope)
+- [x] Committed
+Commit: 18ba3e7
+Summary: Added login and status tools to MCP server. Login opens browser + returns auth URL. Status checks auth state. Updated error message to remove CLI reference. Fixed stale tool count assertions (4→9). Rebuilt dist/mcp.js.

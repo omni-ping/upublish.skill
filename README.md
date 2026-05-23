@@ -26,7 +26,5 @@ gemini extensions install omni-ping/upublish.skill
 ## Getting started
 
 1. Install the plugin (see above)
-2. Type `/upublish` — the skill will install the CLI and configure everything
-3. Restart your session to load the MCP tools
-4. `/upublish hello` to onboard 
-5. `/upublish` to publish, list, delete, or manage sites
+2. Restart your session to load the MCP tools
+3. Type `/upublish` to publish, list, delete, or manage sites

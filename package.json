@@ -3,15 +3,11 @@
   "version": "0.5.6",
   "private": false,
   "type": "module",
-  "bin": {
-    "upublish": "dist/cli.cjs"
-  },
   "scripts": {
     "test": "bun test lib/",
     "test:all": "bun test"
   },
   "files": [
-    "bin/",
     "mcp/",
     "lib/",
     "dist/",
@@ -21,8 +17,7 @@
     "gemini-extension.json",
     ".claude-plugin/",
     ".codex-plugin/",
-    ".mcp.json",
-    "install.sh"
+    ".mcp.json"
   ],
   "publishConfig": {
     "access": "public"
@@ -33,7 +28,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "citty": "^0.1.6",
     "fflate": "^0.8.2",
     "open": "^10.1.0",
     "zod": "^3.24.4"

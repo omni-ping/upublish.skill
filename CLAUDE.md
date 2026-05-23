@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-upublish is a CLI tool + MCP server + multi-platform AI plugin for publishing static sites to [upubli.sh](https://upubli.sh). It ships as the npm package `@omniping/upublish` and installs into Claude Code, Gemini CLI, and Codex as a plugin/extension.
+upublish is an MCP server + multi-platform AI plugin for publishing static sites to [upubli.sh](https://upubli.sh). It installs into Claude Code, Gemini CLI, and Codex as a plugin/extension.
 
 ## Commands
 
@@ -14,15 +14,12 @@ bun test              # all tests (lib/ + tests/)
 bun test lib/auth.test.ts  # single test file
 ```
 
-There is no build step for development — Bun runs TypeScript directly. The `dist/cli.cjs` is a pre-built artifact checked into git for npm consumers.
-
-Publishing to npm: `./scripts/publish.sh` (requires `NPM_TOKEN` in `.env` or environment).
+There is no build step for development — Bun runs TypeScript directly. The `dist/mcp.js` is a pre-built bundle for plugin distribution.
 
 ## Architecture
 
 ```
-bin/upublish.ts    CLI adapter (citty) — subcommands: login, publish, list, delete, status, configure, hello, mcp
-mcp/index.ts       MCP server adapter — exposes publish, list, delete as MCP tools
+mcp/index.ts       MCP server adapter — exposes login, status, publish, list, delete, passcode, and logout tools
 lib/core.ts        Facade — all user-facing operations, wires credentials + ApiClient per call
 lib/auth.ts        OAuth login flow, PKCE, token refresh, credential read/write (~/.upublish/credentials)
 lib/api-client.ts  Thin HTTP client — Bearer token injection via async TokenProvider
@@ -32,13 +29,13 @@ lib/delete.ts      DELETE /api/sites/:slug
 lib/types.ts       Shared types (Site, Visibility, FetchFn, TokenProvider)
 ```
 
-**Key design rule: adapters import only from `lib/core.ts`.** Both `bin/upublish.ts` and `mcp/index.ts` call core functions — they never construct ApiClient or read credentials directly. Core re-exports any types adapters need.
+**Key design rule: adapters import only from `lib/core.ts`.** `mcp/index.ts` calls core functions — it never constructs ApiClient or reads credentials directly. Core re-exports any types adapters need.
 
-**Credentials are read fresh from disk on every operation** (no module-level cache). This eliminates stale-state bugs — the MCP server picks up new credentials from `upublish login` without a restart.
+**Credentials are read fresh from disk on every operation** (no module-level cache). This eliminates stale-state bugs — the MCP server picks up new credentials from login without a restart.
 
 ## Dependency injection
 
-Every core function accepts an optional `CoreDeps` bag (`credentialsPath`, `fetchFn`). Tests inject a temp credentials file and mock fetch to avoid network calls. CLI command runners accept deps bags with overridable function references (e.g., `publishFn`, `listFn`).
+Every core function accepts an optional `CoreDeps` bag (`credentialsPath`, `fetchFn`). Tests inject a temp credentials file and mock fetch to avoid network calls.
 
 ## Plugin manifests
 
@@ -51,7 +48,7 @@ The repo ships plugin configs for three platforms:
 
 ## Version tracking
 
-The version (`0.4.0`) appears in three places that must stay in sync: `package.json`, `.claude-plugin/plugin.json`, and `mcp/index.ts` (`PACKAGE_VERSION`). The `.codex-plugin/plugin.json` also carries a version field.
+The version appears in five places that must stay in sync: `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`, and `mcp/index.ts` (`PACKAGE_VERSION`). CI bumps all of them automatically on merge to main.
 
 ## Environment
 
