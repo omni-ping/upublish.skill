@@ -2,19 +2,13 @@
 
 ## "MCP tools not found"
 
-The upublish MCP server isn't registered. Follow the bootstrap steps in SKILL.md Step 1 — install bun, run `bun install`, run `upublish login`. Handle this automatically; don't tell the user to run commands.
-
-If setup was already run, check `.mcp.json` in the project root for an `upublish` entry under `mcpServers`.
+The upublish MCP server isn't registered. The plugin needs to be installed and the session restarted. Check `.mcp.json` in the project root for an `upublish` entry under `mcpServers`.
 
 ## "Not authenticated" or authentication errors
 
 Credentials have expired or the credentials file is missing. The MCP server reads a refresh token from `~/.upublish/credentials`.
 
-**Fix:** Re-run login automatically:
-```bash
-upublish login
-```
-This opens a browser for re-authentication — tell the user what's happening ("Your session expired, opening the browser to re-authenticate").
+**Fix:** Call the `login` tool to re-authenticate — this opens a browser for Google sign-in. Tell the user what's happening ("Your session expired, opening the browser to re-authenticate").
 
 ## "Invalid slug"
 

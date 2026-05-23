@@ -19,21 +19,8 @@ Check for `mcp_upublish_publish` in your available tools before proceeding.
 | State | Action |
 |---|---|
 | MCP tools available, calls succeed | Go to Step 2 |
-| MCP tools available but return "Not authenticated" | Re-run auth: `upublish login` |
-| MCP tools not found | Bootstrap (see below) |
-
-### Bootstrap (only when MCP tools are missing)
-
-Handle this automatically — do not ask the user to run commands manually.
-
-1. **Bun:** `which bun` — if missing: `curl -fsSL https://bun.sh/install | bash && source ~/.bashrc`
-2. **Dependencies:** `cd <extension-dir> && bun install`
-3. **Auth:** `<extension-dir>/bin/upublish.ts login`
-   - Opens a browser for Google sign-in — the only step that needs the user
-   - Stores credentials at `~/.upublish/credentials`
-4. Tell the user: "upublish is ready. Restart Gemini to activate the tools, then ask me again."
-
-If any step fails, read the error and fix it. Do not show raw errors to the user.
+| MCP tools available but return "Not authenticated" | Call `mcp_upublish_login` to open browser for Google sign-in |
+| MCP tools not found | Tell the user the extension is not installed or needs a restart |
 
 ## Step 2: Route to the right workflow
 
@@ -46,9 +33,15 @@ If any step fails, read the error and fix it. Do not show raw errors to the user
 
 ## Available tools
 
+- `mcp_upublish_login` — open browser for Google sign-in, returns auth URL
+- `mcp_upublish_status` — check authentication state
 - `mcp_upublish_publish` — publish a directory as a live site
 - `mcp_upublish_list` — list all published sites with URLs
 - `mcp_upublish_delete` — delete a published site (permanent, confirm first)
+- `mcp_upublish_passcode_add` — add a passcode to a site
+- `mcp_upublish_passcode_list` — list passcodes for a site
+- `mcp_upublish_passcode_revoke` — revoke a passcode from a site
+- `mcp_upublish_logout` — log out and remove credentials
 
 ## Quick reference
 

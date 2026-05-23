@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.6.0] — 2026-05-22
+
+### Added
+
+- MCP `login` tool — opens browser for Google sign-in and returns auth URL
+- MCP `status` tool — checks authentication state
+- `gemini-extension.json` now included in CI version bumps
+
+### Removed
+
+- CLI adapter (`bin/upublish.ts`) and Node shim (`dist/cli.cjs`) — all interaction is now through MCP tools
+- `install.sh` — no longer needed (plugin install handles setup)
+- `scripts/publish.sh` and npm publish pipeline — distribution is GitHub-based plugin install only
+- `citty` dependency (CLI framework)
+
+### Changed
+
+- SKILL.md rewritten for MCP-only bootstrap (no CLI commands)
+- GEMINI.md rewritten for MCP-only bootstrap with full tool list
+- `gemini-extension.json` updated to use `bun run ${extensionPath}/dist/mcp.js` instead of npx
+- Troubleshooting docs updated to reference MCP login tool instead of CLI
+- Version synced to `gemini-extension.json` in CI
+
 ## [0.4.0] — 2026-05-14
 
 ### Added
