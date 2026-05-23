@@ -31,6 +31,7 @@ import {
   addPasscode,
   listPasscodes,
   revokePasscode,
+  gate,
 } from "./core.ts";
 import type { CoreDeps } from "./core.ts";
 import type { LoginDeps } from "./auth.ts";
@@ -750,5 +751,132 @@ describe("DW-5.7: core.revokePasscode()", () => {
   it("test_DW_5_7_revoke_passcode_no_credentials_throws", async () => {
     const deps: CoreDeps = { credentialsPath: "/does/not/exist/credentials" };
     await expect(revokePasscode("my-site", { id: "pc-1" }, undefined, deps)).rejects.toThrow("Not authenticated");
+  });
+});
+
+// ─── DW-4.2: core.gate() dispatch ────────────────────────────────────────────
+
+const GATE_CONFIG = {
+  slug: "my-site",
+  fields: ["email", "name"],
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
+};
+
+const SUBMISSION = {
+  id: "sub-1",
+  submitted_at: "2026-01-02T00:00:00Z",
+  data: { email: "visitor@example.com", name: "Alice" },
+};
+
+describe("DW-4.2/4.5: core.gate() action=get", () => {
+  it("test_DW_4_2_core_gate_get_dispatches", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([
+        { match: "/gate", status: 200, body: { gate: GATE_CONFIG, submission_count: 5 } },
+      ]),
+    };
+
+    const result = await gate({ action: "get", slug: "my-site" }, deps);
+    expect(result.action).toBe("get");
+    if (result.action === "get") {
+      expect(result.gate.slug).toBe("my-site");
+      expect(result.submission_count).toBe(5);
+    }
+  });
+
+  it("test_DW_4_2_core_gate_get_no_credentials_throws", async () => {
+    const deps: CoreDeps = { credentialsPath: "/does/not/exist/credentials" };
+    await expect(gate({ action: "get", slug: "my-site" }, deps)).rejects.toThrow("Not authenticated");
+  });
+});
+
+describe("DW-4.2/4.4: core.gate() action=set", () => {
+  it("test_DW_4_4_core_gate_set_dispatches", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([
+        { match: "/gate", status: 200, body: { gate: GATE_CONFIG } },
+      ]),
+    };
+
+    const result = await gate({ action: "set", slug: "my-site", fields: ["email", "name"] }, deps);
+    expect(result.action).toBe("set");
+    if (result.action === "set") {
+      expect(result.gate.fields).toEqual(["email", "name"]);
+    }
+  });
+
+  it("test_DW_4_4_core_gate_set_no_credentials_throws", async () => {
+    const deps: CoreDeps = { credentialsPath: "/does/not/exist/credentials" };
+    await expect(gate({ action: "set", slug: "my-site", fields: ["email"] }, deps)).rejects.toThrow("Not authenticated");
+  });
+});
+
+describe("DW-4.2/4.6: core.gate() action=remove", () => {
+  it("test_DW_4_6_core_gate_remove_dispatches", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([
+        { match: "/gate", status: 200, body: { message: "Gate removed" } },
+      ]),
+    };
+
+    const result = await gate({ action: "remove", slug: "my-site" }, deps);
+    expect(result.action).toBe("remove");
+    if (result.action === "remove") {
+      expect(result.message).toBe("Gate removed");
+    }
+  });
+});
+
+describe("DW-4.2/4.7: core.gate() action=submissions", () => {
+  it("test_DW_4_7_core_gate_submissions_dispatches", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([
+        { match: "/gate/submissions", status: 200, body: { submissions: [SUBMISSION] } },
+      ]),
+    };
+
+    const result = await gate({ action: "submissions", slug: "my-site" }, deps);
+    expect(result.action).toBe("submissions");
+    if (result.action === "submissions") {
+      expect(result.submissions).toHaveLength(1);
+      expect(result.submissions[0].id).toBe("sub-1");
+    }
+  });
+});
+
+describe("DW-4.2/4.8: core.gate() action=clear", () => {
+  it("test_DW_4_8_core_gate_clear_dispatches", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([
+        { match: "/gate/submissions", status: 200, body: { message: "Submissions cleared" } },
+      ]),
+    };
+
+    const result = await gate({ action: "clear", slug: "my-site" }, deps);
+    expect(result.action).toBe("clear");
+    if (result.action === "clear") {
+      expect(result.message).toBe("Submissions cleared");
+    }
   });
 });

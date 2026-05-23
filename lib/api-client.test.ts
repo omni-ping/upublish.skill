@@ -101,6 +101,32 @@ describe("DW-1.7: ApiClient", () => {
     });
   });
 
+  describe("put", () => {
+    it("test_DW_4_1_api_client_put", async () => {
+      let capturedBody = "";
+      let capturedMethod = "";
+      let capturedContentType = "";
+
+      const fetchFn = async (url: string, init?: RequestInit) => {
+        capturedMethod = init?.method ?? "";
+        capturedBody = init?.body as string;
+        capturedContentType =
+          (init?.headers as Record<string, string>)?.["Content-Type"] ?? "";
+        return new Response(
+          JSON.stringify({ gate: { slug: "test", fields: ["email"] } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      };
+
+      const client = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+      await client.put<{ gate: { slug: string } }>("/api/sites/test/gate", { fields: ["email"] });
+
+      expect(capturedMethod).toBe("PUT");
+      expect(capturedContentType).toBe("application/json");
+      expect(JSON.parse(capturedBody)).toEqual({ fields: ["email"] });
+    });
+  });
+
   describe("delete", () => {
     it("test_DW_1_7_api_client_delete", async () => {
       let capturedMethod = "";

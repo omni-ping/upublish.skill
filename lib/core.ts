@@ -45,8 +45,22 @@ import type {
   RevokePasscodeResult,
   SitePasscode,
 } from "./passcode.ts";
+import {
+  getGate as domainGetGate,
+  setGate as domainSetGate,
+  removeGate as domainRemoveGate,
+  getSubmissions as domainGetSubmissions,
+  clearSubmissions as domainClearSubmissions,
+} from "./gate.ts";
+import type {
+  GetGateResult,
+  SetGateResult,
+  RemoveGateResult,
+  GetSubmissionsResult,
+  ClearSubmissionsResult,
+} from "./gate.ts";
 import { resolveNamespace } from "./namespace.ts";
-import type { FetchFn, Visibility } from "./types.ts";
+import type { FetchFn, Visibility, GateConfig, GateSubmission } from "./types.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
 
@@ -57,7 +71,8 @@ export type { PublishResult };
 export type { ListResult };
 export type { DeleteResult };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
-export type { Visibility };
+export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
+export type { Visibility, GateConfig, GateSubmission };
 export type { Site } from "./types.ts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -264,6 +279,68 @@ export async function revokePasscode(
   }
 
   throw new Error("Either id or label must be provided to revoke a passcode.");
+}
+
+// ─── Gate ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Discriminated union of arguments for the gate() dispatch function.
+ * The `action` field determines which domain operation is invoked.
+ */
+export type GateArgs =
+  | { action: "get"; slug: string; namespace?: string }
+  | { action: "set"; slug: string; fields: string[]; namespace?: string }
+  | { action: "remove"; slug: string; namespace?: string }
+  | { action: "submissions"; slug: string; namespace?: string }
+  | { action: "clear"; slug: string; namespace?: string };
+
+/**
+ * Discriminated union of results returned by gate().
+ * The `action` field identifies which operation produced this result.
+ */
+export type GateResult =
+  | ({ action: "get" } & GetGateResult)
+  | ({ action: "set" } & SetGateResult)
+  | ({ action: "remove" } & RemoveGateResult)
+  | ({ action: "submissions" } & GetSubmissionsResult)
+  | ({ action: "clear" } & ClearSubmissionsResult);
+
+/**
+ * Single dispatch function for all gate operations.
+ * Dispatches to the appropriate domain function based on the `action` field.
+ *
+ * @param args - Discriminated union of gate arguments (action + slug + optional params).
+ * @param deps - Optional CoreDeps for test injection.
+ * @returns Discriminated result carrying the action field for easy narrowing.
+ * @throws Error if not authenticated.
+ * @throws Error on API failure.
+ */
+export async function gate(args: GateArgs, deps?: CoreDeps): Promise<GateResult> {
+  const apiClient = await buildApiClient(deps);
+  const nsId = await resolveNamespace(apiClient, args.namespace);
+
+  switch (args.action) {
+    case "get": {
+      const result = await domainGetGate(apiClient, nsId, args.slug);
+      return { action: "get", ...result };
+    }
+    case "set": {
+      const result = await domainSetGate(apiClient, nsId, args.slug, args.fields);
+      return { action: "set", ...result };
+    }
+    case "remove": {
+      const result = await domainRemoveGate(apiClient, nsId, args.slug);
+      return { action: "remove", ...result };
+    }
+    case "submissions": {
+      const result = await domainGetSubmissions(apiClient, nsId, args.slug);
+      return { action: "submissions", ...result };
+    }
+    case "clear": {
+      const result = await domainClearSubmissions(apiClient, nsId, args.slug);
+      return { action: "clear", ...result };
+    }
+  }
 }
 
 /**

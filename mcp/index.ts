@@ -25,8 +25,15 @@ import {
   addPasscode,
   listPasscodes,
   revokePasscode,
+  gate,
 } from "../lib/core.ts";
-import type { CoreDeps, Site, CallbackServer, TokenResponse } from "../lib/core.ts";
+import type {
+  CoreDeps,
+  Site,
+  CallbackServer,
+  TokenResponse,
+  GateSubmission,
+} from "../lib/core.ts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -454,6 +461,126 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
         return okResponse(
           `Passcode revoked from ${slug as string} (${identifier})\n${result.message}`,
         );
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "gate",
+    {
+      title: "Form Gate",
+      description:
+        "Manages a form gate for a site on upubli.sh. " +
+        "A form gate prompts visitors to submit information (email, name, etc.) " +
+        "before accessing the site. Use this tool to set up, inspect, remove, " +
+        "view submissions from, or clear submissions for a gate.\n\n" +
+        "Actions:\n" +
+        "  set         — Create or update a form gate with the given fields\n" +
+        "  get         — Get the current gate config and submission count\n" +
+        "  remove      — Remove the gate from a site\n" +
+        "  submissions — List visitor submissions captured by the gate\n" +
+        "  clear       — Delete all submissions for a gate",
+      inputSchema: {
+        action: z
+          .enum(["set", "get", "remove", "submissions", "clear"])
+          .describe(
+            "The gate operation to perform: " +
+            "'set' to create/update, 'get' to retrieve config, " +
+            "'remove' to delete the gate, 'submissions' to list visitor data, " +
+            "'clear' to delete all submissions.",
+          ),
+        slug: z
+          .string()
+          .describe("The URL-safe identifier of the site."),
+        fields: z
+          .array(z.enum(["email", "name", "company", "phone", "message"]))
+          .optional()
+          .describe(
+            "Fields to collect from visitors. Required when action is 'set'. " +
+            "Valid values: 'email', 'name', 'company', 'phone', 'message'.",
+          ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+          ),
+      },
+    },
+    async ({ action, slug, fields, namespace }) => {
+      try {
+        const actionStr = action as "set" | "get" | "remove" | "submissions" | "clear";
+        const slugStr = slug as string;
+
+        if (actionStr === "set") {
+          const fieldsArr = fields as string[] | undefined;
+          if (!fieldsArr || fieldsArr.length === 0) {
+            return errResponse(new Error("fields is required when action is 'set'"));
+          }
+          const result = await gate(
+            { action: "set", slug: slugStr, fields: fieldsArr, namespace: namespace as string | undefined },
+            coreDeps,
+          );
+          if (result.action !== "set") return errResponse(new Error("Unexpected result"));
+          const fieldsList = result.gate.fields.join(", ");
+          return okResponse(
+            `Gate set for '${slugStr}'\nFields: ${fieldsList}`,
+          );
+        }
+
+        if (actionStr === "get") {
+          const result = await gate(
+            { action: "get", slug: slugStr, namespace: namespace as string | undefined },
+            coreDeps,
+          );
+          if (result.action !== "get") return errResponse(new Error("Unexpected result"));
+          const fieldsList = result.gate.fields.join(", ");
+          return okResponse(
+            `Gate for '${slugStr}'\nFields: ${fieldsList}\nSubmissions: ${result.submission_count}`,
+          );
+        }
+
+        if (actionStr === "remove") {
+          const result = await gate(
+            { action: "remove", slug: slugStr, namespace: namespace as string | undefined },
+            coreDeps,
+          );
+          if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
+          return okResponse(result.message);
+        }
+
+        if (actionStr === "submissions") {
+          const result = await gate(
+            { action: "submissions", slug: slugStr, namespace: namespace as string | undefined },
+            coreDeps,
+          );
+          if (result.action !== "submissions") return errResponse(new Error("Unexpected result"));
+          const { submissions } = result;
+          if (submissions.length === 0) {
+            return okResponse(`No submissions found for gate on '${slugStr}'.`);
+          }
+          const lines = submissions.map((sub: GateSubmission) => {
+            const date = new Date(sub.submitted_at).toLocaleDateString();
+            const fields = Object.entries(sub.data)
+              .map(([k, v]) => `  ${k}: ${v}`)
+              .join("\n");
+            return `Submitted: ${date}\n${fields}`;
+          });
+          return okResponse(
+            `Gate submissions for '${slugStr}' (${submissions.length}):\n\n` +
+            lines.join("\n\n"),
+          );
+        }
+
+        // action === "clear"
+        const result = await gate(
+          { action: "clear", slug: slugStr, namespace: namespace as string | undefined },
+          coreDeps,
+        );
+        if (result.action !== "clear") return errResponse(new Error("Unexpected result"));
+        return okResponse(result.message);
       } catch (err) {
         return errResponse(err);
       }
