@@ -31,7 +31,7 @@ import type { CoreDeps, Site, CallbackServer, TokenResponse } from "../lib/core.
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.5.6";
+export const PACKAGE_VERSION = "0.6.0";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
