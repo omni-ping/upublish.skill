@@ -25,7 +25,7 @@ import {
   createTokenProvider,
   login as authLogin,
 } from "./auth.ts";
-import type { LoginDeps, LoginResult } from "./auth.ts";
+import type { LoginDeps, LoginResult, CallbackServer, TokenResponse } from "./auth.ts";
 
 import { ApiClient } from "./api-client.ts";
 import { listSites } from "./list.ts";
@@ -52,7 +52,7 @@ import type { FetchFn, Visibility } from "./types.ts";
 
 // Adapters import only from core.ts — re-export types they need so they
 // don't have to reach into lib/auth.ts or other submodules.
-export type { LoginDeps, LoginResult };
+export type { LoginDeps, LoginResult, CallbackServer, TokenResponse };
 export type { PublishResult };
 export type { ListResult };
 export type { DeleteResult };
@@ -116,7 +116,7 @@ async function buildApiClient(deps?: CoreDeps): Promise<ApiClient> {
   const refreshToken = await readCredentials(credFile);
 
   if (!refreshToken) {
-    throw new Error("Not authenticated. Run `upublish login` to sign in.");
+    throw new Error("Not authenticated. Use the login tool to sign in.");
   }
 
   const fetchFn: FetchFn | undefined = deps?.fetchFn;

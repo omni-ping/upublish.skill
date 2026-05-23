@@ -19575,20 +19575,526 @@ class StdioServerTransport {
   }
 }
 
+// node_modules/open/index.js
+import process8 from "process";
+import { Buffer as Buffer2 } from "buffer";
+import path from "path";
+import { fileURLToPath } from "url";
+import { promisify as promisify5 } from "util";
+import childProcess from "child_process";
+import fs5, { constants as fsConstants2 } from "fs/promises";
+
+// node_modules/wsl-utils/index.js
+import process4 from "process";
+import fs4, { constants as fsConstants } from "fs/promises";
+
+// node_modules/is-wsl/index.js
+import process3 from "process";
+import os from "os";
+import fs3 from "fs";
+
+// node_modules/is-inside-container/index.js
+import fs2 from "fs";
+
+// node_modules/is-docker/index.js
+import fs from "fs";
+var isDockerCached;
+function hasDockerEnv() {
+  try {
+    fs.statSync("/.dockerenv");
+    return true;
+  } catch {
+    return false;
+  }
+}
+function hasDockerCGroup() {
+  try {
+    return fs.readFileSync("/proc/self/cgroup", "utf8").includes("docker");
+  } catch {
+    return false;
+  }
+}
+function isDocker() {
+  if (isDockerCached === undefined) {
+    isDockerCached = hasDockerEnv() || hasDockerCGroup();
+  }
+  return isDockerCached;
+}
+
+// node_modules/is-inside-container/index.js
+var cachedResult;
+var hasContainerEnv = () => {
+  try {
+    fs2.statSync("/run/.containerenv");
+    return true;
+  } catch {
+    return false;
+  }
+};
+function isInsideContainer() {
+  if (cachedResult === undefined) {
+    cachedResult = hasContainerEnv() || isDocker();
+  }
+  return cachedResult;
+}
+
+// node_modules/is-wsl/index.js
+var isWsl = () => {
+  if (process3.platform !== "linux") {
+    return false;
+  }
+  if (os.release().toLowerCase().includes("microsoft")) {
+    if (isInsideContainer()) {
+      return false;
+    }
+    return true;
+  }
+  try {
+    if (fs3.readFileSync("/proc/version", "utf8").toLowerCase().includes("microsoft")) {
+      return !isInsideContainer();
+    }
+  } catch {}
+  if (fs3.existsSync("/proc/sys/fs/binfmt_misc/WSLInterop") || fs3.existsSync("/run/WSL")) {
+    return !isInsideContainer();
+  }
+  return false;
+};
+var is_wsl_default = process3.env.__IS_WSL_TEST__ ? isWsl : isWsl();
+
+// node_modules/wsl-utils/index.js
+var wslDrivesMountPoint = (() => {
+  const defaultMountPoint = "/mnt/";
+  let mountPoint;
+  return async function() {
+    if (mountPoint) {
+      return mountPoint;
+    }
+    const configFilePath = "/etc/wsl.conf";
+    let isConfigFileExists = false;
+    try {
+      await fs4.access(configFilePath, fsConstants.F_OK);
+      isConfigFileExists = true;
+    } catch {}
+    if (!isConfigFileExists) {
+      return defaultMountPoint;
+    }
+    const configContent = await fs4.readFile(configFilePath, { encoding: "utf8" });
+    const configMountPoint = /(?<!#.*)root\s*=\s*(?<mountPoint>.*)/g.exec(configContent);
+    if (!configMountPoint) {
+      return defaultMountPoint;
+    }
+    mountPoint = configMountPoint.groups.mountPoint.trim();
+    mountPoint = mountPoint.endsWith("/") ? mountPoint : `${mountPoint}/`;
+    return mountPoint;
+  };
+})();
+var powerShellPathFromWsl = async () => {
+  const mountPoint = await wslDrivesMountPoint();
+  return `${mountPoint}c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe`;
+};
+var powerShellPath = async () => {
+  if (is_wsl_default) {
+    return powerShellPathFromWsl();
+  }
+  return `${process4.env.SYSTEMROOT || process4.env.windir || String.raw`C:\Windows`}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
+};
+
+// node_modules/define-lazy-prop/index.js
+function defineLazyProperty(object4, propertyName, valueGetter) {
+  const define = (value) => Object.defineProperty(object4, propertyName, { value, enumerable: true, writable: true });
+  Object.defineProperty(object4, propertyName, {
+    configurable: true,
+    enumerable: true,
+    get() {
+      const result = valueGetter();
+      define(result);
+      return result;
+    },
+    set(value) {
+      define(value);
+    }
+  });
+  return object4;
+}
+
+// node_modules/default-browser/index.js
+import { promisify as promisify4 } from "util";
+import process7 from "process";
+import { execFile as execFile4 } from "child_process";
+
+// node_modules/default-browser-id/index.js
+import { promisify } from "util";
+import process5 from "process";
+import { execFile } from "child_process";
+var execFileAsync = promisify(execFile);
+async function defaultBrowserId() {
+  if (process5.platform !== "darwin") {
+    throw new Error("macOS only");
+  }
+  const { stdout } = await execFileAsync("defaults", ["read", "com.apple.LaunchServices/com.apple.launchservices.secure", "LSHandlers"]);
+  const match = /LSHandlerRoleAll = "(?!-)(?<id>[^"]+?)";\s+?LSHandlerURLScheme = (?:http|https);/.exec(stdout);
+  const browserId = match?.groups.id ?? "com.apple.Safari";
+  if (browserId === "com.apple.safari") {
+    return "com.apple.Safari";
+  }
+  return browserId;
+}
+
+// node_modules/run-applescript/index.js
+import process6 from "process";
+import { promisify as promisify2 } from "util";
+import { execFile as execFile2, execFileSync } from "child_process";
+var execFileAsync2 = promisify2(execFile2);
+async function runAppleScript(script, { humanReadableOutput = true, signal } = {}) {
+  if (process6.platform !== "darwin") {
+    throw new Error("macOS only");
+  }
+  const outputArguments = humanReadableOutput ? [] : ["-ss"];
+  const execOptions = {};
+  if (signal) {
+    execOptions.signal = signal;
+  }
+  const { stdout } = await execFileAsync2("osascript", ["-e", script, outputArguments], execOptions);
+  return stdout.trim();
+}
+
+// node_modules/bundle-name/index.js
+async function bundleName(bundleId) {
+  return runAppleScript(`tell application "Finder" to set app_path to application file id "${bundleId}" as string
+tell application "System Events" to get value of property list item "CFBundleName" of property list file (app_path & ":Contents:Info.plist")`);
+}
+
+// node_modules/default-browser/windows.js
+import { promisify as promisify3 } from "util";
+import { execFile as execFile3 } from "child_process";
+var execFileAsync3 = promisify3(execFile3);
+var windowsBrowserProgIds = {
+  MSEdgeHTM: { name: "Edge", id: "com.microsoft.edge" },
+  MSEdgeBHTML: { name: "Edge Beta", id: "com.microsoft.edge.beta" },
+  MSEdgeDHTML: { name: "Edge Dev", id: "com.microsoft.edge.dev" },
+  AppXq0fevzme2pys62n3e0fbqa7peapykr8v: { name: "Edge", id: "com.microsoft.edge.old" },
+  ChromeHTML: { name: "Chrome", id: "com.google.chrome" },
+  ChromeBHTML: { name: "Chrome Beta", id: "com.google.chrome.beta" },
+  ChromeDHTML: { name: "Chrome Dev", id: "com.google.chrome.dev" },
+  ChromiumHTM: { name: "Chromium", id: "org.chromium.Chromium" },
+  BraveHTML: { name: "Brave", id: "com.brave.Browser" },
+  BraveBHTML: { name: "Brave Beta", id: "com.brave.Browser.beta" },
+  BraveDHTML: { name: "Brave Dev", id: "com.brave.Browser.dev" },
+  BraveSSHTM: { name: "Brave Nightly", id: "com.brave.Browser.nightly" },
+  FirefoxURL: { name: "Firefox", id: "org.mozilla.firefox" },
+  OperaStable: { name: "Opera", id: "com.operasoftware.Opera" },
+  VivaldiHTM: { name: "Vivaldi", id: "com.vivaldi.Vivaldi" },
+  "IE.HTTP": { name: "Internet Explorer", id: "com.microsoft.ie" }
+};
+var _windowsBrowserProgIdMap = new Map(Object.entries(windowsBrowserProgIds));
+
+class UnknownBrowserError extends Error {
+}
+async function defaultBrowser(_execFileAsync = execFileAsync3) {
+  const { stdout } = await _execFileAsync("reg", [
+    "QUERY",
+    " HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice",
+    "/v",
+    "ProgId"
+  ]);
+  const match = /ProgId\s*REG_SZ\s*(?<id>\S+)/.exec(stdout);
+  if (!match) {
+    throw new UnknownBrowserError(`Cannot find Windows browser in stdout: ${JSON.stringify(stdout)}`);
+  }
+  const { id } = match.groups;
+  const dotIndex = id.lastIndexOf(".");
+  const hyphenIndex = id.lastIndexOf("-");
+  const baseIdByDot = dotIndex === -1 ? undefined : id.slice(0, dotIndex);
+  const baseIdByHyphen = hyphenIndex === -1 ? undefined : id.slice(0, hyphenIndex);
+  return windowsBrowserProgIds[id] ?? windowsBrowserProgIds[baseIdByDot] ?? windowsBrowserProgIds[baseIdByHyphen] ?? { name: id, id };
+}
+
+// node_modules/default-browser/index.js
+var execFileAsync4 = promisify4(execFile4);
+var titleize = (string4) => string4.toLowerCase().replaceAll(/(?:^|\s|-)\S/g, (x) => x.toUpperCase());
+async function defaultBrowser2() {
+  if (process7.platform === "darwin") {
+    const id = await defaultBrowserId();
+    const name = await bundleName(id);
+    return { name, id };
+  }
+  if (process7.platform === "linux") {
+    const { stdout } = await execFileAsync4("xdg-mime", ["query", "default", "x-scheme-handler/http"]);
+    const id = stdout.trim();
+    const name = titleize(id.replace(/.desktop$/, "").replace("-", " "));
+    return { name, id };
+  }
+  if (process7.platform === "win32") {
+    return defaultBrowser();
+  }
+  throw new Error("Only macOS, Linux, and Windows are supported");
+}
+
+// node_modules/open/index.js
+var execFile5 = promisify5(childProcess.execFile);
+var __dirname2 = path.dirname(fileURLToPath(import.meta.url));
+var localXdgOpenPath = path.join(__dirname2, "xdg-open");
+var { platform, arch } = process8;
+async function getWindowsDefaultBrowserFromWsl() {
+  const powershellPath = await powerShellPath();
+  const rawCommand = String.raw`(Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice").ProgId`;
+  const encodedCommand = Buffer2.from(rawCommand, "utf16le").toString("base64");
+  const { stdout } = await execFile5(powershellPath, [
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-EncodedCommand",
+    encodedCommand
+  ], { encoding: "utf8" });
+  const progId = stdout.trim();
+  const browserMap = {
+    ChromeHTML: "com.google.chrome",
+    BraveHTML: "com.brave.Browser",
+    MSEdgeHTM: "com.microsoft.edge",
+    FirefoxURL: "org.mozilla.firefox"
+  };
+  return browserMap[progId] ? { id: browserMap[progId] } : {};
+}
+var pTryEach = async (array3, mapper) => {
+  let latestError;
+  for (const item of array3) {
+    try {
+      return await mapper(item);
+    } catch (error2) {
+      latestError = error2;
+    }
+  }
+  throw latestError;
+};
+var baseOpen = async (options) => {
+  options = {
+    wait: false,
+    background: false,
+    newInstance: false,
+    allowNonzeroExitCode: false,
+    ...options
+  };
+  if (Array.isArray(options.app)) {
+    return pTryEach(options.app, (singleApp) => baseOpen({
+      ...options,
+      app: singleApp
+    }));
+  }
+  let { name: app, arguments: appArguments = [] } = options.app ?? {};
+  appArguments = [...appArguments];
+  if (Array.isArray(app)) {
+    return pTryEach(app, (appName) => baseOpen({
+      ...options,
+      app: {
+        name: appName,
+        arguments: appArguments
+      }
+    }));
+  }
+  if (app === "browser" || app === "browserPrivate") {
+    const ids = {
+      "com.google.chrome": "chrome",
+      "google-chrome.desktop": "chrome",
+      "com.brave.Browser": "brave",
+      "org.mozilla.firefox": "firefox",
+      "firefox.desktop": "firefox",
+      "com.microsoft.msedge": "edge",
+      "com.microsoft.edge": "edge",
+      "com.microsoft.edgemac": "edge",
+      "microsoft-edge.desktop": "edge"
+    };
+    const flags = {
+      chrome: "--incognito",
+      brave: "--incognito",
+      firefox: "--private-window",
+      edge: "--inPrivate"
+    };
+    const browser = is_wsl_default ? await getWindowsDefaultBrowserFromWsl() : await defaultBrowser2();
+    if (browser.id in ids) {
+      const browserName = ids[browser.id];
+      if (app === "browserPrivate") {
+        appArguments.push(flags[browserName]);
+      }
+      return baseOpen({
+        ...options,
+        app: {
+          name: apps[browserName],
+          arguments: appArguments
+        }
+      });
+    }
+    throw new Error(`${browser.name} is not supported as a default browser`);
+  }
+  let command;
+  const cliArguments = [];
+  const childProcessOptions = {};
+  if (platform === "darwin") {
+    command = "open";
+    if (options.wait) {
+      cliArguments.push("--wait-apps");
+    }
+    if (options.background) {
+      cliArguments.push("--background");
+    }
+    if (options.newInstance) {
+      cliArguments.push("--new");
+    }
+    if (app) {
+      cliArguments.push("-a", app);
+    }
+  } else if (platform === "win32" || is_wsl_default && !isInsideContainer() && !app) {
+    command = await powerShellPath();
+    cliArguments.push("-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand");
+    if (!is_wsl_default) {
+      childProcessOptions.windowsVerbatimArguments = true;
+    }
+    const encodedArguments = ["Start"];
+    if (options.wait) {
+      encodedArguments.push("-Wait");
+    }
+    if (app) {
+      encodedArguments.push(`"\`"${app}\`""`);
+      if (options.target) {
+        appArguments.push(options.target);
+      }
+    } else if (options.target) {
+      encodedArguments.push(`"${options.target}"`);
+    }
+    if (appArguments.length > 0) {
+      appArguments = appArguments.map((argument) => `"\`"${argument}\`""`);
+      encodedArguments.push("-ArgumentList", appArguments.join(","));
+    }
+    options.target = Buffer2.from(encodedArguments.join(" "), "utf16le").toString("base64");
+  } else {
+    if (app) {
+      command = app;
+    } else {
+      const isBundled = !__dirname2 || __dirname2 === "/";
+      let exeLocalXdgOpen = false;
+      try {
+        await fs5.access(localXdgOpenPath, fsConstants2.X_OK);
+        exeLocalXdgOpen = true;
+      } catch {}
+      const useSystemXdgOpen = process8.versions.electron ?? (platform === "android" || isBundled || !exeLocalXdgOpen);
+      command = useSystemXdgOpen ? "xdg-open" : localXdgOpenPath;
+    }
+    if (appArguments.length > 0) {
+      cliArguments.push(...appArguments);
+    }
+    if (!options.wait) {
+      childProcessOptions.stdio = "ignore";
+      childProcessOptions.detached = true;
+    }
+  }
+  if (platform === "darwin" && appArguments.length > 0) {
+    cliArguments.push("--args", ...appArguments);
+  }
+  if (options.target) {
+    cliArguments.push(options.target);
+  }
+  const subprocess = childProcess.spawn(command, cliArguments, childProcessOptions);
+  if (options.wait) {
+    return new Promise((resolve, reject) => {
+      subprocess.once("error", reject);
+      subprocess.once("close", (exitCode) => {
+        if (!options.allowNonzeroExitCode && exitCode > 0) {
+          reject(new Error(`Exited with code ${exitCode}`));
+          return;
+        }
+        resolve(subprocess);
+      });
+    });
+  }
+  subprocess.unref();
+  return subprocess;
+};
+var open = (target, options) => {
+  if (typeof target !== "string") {
+    throw new TypeError("Expected a `target`");
+  }
+  return baseOpen({
+    ...options,
+    target
+  });
+};
+function detectArchBinary(binary) {
+  if (typeof binary === "string" || Array.isArray(binary)) {
+    return binary;
+  }
+  const { [arch]: archBinary } = binary;
+  if (!archBinary) {
+    throw new Error(`${arch} is not supported`);
+  }
+  return archBinary;
+}
+function detectPlatformBinary({ [platform]: platformBinary }, { wsl }) {
+  if (wsl && is_wsl_default) {
+    return detectArchBinary(wsl);
+  }
+  if (!platformBinary) {
+    throw new Error(`${platform} is not supported`);
+  }
+  return detectArchBinary(platformBinary);
+}
+var apps = {};
+defineLazyProperty(apps, "chrome", () => detectPlatformBinary({
+  darwin: "google chrome",
+  win32: "chrome",
+  linux: ["google-chrome", "google-chrome-stable", "chromium"]
+}, {
+  wsl: {
+    ia32: "/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe",
+    x64: ["/mnt/c/Program Files/Google/Chrome/Application/chrome.exe", "/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe"]
+  }
+}));
+defineLazyProperty(apps, "brave", () => detectPlatformBinary({
+  darwin: "brave browser",
+  win32: "brave",
+  linux: ["brave-browser", "brave"]
+}, {
+  wsl: {
+    ia32: "/mnt/c/Program Files (x86)/BraveSoftware/Brave-Browser/Application/brave.exe",
+    x64: ["/mnt/c/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe", "/mnt/c/Program Files (x86)/BraveSoftware/Brave-Browser/Application/brave.exe"]
+  }
+}));
+defineLazyProperty(apps, "firefox", () => detectPlatformBinary({
+  darwin: "firefox",
+  win32: String.raw`C:\Program Files\Mozilla Firefox\firefox.exe`,
+  linux: "firefox"
+}, {
+  wsl: "/mnt/c/Program Files/Mozilla Firefox/firefox.exe"
+}));
+defineLazyProperty(apps, "edge", () => detectPlatformBinary({
+  darwin: "microsoft edge",
+  win32: "msedge",
+  linux: ["microsoft-edge", "microsoft-edge-dev"]
+}, {
+  wsl: "/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+}));
+defineLazyProperty(apps, "browser", () => "browser");
+defineLazyProperty(apps, "browserPrivate", () => "browserPrivate");
+var open_default = open;
+
 // lib/core.ts
-import * as fs2 from "fs";
+import * as fs7 from "fs";
 
 // lib/auth.ts
-import * as path from "path";
-import * as os from "os";
-import * as fs from "fs";
+import * as path2 from "path";
+import * as os2 from "os";
+import * as fs6 from "fs";
 function defaultCredentialsPath() {
-  return path.join(os.homedir(), ".upublish", "credentials");
+  return path2.join(os2.homedir(), ".upublish", "credentials");
 }
 async function readCredentials(filePath) {
-  if (!fs.existsSync(filePath))
+  if (!fs6.existsSync(filePath))
     return null;
-  return fs.readFileSync(filePath, "utf-8").trim() || null;
+  return fs6.readFileSync(filePath, "utf-8").trim() || null;
+}
+async function saveCredentials(filePath, refreshToken) {
+  const dir = path2.dirname(filePath);
+  fs6.mkdirSync(dir, { recursive: true });
+  fs6.writeFileSync(filePath, refreshToken, { mode: 384 });
 }
 function createTokenProvider(opts) {
   const { refreshToken, apiBaseUrl } = opts;
@@ -19623,6 +20129,57 @@ function createTokenProvider(opts) {
     return cachedToken;
   };
 }
+async function generatePkce() {
+  const bytes = new Uint8Array(96);
+  crypto.getRandomValues(bytes);
+  const codeVerifier = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  const encoded = new TextEncoder().encode(codeVerifier);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
+  const hashBytes = new Uint8Array(hashBuffer);
+  const codeChallenge = btoa(String.fromCharCode(...hashBytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  return { codeVerifier, codeChallenge };
+}
+function buildAuthUrl(opts) {
+  const params = new URLSearchParams({
+    redirect_uri: opts.redirectUri,
+    code_challenge: opts.codeChallenge,
+    code_challenge_method: "S256"
+  });
+  return `${opts.apiBaseUrl}/auth/google/local?${params.toString()}`;
+}
+function buildCallbackUrl(port) {
+  return `http://localhost:${port}/callback`;
+}
+async function login(deps) {
+  const {
+    apiBaseUrl,
+    openBrowser: open2,
+    startCallbackServer,
+    log
+  } = deps;
+  const credFile = deps.credentialsFilePath ?? defaultCredentialsPath();
+  const server = await startCallbackServer();
+  const redirectUri = buildCallbackUrl(server.port);
+  const { codeChallenge } = await generatePkce();
+  const authUrl = buildAuthUrl({ apiBaseUrl, redirectUri, codeChallenge });
+  log("Opening browser for Google sign-in...");
+  await open2(authUrl);
+  log("Waiting for authentication (check your browser)...");
+  let tokens;
+  try {
+    tokens = await server.waitForTokens();
+  } finally {
+    await server.close();
+  }
+  await saveCredentials(credFile, tokens.refresh_token);
+  log("");
+  log(`Authenticated as: ${tokens.username}`);
+  log(`Credentials stored at: ${credFile}`);
+  return {
+    username: tokens.username,
+    credentialsFilePath: credFile
+  };
+}
 
 // lib/api-client.ts
 class ApiClient {
@@ -19634,9 +20191,9 @@ class ApiClient {
     this.tokenProvider = tokenProvider;
     this.fetchFn = fetchFn;
   }
-  async get(path2) {
+  async get(path3) {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path2}`, {
+    const response = await this.fetchFn(`${this.baseUrl}${path3}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -19645,9 +20202,9 @@ class ApiClient {
     });
     return this.parseResponse(response);
   }
-  async post(path2, body) {
+  async post(path3, body) {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path2}`, {
+    const response = await this.fetchFn(`${this.baseUrl}${path3}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -19658,9 +20215,9 @@ class ApiClient {
     });
     return this.parseResponse(response);
   }
-  async postForm(path2, formData) {
+  async postForm(path3, formData) {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path2}`, {
+    const response = await this.fetchFn(`${this.baseUrl}${path3}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -19670,9 +20227,9 @@ class ApiClient {
     });
     return this.parseResponse(response);
   }
-  async delete(path2) {
+  async delete(path3) {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path2}`, {
+    const response = await this.fetchFn(`${this.baseUrl}${path3}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -20484,7 +21041,7 @@ async function buildApiClient(deps) {
   const credFile = deps?.credentialsPath ?? defaultCredentialsPath();
   const refreshToken = await readCredentials(credFile);
   if (!refreshToken) {
-    throw new Error("Not authenticated. Run `upublish login` to sign in.");
+    throw new Error("Not authenticated. Use the login tool to sign in.");
   }
   const fetchFn = deps?.fetchFn;
   const tokenProvider = createTokenProvider({
@@ -20545,6 +21102,30 @@ async function revokePasscode2(slug, opts, namespaceName, deps) {
   }
   throw new Error("Either id or label must be provided to revoke a passcode.");
 }
+async function login2(loginDeps, coreDeps) {
+  const resolvedDeps = coreDeps?.credentialsPath ? { ...loginDeps, credentialsFilePath: coreDeps.credentialsPath } : loginDeps;
+  return login(resolvedDeps);
+}
+async function status(deps) {
+  const credFile = deps?.credentialsPath ?? defaultCredentialsPath();
+  const refreshToken = await readCredentials(credFile);
+  if (!refreshToken) {
+    return { authenticated: false };
+  }
+  const fetchFn = deps?.fetchFn;
+  const tokenProvider = createTokenProvider({
+    refreshToken,
+    apiBaseUrl: API_BASE_URL,
+    fetchFn
+  });
+  const apiClient = new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch);
+  try {
+    const result = await apiClient.get("/auth/me");
+    return { authenticated: true, username: result.username };
+  } catch (err2) {
+    return { authenticated: false, error: err2.message };
+  }
+}
 async function logout(deps) {
   const credFile = deps?.credentialsPath ?? defaultCredentialsPath();
   const fetchFn = deps?.fetchFn ?? ((url, init) => fetch(url, init));
@@ -20568,7 +21149,7 @@ async function logout(deps) {
     });
   } catch {}
   try {
-    fs2.unlinkSync(credFile);
+    fs7.unlinkSync(credFile);
   } catch (err2) {
     return { loggedOut: false, error: err2.message };
   }
@@ -20602,6 +21183,48 @@ function errResponse(err2) {
   return {
     content: [{ type: "text", text: err2.message }],
     isError: true
+  };
+}
+async function createCallbackServer() {
+  let resolveTokens;
+  let rejectTokens;
+  const tokenPromise = new Promise((resolve, reject) => {
+    resolveTokens = resolve;
+    rejectTokens = reject;
+  });
+  const server = Bun.serve({
+    port: 0,
+    fetch(req) {
+      const url = new URL(req.url);
+      if (url.pathname === "/callback") {
+        const accessToken = url.searchParams.get("access_token");
+        const refreshToken = url.searchParams.get("refresh_token");
+        const expiresIn = url.searchParams.get("expires_in");
+        const username = url.searchParams.get("username");
+        const error2 = url.searchParams.get("error");
+        if (error2) {
+          rejectTokens(new Error(`OAuth error: ${error2}`));
+          return new Response("<html><body><h2>Authentication failed.</h2><p>You can close this tab.</p></body></html>", { headers: { "Content-Type": "text/html" } });
+        }
+        if (!accessToken || !refreshToken || !expiresIn || !username) {
+          rejectTokens(new Error("OAuth callback missing required parameters"));
+          return new Response("<html><body><h2>Authentication error.</h2><p>Missing parameters. You can close this tab.</p></body></html>", { headers: { "Content-Type": "text/html" } });
+        }
+        resolveTokens({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          expires_in: parseInt(expiresIn, 10),
+          username
+        });
+        return new Response("<html><body><h2>Authenticated!</h2><p>You can close this tab and return to your terminal.</p></body></html>", { headers: { "Content-Type": "text/html" } });
+      }
+      return new Response("Not found", { status: 404 });
+    }
+  });
+  return {
+    port: server.port,
+    waitForTokens: () => tokenPromise,
+    close: async () => server.stop()
   };
 }
 function createServer(coreDeps) {
@@ -20759,6 +21382,52 @@ ${result.message}`);
       content: [{ type: "text", text: `Logout failed: ${result.error}` }],
       isError: true
     };
+  });
+  server.registerTool("login", {
+    title: "Login",
+    description: "Authenticates with upubli.sh via Google OAuth. " + "Opens a browser for sign-in and waits for the OAuth callback. " + "The auth URL is always included in the response so you can open " + "it in a different browser profile if needed.",
+    inputSchema: {}
+  }, async () => {
+    let capturedAuthUrl = "";
+    try {
+      const result = await login2({
+        apiBaseUrl: process.env.UPUBLISH_API_URL ?? "https://api.upubli.sh",
+        openBrowser: async (url) => {
+          capturedAuthUrl = url;
+          await open_default(url);
+        },
+        startCallbackServer: createCallbackServer,
+        log: () => {}
+      }, coreDeps);
+      const lines = [
+        `Authenticated as: ${result.username}`,
+        `Credentials stored at: ${result.credentialsFilePath}`
+      ];
+      if (capturedAuthUrl) {
+        lines.push("", `Auth URL: ${capturedAuthUrl}`);
+      }
+      return okResponse(lines.join(`
+`));
+    } catch (err2) {
+      const lines = [err2.message];
+      if (capturedAuthUrl) {
+        lines.push("", `Auth URL (open manually if needed): ${capturedAuthUrl}`);
+      }
+      return errResponse(new Error(lines.join(`
+`)));
+    }
+  });
+  server.registerTool("status", {
+    title: "Auth Status",
+    description: "Checks whether you are currently authenticated with upubli.sh. " + "Returns your username if authenticated, or a not-authenticated message.",
+    inputSchema: {}
+  }, async () => {
+    const result = await status(coreDeps);
+    if (result.authenticated) {
+      return okResponse(`Authenticated as: ${result.username}`);
+    }
+    const msg = result.error ? `Not authenticated. ${result.error}` : "Not authenticated. Use the login tool to sign in.";
+    return okResponse(msg);
   });
   return server;
 }

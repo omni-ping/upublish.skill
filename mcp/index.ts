@@ -14,16 +14,19 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import open from "open";
 import {
   list,
   publish,
   deleteOp,
+  login,
+  status,
   logout,
   addPasscode,
   listPasscodes,
   revokePasscode,
 } from "../lib/core.ts";
-import type { CoreDeps, Site } from "../lib/core.ts";
+import type { CoreDeps, Site, CallbackServer, TokenResponse } from "../lib/core.ts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -72,6 +75,76 @@ function errResponse(err: unknown): ToolResponse {
   return {
     content: [{ type: "text" as const, text: (err as Error).message }],
     isError: true,
+  };
+}
+
+// ─── Callback server (for OAuth login) ───────────────────────────────────────
+
+/**
+ * Creates a localhost HTTP server that waits for the OAuth callback redirect.
+ * The server reads tokens from query params on the /callback path.
+ * Returns port, a promise that resolves on first callback, and a close fn.
+ */
+async function createCallbackServer(): Promise<CallbackServer> {
+  let resolveTokens: (tokens: TokenResponse) => void;
+  let rejectTokens: (err: Error) => void;
+
+  const tokenPromise = new Promise<TokenResponse>(
+    (resolve, reject) => {
+      resolveTokens = resolve;
+      rejectTokens = reject;
+    },
+  );
+
+  const server = Bun.serve({
+    port: 0,
+    fetch(req) {
+      const url = new URL(req.url);
+
+      if (url.pathname === "/callback") {
+        const accessToken = url.searchParams.get("access_token");
+        const refreshToken = url.searchParams.get("refresh_token");
+        const expiresIn = url.searchParams.get("expires_in");
+        const username = url.searchParams.get("username");
+        const error = url.searchParams.get("error");
+
+        if (error) {
+          rejectTokens(new Error(`OAuth error: ${error}`));
+          return new Response(
+            "<html><body><h2>Authentication failed.</h2><p>You can close this tab.</p></body></html>",
+            { headers: { "Content-Type": "text/html" } },
+          );
+        }
+
+        if (!accessToken || !refreshToken || !expiresIn || !username) {
+          rejectTokens(new Error("OAuth callback missing required parameters"));
+          return new Response(
+            "<html><body><h2>Authentication error.</h2><p>Missing parameters. You can close this tab.</p></body></html>",
+            { headers: { "Content-Type": "text/html" } },
+          );
+        }
+
+        resolveTokens({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          expires_in: parseInt(expiresIn, 10),
+          username,
+        });
+
+        return new Response(
+          "<html><body><h2>Authenticated!</h2><p>You can close this tab and return to your terminal.</p></body></html>",
+          { headers: { "Content-Type": "text/html" } },
+        );
+      }
+
+      return new Response("Not found", { status: 404 });
+    },
+  });
+
+  return {
+    port: server.port,
+    waitForTokens: () => tokenPromise,
+    close: async () => server.stop(),
   };
 }
 
@@ -406,6 +479,75 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
         content: [{ type: "text" as const, text: `Logout failed: ${result.error}` }],
         isError: true,
       };
+    },
+  );
+
+  server.registerTool(
+    "login",
+    {
+      title: "Login",
+      description:
+        "Authenticates with upubli.sh via Google OAuth. " +
+        "Opens a browser for sign-in and waits for the OAuth callback. " +
+        "The auth URL is always included in the response so you can open " +
+        "it in a different browser profile if needed.",
+      inputSchema: {},
+    },
+    async () => {
+      let capturedAuthUrl = "";
+
+      try {
+        const result = await login(
+          {
+            apiBaseUrl: process.env.UPUBLISH_API_URL ?? "https://api.upubli.sh",
+            openBrowser: async (url: string) => {
+              capturedAuthUrl = url;
+              await open(url);
+            },
+            startCallbackServer: createCallbackServer,
+            log: () => {},
+          },
+          coreDeps,
+        );
+
+        const lines = [
+          `Authenticated as: ${result.username}`,
+          `Credentials stored at: ${result.credentialsFilePath}`,
+        ];
+        if (capturedAuthUrl) {
+          lines.push("", `Auth URL: ${capturedAuthUrl}`);
+        }
+        return okResponse(lines.join("\n"));
+      } catch (err) {
+        const lines = [(err as Error).message];
+        if (capturedAuthUrl) {
+          lines.push("", `Auth URL (open manually if needed): ${capturedAuthUrl}`);
+        }
+        return errResponse(new Error(lines.join("\n")));
+      }
+    },
+  );
+
+  server.registerTool(
+    "status",
+    {
+      title: "Auth Status",
+      description:
+        "Checks whether you are currently authenticated with upubli.sh. " +
+        "Returns your username if authenticated, or a not-authenticated message.",
+      inputSchema: {},
+    },
+    async () => {
+      const result = await status(coreDeps);
+
+      if (result.authenticated) {
+        return okResponse(`Authenticated as: ${result.username}`);
+      }
+
+      const msg = result.error
+        ? `Not authenticated. ${result.error}`
+        : "Not authenticated. Use the login tool to sign in.";
+      return okResponse(msg);
     },
   );
 
