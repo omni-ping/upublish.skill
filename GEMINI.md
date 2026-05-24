@@ -8,7 +8,7 @@ Use upublish when the user wants to:
 - Publish HTML/CSS/JS files to the web
 - Share a site with a live URL
 - Deploy a static site or demo
-- Make a page public, password-protected, or unlisted
+- Make a page public or password-protected
 - Manage (list, delete) previously published sites
 Trigger phrases: "publish this site", "make this live", "put this on the web", "share this page", "upublish", "upubli.sh".
 
@@ -28,7 +28,7 @@ Check for `mcp_upublish_publish` in your available tools before proceeding.
 |---|---|
 | Publish a directory as a live site | `references/publishing.md` |
 | List, delete, or manage existing sites | `references/managing.md` |
-| Control who can access a site (passcode, unlisted) | `references/visibility.md` |
+| Control who can access a site (passcode) | `references/visibility.md` |
 | Fix something that's broken | `references/troubleshooting.md` |
 
 ## Available tools
@@ -49,7 +49,6 @@ Check for `mcp_upublish_publish` in your available tools before proceeding.
 
 **Visibility modes:**
 - `public` (default) — anyone can view
-- `unlisted` — accessible by direct URL only
 - `passcode` — visitors must enter a code to view
 
 **Slug rules:** 3-63 chars, lowercase alphanumeric + hyphens, start/end with letter or number.

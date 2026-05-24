@@ -5,7 +5,6 @@
 | Mode | Behavior | When to use |
 |---|---|---|
 | `public` | Anyone can view. Default. | Portfolios, docs, demos, anything meant to be shared openly |
-| `unlisted` | Accessible by direct URL only, excluded from any future directory/listing | Drafts, internal previews, things you share with specific people |
 | `passcode` | Visitors must enter a passcode to view | Client previews, paywalled content, limited-access pages |
 
 ## Setting visibility on publish
@@ -36,6 +35,5 @@ The passcode is hashed with SHA-256 before storage — neither the API server no
 ## Choosing the right mode
 
 - Default to `public` unless the user explicitly asks for restricted access
-- Suggest `unlisted` when they say things like "I just want to share this with someone" or "don't make it public"
 - Suggest `passcode` when they mention passwords, restricted access, client previews, or "only people with the code"
 - Don't suggest `passcode` for personal projects — it adds friction with little benefit

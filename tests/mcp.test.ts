@@ -849,15 +849,15 @@ describe("DW-2.1: list output has labeled fields and namespace header", () => {
   });
 
   test("test_DW_2_1_list_output_visibility_shown_for_non_public", async () => {
-    const unlistedSite = { ...SAMPLE_SITE, visibility: "unlisted" };
-    const { deps } = makeDeps(makeMockFetch({ sites: [unlistedSite] }));
+    const passcodeSite = { ...SAMPLE_SITE, visibility: "passcode" };
+    const { deps } = makeDeps(makeMockFetch({ sites: [passcodeSite] }));
     const server = createServer(deps);
     const tools = getTools(server);
     const result = await tools["list"].handler({});
 
     expect(result.isError).toBeUndefined();
     const text = result.content[0].text;
-    expect(text).toContain("Visibility: unlisted");
+    expect(text).toContain("Visibility: passcode");
     fs.unlinkSync(deps.credentialsPath!);
   });
 

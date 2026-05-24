@@ -39,7 +39,7 @@ Match what the user wants and read the reference file, then follow it.
 | **Pre-publish validation (REQUIRED before every publish)** | `references/pre-publish-checklist.md` |
 | Figure out what type of content this is | `references/content-types/taxonomy.md` then the specific content type reference |
 | List, delete, or manage existing sites | `references/managing.md` |
-| Control who can access a site (passcode, unlisted) | `references/visibility.md` |
+| Control who can access a site (passcode) | `references/visibility.md` |
 | Optimize site performance or reduce size | `references/optimization.md` |
 | Add SEO tags, social previews, or favicon | `references/seo-social.md` |
 | Check account info, namespaces, domains, or see what sites they have | Call `status` then `list` (no reference file needed) |
@@ -63,7 +63,7 @@ Match what the user wants and read the reference file, then follow it.
 
 **URL format:** `https://{username}.upubli.sh/{slug}/`
 
-**Visibility modes:** `public` (default), `unlisted` (URL-only access), `passcode` (requires a code)
+**Visibility modes:** `public` (default), `passcode` (requires a code)
 
 **Slug rules:** 3-63 chars, lowercase alphanumeric + hyphens, start/end with letter or number.
 

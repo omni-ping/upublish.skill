@@ -47,7 +47,7 @@ const SITE_B = {
   updated_at: "2026-04-01T00:00:00Z",
   file_count: 12,
   total_size: 2097152,
-  visibility: "unlisted" as const,
+  visibility: "public" as const,
   passcode_hash: null,
   url: "https://user.upubli.sh/project-docs/",
 };
@@ -116,6 +116,6 @@ describe("DW-1.3: listSites", () => {
     );
 
     const result = await listSites(apiClient, "ns-test");
-    expect(result.sites[0].visibility).toBe("unlisted");
+    expect(result.sites[0].visibility).toBe("public");
   });
 });

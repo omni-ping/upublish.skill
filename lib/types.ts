@@ -6,7 +6,7 @@
  */
 
 /** Site visibility mode. */
-export type Visibility = "public" | "unlisted" | "passcode";
+export type Visibility = "public" | "passcode";
 
 /** A namespace within a user's space. */
 export interface Namespace {

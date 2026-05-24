@@ -11,7 +11,7 @@ Use the `mcp_upublish_publish` tool:
 | `directory` | yes | Path to the directory to publish |
 | `slug` | yes | URL-safe name (3-63 chars, lowercase alphanumeric + hyphens) |
 | `title` | no | Human-readable title (defaults to slug) |
-| `visibility` | no | `public` (default), `unlisted`, or `passcode` |
+| `visibility` | no | `public` (default) or `passcode` |
 | `passcode` | no | Required when visibility is `passcode` |
 
 ## What happens

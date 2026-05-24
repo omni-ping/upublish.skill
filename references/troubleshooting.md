@@ -24,7 +24,7 @@ The directory was empty or contained only subdirectories with no files.
 
 ## Site published but not loading
 
-KV metadata propagation takes up to 60 seconds globally. If a passcode-protected or unlisted site was just published and isn't enforcing access control yet, wait a minute.
+KV metadata propagation takes up to 60 seconds globally. If a passcode-protected site was just published and isn't enforcing access control yet, wait a minute.
 
 Public sites are available immediately — the Worker serves content when KV metadata is missing (fail-open behavior).
 

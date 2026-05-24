@@ -204,10 +204,10 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             "Optional human-readable title for the site. Defaults to the slug.",
           ),
         visibility: z
-          .enum(["public", "unlisted", "passcode"])
+          .enum(["public", "passcode"])
           .optional()
           .describe(
-            "Site visibility mode. 'public' (default), 'unlisted', or 'passcode'.",
+            "Site visibility mode. 'public' (default) or 'passcode'.",
           ),
         passcode: z
           .string()
@@ -230,7 +230,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             directory: directory as string,
             slug: slug as string,
             title: title as string | undefined,
-            visibility: visibility as "public" | "unlisted" | "passcode" | undefined,
+            visibility: visibility as "public" | "passcode" | undefined,
             passcode: passcode as string | undefined,
             namespace: namespace as string | undefined,
           },
