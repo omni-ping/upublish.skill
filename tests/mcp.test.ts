@@ -1026,3 +1026,300 @@ describe("DW-2.3: SKILL.md routing table has account exploration row", () => {
     expect(content).toMatch(/namespace|domain/i);
   });
 });
+
+// ─── Phase 2 DW Items: MCP adapter metadata and response formatting ─────────
+
+/**
+ * Helper to get the zod shape from a registered tool's inputSchema.
+ * Returns the shape object with field names as keys.
+ */
+function getInputSchemaShape(
+  tools: RegisteredTools,
+  toolName: string,
+): Record<string, { description?: string; _def?: { description?: string } }> {
+  const tool = tools[toolName] as unknown as {
+    inputSchema?: { shape?: Record<string, unknown>; _def?: { shape?: () => Record<string, unknown> } };
+  };
+  const schema = tool?.inputSchema;
+  return (schema?.shape ?? schema?._def?.shape?.() ?? {}) as Record<
+    string,
+    { description?: string; _def?: { description?: string } }
+  >;
+}
+
+/** Gets the description string from a registered tool. */
+function getToolDescription(tools: RegisteredTools, toolName: string): string {
+  const tool = tools[toolName] as unknown as { description?: string };
+  return tool?.description ?? "";
+}
+
+/** Gets the description of a specific field in a tool's input schema. */
+function getFieldDescription(
+  tools: RegisteredTools,
+  toolName: string,
+  fieldName: string,
+): string {
+  const shape = getInputSchemaShape(tools, toolName);
+  const field = shape[fieldName];
+  return field?.description ?? field?._def?.description ?? "";
+}
+
+// ─── DW-2.1: slug input description mentions _root ──────────────────────────
+
+describe("DW-2.1: slug input description mentions _root for root-domain publishing", () => {
+  test("test_DW_2_1_slug_description_mentions_root", () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
+    const tools = getTools(server);
+
+    const slugDesc = getFieldDescription(tools, "publish", "slug");
+
+    // Must mention _root
+    expect(slugDesc).toContain("_root");
+    // Must explain what _root does — root-domain publishing
+    expect(slugDesc).toMatch(/root.*domain|domain.*root|namespace.*root/i);
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+});
+
+// ─── DW-2.2: publish tool description mentions file exclusion ───────────────
+
+describe("DW-2.2: publish tool description mentions automatic file exclusion and .upublishignore", () => {
+  test("test_DW_2_2_publish_description_mentions_exclusion", () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
+    const tools = getTools(server);
+
+    const desc = getToolDescription(tools, "publish");
+
+    // Must mention auto-exclusion of common non-site files
+    expect(desc).toContain("exclud");
+    // Must mention specific excluded items
+    expect(desc).toContain(".git");
+    expect(desc).toContain("node_modules");
+    expect(desc).toContain(".env");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_2_2_publish_description_mentions_upublishignore", () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
+    const tools = getTools(server);
+
+    const desc = getToolDescription(tools, "publish");
+
+    // Must mention .upublishignore for custom exclusions
+    expect(desc).toContain(".upublishignore");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+});
+
+// ─── DW-2.3: success response includes excluded file count/list ─────────────
+
+describe("DW-2.3: success response includes excluded file info", () => {
+  test("test_DW_2_3_publish_response_includes_excluded_files", async () => {
+    const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
+      if (url.includes("/auth/token/refresh")) {
+        return new Response(
+          JSON.stringify({ access_token: "token", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.endsWith("/api/space")) {
+        return new Response(
+          JSON.stringify({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "x.upubli.sh" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/sites") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: "https://user1.upubli.sh/my-site/" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    };
+
+    const { deps } = makeDeps(fetchFn);
+    // Create a directory with a .DS_Store file that will be excluded
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-excl-"));
+    fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
+    fs.writeFileSync(path.join(tmpDir, ".DS_Store"), "junk");
+
+    try {
+      const server = createServer(deps);
+      const tools = getTools(server);
+      const result = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
+
+      expect(result.isError).toBeUndefined();
+      const text = result.content[0].text;
+      // Must include excluded info
+      expect(text).toContain("Excluded:");
+      expect(text).toContain(".DS_Store");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.unlinkSync(deps.credentialsPath!);
+    }
+  });
+
+  test("test_DW_2_3_publish_response_omits_excluded_when_none", async () => {
+    const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
+      if (url.includes("/auth/token/refresh")) {
+        return new Response(
+          JSON.stringify({ access_token: "token", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.endsWith("/api/space")) {
+        return new Response(
+          JSON.stringify({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "x.upubli.sh" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/sites") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: "https://user1.upubli.sh/my-site/" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    };
+
+    const { deps } = makeDeps(fetchFn);
+    // Create a directory with only clean files — no excludable content
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-noexcl-"));
+    fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
+
+    try {
+      const server = createServer(deps);
+      const tools = getTools(server);
+      const result = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
+
+      expect(result.isError).toBeUndefined();
+      const text = result.content[0].text;
+      // Must NOT include excluded line when nothing was excluded
+      expect(text).not.toContain("Excluded:");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.unlinkSync(deps.credentialsPath!);
+    }
+  });
+});
+
+// ─── DW-2.4: success response includes suspicious file warnings ─────────────
+
+describe("DW-2.4: success response includes warning about suspicious files", () => {
+  test("test_DW_2_4_publish_response_includes_warnings", async () => {
+    const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
+      if (url.includes("/auth/token/refresh")) {
+        return new Response(
+          JSON.stringify({ access_token: "token", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.endsWith("/api/space")) {
+        return new Response(
+          JSON.stringify({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "x.upubli.sh" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/sites") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: "https://user1.upubli.sh/my-site/" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    };
+
+    const { deps } = makeDeps(fetchFn);
+    // Create a directory with a suspicious file (README.md)
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-warn-"));
+    fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
+    fs.writeFileSync(path.join(tmpDir, "README.md"), "# My Project");
+
+    try {
+      const server = createServer(deps);
+      const tools = getTools(server);
+      const result = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
+
+      expect(result.isError).toBeUndefined();
+      const text = result.content[0].text;
+      // Must include warning about suspicious files
+      expect(text).toContain("Warning:");
+      expect(text).toContain("README.md");
+      // Must include .upublishignore guidance
+      expect(text).toContain(".upublishignore");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.unlinkSync(deps.credentialsPath!);
+    }
+  });
+
+  test("test_DW_2_4_publish_response_omits_warnings_when_none", async () => {
+    const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
+      if (url.includes("/auth/token/refresh")) {
+        return new Response(
+          JSON.stringify({ access_token: "token", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.endsWith("/api/space")) {
+        return new Response(
+          JSON.stringify({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "x.upubli.sh" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/sites") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: "https://user1.upubli.sh/my-site/" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    };
+
+    const { deps } = makeDeps(fetchFn);
+    // Create a directory with only clean files — no suspicious content
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-nowarn-"));
+    fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
+
+    try {
+      const server = createServer(deps);
+      const tools = getTools(server);
+      const result = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
+
+      expect(result.isError).toBeUndefined();
+      const text = result.content[0].text;
+      // Must NOT include warning line when no suspicious files
+      expect(text).not.toContain("Warning:");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.unlinkSync(deps.credentialsPath!);
+    }
+  });
+});
