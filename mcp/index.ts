@@ -180,7 +180,9 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
       title: "Publish Site",
       description:
         "Publishes a local directory as a static website to upubli.sh. " +
-        "Packages all files in the directory into a zip archive and uploads them. " +
+        "Packages files into a zip archive and uploads them, automatically " +
+        "excluding .git, node_modules, .env, .DS_Store, and other non-site files. " +
+        "Add a .upublishignore file to the directory for custom exclusions. " +
         "The site will be available at a public URL immediately after upload. " +
         "If a site with the same slug already exists, it will be replaced entirely.",
       inputSchema: {
@@ -195,7 +197,8 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
           .describe(
             "URL-safe identifier for the site. Must be 3-63 characters: " +
             "lowercase letters, numbers, and hyphens only, starting and ending " +
-            "with a letter or number.",
+            "with a letter or number. Use '_root' to publish at the " +
+            "namespace/domain root (e.g. vibeandscribe.xyz/).",
           ),
         title: z
           .string()
@@ -243,13 +246,26 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             ? `\nVisibility: ${visibility as string}`
             : "";
 
+        const excludedLine =
+          result.excluded.length > 0
+            ? `\nExcluded: ${result.excluded.length} file(s) (${result.excluded.join(", ")})`
+            : "";
+
+        const warningLine =
+          result.warnings.length > 0
+            ? `\nWarning: Included files that may not be site content: ${result.warnings.join(", ")}` +
+              `\n  Add them to .upublishignore in the publish directory to exclude.`
+            : "";
+
         return okResponse(
           `Site published successfully!\n` +
           `URL: ${result.url}\n` +
           `Slug: ${site.slug}\n` +
           `Files: ${site.file_count}\n` +
           `Size: ${formatBytes(site.total_size)}` +
-          visibilityLine,
+          visibilityLine +
+          excludedLine +
+          warningLine,
         );
       } catch (err) {
         return errResponse(err);
