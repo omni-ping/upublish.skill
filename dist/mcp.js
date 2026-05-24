@@ -21059,18 +21059,21 @@ async function resolveByName(apiClient, name) {
   if (!found) {
     throw new Error(`Namespace '${name}' not found. ` + `Available namespaces: ${namespaces.map((ns) => ns.name).join(", ") || "(none)"}`);
   }
-  return found.id;
+  return found;
 }
 async function resolveDefault(apiClient) {
   const { space } = await apiClient.get("/api/space");
-  if (space.default_namespace_id) {
-    return space.default_namespace_id;
-  }
   const { namespaces } = await apiClient.get("/api/ns");
   if (namespaces.length === 0) {
     throw new Error("No namespace found. Create a namespace at https://upubli.sh/dashboard first.");
   }
-  return namespaces[0].id;
+  if (space.default_namespace_id) {
+    const found = namespaces.find((ns) => ns.id === space.default_namespace_id);
+    if (found) {
+      return found;
+    }
+  }
+  return namespaces[0];
 }
 
 // lib/core.ts
@@ -21091,15 +21094,16 @@ async function buildApiClient(deps) {
 }
 async function list(namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, namespaceName);
-  return listSites(apiClient, nsId);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  const result = await listSites(apiClient, ns.id);
+  return { ...result, namespace: ns };
 }
 async function publish2(args, deps) {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, args.namespace);
+  const ns = await resolveNamespace(apiClient, args.namespace);
   return publish({
     apiClient,
-    nsId,
+    nsId: ns.id,
     directory: args.directory,
     slug: args.slug,
     title: args.title,
@@ -21110,58 +21114,58 @@ async function publish2(args, deps) {
 }
 async function deleteOp(slug, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, namespaceName);
-  return deleteSite(apiClient, nsId, slug);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return deleteSite(apiClient, ns.id, slug);
 }
 async function addPasscode2(slug, code, label, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, namespaceName);
-  return addPasscode(apiClient, nsId, slug, code, label);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return addPasscode(apiClient, ns.id, slug, code, label);
 }
 async function listPasscodes2(slug, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, namespaceName);
-  return listPasscodes(apiClient, nsId, slug);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return listPasscodes(apiClient, ns.id, slug);
 }
 async function revokePasscode2(slug, opts, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, namespaceName);
+  const ns = await resolveNamespace(apiClient, namespaceName);
   if (opts.id) {
-    return revokePasscode(apiClient, nsId, slug, opts.id);
+    return revokePasscode(apiClient, ns.id, slug, opts.id);
   }
   if (opts.label) {
-    const { passcodes } = await listPasscodes(apiClient, nsId, slug);
+    const { passcodes } = await listPasscodes(apiClient, ns.id, slug);
     const found = passcodes.find((p) => p.label === opts.label);
     if (!found) {
       const available = passcodes.map((p) => `"${p.label}"`).join(", ") || "(none)";
       throw new Error(`No passcode with label "${opts.label}" found. Available labels: ${available}`);
     }
-    return revokePasscode(apiClient, nsId, slug, found.id);
+    return revokePasscode(apiClient, ns.id, slug, found.id);
   }
   throw new Error("Either id or label must be provided to revoke a passcode.");
 }
 async function gate(args, deps) {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, args.namespace);
+  const ns = await resolveNamespace(apiClient, args.namespace);
   switch (args.action) {
     case "get": {
-      const result = await getGate(apiClient, nsId, args.slug);
+      const result = await getGate(apiClient, ns.id, args.slug);
       return { action: "get", ...result };
     }
     case "set": {
-      const result = await setGate(apiClient, nsId, args.slug, args.fields);
+      const result = await setGate(apiClient, ns.id, args.slug, args.fields);
       return { action: "set", ...result };
     }
     case "remove": {
-      const result = await removeGate(apiClient, nsId, args.slug);
+      const result = await removeGate(apiClient, ns.id, args.slug);
       return { action: "remove", ...result };
     }
     case "submissions": {
-      const result = await getSubmissions(apiClient, nsId, args.slug);
+      const result = await getSubmissions(apiClient, ns.id, args.slug);
       return { action: "submissions", ...result };
     }
     case "clear": {
-      const result = await clearSubmissions(apiClient, nsId, args.slug);
+      const result = await clearSubmissions(apiClient, ns.id, args.slug);
       return { action: "clear", ...result };
     }
   }
@@ -21185,7 +21189,12 @@ async function status(deps) {
   const apiClient = new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch);
   try {
     const result = await apiClient.get("/auth/me");
-    return { authenticated: true, username: result.username };
+    let namespaces = [];
+    try {
+      const nsResult = await apiClient.get("/api/ns");
+      namespaces = nsResult.namespaces ?? [];
+    } catch {}
+    return { authenticated: true, username: result.username, namespaces };
   } catch (err2) {
     return { authenticated: false, error: err2.message };
   }
@@ -21222,7 +21231,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.6.2";
+var PACKAGE_VERSION = "0.7.0";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -21235,7 +21244,8 @@ function formatSiteEntry(site) {
   const updated = new Date(site.updated_at).toLocaleDateString();
   const visibility = site.visibility !== "public" ? `
 Visibility: ${site.visibility}` : "";
-  return `${site.title} (${site.slug})
+  return `Title: ${site.title}
+` + `Slug: ${site.slug}
 ` + `URL: ${site.url ?? `(URL unavailable \u2014 check slug: ${site.slug})`}
 ` + `Files: ${site.file_count} (${size})
 ` + `Updated: ${updated}` + visibility;
@@ -21342,8 +21352,10 @@ Visibility: ${visibility}` : "";
       if (sites.length === 0) {
         return okResponse("No sites published yet. Use the `publish` tool to deploy your first site.");
       }
+      const ns = result.namespace;
+      const header = `Sites in namespace "${ns.name}" (${ns.domain})`;
       const lines = sites.map((site) => formatSiteEntry(site));
-      return okResponse(`Published sites (${sites.length}):
+      return okResponse(`${header}
 
 ${lines.join(`
 
@@ -21559,12 +21571,20 @@ ${fields2}`;
   });
   server.registerTool("status", {
     title: "Auth Status",
-    description: "Checks whether you are currently authenticated with upubli.sh. " + "Returns your username if authenticated, or a not-authenticated message.",
+    description: "Checks whether you are currently authenticated with upubli.sh. " + "Returns your username and available namespaces (with domains) if authenticated, " + "or a not-authenticated message.",
     inputSchema: {}
   }, async () => {
     const result = await status(coreDeps);
     if (result.authenticated) {
-      return okResponse(`Authenticated as: ${result.username}`);
+      const lines = [`Authenticated as: ${result.username}`];
+      if (result.namespaces.length > 0) {
+        lines.push("", "Namespaces:");
+        for (const ns of result.namespaces) {
+          lines.push(`  ${ns.name} (${ns.domain})`);
+        }
+      }
+      return okResponse(lines.join(`
+`));
     }
     const msg = result.error ? `Not authenticated. ${result.error}` : "Not authenticated. Use the login tool to sign in.";
     return okResponse(msg);
