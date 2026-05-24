@@ -49,7 +49,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** Formats a single site as a human-readable block (matches monorepo output). */
+/** Formats a single site as a human-readable block with labeled fields. */
 function formatSiteEntry(site: Site): string {
   const size = formatBytes(site.total_size);
   const updated = new Date(site.updated_at).toLocaleDateString();
@@ -57,7 +57,8 @@ function formatSiteEntry(site: Site): string {
     site.visibility !== "public" ? `\nVisibility: ${site.visibility}` : "";
 
   return (
-    `${site.title} (${site.slug})\n` +
+    `Title: ${site.title}\n` +
+    `Slug: ${site.slug}\n` +
     `URL: ${site.url ?? `(URL unavailable — check slug: ${site.slug})`}\n` +
     `Files: ${site.file_count} (${size})\n` +
     `Updated: ${updated}` +
@@ -283,8 +284,10 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
           );
         }
 
+        const ns = result.namespace;
+        const header = `Sites in namespace "${ns.name}" (${ns.domain})`;
         const lines = sites.map((site) => formatSiteEntry(site));
-        return okResponse(`Published sites (${sites.length}):\n\n${lines.join("\n\n")}`);
+        return okResponse(`${header}\n\n${lines.join("\n\n")}`);
       } catch (err) {
         return errResponse(err);
       }
@@ -661,14 +664,24 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
       title: "Auth Status",
       description:
         "Checks whether you are currently authenticated with upubli.sh. " +
-        "Returns your username if authenticated, or a not-authenticated message.",
+        "Returns your username and available namespaces (with domains) if authenticated, " +
+        "or a not-authenticated message.",
       inputSchema: {},
     },
     async () => {
       const result = await status(coreDeps);
 
       if (result.authenticated) {
-        return okResponse(`Authenticated as: ${result.username}`);
+        const lines = [`Authenticated as: ${result.username}`];
+
+        if (result.namespaces.length > 0) {
+          lines.push("", "Namespaces:");
+          for (const ns of result.namespaces) {
+            lines.push(`  ${ns.name} (${ns.domain})`);
+          }
+        }
+
+        return okResponse(lines.join("\n"));
       }
 
       const msg = result.error

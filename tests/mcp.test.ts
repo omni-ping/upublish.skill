@@ -798,3 +798,231 @@ describe("server structure", () => {
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
+
+// ─── DW-2.1: list output has labeled fields and namespace header ────────────
+
+describe("DW-2.1: list output has labeled fields and namespace header", () => {
+  test("test_DW_2_1_list_output_has_labeled_fields", async () => {
+    const { deps } = makeDeps(makeMockFetch({ sites: [SAMPLE_SITE] }));
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["list"].handler({});
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    // Each field must be on its own labeled line
+    expect(text).toContain("Title: My Site");
+    expect(text).toContain("Slug: my-site");
+    expect(text).toContain("URL: https://user1.upubli.sh/my-site/");
+    expect(text).toContain("Files: 3");
+    // Must NOT contain old "title (slug)" mashup format
+    expect(text).not.toContain("My Site (my-site)");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_2_1_list_output_has_namespace_header", async () => {
+    const { deps } = makeDeps(makeMockFetch({ sites: [SAMPLE_SITE] }));
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["list"].handler({});
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    // Namespace header with name and domain
+    expect(text).toContain('Sites in namespace "default" (user.upubli.sh)');
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_2_1_list_empty_no_namespace_header", async () => {
+    const { deps } = makeDeps(makeMockFetch({ sites: [] }));
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["list"].handler({});
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    // Empty list should still show the helpful empty message
+    expect(text).toContain("No sites");
+    // No namespace header needed for empty result
+    expect(text).not.toContain("Sites in namespace");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_2_1_list_output_visibility_shown_for_non_public", async () => {
+    const unlistedSite = { ...SAMPLE_SITE, visibility: "unlisted" };
+    const { deps } = makeDeps(makeMockFetch({ sites: [unlistedSite] }));
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["list"].handler({});
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    expect(text).toContain("Visibility: unlisted");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_2_1_list_output_visibility_hidden_for_public", async () => {
+    const { deps } = makeDeps(makeMockFetch({ sites: [SAMPLE_SITE] }));
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["list"].handler({});
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    // public visibility should NOT show a Visibility line
+    expect(text).not.toContain("Visibility:");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+});
+
+// ─── DW-2.2: status output includes namespace names + domains ───────────────
+
+describe("DW-2.2: status output includes namespace info when authenticated", () => {
+  test("test_DW_2_2_status_shows_namespace_info", async () => {
+    const fetchFn = async (url: string, _init?: RequestInit): Promise<Response> => {
+      if (url.includes("/auth/token/refresh")) {
+        return new Response(
+          JSON.stringify({ access_token: "mock-access-token", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/auth/me")) {
+        return new Response(
+          JSON.stringify({ username: "testuser" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url) || /\/api\/ns\?/.test(url)) {
+        return new Response(
+          JSON.stringify({
+            namespaces: [
+              { id: "ns1", name: "default", domain: "testuser.upubli.sh" },
+              { id: "ns2", name: "my-team", domain: "team.upubli.sh" },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    };
+
+    const { deps } = makeDeps(fetchFn);
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["status"].handler({});
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    expect(text).toContain("Authenticated as: testuser");
+    expect(text).toContain("Namespaces:");
+    expect(text).toContain("default (testuser.upubli.sh)");
+    expect(text).toContain("my-team (team.upubli.sh)");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_2_2_status_unauthenticated_no_namespace", async () => {
+    const deps: CoreDeps = {
+      credentialsPath: "/does/not/exist/no-creds-ns",
+      fetchFn: async () => new Response(JSON.stringify({}), { status: 200 }),
+    };
+
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["status"].handler({});
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    expect(text).toContain("Not authenticated");
+    expect(text).not.toContain("Namespaces:");
+  });
+
+  test("test_DW_2_2_status_single_namespace", async () => {
+    const fetchFn = async (url: string, _init?: RequestInit): Promise<Response> => {
+      if (url.includes("/auth/token/refresh")) {
+        return new Response(
+          JSON.stringify({ access_token: "mock-access-token", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/auth/me")) {
+        return new Response(
+          JSON.stringify({ username: "solo" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns/.test(url)) {
+        return new Response(
+          JSON.stringify({
+            namespaces: [
+              { id: "ns1", name: "default", domain: "solo.upubli.sh" },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    };
+
+    const { deps } = makeDeps(fetchFn);
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["status"].handler({});
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    expect(text).toContain("Authenticated as: solo");
+    expect(text).toContain("Namespaces:");
+    expect(text).toContain("default (solo.upubli.sh)");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_2_2_status_graceful_when_no_namespaces", async () => {
+    // Namespace fetch fails gracefully — status should still show username
+    const fetchFn = async (url: string, _init?: RequestInit): Promise<Response> => {
+      if (url.includes("/auth/token/refresh")) {
+        return new Response(
+          JSON.stringify({ access_token: "mock-access-token", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/auth/me")) {
+        return new Response(
+          JSON.stringify({ username: "testuser" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns/.test(url)) {
+        // Namespace endpoint fails
+        return new Response(JSON.stringify({ error: "fail" }), { status: 500 });
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    };
+
+    const { deps } = makeDeps(fetchFn);
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["status"].handler({});
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    expect(text).toContain("Authenticated as: testuser");
+    // No Namespaces section when the fetch fails
+    expect(text).not.toContain("Namespaces:");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+});
+
+// ─── DW-2.3: SKILL.md routing table has account exploration row ─────────────
+
+describe("DW-2.3: SKILL.md routing table has account exploration row", () => {
+  test("test_DW_2_3_skill_routing_table_has_exploration_row", () => {
+    const skillPath = path.join(__dirname, "..", "skills", "upublish", "SKILL.md");
+    const content = fs.readFileSync(skillPath, "utf-8");
+    // Must have a routing row for account exploration
+    expect(content).toContain("account");
+    expect(content).toContain("status");
+    expect(content).toContain("list");
+    // The row should mention namespaces or domains
+    expect(content).toMatch(/namespace|domain/i);
+  });
+});

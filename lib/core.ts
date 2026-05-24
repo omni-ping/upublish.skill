@@ -395,7 +395,7 @@ export async function status(deps?: CoreDeps): Promise<StatusResult> {
     let namespaces: Namespace[] = [];
     try {
       const nsResult = await apiClient.get<{ namespaces: Namespace[] }>("/api/ns");
-      namespaces = nsResult.namespaces;
+      namespaces = nsResult.namespaces ?? [];
     } catch {
       // Namespace fetch failed — return authenticated with empty namespaces
     }

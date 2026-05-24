@@ -1,6 +1,6 @@
 ---
 name: upublish
-description: Publish static sites to upubli.sh — the instant web publishing platform. Use when the user wants to publish files to the web, manage published sites, set visibility, or get started with upublish. Triggers on "upublish", "upubli.sh", "publish this site", "make this live", "put this on the web", "share this page", "deploy this", "list my sites", "delete site", "site visibility", "passcode protect".
+description: Publish static sites to upubli.sh — the instant web publishing platform. Use when the user wants to publish files to the web, manage published sites, set visibility, or get started with upublish. Triggers on "upublish", "upubli.sh", "publish this site", "make this live", "put this on the web", "share this page", "deploy this", "list my sites", "delete site", "site visibility", "passcode protect", "what sites do I have", "what domains", "my namespaces", "account info".
 ---
 
 # upublish
@@ -42,6 +42,7 @@ Match what the user wants and read the reference file, then follow it.
 | Control who can access a site (passcode, unlisted) | `references/visibility.md` |
 | Optimize site performance or reduce size | `references/optimization.md` |
 | Add SEO tags, social previews, or favicon | `references/seo-social.md` |
+| Check account info, namespaces, domains, or see what sites they have | Call `status` then `list` (no reference file needed) |
 | Fix something that is broken | `references/troubleshooting.md` |
 
 ## Available MCP tools
@@ -49,7 +50,7 @@ Match what the user wants and read the reference file, then follow it.
 | Tool | Description |
 |---|---|
 | `mcp_upublish_login` | Open browser for Google sign-in, returns auth URL |
-| `mcp_upublish_status` | Check authentication state |
+| `mcp_upublish_status` | Check authentication state, shows namespaces and domains |
 | `mcp_upublish_publish` | Publish a directory as a live site |
 | `mcp_upublish_list` | List all published sites with URLs |
 | `mcp_upublish_delete` | Delete a published site (permanent, confirm first) |
