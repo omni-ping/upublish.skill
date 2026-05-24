@@ -34,11 +34,18 @@ export interface PublishOpts {
    * visibility is "passcode" and no label is provided.
    */
   passcodeLabel?: string;
+  /**
+   * When true, creates a staging version instead of going live immediately.
+   * The API returns a preview_url where the staging version can be reviewed.
+   */
+  preview?: boolean;
 }
 
 export interface PublishResult {
   /** Public URL where the site is live. */
   url: string;
+  /** Preview URL for staging versions. Present only when preview=true was requested. */
+  preview_url?: string;
   /** Full site object returned by the API. */
   site: Site;
   /** Suspicious files that were included but may not be site content. */
@@ -50,6 +57,7 @@ export interface PublishResult {
 interface PublishResponse {
   site: Site;
   url: string;
+  preview_url?: string;
 }
 
 export interface BuildResult {
@@ -220,7 +228,7 @@ export function buildZipFromDirectory(dirPath: string): BuildResult {
  * @throws Error on API failure (propagated from ApiClient).
  */
 export async function publish(opts: PublishOpts): Promise<PublishResult> {
-  const { apiClient, nsId, directory, slug, title, visibility, passcode, passcodeLabel } = opts;
+  const { apiClient, nsId, directory, slug, title, visibility, passcode, passcodeLabel, preview } = opts;
 
   // Validate directory exists and is a directory
   try {
@@ -270,6 +278,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   if (visibility === "passcode" && passcode) {
     formData.set("passcode_label", passcodeLabel ?? "default");
   }
+  if (preview) formData.set("preview", "true");
 
   const result = await apiClient.postForm<PublishResponse>(
     `/api/ns/${nsId}/sites`,
@@ -278,6 +287,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
 
   return {
     url: result.url,
+    preview_url: result.preview_url,
     site: result.site,
     warnings: build.warnings,
     excluded: build.excluded,

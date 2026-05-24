@@ -33,6 +33,8 @@ import { publish as domainPublish } from "./publish.ts";
 import type { PublishResult } from "./publish.ts";
 import { deleteSite } from "./delete.ts";
 import type { DeleteResult } from "./delete.ts";
+import { promote as domainPromote } from "./promote.ts";
+import type { PromoteResult } from "./promote.ts";
 import {
   addPasscode as domainAddPasscode,
   listPasscodes as domainListPasscodes,
@@ -68,6 +70,7 @@ import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission }
 export type { LoginDeps, LoginResult, CallbackServer, TokenResponse };
 export type { PublishResult };
 export type { DeleteResult };
+export type { PromoteResult };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
 export type { Namespace, Site, Visibility, GateConfig, GateSubmission };
@@ -107,6 +110,11 @@ export interface PublishArgs {
    * namespace is resolved from GET /api/space.
    */
   namespace?: string;
+  /**
+   * When true, creates a staging version instead of going live immediately.
+   * Use the promote() function to promote the staging version to live.
+   */
+  preview?: boolean;
 }
 
 export interface ListResult {
@@ -185,6 +193,7 @@ export async function publish(
     visibility: args.visibility,
     passcode: args.passcode,
     passcodeLabel: args.passcodeLabel,
+    preview: args.preview,
   });
 }
 
@@ -204,6 +213,24 @@ export async function deleteOp(
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
   return deleteSite(apiClient, ns.id, slug);
+}
+
+/**
+ * Promotes the staging version of a site to live.
+ * Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param slug - The URL-safe identifier of the site to promote.
+ * @param namespaceName - Optional namespace name. Defaults to the user's default namespace.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function promote(
+  slug: string,
+  namespaceName?: string,
+  deps?: CoreDeps,
+): Promise<PromoteResult> {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return domainPromote(apiClient, ns.id, slug);
 }
 
 /**

@@ -18,6 +18,7 @@ import open from "open";
 import {
   list,
   publish,
+  promote,
   deleteOp,
   login,
   status,
@@ -224,9 +225,17 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
           .describe(
             "Namespace name to publish into. When omitted, the default namespace is used.",
           ),
+        preview: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, publishes as a staging preview instead of going live immediately. " +
+            "The response includes a preview_url where the staging version can be reviewed. " +
+            "Use the promote tool to promote the staging version to live.",
+          ),
       },
     },
-    async ({ directory, slug, title, visibility, passcode, namespace }) => {
+    async ({ directory, slug, title, visibility, passcode, namespace, preview }) => {
       try {
         const result = await publish(
           {
@@ -236,6 +245,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             visibility: visibility as "public" | "passcode" | undefined,
             passcode: passcode as string | undefined,
             namespace: namespace as string | undefined,
+            preview: preview as boolean | undefined,
           },
           coreDeps,
         );
@@ -256,6 +266,20 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             ? `\nWarning: Included files that may not be site content: ${result.warnings.join(", ")}` +
               `\n  Add them to .upublishignore in the publish directory to exclude.`
             : "";
+
+        if (result.preview_url) {
+          return okResponse(
+            `Preview published!\n` +
+            `Preview URL: ${result.preview_url}\n` +
+            `Slug: ${site.slug}\n` +
+            `Files: ${site.file_count}\n` +
+            `Size: ${formatBytes(site.total_size)}` +
+            visibilityLine +
+            excludedLine +
+            warningLine +
+            `\nUse the promote tool to make this preview live.`,
+          );
+        }
 
         return okResponse(
           `Site published successfully!\n` +
@@ -600,6 +624,47 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
         );
         if (result.action !== "clear") return errResponse(new Error("Unexpected result"));
         return okResponse(result.message);
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "promote",
+    {
+      title: "Promote Preview",
+      description:
+        "Promotes a staging preview version of a site to live on upubli.sh. " +
+        "Use this after publishing with preview=true to make the staged version " +
+        "available at the site's public URL. " +
+        "Returns the live URL of the promoted site.",
+      inputSchema: {
+        slug: z
+          .string()
+          .describe(
+            "The URL-safe identifier of the site to promote. " +
+            "Use the list tool to find available slugs.",
+          ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+          ),
+      },
+    },
+    async ({ slug, namespace }) => {
+      try {
+        const result = await promote(
+          slug as string,
+          namespace as string | undefined,
+          coreDeps,
+        );
+        return okResponse(
+          `Preview promoted to live!\n` +
+          `URL: ${result.url}`,
+        );
       } catch (err) {
         return errResponse(err);
       }

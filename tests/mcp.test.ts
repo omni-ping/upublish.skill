@@ -147,9 +147,9 @@ describe("DW-2.1: server registers publish, list, delete tools", () => {
     const { deps } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    // 10 tools: publish, list, delete, passcode_add, passcode_list,
-    // passcode_revoke, gate, logout, login, status
-    expect(Object.keys(tools).length).toBe(10);
+    // 11 tools: publish, list, delete, passcode_add, passcode_list,
+    // passcode_revoke, gate, promote, logout, login, status
+    expect(Object.keys(tools).length).toBe(11);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
@@ -768,9 +768,9 @@ describe("DW-1.7: tool count assertions are correct", () => {
     const { deps } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    // 10 tools: publish, list, delete, passcode_add, passcode_list,
-    // passcode_revoke, gate, logout, login, status
-    expect(Object.keys(tools).length).toBe(10);
+    // 11 tools: publish, list, delete, passcode_add, passcode_list,
+    // passcode_revoke, gate, promote, logout, login, status
+    expect(Object.keys(tools).length).toBe(11);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
@@ -783,9 +783,9 @@ describe("server structure", () => {
     const server = createServer(deps);
     expect(server).toBeDefined();
     const tools = getTools(server);
-    // 10 tools: publish, list, delete, passcode_add, passcode_list,
-    // passcode_revoke, gate, logout, login, status
-    expect(Object.keys(tools).length).toBe(10);
+    // 11 tools: publish, list, delete, passcode_add, passcode_list,
+    // passcode_revoke, gate, promote, logout, login, status
+    expect(Object.keys(tools).length).toBe(11);
     fs.unlinkSync(deps.credentialsPath!);
   });
 
