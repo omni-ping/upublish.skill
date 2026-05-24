@@ -2,12 +2,12 @@
  * Core publish logic — packages a local directory into a zip archive and
  * uploads it to the upubli.sh API.
  *
- * Returns structured data ({ url, site }) — formatting is the adapter's job.
- * Throws on validation failures and API errors.
+ * Returns structured data ({ url, site, warnings, excluded }) — formatting
+ * is the adapter's job. Throws on validation failures and API errors.
  */
 
 import { zipSync } from "fflate";
-import { readdirSync, readFileSync, statSync } from "fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { join, relative } from "path";
 import type { ApiClient } from "./api-client.ts";
 import type { Site, Visibility } from "./types.ts";
@@ -41,11 +41,22 @@ export interface PublishResult {
   url: string;
   /** Full site object returned by the API. */
   site: Site;
+  /** Suspicious files that were included but may not be site content. */
+  warnings: string[];
+  /** Files/directories that were excluded by default rules or .upublishignore. */
+  excluded: string[];
 }
 
 interface PublishResponse {
   site: Site;
   url: string;
+}
+
+export interface BuildResult {
+  zipBytes: Uint8Array;
+  fileCount: number;
+  excluded: string[];
+  warnings: string[];
 }
 
 // ─── Validation ──────────────────────────────────────────────────────────────
@@ -58,42 +69,144 @@ export function isValidSlug(slug: string): boolean {
   );
 }
 
-// ─── Zip Building ────────────────────────────────────────────────────────────
+// ─── File Exclusion ──────────────────────────────────────────────────────────
 
-/**
- * Recursively reads all files in a directory and packs them into a zip archive.
- * Returns the raw zip bytes. Returns empty Uint8Array for empty directories.
- */
-export function buildZipFromDirectory(dirPath: string): Uint8Array {
-  const fileMap: Record<string, Uint8Array> = {};
-  collectFiles(dirPath, dirPath, fileMap);
+const EXCLUDED_DIRS = new Set([".git", "node_modules", ".svn", ".hg"]);
+const EXCLUDED_FILES = new Set([".DS_Store", "Thumbs.db", ".upublishignore"]);
 
-  if (Object.keys(fileMap).length === 0) {
-    return new Uint8Array(0);
-  }
-
-  return zipSync(fileMap);
+function isDefaultExcluded(name: string, isDir: boolean): boolean {
+  if (isDir) return EXCLUDED_DIRS.has(name);
+  if (EXCLUDED_FILES.has(name)) return true;
+  if (name === ".env" || name.startsWith(".env.")) return true;
+  if (name.endsWith(".pem") || name.endsWith(".key")) return true;
+  return false;
 }
 
-/** Recursively collects files into a fflate-compatible map of { relPath: bytes }. */
+const SUSPICIOUS_NAMES = new Set([
+  "nginx.conf",
+  "apache.conf",
+  ".htaccess",
+  "Makefile",
+  "Dockerfile",
+  "docker-compose.yml",
+  "docker-compose.yaml",
+  "package.json",
+  "package-lock.json",
+  "bun.lockb",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "tsconfig.json",
+  "README.md",
+  "CHANGELOG.md",
+  "LICENSE",
+]);
+
+function isSuspicious(name: string): boolean {
+  if (SUSPICIOUS_NAMES.has(name)) return true;
+  if (name.endsWith(".sh")) return true;
+  return false;
+}
+
+// ─── .upublishignore ─────────────────────────────────────────────────────────
+
+export function parseIgnoreFile(content: string): string[] {
+  return content
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#"));
+}
+
+function matchesIgnore(
+  relPath: string,
+  name: string,
+  patterns: string[],
+): boolean {
+  for (const p of patterns) {
+    if (p === name) return true;
+    if (p.endsWith("/") && name === p.slice(0, -1)) return true;
+    if (p.startsWith("*.") && name.endsWith(p.slice(1))) return true;
+  }
+  return false;
+}
+
+// ─── Zip Building ────────────────────────────────────────────────────────────
+
+interface CollectState {
+  fileMap: Record<string, Uint8Array>;
+  excluded: string[];
+  warnings: string[];
+}
+
+/** Recursively collects files, applying exclusion rules and flagging suspicious files. */
 function collectFiles(
   rootDir: string,
   currentDir: string,
-  fileMap: Record<string, Uint8Array>,
+  state: CollectState,
+  ignorePatterns: string[],
 ): void {
   const entries = readdirSync(currentDir, { withFileTypes: true });
 
   for (const entry of entries) {
     const fullPath = join(currentDir, entry.name);
+    const relPath = relative(rootDir, fullPath);
+
+    if (isDefaultExcluded(entry.name, entry.isDirectory())) {
+      state.excluded.push(entry.isDirectory() ? `${relPath}/` : relPath);
+      continue;
+    }
+
+    if (matchesIgnore(relPath, entry.name, ignorePatterns)) {
+      state.excluded.push(entry.isDirectory() ? `${relPath}/` : relPath);
+      continue;
+    }
 
     if (entry.isDirectory()) {
-      collectFiles(rootDir, fullPath, fileMap);
+      collectFiles(rootDir, fullPath, state, ignorePatterns);
     } else if (entry.isFile()) {
-      const relPath = relative(rootDir, fullPath);
+      if (isSuspicious(entry.name)) {
+        state.warnings.push(relPath);
+      }
       const data = readFileSync(fullPath);
-      fileMap[relPath] = new Uint8Array(data);
+      state.fileMap[relPath] = new Uint8Array(data);
     }
   }
+}
+
+/**
+ * Recursively reads files in a directory and packs them into a zip archive.
+ * Applies default exclusion rules and .upublishignore patterns.
+ * Returns the zip bytes along with metadata about excluded and suspicious files.
+ */
+export function buildZipFromDirectory(dirPath: string): BuildResult {
+  let ignorePatterns: string[] = [];
+  const ignoreFile = join(dirPath, ".upublishignore");
+  try {
+    if (existsSync(ignoreFile)) {
+      ignorePatterns = parseIgnoreFile(readFileSync(ignoreFile, "utf-8"));
+    }
+  } catch {
+    // No readable .upublishignore — use defaults only
+  }
+
+  const state: CollectState = { fileMap: {}, excluded: [], warnings: [] };
+  collectFiles(dirPath, dirPath, state, ignorePatterns);
+
+  const fileCount = Object.keys(state.fileMap).length;
+  if (fileCount === 0) {
+    return {
+      zipBytes: new Uint8Array(0),
+      fileCount: 0,
+      excluded: state.excluded,
+      warnings: state.warnings,
+    };
+  }
+
+  return {
+    zipBytes: zipSync(state.fileMap),
+    fileCount,
+    excluded: state.excluded,
+    warnings: state.warnings,
+  };
 }
 
 // ─── Publish ─────────────────────────────────────────────────────────────────
@@ -102,7 +215,7 @@ function collectFiles(
  * Packages a directory into a zip and uploads it to the upubli.sh API.
  *
  * @param opts - Publish options including apiClient, directory, slug, etc.
- * @returns The published site URL and site object.
+ * @returns The published site URL, site object, and any warnings.
  * @throws Error on validation failure (bad directory, invalid slug, empty dir).
  * @throws Error on API failure (propagated from ApiClient).
  */
@@ -122,18 +235,19 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     throw new Error(`Directory '${directory}' does not exist`);
   }
 
-  // Validate slug format
-  if (!isValidSlug(slug)) {
+  // _root is a reserved system slug that bypasses normal format validation —
+  // it publishes at the namespace/domain root (e.g. vibeandscribe.xyz/).
+  if (slug !== "_root" && !isValidSlug(slug)) {
     throw new Error(
       "Invalid slug. Must be 3-63 characters: lowercase letters, " +
         "numbers, and hyphens, starting and ending with a letter or number.",
     );
   }
 
-  // Build zip archive
-  const zipBytes = buildZipFromDirectory(directory);
+  // Build zip archive (applies exclusion rules)
+  const build = buildZipFromDirectory(directory);
 
-  if (zipBytes.byteLength === 0) {
+  if (build.zipBytes.byteLength === 0) {
     throw new Error("Directory is empty — no files to publish");
   }
 
@@ -148,7 +262,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   formData.set("title", title ?? slug);
   formData.set(
     "archive",
-    new Blob([zipBytes], { type: "application/zip" }),
+    new Blob([build.zipBytes], { type: "application/zip" }),
     "site.zip",
   );
   if (visibility) formData.set("visibility", visibility);
@@ -165,5 +279,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   return {
     url: result.url,
     site: result.site,
+    warnings: build.warnings,
+    excluded: build.excluded,
   };
 }
