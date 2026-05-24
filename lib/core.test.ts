@@ -15,6 +15,9 @@
  * Covers DW-2.7: core.logout() with no credentials file returns { loggedOut: true } (no-op success)
  *
  * Covers DW-5.7: core.ts exports addPasscode, listPasscodes, revokePasscode with CoreDeps injection
+ *
+ * Covers DW-1.3 (new plan): ListResult includes namespace: Namespace field populated by list() in core
+ * Covers DW-1.4 (new plan): StatusResult authenticated branch includes namespaces: Namespace[]
  */
 
 import { describe, it, expect, afterEach } from "bun:test";
@@ -33,8 +36,9 @@ import {
   revokePasscode,
   gate,
 } from "./core.ts";
-import type { CoreDeps } from "./core.ts";
+import type { CoreDeps, StatusResult } from "./core.ts";
 import type { LoginDeps } from "./auth.ts";
+import type { Namespace } from "./types.ts";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -592,6 +596,13 @@ function mockFetchMulti(
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     }
+    // Match /api/ns exactly (not /api/ns/something/...)
+    if (/\/api\/ns$/.test(url) || /\/api\/ns\?/.test(url)) {
+      return new Response(
+        JSON.stringify({ namespaces: [{ id: NS_ID, name: "default", domain: "user.upubli.sh" }] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
     for (const route of routes) {
       if (url.includes(route.match)) {
         return new Response(JSON.stringify(route.body), {
@@ -693,6 +704,12 @@ describe("DW-5.7: core.revokePasscode()", () => {
       if (url.endsWith("/api/space")) {
         return new Response(
           JSON.stringify({ space: { id: "sp1", default_namespace_id: NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url) || /\/api\/ns\?/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: NS_ID, name: "default", domain: "user.upubli.sh" }] }),
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
@@ -877,6 +894,129 @@ describe("DW-4.2/4.8: core.gate() action=clear", () => {
     expect(result.action).toBe("clear");
     if (result.action === "clear") {
       expect(result.message).toBe("Submissions cleared");
+    }
+  });
+});
+
+// ─── DW-1.3 (new plan): ListResult includes namespace: Namespace ────────────
+
+describe("DW-1.3: list() result includes namespace", () => {
+  it("test_DW_1_3_list_result_includes_namespace", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchWithTokenRefresh("/api/sites", 200, { sites: [] }),
+    };
+
+    const result = await list(undefined, deps);
+    expect(result.namespace).toBeDefined();
+    expect(result.namespace.id).toBe(NS_ID);
+  });
+
+  it("test_DW_1_3_list_result_namespace_has_name_and_domain", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchWithTokenRefresh("/api/sites", 200, { sites: [] }),
+    };
+
+    const result = await list(undefined, deps);
+    const ns: Namespace = result.namespace;
+    expect(ns.name).toBe("default");
+    expect(ns.domain).toBe("user.upubli.sh");
+  });
+});
+
+// ─── DW-1.4 (new plan): StatusResult includes namespaces: Namespace[] ───────
+
+describe("DW-1.4: status() result includes namespaces", () => {
+  it("test_DW_1_4_status_result_includes_namespaces", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchWithTokenRefresh("/auth/me", 200, { username: USERNAME }),
+    };
+
+    const result = await status(deps);
+    expect(result.authenticated).toBe(true);
+    if (result.authenticated) {
+      expect(result.namespaces).toBeDefined();
+      expect(Array.isArray(result.namespaces)).toBe(true);
+      expect(result.namespaces.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("test_DW_1_4_status_namespaces_have_name_and_domain", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchWithTokenRefresh("/auth/me", 200, { username: USERNAME }),
+    };
+
+    const result = await status(deps);
+    expect(result.authenticated).toBe(true);
+    if (result.authenticated) {
+      const ns: Namespace = result.namespaces[0];
+      expect(ns.id).toBe(NS_ID);
+      expect(ns.name).toBe("default");
+      expect(ns.domain).toBe("user.upubli.sh");
+    }
+  });
+
+  it("test_DW_1_4_status_unauthenticated_has_no_namespaces", async () => {
+    const deps: CoreDeps = {
+      credentialsPath: "/does/not/exist/credentials",
+      fetchFn: mockFetch(200, { username: USERNAME }),
+    };
+
+    const result = await status(deps);
+    expect(result.authenticated).toBe(false);
+    // Unauthenticated result should NOT have namespaces property
+    expect("namespaces" in result).toBe(false);
+  });
+
+  it("test_DW_1_4_status_namespaces_graceful_on_ns_failure", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    // Custom fetch: /auth/me succeeds but /api/ns fails
+    const fetchFn = async (url: string) => {
+      if (url.includes("/auth/token/refresh")) {
+        return new Response(
+          JSON.stringify({ access_token: "mock-access-token", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/auth/me")) {
+        return new Response(
+          JSON.stringify({ username: USERNAME }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url) || /\/api\/ns\?/.test(url)) {
+        return new Response(
+          JSON.stringify({ error: "Service unavailable" }),
+          { status: 503, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    };
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+
+    const result = await status(deps);
+    expect(result.authenticated).toBe(true);
+    if (result.authenticated) {
+      // Should still be authenticated, just with empty namespaces
+      expect(result.namespaces).toEqual([]);
     }
   });
 });

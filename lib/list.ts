@@ -10,7 +10,7 @@ import type { Site } from "./types.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface ListResult {
+export interface ListSitesResult {
   /** Array of published sites. Empty array if none exist. */
   sites: Site[];
 }
@@ -29,7 +29,7 @@ interface ListSitesResponse {
  * @returns Object containing an array of sites.
  * @throws Error on API failure (propagated from ApiClient).
  */
-export async function listSites(apiClient: ApiClient, nsId: string): Promise<ListResult> {
+export async function listSites(apiClient: ApiClient, nsId: string): Promise<ListSitesResult> {
   const response = await apiClient.get<ListSitesResponse>(`/api/ns/${nsId}/sites`);
   return { sites: response.sites };
 }

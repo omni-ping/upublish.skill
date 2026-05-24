@@ -29,7 +29,6 @@ import type { LoginDeps, LoginResult, CallbackServer, TokenResponse } from "./au
 
 import { ApiClient } from "./api-client.ts";
 import { listSites } from "./list.ts";
-import type { ListResult } from "./list.ts";
 import { publish as domainPublish } from "./publish.ts";
 import type { PublishResult } from "./publish.ts";
 import { deleteSite } from "./delete.ts";
@@ -60,7 +59,7 @@ import type {
   ClearSubmissionsResult,
 } from "./gate.ts";
 import { resolveNamespace } from "./namespace.ts";
-import type { FetchFn, Visibility, GateConfig, GateSubmission } from "./types.ts";
+import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission } from "./types.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
 
@@ -68,12 +67,10 @@ import type { FetchFn, Visibility, GateConfig, GateSubmission } from "./types.ts
 // don't have to reach into lib/auth.ts or other submodules.
 export type { LoginDeps, LoginResult, CallbackServer, TokenResponse };
 export type { PublishResult };
-export type { ListResult };
 export type { DeleteResult };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
-export type { Visibility, GateConfig, GateSubmission };
-export type { Site } from "./types.ts";
+export type { Namespace, Site, Visibility, GateConfig, GateSubmission };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -112,8 +109,15 @@ export interface PublishArgs {
   namespace?: string;
 }
 
+export interface ListResult {
+  /** Array of published sites. Empty array if none exist. */
+  sites: Site[];
+  /** The namespace these sites belong to. */
+  namespace: Namespace;
+}
+
 export type StatusResult =
-  | { authenticated: true; username: string }
+  | { authenticated: true; username: string; namespaces: Namespace[] }
   | { authenticated: false; error?: string };
 
 export type LogoutResult =
@@ -156,8 +160,9 @@ async function buildApiClient(deps?: CoreDeps): Promise<ApiClient> {
  */
 export async function list(namespaceName?: string, deps?: CoreDeps): Promise<ListResult> {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, namespaceName);
-  return listSites(apiClient, nsId);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  const result = await listSites(apiClient, ns.id);
+  return { ...result, namespace: ns };
 }
 
 /**
@@ -170,10 +175,10 @@ export async function publish(
   deps?: CoreDeps,
 ): Promise<PublishResult> {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, args.namespace);
+  const ns = await resolveNamespace(apiClient, args.namespace);
   return domainPublish({
     apiClient,
-    nsId,
+    nsId: ns.id,
     directory: args.directory,
     slug: args.slug,
     title: args.title,
@@ -197,8 +202,8 @@ export async function deleteOp(
   deps?: CoreDeps,
 ): Promise<DeleteResult> {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, namespaceName);
-  return deleteSite(apiClient, nsId, slug);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return deleteSite(apiClient, ns.id, slug);
 }
 
 /**
@@ -219,8 +224,8 @@ export async function addPasscode(
   deps?: CoreDeps,
 ): Promise<AddPasscodeResult> {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, namespaceName);
-  return domainAddPasscode(apiClient, nsId, slug, code, label);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return domainAddPasscode(apiClient, ns.id, slug, code, label);
 }
 
 /**
@@ -237,8 +242,8 @@ export async function listPasscodes(
   deps?: CoreDeps,
 ): Promise<ListPasscodesResult> {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, namespaceName);
-  return domainListPasscodes(apiClient, nsId, slug);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return domainListPasscodes(apiClient, ns.id, slug);
 }
 
 /**
@@ -259,15 +264,15 @@ export async function revokePasscode(
   deps?: CoreDeps,
 ): Promise<RevokePasscodeResult> {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, namespaceName);
+  const ns = await resolveNamespace(apiClient, namespaceName);
 
   if (opts.id) {
-    return domainRevokePasscode(apiClient, nsId, slug, opts.id);
+    return domainRevokePasscode(apiClient, ns.id, slug, opts.id);
   }
 
   if (opts.label) {
     // Resolve label to ID
-    const { passcodes } = await domainListPasscodes(apiClient, nsId, slug);
+    const { passcodes } = await domainListPasscodes(apiClient, ns.id, slug);
     const found = passcodes.find((p) => p.label === opts.label);
     if (!found) {
       const available = passcodes.map((p) => `"${p.label}"`).join(", ") || "(none)";
@@ -275,7 +280,7 @@ export async function revokePasscode(
         `No passcode with label "${opts.label}" found. Available labels: ${available}`,
       );
     }
-    return domainRevokePasscode(apiClient, nsId, slug, found.id);
+    return domainRevokePasscode(apiClient, ns.id, slug, found.id);
   }
 
   throw new Error("Either id or label must be provided to revoke a passcode.");
@@ -317,27 +322,27 @@ export type GateResult =
  */
 export async function gate(args: GateArgs, deps?: CoreDeps): Promise<GateResult> {
   const apiClient = await buildApiClient(deps);
-  const nsId = await resolveNamespace(apiClient, args.namespace);
+  const ns = await resolveNamespace(apiClient, args.namespace);
 
   switch (args.action) {
     case "get": {
-      const result = await domainGetGate(apiClient, nsId, args.slug);
+      const result = await domainGetGate(apiClient, ns.id, args.slug);
       return { action: "get", ...result };
     }
     case "set": {
-      const result = await domainSetGate(apiClient, nsId, args.slug, args.fields);
+      const result = await domainSetGate(apiClient, ns.id, args.slug, args.fields);
       return { action: "set", ...result };
     }
     case "remove": {
-      const result = await domainRemoveGate(apiClient, nsId, args.slug);
+      const result = await domainRemoveGate(apiClient, ns.id, args.slug);
       return { action: "remove", ...result };
     }
     case "submissions": {
-      const result = await domainGetSubmissions(apiClient, nsId, args.slug);
+      const result = await domainGetSubmissions(apiClient, ns.id, args.slug);
       return { action: "submissions", ...result };
     }
     case "clear": {
-      const result = await domainClearSubmissions(apiClient, nsId, args.slug);
+      const result = await domainClearSubmissions(apiClient, ns.id, args.slug);
       return { action: "clear", ...result };
     }
   }
@@ -385,7 +390,17 @@ export async function status(deps?: CoreDeps): Promise<StatusResult> {
 
   try {
     const result = await apiClient.get<{ username: string }>("/auth/me");
-    return { authenticated: true, username: result.username };
+
+    // Fetch namespaces — graceful degradation if the call fails
+    let namespaces: Namespace[] = [];
+    try {
+      const nsResult = await apiClient.get<{ namespaces: Namespace[] }>("/api/ns");
+      namespaces = nsResult.namespaces;
+    } catch {
+      // Namespace fetch failed — return authenticated with empty namespaces
+    }
+
+    return { authenticated: true, username: result.username, namespaces };
   } catch (err) {
     return { authenticated: false, error: (err as Error).message };
   }

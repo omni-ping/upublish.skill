@@ -243,6 +243,12 @@ describe("DW-6.2: list uses default namespace", () => {
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
+      if (/\/api\/ns$/.test(url) || /\/api\/ns\?/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: NS_ID, name: "default", domain: "user.upubli.sh" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
       capturedUrl = url;
       return new Response(JSON.stringify({ sites: [] }), {
         status: 200,
@@ -275,6 +281,12 @@ describe("DW-6.3: list tool namespace scope", () => {
       if (url.endsWith("/api/space")) {
         return new Response(
           JSON.stringify({ space: { id: "sp1", default_namespace_id: NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url) || /\/api\/ns\?/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: NS_ID, name: "default", domain: "user.upubli.sh" }] }),
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
@@ -348,6 +360,12 @@ describe("DW-6.4: delete tool namespace scope", () => {
       if (url.endsWith("/api/space")) {
         return new Response(
           JSON.stringify({ space: { id: "sp1", default_namespace_id: NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url) || /\/api\/ns\?/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: NS_ID, name: "default", domain: "user.upubli.sh" }] }),
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }

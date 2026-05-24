@@ -1,5 +1,5 @@
-<!-- base-commit: 50ee97a1df70c557b34f20308f4f03e11ee0319b -->
-<!-- generated: 2026-05-22 -->
+<!-- base-commit: 522c8f4603a20a48d8f98779d04c173e9cdc5379 -->
+<!-- generated: 2026-05-23 -->
 
 # Code Standards
 
@@ -107,6 +107,7 @@ Dependency flows inward: adapters → core → domain modules → types.
 
 ```
 mcp/index.ts  →  lib/core.ts  →  lib/list.ts, lib/publish.ts, lib/delete.ts, ...
+                                  lib/passcode.ts, lib/gate.ts
                                   lib/auth.ts, lib/api-client.ts
                                   lib/namespace.ts
                               →  lib/types.ts (leaf — no internal imports)
@@ -159,6 +160,7 @@ lib/           # Domain logic + core facade. Tests co-located.
   list.ts      # GET sites
   delete.ts    # DELETE site
   passcode.ts  # Passcode CRUD
+  gate.ts      # Form gate CRUD + submissions
   namespace.ts # Namespace resolution
   types.ts     # Shared types (leaf module)
 mcp/           # MCP server adapter

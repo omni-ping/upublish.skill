@@ -8,6 +8,13 @@
 /** Site visibility mode. */
 export type Visibility = "public" | "unlisted" | "passcode";
 
+/** A namespace within a user's space. */
+export interface Namespace {
+  id: string;
+  name: string;
+  domain: string;
+}
+
 /** A published site on upubli.sh. */
 export interface Site {
   id: string;

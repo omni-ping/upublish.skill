@@ -10,6 +10,7 @@
  */
 
 import type { ApiClient } from "./api-client.ts";
+import type { Namespace } from "./types.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -21,12 +22,6 @@ interface SpaceResponse {
   };
 }
 
-interface Namespace {
-  id: string;
-  name: string;
-  domain: string;
-}
-
 interface NamespacesResponse {
   namespaces: Namespace[];
 }
@@ -34,12 +29,12 @@ interface NamespacesResponse {
 // ─── Resolution ──────────────────────────────────────────────────────────────
 
 /**
- * Resolves the namespace ID to use for site operations.
+ * Resolves the namespace to use for site operations.
  *
  * @param apiClient - Authenticated API client.
  * @param namespaceName - Optional namespace name to look up. When omitted,
  *   the default namespace is resolved from GET /api/space.
- * @returns The resolved namespace ID string.
+ * @returns The resolved Namespace object (id, name, domain).
  * @throws Error if the named namespace does not exist.
  * @throws Error if no namespaces exist for the account.
  * @throws Error on API failure (propagated from ApiClient).
@@ -47,7 +42,7 @@ interface NamespacesResponse {
 export async function resolveNamespace(
   apiClient: ApiClient,
   namespaceName?: string,
-): Promise<string> {
+): Promise<Namespace> {
   if (namespaceName !== undefined) {
     return resolveByName(apiClient, namespaceName);
   }
@@ -59,7 +54,7 @@ export async function resolveNamespace(
 async function resolveByName(
   apiClient: ApiClient,
   name: string,
-): Promise<string> {
+): Promise<Namespace> {
   const { namespaces } = await apiClient.get<NamespacesResponse>("/api/ns");
   const found = namespaces.find((ns) => ns.name === name);
 
@@ -70,18 +65,12 @@ async function resolveByName(
     );
   }
 
-  return found.id;
+  return found;
 }
 
 /** Resolves the default namespace from GET /api/space. */
-async function resolveDefault(apiClient: ApiClient): Promise<string> {
+async function resolveDefault(apiClient: ApiClient): Promise<Namespace> {
   const { space } = await apiClient.get<SpaceResponse>("/api/space");
-
-  if (space.default_namespace_id) {
-    return space.default_namespace_id;
-  }
-
-  // No default set — fall back to first namespace in the list
   const { namespaces } = await apiClient.get<NamespacesResponse>("/api/ns");
 
   if (namespaces.length === 0) {
@@ -90,5 +79,13 @@ async function resolveDefault(apiClient: ApiClient): Promise<string> {
     );
   }
 
-  return namespaces[0].id;
+  if (space.default_namespace_id) {
+    const found = namespaces.find((ns) => ns.id === space.default_namespace_id);
+    if (found) {
+      return found;
+    }
+  }
+
+  // No default set (or default not found) — fall back to first namespace
+  return namespaces[0];
 }
