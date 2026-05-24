@@ -20914,33 +20914,115 @@ function zipSync(data, opts) {
 }
 
 // lib/publish.ts
-import { readdirSync, readFileSync as readFileSync2, statSync } from "fs";
+import { existsSync as existsSync2, readdirSync, readFileSync as readFileSync2, statSync } from "fs";
 import { join as join2, relative } from "path";
 function isValidSlug(slug) {
   if (slug.length < 3 || slug.length > 63)
     return false;
   return /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug) || /^[a-z0-9]{3}$/.test(slug);
 }
-function buildZipFromDirectory(dirPath) {
-  const fileMap = {};
-  collectFiles(dirPath, dirPath, fileMap);
-  if (Object.keys(fileMap).length === 0) {
-    return new Uint8Array(0);
-  }
-  return zipSync(fileMap);
+var EXCLUDED_DIRS = new Set([".git", "node_modules", ".svn", ".hg"]);
+var EXCLUDED_FILES = new Set([".DS_Store", "Thumbs.db", ".upublishignore"]);
+function isDefaultExcluded(name, isDir) {
+  if (isDir)
+    return EXCLUDED_DIRS.has(name);
+  if (EXCLUDED_FILES.has(name))
+    return true;
+  if (name === ".env" || name.startsWith(".env."))
+    return true;
+  if (name.endsWith(".pem") || name.endsWith(".key"))
+    return true;
+  return false;
 }
-function collectFiles(rootDir, currentDir, fileMap) {
+var SUSPICIOUS_NAMES = new Set([
+  "nginx.conf",
+  "apache.conf",
+  ".htaccess",
+  "Makefile",
+  "Dockerfile",
+  "docker-compose.yml",
+  "docker-compose.yaml",
+  "package.json",
+  "package-lock.json",
+  "bun.lockb",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "tsconfig.json",
+  "README.md",
+  "CHANGELOG.md",
+  "LICENSE"
+]);
+function isSuspicious(name) {
+  if (SUSPICIOUS_NAMES.has(name))
+    return true;
+  if (name.endsWith(".sh"))
+    return true;
+  return false;
+}
+function parseIgnoreFile(content) {
+  return content.split(`
+`).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
+}
+function matchesIgnore(relPath, name, patterns) {
+  for (const p of patterns) {
+    if (p === name)
+      return true;
+    if (p.endsWith("/") && name === p.slice(0, -1))
+      return true;
+    if (p.startsWith("*.") && name.endsWith(p.slice(1)))
+      return true;
+  }
+  return false;
+}
+function collectFiles(rootDir, currentDir, state, ignorePatterns) {
   const entries = readdirSync(currentDir, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = join2(currentDir, entry.name);
+    const relPath = relative(rootDir, fullPath);
+    if (isDefaultExcluded(entry.name, entry.isDirectory())) {
+      state.excluded.push(entry.isDirectory() ? `${relPath}/` : relPath);
+      continue;
+    }
+    if (matchesIgnore(relPath, entry.name, ignorePatterns)) {
+      state.excluded.push(entry.isDirectory() ? `${relPath}/` : relPath);
+      continue;
+    }
     if (entry.isDirectory()) {
-      collectFiles(rootDir, fullPath, fileMap);
+      collectFiles(rootDir, fullPath, state, ignorePatterns);
     } else if (entry.isFile()) {
-      const relPath = relative(rootDir, fullPath);
+      if (isSuspicious(entry.name)) {
+        state.warnings.push(relPath);
+      }
       const data = readFileSync2(fullPath);
-      fileMap[relPath] = new Uint8Array(data);
+      state.fileMap[relPath] = new Uint8Array(data);
     }
   }
+}
+function buildZipFromDirectory(dirPath) {
+  let ignorePatterns = [];
+  const ignoreFile = join2(dirPath, ".upublishignore");
+  try {
+    if (existsSync2(ignoreFile)) {
+      ignorePatterns = parseIgnoreFile(readFileSync2(ignoreFile, "utf-8"));
+    }
+  } catch {}
+  const state = { fileMap: {}, excluded: [], warnings: [] };
+  collectFiles(dirPath, dirPath, state, ignorePatterns);
+  const fileCount = Object.keys(state.fileMap).length;
+  if (fileCount === 0) {
+    return {
+      zipBytes: new Uint8Array(0),
+      fileCount: 0,
+      excluded: state.excluded,
+      warnings: state.warnings
+    };
+  }
+  return {
+    zipBytes: zipSync(state.fileMap),
+    fileCount,
+    excluded: state.excluded,
+    warnings: state.warnings
+  };
 }
 async function publish(opts) {
   const { apiClient, nsId, directory, slug, title, visibility, passcode, passcodeLabel } = opts;
@@ -20955,11 +21037,11 @@ async function publish(opts) {
     }
     throw new Error(`Directory '${directory}' does not exist`);
   }
-  if (!isValidSlug(slug)) {
+  if (slug !== "_root" && !isValidSlug(slug)) {
     throw new Error("Invalid slug. Must be 3-63 characters: lowercase letters, " + "numbers, and hyphens, starting and ending with a letter or number.");
   }
-  const zipBytes = buildZipFromDirectory(directory);
-  if (zipBytes.byteLength === 0) {
+  const build = buildZipFromDirectory(directory);
+  if (build.zipBytes.byteLength === 0) {
     throw new Error("Directory is empty \u2014 no files to publish");
   }
   if (visibility === "passcode" && !passcode) {
@@ -20968,7 +21050,7 @@ async function publish(opts) {
   const formData = new FormData;
   formData.set("slug", slug);
   formData.set("title", title ?? slug);
-  formData.set("archive", new Blob([zipBytes], { type: "application/zip" }), "site.zip");
+  formData.set("archive", new Blob([build.zipBytes], { type: "application/zip" }), "site.zip");
   if (visibility)
     formData.set("visibility", visibility);
   if (passcode)
@@ -20979,7 +21061,9 @@ async function publish(opts) {
   const result = await apiClient.postForm(`/api/ns/${nsId}/sites`, formData);
   return {
     url: result.url,
-    site: result.site
+    site: result.site,
+    warnings: build.warnings,
+    excluded: build.excluded
   };
 }
 
@@ -21231,7 +21315,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.7.1";
+var PACKAGE_VERSION = "0.7.2";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -21308,12 +21392,12 @@ function createServer(coreDeps) {
   });
   server.registerTool("publish", {
     title: "Publish Site",
-    description: "Publishes a local directory as a static website to upubli.sh. " + "Packages all files in the directory into a zip archive and uploads them. " + "The site will be available at a public URL immediately after upload. " + "If a site with the same slug already exists, it will be replaced entirely.",
+    description: "Publishes a local directory as a static website to upubli.sh. " + "Packages files into a zip archive and uploads them, automatically " + "excluding .git, node_modules, .env, .DS_Store, and other non-site files. " + "Add a .upublishignore file to the directory for custom exclusions. " + "The site will be available at a public URL immediately after upload. " + "If a site with the same slug already exists, it will be replaced entirely.",
     inputSchema: {
       directory: exports_external.string().describe("Path to the directory containing the files to publish. " + "Can be absolute or relative to the current working directory."),
-      slug: exports_external.string().describe("URL-safe identifier for the site. Must be 3-63 characters: " + "lowercase letters, numbers, and hyphens only, starting and ending " + "with a letter or number."),
+      slug: exports_external.string().describe("URL-safe identifier for the site. Must be 3-63 characters: " + "lowercase letters, numbers, and hyphens only, starting and ending " + "with a letter or number. Use '_root' to publish at the " + "namespace/domain root (e.g. vibeandscribe.xyz/)."),
       title: exports_external.string().optional().describe("Optional human-readable title for the site. Defaults to the slug."),
-      visibility: exports_external.enum(["public", "unlisted", "passcode"]).optional().describe("Site visibility mode. 'public' (default), 'unlisted', or 'passcode'."),
+      visibility: exports_external.enum(["public", "passcode"]).optional().describe("Site visibility mode. 'public' (default) or 'passcode'."),
       passcode: exports_external.string().optional().describe("Passcode for passcode-protected sites. Required when visibility is 'passcode'."),
       namespace: exports_external.string().optional().describe("Namespace name to publish into. When omitted, the default namespace is used.")
     }
@@ -21330,11 +21414,16 @@ function createServer(coreDeps) {
       const site = result.site;
       const visibilityLine = visibility && visibility !== "public" ? `
 Visibility: ${visibility}` : "";
+      const excludedLine = result.excluded.length > 0 ? `
+Excluded: ${result.excluded.length} file(s) (${result.excluded.join(", ")})` : "";
+      const warningLine = result.warnings.length > 0 ? `
+Warning: Included files that may not be site content: ${result.warnings.join(", ")}` + `
+  Add them to .upublishignore in the publish directory to exclude.` : "";
       return okResponse(`Site published successfully!
 ` + `URL: ${result.url}
 ` + `Slug: ${site.slug}
 ` + `Files: ${site.file_count}
-` + `Size: ${formatBytes(site.total_size)}` + visibilityLine);
+` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine);
     } catch (err2) {
       return errResponse(err2);
     }
