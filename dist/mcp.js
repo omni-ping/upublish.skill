@@ -21025,7 +21025,7 @@ function buildZipFromDirectory(dirPath) {
   };
 }
 async function publish(opts) {
-  const { apiClient, nsId, directory, slug, title, visibility, passcode, passcodeLabel } = opts;
+  const { apiClient, nsId, directory, slug, title, visibility, passcode, passcodeLabel, preview } = opts;
   try {
     const stat = statSync(directory);
     if (!stat.isDirectory()) {
@@ -21058,9 +21058,12 @@ async function publish(opts) {
   if (visibility === "passcode" && passcode) {
     formData.set("passcode_label", passcodeLabel ?? "default");
   }
+  if (preview)
+    formData.set("preview", "true");
   const result = await apiClient.postForm(`/api/ns/${nsId}/sites`, formData);
   return {
     url: result.url,
+    preview_url: result.preview_url,
     site: result.site,
     warnings: build.warnings,
     excluded: build.excluded
@@ -21074,6 +21077,12 @@ async function deleteSite(apiClient, nsId, slug) {
   }
   const result = await apiClient.delete(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}`);
   return { message: result.message };
+}
+
+// lib/promote.ts
+async function promote(apiClient, nsId, slug) {
+  const result = await apiClient.post(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/promote`, {});
+  return { url: result.url };
 }
 
 // lib/passcode.ts
@@ -21193,13 +21202,19 @@ async function publish2(args, deps) {
     title: args.title,
     visibility: args.visibility,
     passcode: args.passcode,
-    passcodeLabel: args.passcodeLabel
+    passcodeLabel: args.passcodeLabel,
+    preview: args.preview
   });
 }
 async function deleteOp(slug, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
   return deleteSite(apiClient, ns.id, slug);
+}
+async function promote2(slug, namespaceName, deps) {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return promote(apiClient, ns.id, slug);
 }
 async function addPasscode2(slug, code, label, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
@@ -21315,7 +21330,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.7.2";
+var PACKAGE_VERSION = "0.7.3";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -21399,9 +21414,10 @@ function createServer(coreDeps) {
       title: exports_external.string().optional().describe("Optional human-readable title for the site. Defaults to the slug."),
       visibility: exports_external.enum(["public", "passcode"]).optional().describe("Site visibility mode. 'public' (default) or 'passcode'."),
       passcode: exports_external.string().optional().describe("Passcode for passcode-protected sites. Required when visibility is 'passcode'."),
-      namespace: exports_external.string().optional().describe("Namespace name to publish into. When omitted, the default namespace is used.")
+      namespace: exports_external.string().optional().describe("Namespace name to publish into. When omitted, the default namespace is used."),
+      preview: exports_external.boolean().optional().describe("When true, publishes as a staging preview instead of going live immediately. " + "The response includes a preview_url where the staging version can be reviewed. " + "Use the promote tool to promote the staging version to live.")
     }
-  }, async ({ directory, slug, title, visibility, passcode, namespace }) => {
+  }, async ({ directory, slug, title, visibility, passcode, namespace, preview }) => {
     try {
       const result = await publish2({
         directory,
@@ -21409,7 +21425,8 @@ function createServer(coreDeps) {
         title,
         visibility,
         passcode,
-        namespace
+        namespace,
+        preview
       }, coreDeps);
       const site = result.site;
       const visibilityLine = visibility && visibility !== "public" ? `
@@ -21419,6 +21436,14 @@ Excluded: ${result.excluded.length} file(s) (${result.excluded.join(", ")})` : "
       const warningLine = result.warnings.length > 0 ? `
 Warning: Included files that may not be site content: ${result.warnings.join(", ")}` + `
   Add them to .upublishignore in the publish directory to exclude.` : "";
+      if (result.preview_url) {
+        return okResponse(`Preview published!
+` + `Preview URL: ${result.preview_url}
+` + `Slug: ${site.slug}
+` + `Files: ${site.file_count}
+` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + `
+Use the promote tool to make this preview live.`);
+      }
       return okResponse(`Site published successfully!
 ` + `URL: ${result.url}
 ` + `Slug: ${site.slug}
@@ -21606,6 +21631,22 @@ ${fields2}`;
       if (result.action !== "clear")
         return errResponse(new Error("Unexpected result"));
       return okResponse(result.message);
+    } catch (err2) {
+      return errResponse(err2);
+    }
+  });
+  server.registerTool("promote", {
+    title: "Promote Preview",
+    description: "Promotes a staging preview version of a site to live on upubli.sh. " + "Use this after publishing with preview=true to make the staged version " + "available at the site's public URL. " + "Returns the live URL of the promoted site.",
+    inputSchema: {
+      slug: exports_external.string().describe("The URL-safe identifier of the site to promote. " + "Use the list tool to find available slugs."),
+      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+    }
+  }, async ({ slug, namespace }) => {
+    try {
+      const result = await promote2(slug, namespace, coreDeps);
+      return okResponse(`Preview promoted to live!
+` + `URL: ${result.url}`);
     } catch (err2) {
       return errResponse(err2);
     }
