@@ -1,4 +1,4 @@
-<!-- base-commit: 522c8f4603a20a48d8f98779d04c173e9cdc5379 -->
+<!-- base-commit: 075c6b74eb9373f488c59e59eb103d9bd8c6f1f0 -->
 <!-- generated: 2026-05-23 -->
 
 # Code Standards
@@ -113,6 +113,8 @@ mcp/index.ts  →  lib/core.ts  →  lib/list.ts, lib/publish.ts, lib/delete.ts,
                               →  lib/types.ts (leaf — no internal imports)
 ```
 
+`resolveNamespace()` returns a full `Namespace` object (id, name, domain), not just the ID string. Core functions destructure `ns.id` when calling domain functions. This lets core operations expose namespace metadata (domain, name) alongside results without extra API calls.
+
 Import order within files:
 1. Node builtins (`node:fs`, `node:path`, `node:os`)
 2. External packages (`@modelcontextprotocol/sdk`, `zod`, `fflate`)
@@ -145,7 +147,7 @@ Files: `kebab-case.ts`. Test files: `*.test.ts` for unit, `*.ns.test.ts` for nam
 
 Domain terms:
 - `slug` — URL-safe site identifier (not "name" or "id")
-- `namespace` / `nsId` — multi-tenant space (not "workspace" or "org")
+- `namespace` / `ns` / `nsId` — multi-tenant space (not "workspace" or "org"). `ns` is the full `Namespace` object, `nsId` is just the string ID.
 - `CoreDeps` — the DI bag for core functions
 - `deleteOp` — avoids shadowing JS `delete` keyword
 
