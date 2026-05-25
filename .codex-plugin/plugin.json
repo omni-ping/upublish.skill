@@ -1,6 +1,6 @@
 {
   "name": "upublish",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "Publish static sites to upubli.sh instantly. One directory becomes a live URL at username.upubli.sh/slug/.",
   "skills": "../skills/",
   "mcpServers": "../.mcp.json",
