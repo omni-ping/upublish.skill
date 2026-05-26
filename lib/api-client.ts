@@ -12,7 +12,7 @@
  * mock tokenProvider to avoid real network calls.
  */
 
-import type { FetchFn, TokenProvider } from "./types.ts";
+import type { FetchFn, TokenProvider, Site } from "./types.ts";
 
 export class ApiClient {
   constructor(
@@ -100,6 +100,61 @@ export class ApiClient {
     });
 
     return this.parseResponse<T>(response);
+  }
+
+  /**
+   * POST manifest request — sends the client's file manifest to the server,
+   * which diffs against the previous version and returns presigned PUT URLs
+   * for files that need to be uploaded.
+   *
+   * @param nsId   - Namespace ID.
+   * @param slug   - Site slug.
+   * @param body   - Manifest payload: files array plus optional publish options.
+   * @returns Needed files with presigned URLs, session ID, and version numbers.
+   * @throws Error on non-2xx (propagated from parseResponse).
+   */
+  async manifest(
+    nsId: string,
+    slug: string,
+    body: {
+      files: Array<{ path: string; hash: string; size: number }>;
+      title?: string;
+      visibility?: string;
+      passcode?: string;
+      passcode_label?: string;
+      preview?: boolean;
+    },
+  ): Promise<{
+    needed: Array<{ path: string; upload_url: string }>;
+    version: number;
+    session_id: string;
+    base_version: number | null;
+  }> {
+    return this.post(
+      `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/manifest`,
+      body,
+    );
+  }
+
+  /**
+   * POST finalize request — tells the server all uploads are complete.
+   * The server verifies uploads, creates DB records, and goes live.
+   *
+   * @param nsId       - Namespace ID.
+   * @param slug       - Site slug.
+   * @param sessionId  - Session ID returned by the manifest endpoint.
+   * @returns Publish result identical to the full-upload publish response.
+   * @throws Error if files are missing (422), session expired (404), or other error.
+   */
+  async finalize(
+    nsId: string,
+    slug: string,
+    sessionId: string,
+  ): Promise<{ site: Site; url: string; preview_url?: string }> {
+    return this.post(
+      `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/finalize`,
+      { session_id: sessionId },
+    );
   }
 
   /** Parses a fetch Response, throwing a descriptive Error on non-2xx. */

@@ -233,9 +233,18 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             "The response includes a preview_url where the staging version can be reviewed. " +
             "Use the promote tool to promote the staging version to live.",
           ),
+        incremental: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, uses incremental publish: hashes files locally, sends a manifest " +
+            "to the server, uploads only changed files via presigned R2 URLs, then finalizes. " +
+            "Faster for large sites with few changes. Falls back to full upload automatically " +
+            "if the server does not support incremental publish.",
+          ),
       },
     },
-    async ({ directory, slug, title, visibility, passcode, namespace, preview }) => {
+    async ({ directory, slug, title, visibility, passcode, namespace, preview, incremental }) => {
       try {
         const result = await publish(
           {
@@ -246,6 +255,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             passcode: passcode as string | undefined,
             namespace: namespace as string | undefined,
             preview: preview as boolean | undefined,
+            incremental: incremental as boolean | undefined,
           },
           coreDeps,
         );
@@ -267,6 +277,12 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
               `\n  Add them to .upublishignore in the publish directory to exclude.`
             : "";
 
+        // Incremental publish progress: show uploaded vs skipped counts
+        const incrementalLine =
+          result.uploadedFiles !== undefined && result.skippedFiles !== undefined
+            ? `\nUploaded: ${result.uploadedFiles.length} file(s), skipped ${result.skippedFiles.length} unchanged file(s)`
+            : "";
+
         if (result.preview_url) {
           return okResponse(
             `Preview published!\n` +
@@ -277,6 +293,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             visibilityLine +
             excludedLine +
             warningLine +
+            incrementalLine +
             `\nUse the promote tool to make this preview live.`,
           );
         }
@@ -289,7 +306,8 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
           `Size: ${formatBytes(site.total_size)}` +
           visibilityLine +
           excludedLine +
-          warningLine,
+          warningLine +
+          incrementalLine,
         );
       } catch (err) {
         return errResponse(err);

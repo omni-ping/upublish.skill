@@ -29,7 +29,7 @@ import type { LoginDeps, LoginResult, CallbackServer, TokenResponse } from "./au
 
 import { ApiClient } from "./api-client.ts";
 import { listSites } from "./list.ts";
-import { publish as domainPublish } from "./publish.ts";
+import { publish as domainPublish, publishIncremental as domainPublishIncremental } from "./publish.ts";
 import type { PublishResult } from "./publish.ts";
 import { deleteSite } from "./delete.ts";
 import type { DeleteResult } from "./delete.ts";
@@ -115,6 +115,18 @@ export interface PublishArgs {
    * Use the promote() function to promote the staging version to live.
    */
   preview?: boolean;
+  /**
+   * When true, uses the incremental publish flow:
+   *   1. Hashes all files locally.
+   *   2. Sends manifest to server to identify changed files.
+   *   3. Uploads only changed files via presigned R2 URLs.
+   *   4. Finalizes the publish server-side.
+   *
+   * Falls back to full zip upload if the server does not support incremental.
+   * The MCP adapter does not need changes — it calls publish() which handles
+   * the routing internally when incremental is set.
+   */
+  incremental?: boolean;
 }
 
 export interface ListResult {
@@ -174,7 +186,13 @@ export async function list(namespaceName?: string, deps?: CoreDeps): Promise<Lis
 }
 
 /**
- * Packages a directory into a zip and uploads it to upubli.sh.
+ * Packages a directory and uploads it to upubli.sh.
+ *
+ * When args.incremental is true, uses the incremental publish flow:
+ * hashes files, diffs against server manifest, uploads only changed files
+ * via presigned R2 URLs, then finalizes. Falls back to full zip upload if
+ * the manifest endpoint returns an error.
+ *
  * Throws "Not authenticated" if no credentials are stored.
  * Throws on validation failure (bad directory, invalid slug, empty dir).
  */
@@ -184,7 +202,8 @@ export async function publish(
 ): Promise<PublishResult> {
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, args.namespace);
-  return domainPublish({
+
+  const publishOpts = {
     apiClient,
     nsId: ns.id,
     directory: args.directory,
@@ -194,7 +213,17 @@ export async function publish(
     passcode: args.passcode,
     passcodeLabel: args.passcodeLabel,
     preview: args.preview,
-  });
+    // Pass fetchFn so presigned R2 uploads in the incremental path use the
+    // injected fetch (avoids real network calls in tests)
+    fetchFn: deps?.fetchFn,
+  };
+
+  // Route to incremental flow when requested — falls back internally on error
+  if (args.incremental) {
+    return domainPublishIncremental(publishOpts);
+  }
+
+  return domainPublish(publishOpts);
 }
 
 /**
