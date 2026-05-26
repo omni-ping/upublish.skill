@@ -20251,6 +20251,12 @@ class ApiClient {
     });
     return this.parseResponse(response);
   }
+  async manifest(nsId, slug, body) {
+    return this.post(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/manifest`, body);
+  }
+  async finalize(nsId, slug, sessionId) {
+    return this.post(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/finalize`, { session_id: sessionId });
+  }
   async parseResponse(response) {
     if (response.ok) {
       return response.json();
@@ -20271,6 +20277,9 @@ async function listSites(apiClient, nsId) {
   const response = await apiClient.get(`/api/ns/${nsId}/sites`);
   return { sites: response.sites };
 }
+
+// lib/publish.ts
+import { createHash } from "crypto";
 
 // node_modules/fflate/esm/index.mjs
 import { createRequire } from "module";
@@ -20994,7 +21003,11 @@ function collectFiles(rootDir, currentDir, state, ignorePatterns) {
         state.warnings.push(relPath);
       }
       const data = readFileSync2(fullPath);
-      state.fileMap[relPath] = new Uint8Array(data);
+      const bytes = new Uint8Array(data);
+      state.fileMap[relPath] = bytes;
+      if (state.hashFiles) {
+        state.hashes[relPath] = createHash("md5").update(bytes).digest("hex");
+      }
     }
   }
 }
@@ -21006,7 +21019,13 @@ function buildZipFromDirectory(dirPath) {
       ignorePatterns = parseIgnoreFile(readFileSync2(ignoreFile, "utf-8"));
     }
   } catch {}
-  const state = { fileMap: {}, excluded: [], warnings: [] };
+  const state = {
+    fileMap: {},
+    hashes: {},
+    excluded: [],
+    warnings: [],
+    hashFiles: false
+  };
   collectFiles(dirPath, dirPath, state, ignorePatterns);
   const fileCount = Object.keys(state.fileMap).length;
   if (fileCount === 0) {
@@ -21023,6 +21042,56 @@ function buildZipFromDirectory(dirPath) {
     excluded: state.excluded,
     warnings: state.warnings
   };
+}
+function collectFilesWithHashes(dirPath) {
+  let ignorePatterns = [];
+  const ignoreFile = join2(dirPath, ".upublishignore");
+  try {
+    if (existsSync2(ignoreFile)) {
+      ignorePatterns = parseIgnoreFile(readFileSync2(ignoreFile, "utf-8"));
+    }
+  } catch {}
+  const state = {
+    fileMap: {},
+    hashes: {},
+    excluded: [],
+    warnings: [],
+    hashFiles: true
+  };
+  collectFiles(dirPath, dirPath, state, ignorePatterns);
+  return {
+    fileMap: state.fileMap,
+    hashes: state.hashes,
+    excluded: state.excluded,
+    warnings: state.warnings
+  };
+}
+var UPLOAD_CONCURRENCY = 5;
+var UPLOAD_MAX_RETRIES = 3;
+async function uploadChangedFiles(opts) {
+  const { needed, fileMap, fetchFn = fetch } = opts;
+  if (needed.length === 0) {
+    return;
+  }
+  for (let batchStart = 0;batchStart < needed.length; batchStart += UPLOAD_CONCURRENCY) {
+    const batch = needed.slice(batchStart, batchStart + UPLOAD_CONCURRENCY);
+    await Promise.all(batch.map((item) => uploadOneFile(item, fileMap, fetchFn)));
+  }
+}
+async function uploadOneFile(item, fileMap, fetchFn) {
+  const bytes = fileMap[item.path];
+  for (let attempt = 1;attempt <= UPLOAD_MAX_RETRIES; attempt++) {
+    const response = await fetchFn(item.upload_url, {
+      method: "PUT",
+      body: bytes
+    });
+    if (response.ok) {
+      return;
+    }
+    if (attempt === UPLOAD_MAX_RETRIES) {
+      throw new Error(`Failed to upload '${item.path}' after ${UPLOAD_MAX_RETRIES} attempts (HTTP ${response.status})`);
+    }
+  }
 }
 async function publish(opts) {
   const { apiClient, nsId, directory, slug, title, visibility, passcode, passcodeLabel, preview } = opts;
@@ -21067,6 +21136,77 @@ async function publish(opts) {
     site: result.site,
     warnings: build.warnings,
     excluded: build.excluded
+  };
+}
+async function publishIncremental(opts) {
+  const {
+    apiClient,
+    nsId,
+    directory,
+    slug,
+    title,
+    visibility,
+    passcode,
+    passcodeLabel,
+    preview,
+    fetchFn = fetch
+  } = opts;
+  try {
+    const stat = statSync(directory);
+    if (!stat.isDirectory()) {
+      throw new Error(`'${directory}' is not a directory`);
+    }
+  } catch (err2) {
+    if (err2.message.includes("not a directory")) {
+      throw err2;
+    }
+    throw new Error(`Directory '${directory}' does not exist`);
+  }
+  if (slug !== "_root" && !isValidSlug(slug)) {
+    throw new Error("Invalid slug. Must be 3-63 characters: lowercase letters, " + "numbers, and hyphens, starting and ending with a letter or number.");
+  }
+  if (visibility === "passcode" && !passcode) {
+    throw new Error("passcode is required when visibility is 'passcode'");
+  }
+  const collected = collectFilesWithHashes(directory);
+  if (Object.keys(collected.fileMap).length === 0) {
+    throw new Error("Directory is empty \u2014 no files to publish");
+  }
+  const files = Object.entries(collected.hashes).map(([path3, hash]) => ({
+    path: path3,
+    hash,
+    size: collected.fileMap[path3].byteLength
+  }));
+  let manifestResult;
+  try {
+    manifestResult = await apiClient.manifest(nsId, slug, {
+      files,
+      title: title ?? slug,
+      visibility,
+      passcode: visibility === "passcode" ? passcode : undefined,
+      passcode_label: visibility === "passcode" ? passcodeLabel ?? "default" : undefined,
+      preview
+    });
+  } catch {
+    return publish(opts);
+  }
+  await uploadChangedFiles({
+    needed: manifestResult.needed,
+    fileMap: collected.fileMap,
+    fetchFn
+  });
+  const neededPaths = new Set(manifestResult.needed.map((f) => f.path));
+  const uploadedFiles = manifestResult.needed.map((f) => f.path);
+  const skippedFiles = files.map((f) => f.path).filter((p) => !neededPaths.has(p));
+  const finalizeResult = await apiClient.finalize(nsId, slug, manifestResult.session_id);
+  return {
+    url: finalizeResult.url,
+    preview_url: finalizeResult.preview_url,
+    site: finalizeResult.site,
+    warnings: collected.warnings,
+    excluded: collected.excluded,
+    uploadedFiles,
+    skippedFiles
   };
 }
 
@@ -21194,7 +21334,7 @@ async function list(namespaceName, deps) {
 async function publish2(args, deps) {
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, args.namespace);
-  return publish({
+  const publishOpts = {
     apiClient,
     nsId: ns.id,
     directory: args.directory,
@@ -21203,8 +21343,13 @@ async function publish2(args, deps) {
     visibility: args.visibility,
     passcode: args.passcode,
     passcodeLabel: args.passcodeLabel,
-    preview: args.preview
-  });
+    preview: args.preview,
+    fetchFn: deps?.fetchFn
+  };
+  if (args.incremental) {
+    return publishIncremental(publishOpts);
+  }
+  return publish(publishOpts);
 }
 async function deleteOp(slug, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
@@ -21330,7 +21475,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.7.4";
+var PACKAGE_VERSION = "0.8.1";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -21415,9 +21560,10 @@ function createServer(coreDeps) {
       visibility: exports_external.enum(["public", "passcode"]).optional().describe("Site visibility mode. 'public' (default) or 'passcode'."),
       passcode: exports_external.string().optional().describe("Passcode for passcode-protected sites. Required when visibility is 'passcode'."),
       namespace: exports_external.string().optional().describe("Namespace name to publish into. When omitted, the default namespace is used."),
-      preview: exports_external.boolean().optional().describe("When true, publishes as a staging preview instead of going live immediately. " + "The response includes a preview_url where the staging version can be reviewed. " + "Use the promote tool to promote the staging version to live.")
+      preview: exports_external.boolean().optional().describe("When true, publishes as a staging preview instead of going live immediately. " + "The response includes a preview_url where the staging version can be reviewed. " + "Use the promote tool to promote the staging version to live."),
+      incremental: exports_external.boolean().optional().describe("When true, uses incremental publish: hashes files locally, sends a manifest " + "to the server, uploads only changed files via presigned R2 URLs, then finalizes. " + "Faster for large sites with few changes. Falls back to full upload automatically " + "if the server does not support incremental publish.")
     }
-  }, async ({ directory, slug, title, visibility, passcode, namespace, preview }) => {
+  }, async ({ directory, slug, title, visibility, passcode, namespace, preview, incremental }) => {
     try {
       const result = await publish2({
         directory,
@@ -21426,7 +21572,8 @@ function createServer(coreDeps) {
         visibility,
         passcode,
         namespace,
-        preview
+        preview,
+        incremental
       }, coreDeps);
       const site = result.site;
       const visibilityLine = visibility && visibility !== "public" ? `
@@ -21436,19 +21583,21 @@ Excluded: ${result.excluded.length} file(s) (${result.excluded.join(", ")})` : "
       const warningLine = result.warnings.length > 0 ? `
 Warning: Included files that may not be site content: ${result.warnings.join(", ")}` + `
   Add them to .upublishignore in the publish directory to exclude.` : "";
+      const incrementalLine = result.uploadedFiles !== undefined && result.skippedFiles !== undefined ? `
+Uploaded: ${result.uploadedFiles.length} file(s), skipped ${result.skippedFiles.length} unchanged file(s)` : "";
       if (result.preview_url) {
         return okResponse(`Preview published!
 ` + `Preview URL: ${result.preview_url}
 ` + `Slug: ${site.slug}
 ` + `Files: ${site.file_count}
-` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + `
+` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + incrementalLine + `
 Use the promote tool to make this preview live.`);
       }
       return okResponse(`Site published successfully!
 ` + `URL: ${result.url}
 ` + `Slug: ${site.slug}
 ` + `Files: ${site.file_count}
-` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine);
+` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + incrementalLine);
     } catch (err2) {
       return errResponse(err2);
     }
