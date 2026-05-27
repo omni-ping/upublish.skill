@@ -54,24 +54,6 @@ export class ApiClient {
     return this.parseResponse<T>(response);
   }
 
-  /**
-   * POST request with a multipart FormData body — returns parsed JSON body.
-   * Used for file uploads (publish).
-   */
-  async postForm<T>(path: string, formData: FormData): Promise<T> {
-    const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-      body: formData,
-    });
-
-    return this.parseResponse<T>(response);
-  }
-
   /** PUT request with a JSON body — returns parsed JSON body. */
   async put<T>(path: string, body: unknown): Promise<T> {
     const token = await this.tokenProvider();

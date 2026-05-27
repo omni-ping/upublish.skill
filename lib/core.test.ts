@@ -199,6 +199,56 @@ describe("DW-1.1/1.6: core.list()", () => {
 
 // ─── DW-1.1 + DW-1.4 + DW-1.6: core.publish() ───────────────────────────────
 
+/**
+ * Returns a mockFetch that handles token refresh, namespace resolution, and the
+ * presigned-URL publish flow (manifest → presigned PUT → finalize).
+ */
+function mockFetchForPublish(
+  publishResponse: { site: unknown; url: string },
+): (url: string, init?: RequestInit) => Promise<Response> {
+  return async (url: string, init?: RequestInit) => {
+    if (url.includes("/auth/token/refresh")) {
+      return new Response(
+        JSON.stringify({ access_token: "mock-access-token", expires_in: 3600 }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (url.endsWith("/api/space") || url.includes("/api/space?")) {
+      return new Response(
+        JSON.stringify({ space: { id: "sp1", default_namespace_id: NS_ID, tier: "free" } }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (/\/api\/ns$/.test(url) || /\/api\/ns\?/.test(url)) {
+      return new Response(
+        JSON.stringify({ namespaces: [{ id: NS_ID, name: "default", domain: "user.upubli.sh" }] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (url.includes("/manifest")) {
+      return new Response(
+        JSON.stringify({
+          needed: [{ path: "index.html", upload_url: "https://r2.example.com/presigned" }],
+          version: 1,
+          session_id: "sess-1",
+          base_version: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (url.includes("r2.example.com") && init?.method === "PUT") {
+      return new Response("", { status: 200 });
+    }
+    if (url.includes("/finalize")) {
+      return new Response(JSON.stringify(publishResponse), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return new Response("Not found", { status: 404 });
+  };
+}
+
 describe("DW-1.1/1.4/1.6: core.publish()", () => {
   it("test_DW_1_1_core_exports_publish", async () => {
     const credFile = writeTempCredentials(REFRESH_TOKEN);
@@ -228,7 +278,7 @@ describe("DW-1.1/1.4/1.6: core.publish()", () => {
 
     const deps: CoreDeps = {
       credentialsPath: credFile,
-      fetchFn: mockFetchWithTokenRefresh("/api/sites", 200, publishResponse),
+      fetchFn: mockFetchForPublish(publishResponse),
     };
 
     const result = await publish({ directory: tmpDir, slug: "test-site" }, deps);
@@ -272,7 +322,7 @@ describe("DW-1.1/1.4/1.6: core.publish()", () => {
 
     const deps: CoreDeps = {
       credentialsPath: credFile,
-      fetchFn: mockFetchWithTokenRefresh("/api/sites", 200, publishResponse),
+      fetchFn: mockFetchForPublish(publishResponse),
     };
 
     // No credentials yet

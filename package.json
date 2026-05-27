@@ -28,7 +28,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "fflate": "^0.8.2",
     "open": "^10.1.0",
     "zod": "^3.24.4"
   },

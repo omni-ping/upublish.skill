@@ -1,18 +1,18 @@
 /**
- * Core publish logic — packages a local directory into a zip archive and
- * uploads it to the upubli.sh API.
+ * Core publish logic — collects files from a local directory, diffs against
+ * the server manifest, uploads only changed files via presigned R2 URLs, then
+ * finalizes. Returns structured data ({ url, site, warnings, excluded,
+ * uploadedFiles, skippedFiles }) — formatting is the adapter's job.
  *
- * Returns structured data ({ url, site, warnings, excluded }) — formatting
- * is the adapter's job. Throws on validation failures and API errors.
+ * Throws on validation failures and API errors. Manifest errors propagate
+ * directly — there is no fallback path.
  *
- * Also exports incremental publish utilities:
+ * Also exports utilities:
  *   collectFilesWithHashes()  — directory walk with MD5 per file
  *   uploadChangedFiles()      — PUT files to presigned URLs with retry
- *   publishIncremental()      — orchestrates manifest → upload → finalize
  */
 
 import { createHash } from "node:crypto";
-import { zipSync } from "fflate";
 import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { join, relative } from "path";
 import type { ApiClient } from "./api-client.ts";
@@ -46,7 +46,7 @@ export interface PublishOpts {
    */
   preview?: boolean;
   /**
-   * Injectable fetch function for presigned R2 uploads (incremental path only).
+   * Injectable fetch function for presigned R2 uploads.
    * Presigned URLs are self-authenticating — no Bearer token is needed.
    * Defaults to global fetch. Injected in tests to avoid real network calls.
    */
@@ -65,21 +65,19 @@ export interface PublishResult {
   /** Files/directories that were excluded by default rules or .upublishignore. */
   excluded: string[];
   /**
-   * Files that were uploaded to R2 via presigned URL (incremental publish only).
-   * Absent on full zip uploads.
+   * Files that were uploaded to R2 via presigned URL.
    */
   uploadedFiles?: string[];
   /**
-   * Files that were copied server-side from the previous version (incremental publish only).
+   * Files that were copied server-side from the previous version.
    * These files were unchanged and did not need to be re-uploaded.
-   * Absent on full zip uploads.
    */
   skippedFiles?: string[];
 }
 
 // ─── Incremental publish types ────────────────────────────────────────────────
 
-/** Result of collecting files with MD5 hashes, for incremental publish. */
+/** Result of collecting files with MD5 hashes. */
 export interface CollectWithHashesResult {
   /** Map of relative path → raw file bytes. */
   fileMap: Record<string, Uint8Array>;
@@ -114,13 +112,6 @@ interface PublishResponse {
   site: Site;
   url: string;
   preview_url?: string;
-}
-
-export interface BuildResult {
-  zipBytes: Uint8Array;
-  fileCount: number;
-  excluded: string[];
-  warnings: string[];
 }
 
 // ─── Validation ──────────────────────────────────────────────────────────────
@@ -193,16 +184,14 @@ function matchesIgnore(
   return false;
 }
 
-// ─── Zip Building ────────────────────────────────────────────────────────────
+// ─── File Collection ──────────────────────────────────────────────────────────
 
 interface CollectState {
   fileMap: Record<string, Uint8Array>;
-  /** MD5 hex digests per file — populated when hashFiles is true. */
+  /** MD5 hex digests per file. */
   hashes: Record<string, string>;
   excluded: string[];
   warnings: string[];
-  /** When true, compute MD5 hash for each collected file. */
-  hashFiles: boolean;
 }
 
 /** Recursively collects files, applying exclusion rules and flagging suspicious files. */
@@ -237,65 +226,18 @@ function collectFiles(
       const data = readFileSync(fullPath);
       const bytes = new Uint8Array(data);
       state.fileMap[relPath] = bytes;
-      if (state.hashFiles) {
-        // MD5 matches R2 ETag for single-part uploads
-        state.hashes[relPath] = createHash("md5").update(bytes).digest("hex");
-      }
+      // MD5 matches R2 ETag for single-part uploads
+      state.hashes[relPath] = createHash("md5").update(bytes).digest("hex");
     }
   }
 }
-
-/**
- * Recursively reads files in a directory and packs them into a zip archive.
- * Applies default exclusion rules and .upublishignore patterns.
- * Returns the zip bytes along with metadata about excluded and suspicious files.
- */
-export function buildZipFromDirectory(dirPath: string): BuildResult {
-  let ignorePatterns: string[] = [];
-  const ignoreFile = join(dirPath, ".upublishignore");
-  try {
-    if (existsSync(ignoreFile)) {
-      ignorePatterns = parseIgnoreFile(readFileSync(ignoreFile, "utf-8"));
-    }
-  } catch {
-    // No readable .upublishignore — use defaults only
-  }
-
-  const state: CollectState = {
-    fileMap: {},
-    hashes: {},
-    excluded: [],
-    warnings: [],
-    hashFiles: false,
-  };
-  collectFiles(dirPath, dirPath, state, ignorePatterns);
-
-  const fileCount = Object.keys(state.fileMap).length;
-  if (fileCount === 0) {
-    return {
-      zipBytes: new Uint8Array(0),
-      fileCount: 0,
-      excluded: state.excluded,
-      warnings: state.warnings,
-    };
-  }
-
-  return {
-    zipBytes: zipSync(state.fileMap),
-    fileCount,
-    excluded: state.excluded,
-    warnings: state.warnings,
-  };
-}
-
-// ─── Incremental publish helpers ─────────────────────────────────────────────
 
 /**
  * Recursively collects files from a directory, applying exclusion rules,
  * and computes an MD5 hash for each file.
  *
  * The MD5 hash matches the R2 ETag for single-part uploads, enabling the
- * incremental publish flow to diff client files against the server manifest.
+ * publish flow to diff client files against the server manifest.
  *
  * @param dirPath - Root directory to walk.
  * @returns fileMap (path → bytes), hashes (path → MD5 hex), excluded, warnings.
@@ -316,7 +258,6 @@ export function collectFilesWithHashes(dirPath: string): CollectWithHashesResult
     hashes: {},
     excluded: [],
     warnings: [],
-    hashFiles: true,
   };
   collectFiles(dirPath, dirPath, state, ignorePatterns);
 
@@ -328,7 +269,7 @@ export function collectFilesWithHashes(dirPath: string): CollectWithHashesResult
   };
 }
 
-// Number of files to upload concurrently in the incremental publish flow.
+// Number of files to upload concurrently in the publish flow.
 const UPLOAD_CONCURRENCY = 5;
 // Maximum retry attempts per file upload before failing.
 const UPLOAD_MAX_RETRIES = 3;
@@ -404,15 +345,29 @@ async function uploadOneFile(
 // ─── Publish ─────────────────────────────────────────────────────────────────
 
 /**
- * Packages a directory into a zip and uploads it to the upubli.sh API.
+ * Publishes a directory via presigned-URL flow: hash files, diff against server
+ * manifest, upload only changed files via presigned R2 URLs, then finalize.
  *
  * @param opts - Publish options including apiClient, directory, slug, etc.
- * @returns The published site URL, site object, and any warnings.
+ * @returns PublishResult with uploadedFiles and skippedFiles populated.
  * @throws Error on validation failure (bad directory, invalid slug, empty dir).
- * @throws Error on API failure (propagated from ApiClient).
+ * @throws Error if manifest call fails (propagated, no fallback).
+ * @throws Error if presigned uploads fail after retries.
+ * @throws Error if finalize fails (e.g., missing files).
  */
 export async function publish(opts: PublishOpts): Promise<PublishResult> {
-  const { apiClient, nsId, directory, slug, title, visibility, passcode, passcodeLabel, preview } = opts;
+  const {
+    apiClient,
+    nsId,
+    directory,
+    slug,
+    title,
+    visibility,
+    passcode,
+    passcodeLabel,
+    preview,
+    fetchFn = fetch,
+  } = opts;
 
   // Validate directory exists and is a directory
   try {
@@ -429,98 +384,6 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
 
   // _root is a reserved system slug that bypasses normal format validation —
   // it publishes at the namespace/domain root (e.g. vibeandscribe.xyz/).
-  if (slug !== "_root" && !isValidSlug(slug)) {
-    throw new Error(
-      "Invalid slug. Must be 3-63 characters: lowercase letters, " +
-        "numbers, and hyphens, starting and ending with a letter or number.",
-    );
-  }
-
-  // Build zip archive (applies exclusion rules)
-  const build = buildZipFromDirectory(directory);
-
-  if (build.zipBytes.byteLength === 0) {
-    throw new Error("Directory is empty — no files to publish");
-  }
-
-  // Validate passcode requirement
-  if (visibility === "passcode" && !passcode) {
-    throw new Error("passcode is required when visibility is 'passcode'");
-  }
-
-  // Upload via multipart form POST
-  const formData = new FormData();
-  formData.set("slug", slug);
-  formData.set("title", title ?? slug);
-  formData.set(
-    "archive",
-    new Blob([build.zipBytes], { type: "application/zip" }),
-    "site.zip",
-  );
-  if (visibility) formData.set("visibility", visibility);
-  if (passcode) formData.set("passcode", passcode);
-  if (visibility === "passcode" && passcode) {
-    formData.set("passcode_label", passcodeLabel ?? "default");
-  }
-  if (preview) formData.set("preview", "true");
-
-  const result = await apiClient.postForm<PublishResponse>(
-    `/api/ns/${nsId}/sites`,
-    formData,
-  );
-
-  return {
-    url: result.url,
-    preview_url: result.preview_url,
-    site: result.site,
-    warnings: build.warnings,
-    excluded: build.excluded,
-  };
-}
-
-/**
- * Incremental publish: hash files, diff against server manifest, upload only
- * changed files via presigned URLs, then finalize.
- *
- * Falls back to the full zip upload path if the manifest endpoint returns an
- * error (e.g., server does not yet support incremental publish).
- *
- * @param opts - Same PublishOpts as publish(). Uses opts.apiClient.fetchFn
- *   for presigned URL uploads (the ApiClient's internal fetchFn is not exposed,
- *   so we fall back to global fetch for presigned uploads — presigned URLs
- *   do not require Bearer token authentication).
- * @returns PublishResult with uploadedFiles and skippedFiles populated.
- * @throws Error on validation failure (bad directory, invalid slug, empty dir).
- * @throws Error if presigned uploads fail after retries.
- * @throws Error if finalize fails (e.g., missing files).
- */
-export async function publishIncremental(opts: PublishOpts): Promise<PublishResult> {
-  const {
-    apiClient,
-    nsId,
-    directory,
-    slug,
-    title,
-    visibility,
-    passcode,
-    passcodeLabel,
-    preview,
-    fetchFn = fetch,
-  } = opts;
-
-  // Validate directory exists and is a directory (same as publish())
-  try {
-    const stat = statSync(directory);
-    if (!stat.isDirectory()) {
-      throw new Error(`'${directory}' is not a directory`);
-    }
-  } catch (err) {
-    if ((err as Error).message.includes("not a directory")) {
-      throw err;
-    }
-    throw new Error(`Directory '${directory}' does not exist`);
-  }
-
   if (slug !== "_root" && !isValidSlug(slug)) {
     throw new Error(
       "Invalid slug. Must be 3-63 characters: lowercase letters, " +
@@ -546,29 +409,17 @@ export async function publishIncremental(opts: PublishOpts): Promise<PublishResu
     size: collected.fileMap[path].byteLength,
   }));
 
-  // Attempt incremental path — fall back to full zip on manifest endpoint error
-  let manifestResult: {
-    needed: Array<{ path: string; upload_url: string }>;
-    version: number;
-    session_id: string;
-    base_version: number | null;
-  };
-
-  try {
-    manifestResult = await apiClient.manifest(nsId, slug, {
-      files,
-      title: title ?? slug,
-      visibility,
-      passcode: visibility === "passcode" ? passcode : undefined,
-      passcode_label:
-        visibility === "passcode" ? (passcodeLabel ?? "default") : undefined,
-      preview,
-    });
-  } catch {
-    // Manifest endpoint unavailable or unsupported — fall back to full upload.
-    // This keeps incremental safe to deploy before all servers are upgraded.
-    return publish(opts);
-  }
+  // Send manifest — server diffs against previous version and returns presigned URLs.
+  // Errors propagate directly to the caller (no fallback path).
+  const manifestResult = await apiClient.manifest(nsId, slug, {
+    files,
+    title: title ?? slug,
+    visibility,
+    passcode: visibility === "passcode" ? passcode : undefined,
+    passcode_label:
+      visibility === "passcode" ? (passcodeLabel ?? "default") : undefined,
+    preview,
+  });
 
   // Upload only the files the server says it needs.
   // Presigned URLs are self-authenticating — no Bearer token required.

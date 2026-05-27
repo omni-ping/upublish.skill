@@ -1,8 +1,8 @@
 /**
- * Tests for preview flag additions in lib/publish.ts and lib/core.ts.
+ * Tests for preview flag in lib/publish.ts and lib/core.ts.
  *
- * Covers DW-3.1: PublishOpts and PublishArgs include optional preview?: boolean
- * Covers DW-3.2: When preview=true, form data includes preview: "true" field
+ * Covers DW-3.1: PublishOpts includes optional preview?: boolean
+ * Covers DW-3.2: When preview=true, manifest body includes preview: true
  * Covers DW-3.3: Publish result includes preview_url when preview is true
  */
 
@@ -34,13 +34,10 @@ const SAMPLE_SITE = {
 const SAMPLE_URL = "https://testuser.upubli.sh/my-site/";
 const SAMPLE_PREVIEW_URL = "https://testuser.upubli.sh/my-site/@v2/";
 
-// ─── DW-3.1: PublishOpts and PublishArgs include preview?: boolean ─────────────
+// ─── DW-3.1: PublishOpts includes preview?: boolean ──────────────────────────
 
 describe("DW-3.1: PublishOpts has preview field", () => {
   it("test_DW_3_1_publish_opts_has_preview_field", () => {
-    // TypeScript type check — if preview?: boolean is not on PublishOpts, this
-    // compile-time assignment would fail the type checker (caught by bun test --ts-errors).
-    // At runtime, simply verify we can construct an object with preview set.
     const opts: PublishOpts = {
       apiClient: new ApiClient(BASE_URL, staticTokenProvider, async () => new Response("{}")),
       nsId: "ns-test",
@@ -52,7 +49,6 @@ describe("DW-3.1: PublishOpts has preview field", () => {
   });
 
   it("test_DW_3_1_publish_opts_preview_is_optional", () => {
-    // preview must be optional — can omit entirely
     const opts: PublishOpts = {
       apiClient: new ApiClient(BASE_URL, staticTokenProvider, async () => new Response("{}")),
       nsId: "ns-test",
@@ -63,9 +59,9 @@ describe("DW-3.1: PublishOpts has preview field", () => {
   });
 });
 
-// ─── DW-3.2: When preview=true, form data includes preview: "true" ──────────────
+// ─── DW-3.2: When preview=true, manifest body includes preview: true ─────────
 
-describe("DW-3.2: preview flag sends preview form field", () => {
+describe("DW-3.2: preview flag included in manifest body", () => {
   let tmpDir: string;
 
   beforeEach(() => {
@@ -76,16 +72,34 @@ describe("DW-3.2: preview flag sends preview form field", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("test_DW_3_2_preview_flag_sends_preview_true_in_form_data", async () => {
+  it("test_DW_3_2_preview_flag_sent_in_manifest_body", async () => {
     writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
-    let capturedForm: FormData | null = null;
-    const fetchFn = async (_url: string, init?: RequestInit) => {
-      capturedForm = init?.body as FormData;
-      return new Response(
-        JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL, preview_url: SAMPLE_PREVIEW_URL }),
-        { status: 201, headers: { "Content-Type": "application/json" } },
-      );
+    let capturedManifestBody: Record<string, unknown> | null = null;
+
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        capturedManifestBody = init?.body ? JSON.parse(init.body as string) : null;
+        return new Response(
+          JSON.stringify({
+            needed: [{ path: "index.html", upload_url: "https://r2.example.com/1" }],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("r2.example.com")) {
+        return new Response("", { status: 200 });
+      }
+      if (url.includes("/finalize")) {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL, preview_url: SAMPLE_PREVIEW_URL }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
     };
 
     const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
@@ -95,22 +109,41 @@ describe("DW-3.2: preview flag sends preview form field", () => {
       directory: tmpDir,
       slug: "my-site",
       preview: true,
+      fetchFn,
     });
 
-    expect(capturedForm).not.toBeNull();
-    expect((capturedForm as FormData).get("preview")).toBe("true");
+    expect(capturedManifestBody).not.toBeNull();
+    expect((capturedManifestBody as Record<string, unknown>)["preview"]).toBe(true);
   });
 
-  it("test_DW_3_2_no_preview_flag_does_not_send_preview_field", async () => {
+  it("test_DW_3_2_no_preview_flag_not_sent_in_manifest", async () => {
     writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
-    let capturedForm: FormData | null = null;
-    const fetchFn = async (_url: string, init?: RequestInit) => {
-      capturedForm = init?.body as FormData;
-      return new Response(
-        JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL }),
-        { status: 201, headers: { "Content-Type": "application/json" } },
-      );
+    let capturedManifestBody: Record<string, unknown> | null = null;
+
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        capturedManifestBody = init?.body ? JSON.parse(init.body as string) : null;
+        return new Response(
+          JSON.stringify({
+            needed: [{ path: "index.html", upload_url: "https://r2.example.com/1" }],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("r2.example.com")) {
+        return new Response("", { status: 200 });
+      }
+      if (url.includes("/finalize")) {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
     };
 
     const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
@@ -119,15 +152,16 @@ describe("DW-3.2: preview flag sends preview form field", () => {
       nsId: "ns-test",
       directory: tmpDir,
       slug: "my-site",
+      fetchFn,
     });
 
-    expect(capturedForm).not.toBeNull();
-    // preview field must not be sent when not specified
-    expect((capturedForm as FormData).get("preview")).toBeNull();
+    expect(capturedManifestBody).not.toBeNull();
+    // preview field not in body when not specified
+    expect((capturedManifestBody as Record<string, unknown>)["preview"]).toBeUndefined();
   });
 });
 
-// ─── DW-3.3: Publish result includes preview_url when preview is true ───────────
+// ─── DW-3.3: Publish result includes preview_url when preview is true ────────
 
 describe("DW-3.3: publish result includes preview_url", () => {
   let tmpDir: string;
@@ -143,15 +177,29 @@ describe("DW-3.3: publish result includes preview_url", () => {
   it("test_DW_3_3_publish_result_includes_preview_url", async () => {
     writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
-    const fetchFn = async (_url: string, _init?: RequestInit) =>
-      new Response(
-        JSON.stringify({
-          site: SAMPLE_SITE,
-          url: SAMPLE_URL,
-          preview_url: SAMPLE_PREVIEW_URL,
-        }),
-        { status: 201, headers: { "Content-Type": "application/json" } },
-      );
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        return new Response(
+          JSON.stringify({
+            needed: [{ path: "index.html", upload_url: "https://r2.example.com/1" }],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("r2.example.com")) {
+        return new Response("", { status: 200 });
+      }
+      if (url.includes("/finalize")) {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL, preview_url: SAMPLE_PREVIEW_URL }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    };
 
     const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
     const result: PublishResult = await publish({
@@ -160,6 +208,7 @@ describe("DW-3.3: publish result includes preview_url", () => {
       directory: tmpDir,
       slug: "my-site",
       preview: true,
+      fetchFn,
     });
 
     expect(result.preview_url).toBe(SAMPLE_PREVIEW_URL);
@@ -169,11 +218,29 @@ describe("DW-3.3: publish result includes preview_url", () => {
   it("test_DW_3_3_normal_publish_preview_url_is_undefined", async () => {
     writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
-    const fetchFn = async (_url: string, _init?: RequestInit) =>
-      new Response(
-        JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL }),
-        { status: 201, headers: { "Content-Type": "application/json" } },
-      );
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        return new Response(
+          JSON.stringify({
+            needed: [{ path: "index.html", upload_url: "https://r2.example.com/1" }],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("r2.example.com")) {
+        return new Response("", { status: 200 });
+      }
+      if (url.includes("/finalize")) {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    };
 
     const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
     const result: PublishResult = await publish({
@@ -181,9 +248,9 @@ describe("DW-3.3: publish result includes preview_url", () => {
       nsId: "ns-test",
       directory: tmpDir,
       slug: "my-site",
+      fetchFn,
     });
 
-    // Normal publish: no preview_url in response, field must be undefined
     expect(result.preview_url).toBeUndefined();
   });
 });

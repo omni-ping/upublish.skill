@@ -77,30 +77,6 @@ describe("DW-1.7: ApiClient", () => {
     });
   });
 
-  describe("postForm", () => {
-    it("test_DW_1_7_api_client_post_form", async () => {
-      let capturedMethod = "";
-      let capturedBody: FormData | null = null;
-
-      const fetchFn = async (url: string, init?: RequestInit) => {
-        capturedMethod = init?.method ?? "";
-        capturedBody = init?.body as FormData;
-        return new Response(JSON.stringify({ site: { slug: "test" } }), {
-          status: 201,
-          headers: { "Content-Type": "application/json" },
-        });
-      };
-
-      const client = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
-      const form = new FormData();
-      form.set("slug", "test");
-      await client.postForm<{ site: { slug: string } }>("/api/sites", form);
-
-      expect(capturedMethod).toBe("POST");
-      expect(capturedBody).toBeInstanceOf(FormData);
-    });
-  });
-
   describe("put", () => {
     it("test_DW_4_1_api_client_put", async () => {
       let capturedBody = "";

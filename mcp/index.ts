@@ -181,11 +181,11 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
       title: "Publish Site",
       description:
         "Publishes a local directory as a static website to upubli.sh. " +
-        "Packages files into a zip archive and uploads them, automatically " +
-        "excluding .git, node_modules, .env, .DS_Store, and other non-site files. " +
+        "Hashes files locally, uploads only changed files via presigned R2 URLs, " +
+        "automatically excluding .git, node_modules, .env, .DS_Store, and other non-site files. " +
         "Add a .upublishignore file to the directory for custom exclusions. " +
         "The site will be available at a public URL immediately after upload. " +
-        "If a site with the same slug already exists, it will be replaced entirely.",
+        "If a site with the same slug already exists, it will be updated efficiently.",
       inputSchema: {
         directory: z
           .string()
@@ -233,18 +233,9 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             "The response includes a preview_url where the staging version can be reviewed. " +
             "Use the promote tool to promote the staging version to live.",
           ),
-        incremental: z
-          .boolean()
-          .optional()
-          .describe(
-            "When true, uses incremental publish: hashes files locally, sends a manifest " +
-            "to the server, uploads only changed files via presigned R2 URLs, then finalizes. " +
-            "Faster for large sites with few changes. Falls back to full upload automatically " +
-            "if the server does not support incremental publish.",
-          ),
       },
     },
-    async ({ directory, slug, title, visibility, passcode, namespace, preview, incremental }) => {
+    async ({ directory, slug, title, visibility, passcode, namespace, preview }) => {
       try {
         const result = await publish(
           {
@@ -255,7 +246,6 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             passcode: passcode as string | undefined,
             namespace: namespace as string | undefined,
             preview: preview as boolean | undefined,
-            incremental: incremental as boolean | undefined,
           },
           coreDeps,
         );
@@ -277,7 +267,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
               `\n  Add them to .upublishignore in the publish directory to exclude.`
             : "";
 
-        // Incremental publish progress: show uploaded vs skipped counts
+        // Show uploaded vs skipped file counts
         const incrementalLine =
           result.uploadedFiles !== undefined && result.skippedFiles !== undefined
             ? `\nUploaded: ${result.uploadedFiles.length} file(s), skipped ${result.skippedFiles.length} unchanged file(s)`

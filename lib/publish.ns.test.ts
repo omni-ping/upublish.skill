@@ -1,7 +1,7 @@
 /**
  * Tests for lib/publish.ts namespace-scoped path.
  *
- * Covers DW-6.5: publish uses /api/ns/:nsId/sites
+ * Covers DW-6.5: publish uses /api/ns/:nsId/sites/:slug/manifest and finalize
  */
 
 import { describe, it, expect } from "bun:test";
@@ -32,17 +32,32 @@ const SAMPLE_SITE = {
 // ─── DW-6.5: namespace-scoped publish ────────────────────────────────────────
 
 describe("DW-6.5: publish with namespace", () => {
-  it("test_DW_6_5_publish_uses_ns_path", async () => {
-    let capturedUrl = "";
-    let capturedMethod = "";
+  it("test_DW_6_5_publish_uses_ns_manifest_path", async () => {
+    let capturedManifestUrl = "";
 
     const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
-      capturedUrl = url;
-      capturedMethod = init?.method ?? "";
-      return new Response(
-        JSON.stringify({ site: SAMPLE_SITE, url: "https://test.upubli.sh/test-site/" }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      if (url.includes("/manifest")) {
+        capturedManifestUrl = url;
+        return new Response(
+          JSON.stringify({
+            needed: [{ path: "index.html", upload_url: "https://r2.example.com/presigned" }],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("r2.example.com") && init?.method === "PUT") {
+        return new Response("", { status: 200 });
+      }
+      if (url.includes("/finalize")) {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: "https://test.upubli.sh/test-site/" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
     };
 
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "publish-ns-test-"));
@@ -50,28 +65,48 @@ describe("DW-6.5: publish with namespace", () => {
 
     try {
       const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
-      await publish({ apiClient, nsId: NS_ID, directory: tmpDir, slug: "test-site" });
+      await publish({ apiClient, nsId: NS_ID, directory: tmpDir, slug: "test-site", fetchFn });
 
-      expect(capturedUrl).toBe(`${BASE_URL}/api/ns/${NS_ID}/sites`);
-      expect(capturedMethod).toBe("POST");
+      // Manifest URL must include the namespace ID
+      expect(capturedManifestUrl).toBe(
+        `${BASE_URL}/api/ns/${NS_ID}/sites/test-site/manifest`,
+      );
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
   it("test_DW_6_5_publish_returns_result_with_ns", async () => {
-    const fetchFn = async (_url: string, _init?: RequestInit): Promise<Response> =>
-      new Response(
-        JSON.stringify({ site: SAMPLE_SITE, url: "https://test.upubli.sh/test-site/" }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+    const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
+      if (url.includes("/manifest")) {
+        return new Response(
+          JSON.stringify({
+            needed: [{ path: "index.html", upload_url: "https://r2.example.com/presigned" }],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("r2.example.com") && init?.method === "PUT") {
+        return new Response("", { status: 200 });
+      }
+      if (url.includes("/finalize")) {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: "https://test.upubli.sh/test-site/" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    };
 
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "publish-ns-result-"));
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
     try {
       const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
-      const result = await publish({ apiClient, nsId: NS_ID, directory: tmpDir, slug: "test-site" });
+      const result = await publish({ apiClient, nsId: NS_ID, directory: tmpDir, slug: "test-site", fetchFn });
 
       expect(result.url).toBe("https://test.upubli.sh/test-site/");
       expect(result.site.slug).toBe("test-site");
