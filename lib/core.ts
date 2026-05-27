@@ -116,6 +116,8 @@ export interface PublishArgs {
    * Use the promote() function to promote the staging version to live.
    */
   preview?: boolean;
+  /** When true, uploads all files regardless of whether they changed. */
+  force?: boolean;
 }
 
 export interface ListResult {
@@ -202,6 +204,7 @@ export async function publish(
     passcode: args.passcode,
     passcodeLabel: args.passcodeLabel,
     preview: args.preview,
+    force: args.force,
     // Pass fetchFn so presigned R2 uploads use the injected fetch in tests
     fetchFn: deps?.fetchFn,
   });

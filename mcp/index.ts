@@ -40,7 +40,7 @@ import type {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.9.2";
+export const PACKAGE_VERSION = "0.9.3";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -234,9 +234,16 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             "The response includes a preview_url where the staging version can be reviewed. " +
             "Use the promote tool to promote the staging version to live.",
           ),
+        force: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, uploads all files regardless of whether they changed. " +
+            "Use this to force a full re-upload when the site is broken or out of sync.",
+          ),
       },
     },
-    async ({ directory, slug, title, visibility, passcode, namespace, preview }) => {
+    async ({ directory, slug, title, visibility, passcode, namespace, preview, force }) => {
       log(`[publish] tool entry slug=${slug as string} dir=${directory as string}`);
       try {
         const result = await publish(
@@ -248,6 +255,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             passcode: passcode as string | undefined,
             namespace: namespace as string | undefined,
             preview: preview as boolean | undefined,
+            force: force as boolean | undefined,
           },
           coreDeps,
         );

@@ -47,6 +47,11 @@ export interface PublishOpts {
    */
   preview?: boolean;
   /**
+   * When true, sends randomized hashes so the server treats every file as changed.
+   * Bypasses the diff — all files are uploaded regardless of whether they exist.
+   */
+  force?: boolean;
+  /**
    * Injectable fetch function for presigned R2 uploads.
    * Presigned URLs are self-authenticating — no Bearer token is needed.
    * Defaults to global fetch. Injected in tests to avoid real network calls.
@@ -380,6 +385,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     passcode,
     passcodeLabel,
     preview,
+    force,
     fetchFn = fetch,
   } = opts;
 
@@ -416,15 +422,16 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     throw new Error("Directory is empty — no files to publish");
   }
 
-  // Build file manifest to send to server
+  // Build file manifest to send to server.
+  // When force=true, use random hashes so the server treats every file as changed.
   const files = Object.entries(collected.hashes).map(([path, hash]) => ({
     path,
-    hash,
+    hash: force ? crypto.randomUUID() : hash,
     size: collected.fileMap[path].byteLength,
   }));
 
   const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
-  log(`[publish] slug=${slug} files=${files.length} totalBytes=${totalBytes}`);
+  log(`[publish] slug=${slug} files=${files.length} totalBytes=${totalBytes}${force ? " FORCE" : ""}`);
 
   // Send manifest — server diffs against previous version and returns presigned URLs.
   // Errors propagate directly to the caller (no fallback path).
