@@ -113,6 +113,11 @@ export class ApiClient {
     session_id: string;
     base_version: number | null;
   }> {
+    // Server expects files as Record<path, {hash, size}>, not an Array.
+    const filesRecord: Record<string, { hash: string; size: number }> = {};
+    for (const f of body.files) {
+      filesRecord[f.path] = { hash: f.hash, size: f.size };
+    }
     const result = await this.post<{
       needed: Array<{ path: string; upload_url: string }>;
       version: number;
@@ -120,7 +125,7 @@ export class ApiClient {
       base_version: number | null;
     }>(
       `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/manifest`,
-      body,
+      { ...body, files: filesRecord },
     );
     log(`[manifest] version=${result.version} session_id=${result.session_id} base_version=${result.base_version} needed=${result.needed.length}`);
     return result;

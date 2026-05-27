@@ -215,7 +215,10 @@ describe("DW-5.2: ApiClient.manifest()", () => {
 
     expect(capturedUrl).toBe(`${BASE_URL}/api/ns/ns-1/sites/my-site/manifest`);
     expect(capturedMethod).toBe("POST");
-    expect(capturedBody).toMatchObject({ files });
+    expect((capturedBody as { files: unknown }).files).toEqual({
+      "index.html": { hash: "abc123", size: 100 },
+      "style.css": { hash: "def456", size: 200 },
+    });
   });
 
   it("test_DW_5_2_manifest_returns_needed_and_session", async () => {
@@ -274,7 +277,7 @@ describe("DW-5.2: ApiClient.manifest()", () => {
     });
 
     expect(capturedBody).toMatchObject({
-      files: [],
+      files: {},
       title: "My Site",
       visibility: "public",
       preview: true,

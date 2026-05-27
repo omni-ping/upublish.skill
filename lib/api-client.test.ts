@@ -185,4 +185,40 @@ describe("DW-1.7: ApiClient", () => {
       );
     });
   });
+
+  describe("manifest", () => {
+    it("sends files as Record<path, {hash, size}> not as Array", async () => {
+      let capturedBody = "";
+
+      const fetchFn = async (_url: string, init?: RequestInit) => {
+        capturedBody = init?.body as string;
+        return new Response(
+          JSON.stringify({
+            needed: [{ path: "index.html", upload_url: "https://r2.example.com/1" }],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      };
+
+      const client = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+      await client.manifest("ns-1", "my-site", {
+        files: [
+          { path: "index.html", hash: "abc123", size: 100 },
+          { path: "about/index.html", hash: "def456", size: 200 },
+        ],
+      });
+
+      const parsed = JSON.parse(capturedBody);
+      // Server expects files as Record<string, {hash, size}> keyed by path
+      expect(parsed.files).toEqual({
+        "index.html": { hash: "abc123", size: 100 },
+        "about/index.html": { hash: "def456", size: 200 },
+      });
+      // Must NOT be an array
+      expect(Array.isArray(parsed.files)).toBe(false);
+    });
+  });
 });

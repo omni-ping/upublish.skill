@@ -20255,7 +20255,11 @@ class ApiClient {
     return this.parseResponse(response);
   }
   async manifest(nsId, slug, body) {
-    const result = await this.post(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/manifest`, body);
+    const filesRecord = {};
+    for (const f of body.files) {
+      filesRecord[f.path] = { hash: f.hash, size: f.size };
+    }
+    const result = await this.post(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/manifest`, { ...body, files: filesRecord });
     log(`[manifest] version=${result.version} session_id=${result.session_id} base_version=${result.base_version} needed=${result.needed.length}`);
     return result;
   }
@@ -20769,7 +20773,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.9.4";
+var PACKAGE_VERSION = "0.9.5";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
