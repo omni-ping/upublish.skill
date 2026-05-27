@@ -295,13 +295,17 @@ export async function uploadChangedFiles(
     return;
   }
 
+  const totalBatches = Math.ceil(needed.length / UPLOAD_CONCURRENCY);
+
   // Upload files in concurrent batches
   for (
     let batchStart = 0;
     batchStart < needed.length;
     batchStart += UPLOAD_CONCURRENCY
   ) {
+    const batchNum = Math.floor(batchStart / UPLOAD_CONCURRENCY) + 1;
     const batch = needed.slice(batchStart, batchStart + UPLOAD_CONCURRENCY);
+    console.error(`[upload] batch=${batchNum}/${totalBatches} files=${batch.map((f) => f.path).join(",")}`);
     await Promise.all(
       batch.map((item) => uploadOneFile(item, fileMap, fetchFn)),
     );
@@ -329,8 +333,17 @@ async function uploadOneFile(
     });
 
     if (response.ok) {
+      console.error(`[upload] file=${item.path} attempt=${attempt} status=${response.status} ok`);
       return;
     }
+
+    let responseBody = "";
+    try {
+      responseBody = await response.text();
+    } catch {
+      // ignore — body read is best-effort for logging
+    }
+    console.error(`[upload] file=${item.path} attempt=${attempt} status=${response.status} body=${responseBody}`);
 
     // On the last attempt, throw so the caller knows this file failed
     if (attempt === UPLOAD_MAX_RETRIES) {
@@ -409,6 +422,9 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     size: collected.fileMap[path].byteLength,
   }));
 
+  const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+  console.error(`[publish] slug=${slug} files=${files.length} totalBytes=${totalBytes}`);
+
   // Send manifest — server diffs against previous version and returns presigned URLs.
   // Errors propagate directly to the caller (no fallback path).
   const manifestResult = await apiClient.manifest(nsId, slug, {
@@ -420,6 +436,8 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
       visibility === "passcode" ? (passcodeLabel ?? "default") : undefined,
     preview,
   });
+
+  console.error(`[manifest] version=${manifestResult.version} session_id=${manifestResult.session_id} base_version=${manifestResult.base_version} needed=${manifestResult.needed.length} total=${files.length}`);
 
   // Upload only the files the server says it needs.
   // Presigned URLs are self-authenticating — no Bearer token required.
@@ -438,6 +456,8 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
 
   // Finalize: server verifies uploads, creates DB records, goes live
   const finalizeResult = await apiClient.finalize(nsId, slug, manifestResult.session_id);
+
+  console.error(`[finalize] slug=${slug} uploaded=${uploadedFiles.length} skipped=${skippedFiles.length} url=${finalizeResult.url}`);
 
   return {
     url: finalizeResult.url,

@@ -189,6 +189,8 @@ export async function publish(
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, args.namespace);
 
+  console.error(`[publish] slug=${args.slug} dir=${args.directory} namespace=${ns.name}`);
+
   return domainPublish({
     apiClient,
     nsId: ns.id,

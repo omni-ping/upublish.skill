@@ -112,10 +112,17 @@ export class ApiClient {
     session_id: string;
     base_version: number | null;
   }> {
-    return this.post(
+    const result = await this.post<{
+      needed: Array<{ path: string; upload_url: string }>;
+      version: number;
+      session_id: string;
+      base_version: number | null;
+    }>(
       `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/manifest`,
       body,
     );
+    console.error(`[manifest] version=${result.version} session_id=${result.session_id} base_version=${result.base_version} needed=${result.needed.length}`);
+    return result;
   }
 
   /**
@@ -133,10 +140,12 @@ export class ApiClient {
     slug: string,
     sessionId: string,
   ): Promise<{ site: Site; url: string; preview_url?: string }> {
-    return this.post(
+    const result = await this.post<{ site: Site; url: string; preview_url?: string }>(
       `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/finalize`,
       { session_id: sessionId },
     );
+    console.error(`[finalize] slug=${slug} url=${result.url} preview_url=${result.preview_url ?? "none"}`);
+    return result;
   }
 
   /** Parses a fetch Response, throwing a descriptive Error on non-2xx. */
@@ -146,13 +155,16 @@ export class ApiClient {
     }
 
     let errorMessage: string;
+    let rawBody = "";
     try {
-      const body = (await response.json()) as { error?: string };
+      rawBody = await response.text();
+      const body = JSON.parse(rawBody) as { error?: string };
       errorMessage = body.error ?? response.statusText;
     } catch {
       errorMessage = response.statusText;
     }
 
+    console.error(`[api] status=${response.status} body=${rawBody || response.statusText}`);
     throw new Error(`API error ${response.status}: ${errorMessage}`);
   }
 }

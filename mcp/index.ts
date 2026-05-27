@@ -236,6 +236,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
       },
     },
     async ({ directory, slug, title, visibility, passcode, namespace, preview }) => {
+      console.error(`[publish] tool entry slug=${slug as string} dir=${directory as string}`);
       try {
         const result = await publish(
           {
@@ -274,6 +275,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             : "";
 
         if (result.preview_url) {
+          console.error(`[publish] tool done slug=${site.slug} preview_url=${result.preview_url}`);
           return okResponse(
             `Preview published!\n` +
             `Preview URL: ${result.preview_url}\n` +
@@ -288,6 +290,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
           );
         }
 
+        console.error(`[publish] tool done slug=${site.slug} url=${result.url}`);
         return okResponse(
           `Site published successfully!\n` +
           `URL: ${result.url}\n` +
@@ -300,6 +303,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
           incrementalLine,
         );
       } catch (err) {
+        console.error(`[publish] tool error slug=${slug as string} err=${(err as Error).message}`);
         return errResponse(err);
       }
     },
