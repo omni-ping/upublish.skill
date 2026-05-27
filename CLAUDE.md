@@ -52,6 +52,11 @@ The version appears in five places that must stay in sync: `package.json`, `.cla
 
 **Every change to this repo must include a version bump.** Plugin users only receive updates when the version number changes — without a bump, changes are invisible to installed plugins.
 
+**Every change must also rebuild `dist/mcp.js`** — this is the pre-built bundle that plugin runners execute. Source file edits are invisible to installed plugins without a rebuild:
+```sh
+bun build mcp/index.ts --target=bun --outfile=dist/mcp.js && chmod +x dist/mcp.js
+```
+
 ## Environment
 
 - `UPUBLISH_API_URL` — overrides the API base URL (defaults to `https://api.upubli.sh`)
