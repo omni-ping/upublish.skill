@@ -13,6 +13,7 @@
  */
 
 import type { FetchFn, TokenProvider, Site } from "./types.ts";
+import { log } from "./log.ts";
 
 export class ApiClient {
   constructor(
@@ -121,7 +122,7 @@ export class ApiClient {
       `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/manifest`,
       body,
     );
-    console.error(`[manifest] version=${result.version} session_id=${result.session_id} base_version=${result.base_version} needed=${result.needed.length}`);
+    log(`[manifest] version=${result.version} session_id=${result.session_id} base_version=${result.base_version} needed=${result.needed.length}`);
     return result;
   }
 
@@ -144,7 +145,7 @@ export class ApiClient {
       `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/finalize`,
       { session_id: sessionId },
     );
-    console.error(`[finalize] slug=${slug} url=${result.url} preview_url=${result.preview_url ?? "none"}`);
+    log(`[finalize] slug=${slug} url=${result.url} preview_url=${result.preview_url ?? "none"}`);
     return result;
   }
 
@@ -164,7 +165,7 @@ export class ApiClient {
       errorMessage = response.statusText;
     }
 
-    console.error(`[api] status=${response.status} body=${rawBody || response.statusText}`);
+    log(`[api] status=${response.status} body=${rawBody || response.statusText}`);
     throw new Error(`API error ${response.status}: ${errorMessage}`);
   }
 }

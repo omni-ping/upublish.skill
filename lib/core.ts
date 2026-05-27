@@ -32,6 +32,7 @@ import { listSites } from "./list.ts";
 import { publish as domainPublish } from "./publish.ts";
 import type { PublishResult } from "./publish.ts";
 import { deleteSite } from "./delete.ts";
+import { log } from "./log.ts";
 import type { DeleteResult } from "./delete.ts";
 import { promote as domainPromote } from "./promote.ts";
 import type { PromoteResult } from "./promote.ts";
@@ -189,7 +190,7 @@ export async function publish(
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, args.namespace);
 
-  console.error(`[publish] slug=${args.slug} dir=${args.directory} namespace=${ns.name}`);
+  log(`[publish] slug=${args.slug} dir=${args.directory} namespace=${ns.name}`);
 
   return domainPublish({
     apiClient,

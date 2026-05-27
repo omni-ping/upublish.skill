@@ -15,6 +15,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import open from "open";
+import { log } from "../lib/log.ts";
 import {
   list,
   publish,
@@ -39,7 +40,7 @@ import type {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.9.1";
+export const PACKAGE_VERSION = "0.9.2";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -236,7 +237,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
       },
     },
     async ({ directory, slug, title, visibility, passcode, namespace, preview }) => {
-      console.error(`[publish] tool entry slug=${slug as string} dir=${directory as string}`);
+      log(`[publish] tool entry slug=${slug as string} dir=${directory as string}`);
       try {
         const result = await publish(
           {
@@ -275,7 +276,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             : "";
 
         if (result.preview_url) {
-          console.error(`[publish] tool done slug=${site.slug} preview_url=${result.preview_url}`);
+          log(`[publish] tool done slug=${site.slug} preview_url=${result.preview_url}`);
           return okResponse(
             `Preview published!\n` +
             `Preview URL: ${result.preview_url}\n` +
@@ -290,7 +291,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
           );
         }
 
-        console.error(`[publish] tool done slug=${site.slug} url=${result.url}`);
+        log(`[publish] tool done slug=${site.slug} url=${result.url}`);
         return okResponse(
           `Site published successfully!\n` +
           `URL: ${result.url}\n` +
@@ -303,7 +304,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
           incrementalLine,
         );
       } catch (err) {
-        console.error(`[publish] tool error slug=${slug as string} err=${(err as Error).message}`);
+        log(`[publish] tool error slug=${slug as string} err=${(err as Error).message}`);
         return errResponse(err);
       }
     },

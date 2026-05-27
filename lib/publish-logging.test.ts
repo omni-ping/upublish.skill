@@ -10,10 +10,11 @@
  * DW-1.8: bun test lib/ passes
  */
 
-import { describe, it, expect, beforeEach, afterEach, spyOn } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, spyOn, mock } from "bun:test";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import * as logModule from "./log.ts";
 import { publish, uploadChangedFiles } from "./publish.ts";
 import { ApiClient } from "./api-client.ts";
 import type { PublishOpts } from "./publish.ts";
@@ -77,8 +78,8 @@ describe("DW-1.1: publish() logs file count and total size before manifest", () 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "upublish-log-test-"));
     logLines = [];
-    spy = spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      logLines.push(args.join(" "));
+    spy = spyOn(logModule, "log").mockImplementation((msg: string) => {
+      logLines.push(msg);
     });
   });
 
@@ -121,8 +122,8 @@ describe("DW-1.2: publish() logs manifest response details", () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "upublish-log-test-"));
     logLines = [];
-    spy = spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      logLines.push(args.join(" "));
+    spy = spyOn(logModule, "log").mockImplementation((msg: string) => {
+      logLines.push(msg);
     });
   });
 
@@ -169,8 +170,8 @@ describe("DW-1.5: publish() logs finalize result and summary", () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "upublish-log-test-"));
     logLines = [];
-    spy = spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      logLines.push(args.join(" "));
+    spy = spyOn(logModule, "log").mockImplementation((msg: string) => {
+      logLines.push(msg);
     });
   });
 
@@ -208,8 +209,8 @@ describe("DW-1.3: uploadChangedFiles() logs batch progress", () => {
 
   beforeEach(() => {
     logLines = [];
-    spy = spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      logLines.push(args.join(" "));
+    spy = spyOn(logModule, "log").mockImplementation((msg: string) => {
+      logLines.push(msg);
     });
   });
 
@@ -276,8 +277,8 @@ describe("DW-1.4: uploadOneFile() logs attempt with HTTP status", () => {
 
   beforeEach(() => {
     logLines = [];
-    spy = spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      logLines.push(args.join(" "));
+    spy = spyOn(logModule, "log").mockImplementation((msg: string) => {
+      logLines.push(msg);
     });
   });
 
@@ -330,8 +331,8 @@ describe("DW-1.6: api-client.ts logs HTTP status and body on non-2xx", () => {
 
   beforeEach(() => {
     logLines = [];
-    spy = spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      logLines.push(args.join(" "));
+    spy = spyOn(logModule, "log").mockImplementation((msg: string) => {
+      logLines.push(msg);
     });
   });
 
