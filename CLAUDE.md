@@ -50,6 +50,8 @@ The repo ships plugin configs for three platforms:
 
 The version appears in five places that must stay in sync: `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`, and `mcp/index.ts` (`PACKAGE_VERSION`). CI bumps all of them automatically on merge to main.
 
+**Every change to this repo must include a version bump.** Plugin users only receive updates when the version number changes — without a bump, changes are invisible to installed plugins.
+
 ## Environment
 
 - `UPUBLISH_API_URL` — overrides the API base URL (defaults to `https://api.upubli.sh`)
