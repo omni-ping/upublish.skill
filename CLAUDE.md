@@ -23,7 +23,7 @@ mcp/index.ts       MCP server adapter — exposes login, status, publish, list, 
 lib/core.ts        Facade — all user-facing operations, wires credentials + ApiClient per call
 lib/auth.ts        OAuth login flow, PKCE, token refresh, credential read/write (~/.upublish/credentials)
 lib/api-client.ts  Thin HTTP client — Bearer token injection via async TokenProvider
-lib/publish.ts     Zip a directory (fflate) and upload via multipart POST
+lib/publish.ts     Hash files, diff against server manifest, upload only changed files to presigned R2 URLs, then finalize
 lib/list.ts        GET /api/sites
 lib/delete.ts      DELETE /api/sites/:slug
 lib/types.ts       Shared types (Site, Visibility, FetchFn, TokenProvider)
