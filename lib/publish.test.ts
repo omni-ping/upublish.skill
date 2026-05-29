@@ -16,6 +16,8 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import { readFileSync, readdirSync } from "fs";
+import { dirname } from "path";
 import {
   publish,
   collectFilesWithHashes,
@@ -24,7 +26,9 @@ import {
   parseIgnoreFile,
 } from "./publish.ts";
 import { ApiClient } from "./api-client.ts";
-import type { PublishOpts } from "./publish.ts";
+import type { PublishOpts, UploadProgress } from "./publish.ts";
+// Re-export reachability: adapters import UploadProgress only from core.ts (DW-1.3).
+import type { UploadProgress as UploadProgressFromCore } from "./core.ts";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -842,5 +846,175 @@ describe("DW-3.2: PublishArgs has no incremental field", () => {
     };
     // incremental should not be a key on PublishOpts
     expect("incremental" in opts).toBe(false);
+  });
+});
+
+// ─── DW-1: onProgress callback threaded through publish core ─────────────────
+
+describe("DW-1.1/1.4: uploadChangedFiles fires onProgress", () => {
+  // Builds a needed[] of N files plus a matching fileMap, all uploads succeed.
+  function makeUpload(count: number) {
+    const fileMap: Record<string, Uint8Array> = {};
+    const needed: Array<{ path: string; upload_url: string }> = [];
+    for (let i = 0; i < count; i++) {
+      const path = `file${i}.html`;
+      fileMap[path] = new Uint8Array(Buffer.from(`<h${i}>`));
+      needed.push({ path, upload_url: `https://r2.example.com/${path}` });
+    }
+    return { fileMap, needed };
+  }
+
+  const okFetch = async () => new Response("", { status: 200 });
+
+  it("test_DW_1_1_fires_initial_then_per_batch_cumulative", async () => {
+    // 6 needed files at concurrency 5 => 2 batches.
+    // Expect: initial {0,6}, after batch 1 {5,6}, after batch 2 {6,6}.
+    const { fileMap, needed } = makeUpload(6);
+    const events: UploadProgress[] = [];
+
+    await uploadChangedFiles({
+      needed,
+      fileMap,
+      fetchFn: okFetch,
+      onProgress: (p) => events.push({ ...p }),
+    });
+
+    expect(events).toEqual([
+      { completed: 0, total: 6 },
+      { completed: 5, total: 6 },
+      { completed: 6, total: 6 },
+    ]);
+    // Final call always equals {N,N}.
+    expect(events[events.length - 1]).toEqual({ completed: 6, total: 6 });
+  });
+
+  it("test_DW_1_1_empty_needed_fires_no_progress", async () => {
+    const events: UploadProgress[] = [];
+
+    await uploadChangedFiles({
+      needed: [],
+      fileMap: {},
+      fetchFn: okFetch,
+      onProgress: (p) => events.push({ ...p }),
+    });
+
+    // Early-return path: NOT even the initial {0,0} fires.
+    expect(events).toHaveLength(0);
+  });
+});
+
+describe("DW-1.2: onProgress is optional and threaded through publish()", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-progress-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  // Mock that serves manifest (both files needed), R2 PUTs, and finalize.
+  function publishFetch() {
+    return async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        return new Response(
+          JSON.stringify({
+            needed: [
+              { path: "index.html", upload_url: "https://r2.example.com/1" },
+              { path: "style.css", upload_url: "https://r2.example.com/2" },
+            ],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("r2.example.com") && init?.method === "PUT") {
+        return new Response("", { status: 200 });
+      }
+      if (url.includes("/finalize")) {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    };
+  }
+
+  it("test_DW_1_2_publish_threads_onProgress_to_upload", async () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
+    writeFileSync(join(tmpDir, "style.css"), "body {}");
+
+    const fetchFn = publishFetch();
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    const events: UploadProgress[] = [];
+
+    await publish({
+      apiClient,
+      nsId: "ns-1",
+      directory: tmpDir,
+      slug: "my-site",
+      fetchFn,
+      onProgress: (p) => events.push({ ...p }),
+    });
+
+    // 2 needed files, single batch => initial {0,2} then {2,2}.
+    expect(events).toEqual([
+      { completed: 0, total: 2 },
+      { completed: 2, total: 2 },
+    ]);
+  });
+
+  it("test_DW_1_2_omitting_onProgress_still_publishes", async () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
+    writeFileSync(join(tmpDir, "style.css"), "body {}");
+
+    const fetchFn = publishFetch();
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+
+    // No onProgress supplied — must publish successfully, identical behavior.
+    const result = await publish({
+      apiClient,
+      nsId: "ns-1",
+      directory: tmpDir,
+      slug: "my-site",
+      fetchFn,
+    });
+
+    expect(result.url).toBe(SAMPLE_URL);
+    expect(result.uploadedFiles).toHaveLength(2);
+  });
+});
+
+describe("DW-1.3: callback is generic and UploadProgress is exported from core", () => {
+  it("test_DW_1_3_lib_has_no_mcp_sdk_imports", () => {
+    // Scan every lib/*.ts source file (excluding tests) for an MCP SDK import.
+    // The progress callback must stay platform-agnostic (hexagonal boundary).
+    const libDir = dirname(import.meta.path);
+    const files = readdirSync(libDir).filter(
+      (f) => f.endsWith(".ts") && !f.endsWith(".test.ts"),
+    );
+
+    const offenders: string[] = [];
+    for (const f of files) {
+      const src = readFileSync(join(libDir, f), "utf-8");
+      if (src.includes("@modelcontextprotocol/sdk")) {
+        offenders.push(f);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("test_DW_1_3_uploadprogress_exported_from_core", () => {
+    // Compile-time: the type imported from core.ts must be structurally usable.
+    // (The `UploadProgressFromCore` import at the top fails to type-check if
+    //  core.ts does not re-export it.)
+    const p: UploadProgressFromCore = { completed: 1, total: 2 };
+    expect(p.completed).toBe(1);
+    expect(p.total).toBe(2);
   });
 });
