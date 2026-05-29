@@ -20868,7 +20868,7 @@ function createServer(coreDeps) {
     }
   }, async ({ directory, slug, title, visibility, passcode, namespace, preview, force }, extra) => {
     log(`[publish] tool entry slug=${slug} dir=${directory}`);
-    const progressToken = extra._meta?.progressToken;
+    const progressToken = extra?._meta?.progressToken;
     const onProgress = progressToken !== undefined ? (p) => {
       const notification = {
         method: "notifications/progress",

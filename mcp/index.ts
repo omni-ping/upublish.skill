@@ -248,8 +248,9 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
       log(`[publish] tool entry slug=${slug as string} dir=${directory as string}`);
 
       // Only emit MCP progress when the client supplied a progressToken in _meta.
-      // When absent, onProgress stays undefined so publish behaves exactly as before.
-      const progressToken = extra._meta?.progressToken;
+      // When absent (or extra is omitted, e.g. in tests), onProgress stays
+      // undefined so publish behaves exactly as before.
+      const progressToken = extra?._meta?.progressToken;
       const onProgress =
         progressToken !== undefined
           ? (p: { completed: number; total: number }) => {
