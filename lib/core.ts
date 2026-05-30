@@ -9,6 +9,8 @@
  *   list()      — fetch all published sites
  *   publish()   — package and upload a directory
  *   deleteOp()  — delete a site by slug
+ *   listSiteVersions()  — list a site's deploy versions
+ *   deleteSiteVersion() — delete one archived version (returns freed bytes + usage)
  *   login()     — run the OAuth flow and store credentials
  *   status()    — check authentication state against the API
  *   logout()    — revoke refresh token server-side and delete local credentials
@@ -36,6 +38,15 @@ import { log } from "./log.ts";
 import type { DeleteResult } from "./delete.ts";
 import { promote as domainPromote } from "./promote.ts";
 import type { PromoteResult } from "./promote.ts";
+import {
+  listVersions as domainListVersions,
+  deleteVersion as domainDeleteVersion,
+} from "./versions.ts";
+import type {
+  ListVersionsResult,
+  DeleteVersionResult,
+  SiteVersion,
+} from "./versions.ts";
 import {
   addPasscode as domainAddPasscode,
   listPasscodes as domainListPasscodes,
@@ -72,6 +83,7 @@ export type { LoginDeps, LoginResult, CallbackServer, TokenResponse };
 export type { PublishResult, UploadProgress };
 export type { DeleteResult };
 export type { PromoteResult };
+export type { ListVersionsResult, DeleteVersionResult, SiteVersion };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
 export type { Namespace, Site, Visibility, GateConfig, GateSubmission };
@@ -253,6 +265,45 @@ export async function promote(
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
   return domainPromote(apiClient, ns.id, slug);
+}
+
+/**
+ * Lists all versions of a site within the default (or named) namespace.
+ * Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param slug - The URL-safe identifier of the site.
+ * @param namespaceName - Optional namespace name. Defaults to the user's default namespace.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function listSiteVersions(
+  slug: string,
+  namespaceName?: string,
+  deps?: CoreDeps,
+): Promise<ListVersionsResult> {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return domainListVersions(apiClient, ns.id, slug);
+}
+
+/**
+ * Deletes a single archived version of a site within the default (or named)
+ * namespace. Returns the bytes freed and post-delete usage so callers can
+ * surface reclaimed storage. Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param slug - The URL-safe identifier of the site.
+ * @param versionNumber - The version number to delete (positive integer).
+ * @param namespaceName - Optional namespace name. Defaults to the user's default namespace.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function deleteSiteVersion(
+  slug: string,
+  versionNumber: number,
+  namespaceName?: string,
+  deps?: CoreDeps,
+): Promise<DeleteVersionResult> {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return domainDeleteVersion(apiClient, ns.id, slug, versionNumber);
 }
 
 /**

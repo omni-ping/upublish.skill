@@ -20529,6 +20529,29 @@ async function promote(apiClient, nsId, slug) {
   return { url: result.url };
 }
 
+// lib/versions.ts
+async function listVersions(apiClient, nsId, slug) {
+  if (!slug || slug.trim().length === 0) {
+    throw new Error("slug is required");
+  }
+  const result = await apiClient.get(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/versions`);
+  return { versions: result.versions };
+}
+async function deleteVersion(apiClient, nsId, slug, versionNumber) {
+  if (!slug || slug.trim().length === 0) {
+    throw new Error("slug is required");
+  }
+  if (!Number.isInteger(versionNumber) || versionNumber <= 0) {
+    throw new Error("versionNumber must be a positive integer");
+  }
+  const result = await apiClient.delete(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/versions/${encodeURIComponent(String(versionNumber))}`);
+  return {
+    version_number: result.version_number,
+    freed_bytes: result.freed_bytes,
+    usage: result.usage
+  };
+}
+
 // lib/passcode.ts
 async function addPasscode(apiClient, nsId, slug, code, label) {
   if (!code || code.trim().length === 0) {
@@ -20664,6 +20687,16 @@ async function promote2(slug, namespaceName, deps) {
   const ns = await resolveNamespace(apiClient, namespaceName);
   return promote(apiClient, ns.id, slug);
 }
+async function listSiteVersions(slug, namespaceName, deps) {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return listVersions(apiClient, ns.id, slug);
+}
+async function deleteSiteVersion(slug, versionNumber, namespaceName, deps) {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return deleteVersion(apiClient, ns.id, slug, versionNumber);
+}
 async function addPasscode2(slug, code, label, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
@@ -20778,13 +20811,27 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.9.7";
+var PACKAGE_VERSION = "0.9.8";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
   if (bytes < 1024 * 1024)
     return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+function formatVersionEntry(version2) {
+  const liveMarker = version2.is_live ? " (LIVE)" : "";
+  return `v${version2.version_number} \u2014 ${version2.status}${liveMarker}`;
+}
+function formatUsage(usage) {
+  if (typeof usage.used_bytes === "number" && typeof usage.limit_bytes === "number") {
+    return `${formatBytes(usage.used_bytes)} of ${formatBytes(usage.limit_bytes)}`;
+  }
+  if (typeof usage.used_bytes === "number") {
+    return formatBytes(usage.used_bytes);
+  }
+  const parts = Object.entries(usage).filter(([, value]) => typeof value === "number").map(([key, value]) => `${key}=${value}`);
+  return parts.length > 0 ? parts.join(", ") : "(unavailable)";
 }
 function formatSiteEntry(site) {
   const size = formatBytes(site.total_size);
@@ -20958,6 +21005,47 @@ ${lines.join(`
     try {
       const result = await deleteOp(slug, namespace, coreDeps);
       return okResponse(result.message);
+    } catch (err) {
+      return errResponse(err);
+    }
+  });
+  server.registerTool("versions_list", {
+    title: "List Site Versions",
+    description: "Lists all deploy versions of a published site on upubli.sh. " + "Shows each version's number, status, and which one is currently live. " + "Use `versions_delete` to remove an archived version and reclaim storage.",
+    inputSchema: {
+      slug: exports_external.string().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
+      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+    }
+  }, async ({ slug, namespace }) => {
+    try {
+      const result = await listSiteVersions(slug, namespace, coreDeps);
+      if (result.versions.length === 0) {
+        return okResponse(`No versions found for site '${slug}'.`);
+      }
+      const header = `Versions for '${slug}'`;
+      const lines = result.versions.map((version2) => formatVersionEntry(version2));
+      return okResponse(`${header}
+
+${lines.join(`
+`)}`);
+    } catch (err) {
+      return errResponse(err);
+    }
+  });
+  server.registerTool("versions_delete", {
+    title: "Delete Site Version",
+    description: "Deletes a single archived version of a published site on upubli.sh to " + "reclaim storage. The currently live version cannot be deleted. " + "Returns the space reclaimed and your updated storage usage.",
+    inputSchema: {
+      slug: exports_external.string().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
+      versionNumber: exports_external.number().int().positive().describe("The version number to delete (a positive integer). " + "Use `versions_list` to see available version numbers."),
+      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+    }
+  }, async ({ slug, versionNumber, namespace }) => {
+    try {
+      const result = await deleteSiteVersion(slug, versionNumber, namespace, coreDeps);
+      return okResponse(`Deleted version v${result.version_number} of '${slug}'.
+` + `Reclaimed: ${formatBytes(result.freed_bytes)}
+` + `Usage: ${formatUsage(result.usage)}`);
     } catch (err) {
       return errResponse(err);
     }
