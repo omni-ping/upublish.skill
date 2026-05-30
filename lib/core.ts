@@ -30,7 +30,7 @@ import type { LoginDeps, LoginResult, CallbackServer, TokenResponse } from "./au
 import { ApiClient } from "./api-client.ts";
 import { listSites } from "./list.ts";
 import { publish as domainPublish } from "./publish.ts";
-import type { PublishResult } from "./publish.ts";
+import type { PublishResult, UploadProgress } from "./publish.ts";
 import { deleteSite } from "./delete.ts";
 import { log } from "./log.ts";
 import type { DeleteResult } from "./delete.ts";
@@ -69,7 +69,7 @@ import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission }
 // Adapters import only from core.ts — re-export types they need so they
 // don't have to reach into lib/auth.ts or other submodules.
 export type { LoginDeps, LoginResult, CallbackServer, TokenResponse };
-export type { PublishResult };
+export type { PublishResult, UploadProgress };
 export type { DeleteResult };
 export type { PromoteResult };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
@@ -118,6 +118,13 @@ export interface PublishArgs {
   preview?: boolean;
   /** When true, uploads all files regardless of whether they changed. */
   force?: boolean;
+  /**
+   * Optional synchronous progress callback fired during the upload phase.
+   * Threaded down to uploadChangedFiles(). Must be synchronous and
+   * non-throwing — adapters wrap any async notification behind it. Omitting
+   * it is a no-op with identical publish behavior.
+   */
+  onProgress?: (progress: UploadProgress) => void;
 }
 
 export interface ListResult {
@@ -207,6 +214,8 @@ export async function publish(
     force: args.force,
     // Pass fetchFn so presigned R2 uploads use the injected fetch in tests
     fetchFn: deps?.fetchFn,
+    // Thread the progress callback down to the upload loop (adapter supplies it)
+    onProgress: args.onProgress,
   });
 }
 

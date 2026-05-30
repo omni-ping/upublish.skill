@@ -21,6 +21,21 @@ import { log } from "./log.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+/**
+ * Upload progress snapshot reported during the upload phase.
+ *
+ * `completed` and `total` count files that need uploading (the manifest's
+ * `needed` set), NOT the site's total file count. `total` is the correct
+ * denominator for an upload progress bar; `completed` is cumulative and
+ * monotonically increasing, reaching `total` on the final report.
+ */
+export interface UploadProgress {
+  /** Files uploaded so far (cumulative). Starts at 0, ends at `total`. */
+  completed: number;
+  /** Total files that need uploading (manifest `needed` count). */
+  total: number;
+}
+
 export interface PublishOpts {
   /** Authenticated API client. */
   apiClient: ApiClient;
@@ -57,6 +72,13 @@ export interface PublishOpts {
    * Defaults to global fetch. Injected in tests to avoid real network calls.
    */
   fetchFn?: FetchFn;
+  /**
+   * Optional synchronous progress callback fired during the upload phase.
+   * Must be synchronous and non-throwing — lib/ stays platform-agnostic and
+   * does not depend on async notification machinery. The MCP adapter wraps an
+   * async sendNotification behind this sync callback. Omitting it is a no-op.
+   */
+  onProgress?: (progress: UploadProgress) => void;
 }
 
 export interface PublishResult {
@@ -112,6 +134,14 @@ export interface UploadChangedFilesOpts {
    * Injected in tests to avoid real R2 calls.
    */
   fetchFn?: FetchFn;
+  /**
+   * Optional synchronous progress callback. Fired once with
+   * `{completed:0, total:N}` before the first batch, then after each batch
+   * resolves with the cumulative completed count (final call equals
+   * `{completed:N, total:N}`). When `needed` is empty, the early-return path
+   * is taken and NO progress fires (not even the initial 0/N).
+   */
+  onProgress?: (progress: UploadProgress) => void;
 }
 
 interface PublishResponse {
@@ -295,13 +325,18 @@ const UPLOAD_MAX_RETRIES = 3;
 export async function uploadChangedFiles(
   opts: UploadChangedFilesOpts,
 ): Promise<void> {
-  const { needed, fileMap, fetchFn = fetch } = opts;
+  const { needed, fileMap, fetchFn = fetch, onProgress } = opts;
 
+  // Empty upload: early-return BEFORE any progress fires — no onProgress call
+  // is made for a no-op upload (not even the initial 0/N).
   if (needed.length === 0) {
     return;
   }
 
   const totalBatches = Math.ceil(needed.length / UPLOAD_CONCURRENCY);
+
+  // Report progress: zero completed out of the needed-file count.
+  onProgress?.({ completed: 0, total: needed.length });
 
   // Upload files in concurrent batches
   for (
@@ -315,6 +350,10 @@ export async function uploadChangedFiles(
     await Promise.all(
       batch.map((item) => uploadOneFile(item, fileMap, fetchFn)),
     );
+
+    // Report progress: cumulative completed = files uploaded through this batch.
+    // The final batch makes this equal needed.length.
+    onProgress?.({ completed: batchStart + batch.length, total: needed.length });
   }
 }
 
@@ -387,6 +426,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     preview,
     force,
     fetchFn = fetch,
+    onProgress,
   } = opts;
 
   // Validate directory exists and is a directory
@@ -453,6 +493,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     needed: manifestResult.needed,
     fileMap: collected.fileMap,
     fetchFn,
+    onProgress,
   });
 
   // Determine which files were uploaded vs skipped (server-side copied)

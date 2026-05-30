@@ -13,6 +13,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { ProgressNotification } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import open from "open";
 import { log } from "../lib/log.ts";
@@ -40,7 +41,7 @@ import type {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.9.5";
+export const PACKAGE_VERSION = "0.9.6";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -243,8 +244,34 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
           ),
       },
     },
-    async ({ directory, slug, title, visibility, passcode, namespace, preview, force }) => {
+    async ({ directory, slug, title, visibility, passcode, namespace, preview, force }, extra) => {
       log(`[publish] tool entry slug=${slug as string} dir=${directory as string}`);
+
+      // Only emit MCP progress when the client supplied a progressToken in _meta.
+      // When absent (or extra is omitted, e.g. in tests), onProgress stays
+      // undefined so publish behaves exactly as before.
+      const progressToken = extra?._meta?.progressToken;
+      const onProgress =
+        progressToken !== undefined
+          ? (p: { completed: number; total: number }) => {
+              const notification: ProgressNotification = {
+                method: "notifications/progress",
+                params: {
+                  progressToken,
+                  progress: p.completed,
+                  total: p.total,
+                },
+              };
+              // Best-effort: a dropped notification (e.g. client gone, transport
+              // closed) must never break the publish, so swallow the rejection.
+              extra
+                .sendNotification(notification)
+                .catch((err: unknown) =>
+                  log(`[publish] progress notification failed: ${(err as Error).message}`),
+                );
+            }
+          : undefined;
+
       try {
         const result = await publish(
           {
@@ -256,6 +283,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
             namespace: namespace as string | undefined,
             preview: preview as boolean | undefined,
             force: force as boolean | undefined,
+            onProgress,
           },
           coreDeps,
         );

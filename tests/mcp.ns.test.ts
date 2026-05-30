@@ -145,7 +145,15 @@ describe("DW-6.1: publish tool namespace parameter", () => {
         );
       }
       capturedUrl = url;
-      if (url.includes("/api/ns/") && url.endsWith("/sites") && init?.method === "POST") {
+      // Presigned-URL flow: manifest (nothing to upload) then finalize. Both hit
+      // /api/ns/<nsId>/sites/<slug>/..., so capturedUrl still proves the right namespace.
+      if (url.includes("/manifest") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ needed: [], version: 1, session_id: "sess-1", base_version: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/finalize") && init?.method === "POST") {
         return new Response(
           JSON.stringify({ site: SAMPLE_SITE, url: "https://user1.upubli.sh/my-site/" }),
           { status: 200, headers: { "Content-Type": "application/json" } },
@@ -193,7 +201,15 @@ describe("DW-6.1: publish tool namespace parameter", () => {
         );
       }
       capturedUrl = url;
-      if (url.includes("/api/ns/") && url.endsWith("/sites") && init?.method === "POST") {
+      // Presigned-URL flow: manifest (nothing to upload) then finalize. Both hit
+      // /api/ns/<nsId>/sites/<slug>/..., so capturedUrl still proves the right namespace.
+      if (url.includes("/manifest") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ needed: [], version: 1, session_id: "sess-1", base_version: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/finalize") && init?.method === "POST") {
         return new Response(
           JSON.stringify({ site: SAMPLE_SITE, url: "https://user1.upubli.sh/my-site/" }),
           { status: 200, headers: { "Content-Type": "application/json" } },

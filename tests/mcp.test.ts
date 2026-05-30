@@ -307,7 +307,14 @@ describe("tool output format", () => {
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
-      if (url.includes("/sites") && init?.method === "POST") {
+      // Presigned-URL flow: manifest reports nothing to upload, finalize returns the site.
+      if (url.includes("/manifest") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ needed: [], version: 1, session_id: "sess-1", base_version: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/finalize") && init?.method === "POST") {
         return new Response(
           JSON.stringify({ site: SAMPLE_SITE, url: PUBLISHED_URL }),
           { status: 200, headers: { "Content-Type": "application/json" } },
@@ -1137,7 +1144,14 @@ describe("DW-2.3: success response includes excluded file info", () => {
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
-      if (url.includes("/sites") && init?.method === "POST") {
+      // Presigned-URL flow: manifest reports nothing to upload, finalize returns the site.
+      if (url.includes("/manifest") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ needed: [], version: 1, session_id: "sess-1", base_version: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/finalize") && init?.method === "POST") {
         return new Response(
           JSON.stringify({ site: SAMPLE_SITE, url: "https://user1.upubli.sh/my-site/" }),
           { status: 200, headers: { "Content-Type": "application/json" } },
@@ -1188,7 +1202,14 @@ describe("DW-2.3: success response includes excluded file info", () => {
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
-      if (url.includes("/sites") && init?.method === "POST") {
+      // Presigned-URL flow: manifest reports nothing to upload, finalize returns the site.
+      if (url.includes("/manifest") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ needed: [], version: 1, session_id: "sess-1", base_version: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/finalize") && init?.method === "POST") {
         return new Response(
           JSON.stringify({ site: SAMPLE_SITE, url: "https://user1.upubli.sh/my-site/" }),
           { status: 200, headers: { "Content-Type": "application/json" } },
@@ -1241,7 +1262,14 @@ describe("DW-2.4: success response includes warning about suspicious files", () 
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
-      if (url.includes("/sites") && init?.method === "POST") {
+      // Presigned-URL flow: manifest reports nothing to upload, finalize returns the site.
+      if (url.includes("/manifest") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ needed: [], version: 1, session_id: "sess-1", base_version: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/finalize") && init?.method === "POST") {
         return new Response(
           JSON.stringify({ site: SAMPLE_SITE, url: "https://user1.upubli.sh/my-site/" }),
           { status: 200, headers: { "Content-Type": "application/json" } },
@@ -1294,7 +1322,14 @@ describe("DW-2.4: success response includes warning about suspicious files", () 
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
-      if (url.includes("/sites") && init?.method === "POST") {
+      // Presigned-URL flow: manifest reports nothing to upload, finalize returns the site.
+      if (url.includes("/manifest") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ needed: [], version: 1, session_id: "sess-1", base_version: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/finalize") && init?.method === "POST") {
         return new Response(
           JSON.stringify({ site: SAMPLE_SITE, url: "https://user1.upubli.sh/my-site/" }),
           { status: 200, headers: { "Content-Type": "application/json" } },

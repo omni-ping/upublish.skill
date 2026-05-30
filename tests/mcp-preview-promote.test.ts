@@ -122,18 +122,21 @@ describe("DW-3.4: MCP publish tool has preview parameter", () => {
     let sentPreviewField = false;
 
     const fetchFn = makeMockFetch(async (url, init) => {
-      if (url.includes("/sites") && init?.method === "POST") {
-        const form = init.body as FormData;
-        if (form?.get("preview") === "true") {
+      // Presigned-URL flow: the publish options (incl. preview) travel in the manifest body.
+      if (url.includes("/manifest") && init?.method === "POST") {
+        const body = JSON.parse(init.body as string) as { preview?: boolean };
+        if (body.preview === true) {
           sentPreviewField = true;
         }
         return new Response(
-          JSON.stringify({
-            site: SAMPLE_SITE,
-            url: LIVE_URL,
-            preview_url: PREVIEW_URL,
-          }),
-          { status: 201, headers: { "Content-Type": "application/json" } },
+          JSON.stringify({ needed: [], version: 1, session_id: "sess-1", base_version: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/finalize") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: LIVE_URL, preview_url: PREVIEW_URL }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
       return null as unknown as Response;
@@ -164,14 +167,16 @@ describe("DW-3.4: MCP publish tool has preview parameter", () => {
 describe("DW-3.5: MCP publish tool response uses preview URL", () => {
   test("test_DW_3_5_mcp_publish_response_shows_preview_url", async () => {
     const fetchFn = makeMockFetch(async (url, init) => {
-      if (url.includes("/sites") && init?.method === "POST") {
+      if (url.includes("/manifest") && init?.method === "POST") {
         return new Response(
-          JSON.stringify({
-            site: SAMPLE_SITE,
-            url: LIVE_URL,
-            preview_url: PREVIEW_URL,
-          }),
-          { status: 201, headers: { "Content-Type": "application/json" } },
+          JSON.stringify({ needed: [], version: 1, session_id: "sess-1", base_version: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/finalize") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: LIVE_URL, preview_url: PREVIEW_URL }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
       return null as unknown as Response;
@@ -201,10 +206,16 @@ describe("DW-3.5: MCP publish tool response uses preview URL", () => {
 
   test("test_DW_3_5_mcp_publish_response_shows_live_url_for_normal_publish", async () => {
     const fetchFn = makeMockFetch(async (url, init) => {
-      if (url.includes("/sites") && init?.method === "POST") {
+      if (url.includes("/manifest") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ needed: [], version: 1, session_id: "sess-1", base_version: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("/finalize") && init?.method === "POST") {
         return new Response(
           JSON.stringify({ site: SAMPLE_SITE, url: LIVE_URL }),
-          { status: 201, headers: { "Content-Type": "application/json" } },
+          { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
       return null as unknown as Response;

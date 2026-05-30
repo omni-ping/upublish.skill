@@ -20405,16 +20405,18 @@ function collectFilesWithHashes(dirPath) {
 var UPLOAD_CONCURRENCY = 5;
 var UPLOAD_MAX_RETRIES = 3;
 async function uploadChangedFiles(opts) {
-  const { needed, fileMap, fetchFn = fetch } = opts;
+  const { needed, fileMap, fetchFn = fetch, onProgress } = opts;
   if (needed.length === 0) {
     return;
   }
   const totalBatches = Math.ceil(needed.length / UPLOAD_CONCURRENCY);
+  onProgress?.({ completed: 0, total: needed.length });
   for (let batchStart = 0;batchStart < needed.length; batchStart += UPLOAD_CONCURRENCY) {
     const batchNum = Math.floor(batchStart / UPLOAD_CONCURRENCY) + 1;
     const batch = needed.slice(batchStart, batchStart + UPLOAD_CONCURRENCY);
     log(`[upload] batch=${batchNum}/${totalBatches} files=${batch.map((f) => f.path).join(",")}`);
     await Promise.all(batch.map((item) => uploadOneFile(item, fileMap, fetchFn)));
+    onProgress?.({ completed: batchStart + batch.length, total: needed.length });
   }
 }
 async function uploadOneFile(item, fileMap, fetchFn) {
@@ -20450,7 +20452,8 @@ async function publish(opts) {
     passcodeLabel,
     preview,
     force,
-    fetchFn = fetch
+    fetchFn = fetch,
+    onProgress
   } = opts;
   try {
     const stat = statSync(directory);
@@ -20492,7 +20495,8 @@ async function publish(opts) {
   await uploadChangedFiles({
     needed: manifestResult.needed,
     fileMap: collected.fileMap,
-    fetchFn
+    fetchFn,
+    onProgress
   });
   const neededPaths = new Set(manifestResult.needed.map((f) => f.path));
   const uploadedFiles = manifestResult.needed.map((f) => f.path);
@@ -20646,7 +20650,8 @@ async function publish2(args, deps) {
     passcodeLabel: args.passcodeLabel,
     preview: args.preview,
     force: args.force,
-    fetchFn: deps?.fetchFn
+    fetchFn: deps?.fetchFn,
+    onProgress: args.onProgress
   });
 }
 async function deleteOp(slug, namespaceName, deps) {
@@ -20773,7 +20778,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.9.5";
+var PACKAGE_VERSION = "0.9.6";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -20861,8 +20866,20 @@ function createServer(coreDeps) {
       preview: exports_external.boolean().optional().describe("When true, publishes as a staging preview instead of going live immediately. " + "The response includes a preview_url where the staging version can be reviewed. " + "Use the promote tool to promote the staging version to live."),
       force: exports_external.boolean().optional().describe("When true, uploads all files regardless of whether they changed. " + "Use this to force a full re-upload when the site is broken or out of sync.")
     }
-  }, async ({ directory, slug, title, visibility, passcode, namespace, preview, force }) => {
+  }, async ({ directory, slug, title, visibility, passcode, namespace, preview, force }, extra) => {
     log(`[publish] tool entry slug=${slug} dir=${directory}`);
+    const progressToken = extra?._meta?.progressToken;
+    const onProgress = progressToken !== undefined ? (p) => {
+      const notification = {
+        method: "notifications/progress",
+        params: {
+          progressToken,
+          progress: p.completed,
+          total: p.total
+        }
+      };
+      extra.sendNotification(notification).catch((err) => log(`[publish] progress notification failed: ${err.message}`));
+    } : undefined;
     try {
       const result = await publish2({
         directory,
@@ -20872,7 +20889,8 @@ function createServer(coreDeps) {
         passcode,
         namespace,
         preview,
-        force
+        force,
+        onProgress
       }, coreDeps);
       const site = result.site;
       const visibilityLine = visibility && visibility !== "public" ? `
