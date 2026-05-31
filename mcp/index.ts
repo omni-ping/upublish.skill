@@ -22,6 +22,8 @@ import {
   publish,
   promote,
   deleteOp,
+  listSiteVersions,
+  deleteSiteVersion,
   login,
   status,
   logout,
@@ -33,6 +35,7 @@ import {
 import type {
   CoreDeps,
   Site,
+  SiteVersion,
   CallbackServer,
   TokenResponse,
   GateSubmission,
@@ -41,7 +44,7 @@ import type {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.9.7";
+export const PACKAGE_VERSION = "0.9.8";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -50,6 +53,30 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Formats a single site version as a one-line entry with status + live marker. */
+function formatVersionEntry(version: SiteVersion): string {
+  const liveMarker = version.is_live ? " (LIVE)" : "";
+  return `v${version.version_number} — ${version.status}${liveMarker}`;
+}
+
+/**
+ * Formats the storage-usage object echoed by a version delete into a readable
+ * line. Renders used/limit as a "X of Y" byte figure when both are present,
+ * otherwise falls back to whatever numeric fields the API returned.
+ */
+function formatUsage(usage: Record<string, number | undefined>): string {
+  if (typeof usage.used_bytes === "number" && typeof usage.limit_bytes === "number") {
+    return `${formatBytes(usage.used_bytes)} of ${formatBytes(usage.limit_bytes)}`;
+  }
+  if (typeof usage.used_bytes === "number") {
+    return formatBytes(usage.used_bytes);
+  }
+  const parts = Object.entries(usage)
+    .filter(([, value]) => typeof value === "number")
+    .map(([key, value]) => `${key}=${value}`);
+  return parts.length > 0 ? parts.join(", ") : "(unavailable)";
 }
 
 /** Formats a single site as a human-readable block with labeled fields. */
@@ -409,6 +436,100 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
       try {
         const result = await deleteOp(slug as string, namespace as string | undefined, coreDeps);
         return okResponse(result.message);
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "versions_list",
+    {
+      title: "List Site Versions",
+      description:
+        "Lists all deploy versions of a published site on upubli.sh. " +
+        "Shows each version's number, status, and which one is currently live. " +
+        "Use `versions_delete` to remove an archived version and reclaim storage.",
+      inputSchema: {
+        slug: z
+          .string()
+          .describe(
+            "The URL-safe identifier of the site. " +
+            "Use the `list` tool to find available slugs.",
+          ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+          ),
+      },
+    },
+    async ({ slug, namespace }) => {
+      try {
+        const result = await listSiteVersions(
+          slug as string,
+          namespace as string | undefined,
+          coreDeps,
+        );
+
+        if (result.versions.length === 0) {
+          return okResponse(`No versions found for site '${slug as string}'.`);
+        }
+
+        const header = `Versions for '${slug as string}'`;
+        const lines = result.versions.map((version) => formatVersionEntry(version));
+        return okResponse(`${header}\n\n${lines.join("\n")}`);
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "versions_delete",
+    {
+      title: "Delete Site Version",
+      description:
+        "Deletes a single archived version of a published site on upubli.sh to " +
+        "reclaim storage. The currently live version cannot be deleted. " +
+        "Returns the space reclaimed and your updated storage usage.",
+      inputSchema: {
+        slug: z
+          .string()
+          .describe(
+            "The URL-safe identifier of the site. " +
+            "Use the `list` tool to find available slugs.",
+          ),
+        versionNumber: z
+          .number()
+          .int()
+          .positive()
+          .describe(
+            "The version number to delete (a positive integer). " +
+            "Use `versions_list` to see available version numbers.",
+          ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+          ),
+      },
+    },
+    async ({ slug, versionNumber, namespace }) => {
+      try {
+        const result = await deleteSiteVersion(
+          slug as string,
+          versionNumber as number,
+          namespace as string | undefined,
+          coreDeps,
+        );
+        return okResponse(
+          `Deleted version v${result.version_number} of '${slug as string}'.\n` +
+          `Reclaimed: ${formatBytes(result.freed_bytes)}\n` +
+          `Usage: ${formatUsage(result.usage)}`,
+        );
       } catch (err) {
         return errResponse(err);
       }
