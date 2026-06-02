@@ -24,16 +24,23 @@ import { log } from "./log.ts";
 /**
  * Upload progress snapshot reported during the upload phase.
  *
- * `completed` and `total` count files that need uploading (the manifest's
- * `needed` set), NOT the site's total file count. `total` is the correct
- * denominator for an upload progress bar; `completed` is cumulative and
- * monotonically increasing, reaching `total` on the final report.
+ * `completed`/`total` count files, and `completedBytes`/`totalBytes` count the
+ * raw bytes of those files — both scoped to the manifest's `needed` set (the
+ * files that actually require uploading), NOT the site's full file count or
+ * size. Byte counts are the better denominator for a progress bar when file
+ * sizes vary widely (one large asset dwarfs many small ones); file counts read
+ * better as text. Both `completed` and `completedBytes` are cumulative and
+ * monotonically increasing, reaching their totals on the final report.
  */
 export interface UploadProgress {
   /** Files uploaded so far (cumulative). Starts at 0, ends at `total`. */
   completed: number;
   /** Total files that need uploading (manifest `needed` count). */
   total: number;
+  /** Bytes uploaded so far (cumulative). Starts at 0, ends at `totalBytes`. */
+  completedBytes: number;
+  /** Total bytes that need uploading (sum of `needed`-file sizes). */
+  totalBytes: number;
 }
 
 export interface PublishOpts {
@@ -135,11 +142,13 @@ export interface UploadChangedFilesOpts {
    */
   fetchFn?: FetchFn;
   /**
-   * Optional synchronous progress callback. Fired once with
-   * `{completed:0, total:N}` before the first batch, then after each batch
-   * resolves with the cumulative completed count (final call equals
-   * `{completed:N, total:N}`). When `needed` is empty, the early-return path
-   * is taken and NO progress fires (not even the initial 0/N).
+   * Optional synchronous progress callback. Fired once with everything at zero
+   * before any upload starts, then once after EACH file finishes uploading with
+   * the cumulative file and byte counts (the final call equals the totals).
+   * Files within a batch upload concurrently, so a file's report fires in
+   * completion order, not `needed` order — but the cumulative counts stay
+   * monotonic regardless. When `needed` is empty, the early-return path is taken
+   * and NO progress fires (not even the initial zero report).
    */
   onProgress?: (progress: UploadProgress) => void;
 }
@@ -328,32 +337,43 @@ export async function uploadChangedFiles(
   const { needed, fileMap, fetchFn = fetch, onProgress } = opts;
 
   // Empty upload: early-return BEFORE any progress fires — no onProgress call
-  // is made for a no-op upload (not even the initial 0/N).
+  // is made for a no-op upload (not even the initial zero report).
   if (needed.length === 0) {
     return;
   }
 
-  const totalBatches = Math.ceil(needed.length / UPLOAD_CONCURRENCY);
+  const total = needed.length;
+  const totalBatches = Math.ceil(total / UPLOAD_CONCURRENCY);
+  const sizeOf = (path: string) => fileMap[path]?.byteLength ?? 0;
+  const totalBytes = needed.reduce((sum, item) => sum + sizeOf(item.path), 0);
 
-  // Report progress: zero completed out of the needed-file count.
-  onProgress?.({ completed: 0, total: needed.length });
+  // Cumulative counters advanced as each file lands. Mutated from within the
+  // concurrent batch below; safe because JS is single-threaded — the increment
+  // and the onProgress call run to completion before any other file's do.
+  let completed = 0;
+  let completedBytes = 0;
 
-  // Upload files in concurrent batches
+  // Report progress: nothing uploaded yet.
+  onProgress?.({ completed: 0, total, completedBytes: 0, totalBytes });
+
+  // Upload files in concurrent batches, reporting after each file resolves so
+  // the bar advances per-file rather than per-batch.
   for (
     let batchStart = 0;
-    batchStart < needed.length;
+    batchStart < total;
     batchStart += UPLOAD_CONCURRENCY
   ) {
     const batchNum = Math.floor(batchStart / UPLOAD_CONCURRENCY) + 1;
     const batch = needed.slice(batchStart, batchStart + UPLOAD_CONCURRENCY);
     log(`[upload] batch=${batchNum}/${totalBatches} files=${batch.map((f) => f.path).join(",")}`);
     await Promise.all(
-      batch.map((item) => uploadOneFile(item, fileMap, fetchFn)),
+      batch.map(async (item) => {
+        await uploadOneFile(item, fileMap, fetchFn);
+        completed += 1;
+        completedBytes += sizeOf(item.path);
+        onProgress?.({ completed, total, completedBytes, totalBytes });
+      }),
     );
-
-    // Report progress: cumulative completed = files uploaded through this batch.
-    // The final batch makes this equal needed.length.
-    onProgress?.({ completed: batchStart + batch.length, total: needed.length });
   }
 }
 

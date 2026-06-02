@@ -39,6 +39,7 @@ import type {
   CallbackServer,
   TokenResponse,
   GateSubmission,
+  UploadProgress,
 } from "../lib/core.ts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -280,13 +281,21 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
       const progressToken = extra?._meta?.progressToken;
       const onProgress =
         progressToken !== undefined
-          ? (p: { completed: number; total: number }) => {
+          ? (p: UploadProgress) => {
+              // Drive the percentage off bytes when we have them — file counts
+              // mislead when sizes vary (one big asset vs many tiny files).
+              // Fall back to file counts if every needed file is zero-length
+              // (totalBytes === 0 would make the bar divide by zero).
+              const useBytes = p.totalBytes > 0;
               const notification: ProgressNotification = {
                 method: "notifications/progress",
                 params: {
                   progressToken,
-                  progress: p.completed,
-                  total: p.total,
+                  progress: useBytes ? p.completedBytes : p.completed,
+                  total: useBytes ? p.totalBytes : p.total,
+                  // Human-readable detail; clients that render the optional
+                  // message field show it next to the bar, others ignore it.
+                  message: `${formatBytes(p.completedBytes)} / ${formatBytes(p.totalBytes)} (${p.completed}/${p.total} files)`,
                 },
               };
               // Best-effort: a dropped notification (e.g. client gone, transport

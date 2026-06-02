@@ -866,9 +866,11 @@ describe("DW-1.1/1.4: uploadChangedFiles fires onProgress", () => {
 
   const okFetch = async () => new Response("", { status: 200 });
 
-  it("test_DW_1_1_fires_initial_then_per_batch_cumulative", async () => {
-    // 6 needed files at concurrency 5 => 2 batches.
-    // Expect: initial {0,6}, after batch 1 {5,6}, after batch 2 {6,6}.
+  it("test_DW_1_1_fires_initial_then_per_file_cumulative", async () => {
+    // 6 needed files, each 4 bytes (`<h0>`..`<h5>`) => totalBytes 24.
+    // Expect an initial all-zero report, then one report per file as it lands:
+    // completed 1..6 and completedBytes 4,8,..,24 (files are equal-sized, so
+    // the byte sequence is deterministic regardless of completion order).
     const { fileMap, needed } = makeUpload(6);
     const events: UploadProgress[] = [];
 
@@ -879,13 +881,26 @@ describe("DW-1.1/1.4: uploadChangedFiles fires onProgress", () => {
       onProgress: (p) => events.push({ ...p }),
     });
 
-    expect(events).toEqual([
-      { completed: 0, total: 6 },
-      { completed: 5, total: 6 },
-      { completed: 6, total: 6 },
-    ]);
-    // Final call always equals {N,N}.
-    expect(events[events.length - 1]).toEqual({ completed: 6, total: 6 });
+    // Initial report + one per file.
+    expect(events).toHaveLength(7);
+    expect(events[0]).toEqual({
+      completed: 0,
+      total: 6,
+      completedBytes: 0,
+      totalBytes: 24,
+    });
+    // completed climbs 0..6 by ones; bytes climb 0..24 in lockstep (4/file).
+    expect(events.map((e) => e.completed)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(events.map((e) => e.completedBytes)).toEqual([0, 4, 8, 12, 16, 20, 24]);
+    // total and totalBytes never change across the run.
+    expect(events.every((e) => e.total === 6 && e.totalBytes === 24)).toBe(true);
+    // Final call always reaches the totals.
+    expect(events[events.length - 1]).toEqual({
+      completed: 6,
+      total: 6,
+      completedBytes: 24,
+      totalBytes: 24,
+    });
   });
 
   it("test_DW_1_1_empty_needed_fires_no_progress", async () => {
@@ -961,11 +976,22 @@ describe("DW-1.2: onProgress is optional and threaded through publish()", () => 
       onProgress: (p) => events.push({ ...p }),
     });
 
-    // 2 needed files, single batch => initial {0,2} then {2,2}.
-    expect(events).toEqual([
-      { completed: 0, total: 2 },
-      { completed: 2, total: 2 },
-    ]);
+    // 2 needed files => initial zero report, then one per file as it lands.
+    // index.html ("<h1>Hello</h1>") = 14 bytes, style.css ("body {}") = 7 bytes
+    // => totalBytes 21.
+    expect(events).toHaveLength(3);
+    expect(events[0]).toEqual({
+      completed: 0,
+      total: 2,
+      completedBytes: 0,
+      totalBytes: 21,
+    });
+    expect(events[events.length - 1]).toEqual({
+      completed: 2,
+      total: 2,
+      completedBytes: 21,
+      totalBytes: 21,
+    });
   });
 
   it("test_DW_1_2_omitting_onProgress_still_publishes", async () => {
@@ -1013,8 +1039,15 @@ describe("DW-1.3: callback is generic and UploadProgress is exported from core",
     // Compile-time: the type imported from core.ts must be structurally usable.
     // (The `UploadProgressFromCore` import at the top fails to type-check if
     //  core.ts does not re-export it.)
-    const p: UploadProgressFromCore = { completed: 1, total: 2 };
+    const p: UploadProgressFromCore = {
+      completed: 1,
+      total: 2,
+      completedBytes: 40,
+      totalBytes: 100,
+    };
     expect(p.completed).toBe(1);
     expect(p.total).toBe(2);
+    expect(p.completedBytes).toBe(40);
+    expect(p.totalBytes).toBe(100);
   });
 });
