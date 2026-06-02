@@ -20409,14 +20409,23 @@ async function uploadChangedFiles(opts) {
   if (needed.length === 0) {
     return;
   }
-  const totalBatches = Math.ceil(needed.length / UPLOAD_CONCURRENCY);
-  onProgress?.({ completed: 0, total: needed.length });
-  for (let batchStart = 0;batchStart < needed.length; batchStart += UPLOAD_CONCURRENCY) {
+  const total = needed.length;
+  const totalBatches = Math.ceil(total / UPLOAD_CONCURRENCY);
+  const sizeOf = (path3) => fileMap[path3]?.byteLength ?? 0;
+  const totalBytes = needed.reduce((sum, item) => sum + sizeOf(item.path), 0);
+  let completed = 0;
+  let completedBytes = 0;
+  onProgress?.({ completed: 0, total, completedBytes: 0, totalBytes });
+  for (let batchStart = 0;batchStart < total; batchStart += UPLOAD_CONCURRENCY) {
     const batchNum = Math.floor(batchStart / UPLOAD_CONCURRENCY) + 1;
     const batch = needed.slice(batchStart, batchStart + UPLOAD_CONCURRENCY);
     log(`[upload] batch=${batchNum}/${totalBatches} files=${batch.map((f) => f.path).join(",")}`);
-    await Promise.all(batch.map((item) => uploadOneFile(item, fileMap, fetchFn)));
-    onProgress?.({ completed: batchStart + batch.length, total: needed.length });
+    await Promise.all(batch.map(async (item) => {
+      await uploadOneFile(item, fileMap, fetchFn);
+      completed += 1;
+      completedBytes += sizeOf(item.path);
+      onProgress?.({ completed, total, completedBytes, totalBytes });
+    }));
   }
 }
 async function uploadOneFile(item, fileMap, fetchFn) {
@@ -20917,12 +20926,14 @@ function createServer(coreDeps) {
     log(`[publish] tool entry slug=${slug} dir=${directory}`);
     const progressToken = extra?._meta?.progressToken;
     const onProgress = progressToken !== undefined ? (p) => {
+      const useBytes = p.totalBytes > 0;
       const notification = {
         method: "notifications/progress",
         params: {
           progressToken,
-          progress: p.completed,
-          total: p.total
+          progress: useBytes ? p.completedBytes : p.completed,
+          total: useBytes ? p.totalBytes : p.total,
+          message: `${formatBytes(p.completedBytes)} / ${formatBytes(p.totalBytes)} (${p.completed}/${p.total} files)`
         }
       };
       extra.sendNotification(notification).catch((err) => log(`[publish] progress notification failed: ${err.message}`));

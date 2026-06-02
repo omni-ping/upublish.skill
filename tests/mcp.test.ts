@@ -411,6 +411,138 @@ describe("tool output format", () => {
 
 });
 
+// ─── publish progress notifications (byte-based + message) ───────────────────
+
+describe("publish emits byte-based progress notifications", () => {
+  const PUBLISHED_URL = "https://user1.upubli.sh/my-site/";
+
+  const json = (body: unknown) =>
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  // Full presigned flow: auth, space, ns, manifest (every needed file gets a
+  // presigned URL), R2 PUTs, finalize. `neededPaths` is the manifest's needed set.
+  function publishFetch(neededPaths: string[]) {
+    return async (url: string, init?: RequestInit): Promise<Response> => {
+      if (url.includes("/auth/token/refresh")) {
+        return json({ access_token: "token", expires_in: 3600 });
+      }
+      if (url.endsWith("/api/space")) {
+        return json({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } });
+      }
+      if (/\/api\/ns$/.test(url)) {
+        return json({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "x.upubli.sh" }] });
+      }
+      if (url.includes("/manifest") && init?.method === "POST") {
+        return json({
+          needed: neededPaths.map((p) => ({ path: p, upload_url: `https://r2.example.com/${p}` })),
+          version: 1,
+          session_id: "sess-1",
+          base_version: null,
+        });
+      }
+      if (url.includes("r2.example.com") && init?.method === "PUT") {
+        return new Response("", { status: 200 });
+      }
+      if (url.includes("/finalize") && init?.method === "POST") {
+        return json({ site: SAMPLE_SITE, url: PUBLISHED_URL });
+      }
+      return new Response("{}", { status: 200 });
+    };
+  }
+
+  // A captured notifications/progress payload.
+  type ProgressNote = {
+    method: string;
+    params: { progressToken: unknown; progress: number; total: number; message?: string };
+  };
+  // The real handler takes a second `extra` arg (progressToken + sendNotification)
+  // that the RegisteredTool harness type doesn't model — cast to invoke it.
+  type ProgressExtra = {
+    _meta: { progressToken: string };
+    sendNotification: (n: ProgressNote) => Promise<void>;
+  };
+
+  // Runs publish with a progressToken and returns every captured notification.
+  async function runPublishCapturingProgress(files: Record<string, string>, needed: string[]) {
+    const { deps } = makeDeps(publishFetch(needed));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-progress-"));
+    for (const [name, contents] of Object.entries(files)) {
+      fs.writeFileSync(path.join(tmpDir, name), contents);
+    }
+    const notes: ProgressNote[] = [];
+    const extra: ProgressExtra = {
+      _meta: { progressToken: "tok-1" },
+      sendNotification: (n) => {
+        notes.push(n);
+        return Promise.resolve();
+      },
+    };
+    try {
+      const tools = getTools(createServer(deps));
+      const handler = tools["publish"].handler as unknown as (
+        args: Record<string, unknown>,
+        extra: ProgressExtra,
+      ) => Promise<ToolResult>;
+      const result = await handler({ directory: tmpDir, slug: "my-site" }, extra);
+      return { result, notes };
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.unlinkSync(deps.credentialsPath!);
+    }
+  }
+
+  test("test_progress_uses_bytes_for_progress_total_and_message", async () => {
+    // index.html = 14 bytes, style.css = 7 bytes => totalBytes 21.
+    const { result, notes } = await runPublishCapturingProgress(
+      { "index.html": "<h1>Hello</h1>", "style.css": "body {}" },
+      ["index.html", "style.css"],
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(notes.length).toBeGreaterThanOrEqual(2);
+    // Every note is a well-formed progress notification carrying our token.
+    for (const n of notes) {
+      expect(n.method).toBe("notifications/progress");
+      expect(n.params.progressToken).toBe("tok-1");
+    }
+
+    // First report: nothing uploaded, denominator is BYTES (21), not file count (2).
+    expect(notes[0].params).toMatchObject({ progress: 0, total: 21 });
+    expect(notes[0].params.message).toBe("0 B / 21 B (0/2 files)");
+
+    // Final report: reaches the byte total, message shows MB-style detail + counts.
+    const last = notes[notes.length - 1];
+    expect(last.params).toMatchObject({ progress: 21, total: 21 });
+    expect(last.params.message).toBe("21 B / 21 B (2/2 files)");
+  });
+
+  test("test_progress_falls_back_to_file_counts_when_total_bytes_zero", async () => {
+    // Two empty files => totalBytes 0. The byte-based bar would divide by zero,
+    // so the adapter must fall back to file counts for progress/total.
+    const { result, notes } = await runPublishCapturingProgress(
+      { "a.html": "", "b.html": "" },
+      ["a.html", "b.html"],
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(notes.length).toBeGreaterThanOrEqual(2);
+
+    const last = notes[notes.length - 1];
+    // Fallback engaged: denominator is the file count (2), progress reaches 2.
+    expect(last.params).toMatchObject({ progress: 2, total: 2 });
+    // No divide-by-zero leaking through as NaN/Infinity.
+    expect(Number.isFinite(last.params.progress)).toBe(true);
+    expect(Number.isFinite(last.params.total)).toBe(true);
+    // Message still reports the (zero) byte totals honestly.
+    expect(last.params.message).toBe("0 B / 0 B (2/2 files)");
+    // Every report used file counts, never bytes.
+    expect(notes.every((n) => n.params.total === 2)).toBe(true);
+  });
+});
+
 // ─── DW-2.3: stale-state bug fixed ───────────────────────────────────────────
 
 describe("DW-2.3: stale-state bug fixed — tools read credentials fresh per call", () => {
