@@ -8,11 +8,16 @@
 /** Site visibility mode. */
 export type Visibility = "public" | "passcode";
 
+/** Per-namespace role granted to the authenticated caller. */
+export type NamespaceRole = "owner" | "admin" | "user";
+
 /** A namespace within a user's space. */
 export interface Namespace {
   id: string;
   name: string;
   domain: string;
+  /** The caller's role in this namespace. Absent for pre-role API responses. */
+  role?: NamespaceRole;
 }
 
 /** A published site on upubli.sh. */
