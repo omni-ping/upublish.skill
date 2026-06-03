@@ -46,7 +46,7 @@ import type {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.10.0";
+export const PACKAGE_VERSION = "0.10.1";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
