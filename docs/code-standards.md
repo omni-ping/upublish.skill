@@ -1,5 +1,5 @@
-<!-- base-commit: 1192310dd5df1fe086da207642bfbcbef60cd1d2 -->
-<!-- generated: 2026-05-29 -->
+<!-- base-commit: 18626314847dd0bb62faf7e4e482808a366b2bbe -->
+<!-- generated: 2026-06-03 -->
 
 # Code Standards
 
