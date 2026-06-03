@@ -72,6 +72,19 @@ import type {
   GetSubmissionsResult,
   ClearSubmissionsResult,
 } from "./gate.ts";
+import {
+  listMembers as domainListMembers,
+  addMember as domainAddMember,
+  removeMember as domainRemoveMember,
+  changeMemberRole as domainChangeMemberRole,
+} from "./members.ts";
+import type {
+  Member,
+  ListMembersResult,
+  AddMemberResult,
+  RemoveMemberResult,
+  ChangeMemberRoleResult,
+} from "./members.ts";
 import { resolveNamespace } from "./namespace.ts";
 import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission } from "./types.ts";
 
@@ -86,7 +99,9 @@ export type { PromoteResult };
 export type { ListVersionsResult, DeleteVersionResult, SiteVersion };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
+export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, ChangeMemberRoleResult };
 export type { Namespace, Site, Visibility, GateConfig, GateSubmission };
+export type { NamespaceRole } from "./types.ts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -444,6 +459,69 @@ export async function gate(args: GateArgs, deps?: CoreDeps): Promise<GateResult>
     case "clear": {
       const result = await domainClearSubmissions(apiClient, ns.id, args.slug);
       return { action: "clear", ...result };
+    }
+  }
+}
+
+// ─── Members ──────────────────────────────────────────────────────────────────
+
+/**
+ * Discriminated union of arguments for the members() dispatch function.
+ * The `action` field determines which domain operation is invoked.
+ */
+export type MembersArgs =
+  | { action: "list"; namespace?: string }
+  | { action: "add"; username: string; role: "admin" | "user"; namespace?: string }
+  | { action: "remove"; username: string; namespace?: string }
+  | { action: "role"; username: string; role: "admin" | "user"; namespace?: string };
+
+/**
+ * Discriminated union of results returned by members().
+ * The `action` field identifies which operation produced this result.
+ */
+export type MembersResult =
+  | ({ action: "list" } & ListMembersResult)
+  | ({ action: "add" } & AddMemberResult)
+  | ({ action: "remove" } & RemoveMemberResult)
+  | ({ action: "role" } & ChangeMemberRoleResult);
+
+/**
+ * Single dispatch function for all member management operations.
+ * Dispatches to the appropriate domain function based on the `action` field.
+ *
+ * The `namespace` field controls which namespace is targeted. When omitted,
+ * the default namespace is resolved from GET /api/space.
+ *
+ * For `remove` and `role` actions, the username is resolved to a user_id
+ * internally by the domain function — callers always think in usernames.
+ *
+ * @param args - Discriminated union of member arguments.
+ * @param deps - Optional CoreDeps for test injection.
+ * @returns Discriminated result carrying the action field for easy narrowing.
+ * @throws Error if not authenticated.
+ * @throws Error on API failure (propagated from ApiClient).
+ * @throws Error if a username cannot be resolved for remove/role actions.
+ */
+export async function members(args: MembersArgs, deps?: CoreDeps): Promise<MembersResult> {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, args.namespace);
+
+  switch (args.action) {
+    case "list": {
+      const result = await domainListMembers(apiClient, ns.id);
+      return { action: "list", ...result };
+    }
+    case "add": {
+      const result = await domainAddMember(apiClient, ns.id, args.username, args.role);
+      return { action: "add", ...result };
+    }
+    case "remove": {
+      const result = await domainRemoveMember(apiClient, ns.id, args.username);
+      return { action: "remove", ...result };
+    }
+    case "role": {
+      const result = await domainChangeMemberRole(apiClient, ns.id, args.username, args.role);
+      return { action: "role", ...result };
     }
   }
 }
