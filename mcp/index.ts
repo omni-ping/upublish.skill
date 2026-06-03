@@ -32,6 +32,7 @@ import {
   revokePasscode,
   gate,
   members,
+  qrCode,
 } from "../lib/core.ts";
 import type {
   CoreDeps,
@@ -47,7 +48,7 @@ import type {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.9.10";
+export const PACKAGE_VERSION = "0.10.1";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -964,6 +965,60 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
         return okResponse(
           `Preview promoted to live!\n` +
           `URL: ${result.url}`,
+        );
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "qrcode",
+    {
+      title: "QR Code",
+      description:
+        "Generates a QR code for a published site on upubli.sh. " +
+        "Displays a scannable unicode QR in the agent output and writes " +
+        "qr.svg and qr.png files to the specified directory (defaults to cwd). " +
+        "The QR encodes the site's canonical URL + ?ref=qr for analytics tracking. " +
+        "Regenerating overwrites prior output — the QR is deterministic.",
+      inputSchema: {
+        slug: z
+          .string()
+          .describe(
+            "The URL-safe identifier of the site to generate a QR code for. " +
+            "Use the list tool to find available slugs.",
+          ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+          ),
+        outputDir: z
+          .string()
+          .optional()
+          .describe(
+            "Directory to write qr.svg and qr.png into. " +
+            "Defaults to the current working directory.",
+          ),
+      },
+    },
+    async ({ slug, namespace, outputDir }) => {
+      try {
+        const result = await qrCode(
+          {
+            slug: slug as string,
+            namespace: namespace as string | undefined,
+            outputDir: outputDir as string | undefined,
+          },
+          coreDeps,
+        );
+        return okResponse(
+          `QR code for: ${result.siteUrl}\n\n` +
+          `${result.unicodeQr}\n` +
+          `SVG: ${result.svgPath}\n` +
+          `PNG: ${result.pngPath}`,
         );
       } catch (err) {
         return errResponse(err);

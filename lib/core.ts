@@ -85,6 +85,8 @@ import type {
   RemoveMemberResult,
   ChangeMemberRoleResult,
 } from "./members.ts";
+import { qrCode as domainQrCode } from "./qrcode.ts";
+import type { QrCodeArgs, QrCodeResult } from "./qrcode.ts";
 import { resolveNamespace } from "./namespace.ts";
 import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission } from "./types.ts";
 
@@ -100,6 +102,7 @@ export type { ListVersionsResult, DeleteVersionResult, SiteVersion };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
 export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, ChangeMemberRoleResult };
+export type { QrCodeArgs, QrCodeResult };
 export type { Namespace, Site, Visibility, GateConfig, GateSubmission };
 export type { NamespaceRole } from "./types.ts";
 
@@ -524,6 +527,31 @@ export async function members(args: MembersArgs, deps?: CoreDeps): Promise<Membe
       return { action: "role", ...result };
     }
   }
+}
+
+/**
+ * Generates a QR code for a published site, encoding the canonical URL + ?ref=qr
+ * per the QR contract. Writes qr.svg and qr.png to the output dir (default cwd)
+ * and returns the encoded URL and a unicode terminal QR string.
+ *
+ * @param args - Slug, optional namespace, optional output dir.
+ * @param deps - Optional CoreDeps for test injection.
+ * @throws Error if not authenticated.
+ * @throws Error if the slug is not found in the namespace.
+ * @throws Error if the site has no canonical URL.
+ */
+export async function qrCode(args: QrCodeArgs, deps?: CoreDeps): Promise<QrCodeResult> {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, args.namespace);
+  return domainQrCode(
+    { slug: args.slug, namespace: args.namespace, outputDir: args.outputDir },
+    {
+      listFn: async () => {
+        const result = await listSites(apiClient, ns.id);
+        return { ...result, namespace: ns };
+      },
+    },
+  );
 }
 
 /**

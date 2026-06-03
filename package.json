@@ -1,6 +1,6 @@
 {
   "name": "@omniping/upublish",
-  "version": "0.9.10",
+  "version": "0.10.1",
   "private": false,
   "type": "module",
   "scripts": {
@@ -29,9 +29,11 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "open": "^10.1.0",
+    "qrcode": "^1.5.4",
     "zod": "^3.24.4"
   },
   "devDependencies": {
-    "@types/bun": "^1.2.14"
+    "@types/bun": "^1.2.14",
+    "@types/qrcode": "^1.5.6"
   }
 }
