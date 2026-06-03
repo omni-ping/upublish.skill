@@ -50,11 +50,12 @@ export const PACKAGE_VERSION = "0.10.0";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
-/** Formats bytes into a human-readable string. */
+/** Formats bytes into a human-readable string (B / KB / MB / GB). */
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 /** Formats a single site version as a one-line entry with status + live marker. */
@@ -191,6 +192,30 @@ async function createCallbackServer(): Promise<CallbackServer> {
 // ─── Server factory ───────────────────────────────────────────────────────────
 
 /**
+ * Heartbeat interval for MCP progress notifications during long uploads.
+ *
+ * When no file completes within this window, a "still uploading…" notification
+ * is re-sent so MCP clients with idle-timeout logic stay active. 15 s keeps
+ * activity visible well within any 60 s idle cutoff.
+ *
+ * Whether the SDK resets request timeouts on progress depends on the calling
+ * client passing `resetTimeoutOnProgress: true` — that is opt-in and not
+ * guaranteed. The heartbeat also serves as a transport-level keepalive (data
+ * written to stdout) regardless of SDK timeout semantics.
+ */
+const DEFAULT_HEARTBEAT_INTERVAL_MS = 15_000;
+
+/** Options accepted by createServer() beyond the CoreDeps bag. */
+export interface CreateServerOpts {
+  /**
+   * Heartbeat interval for MCP progress notifications during long uploads.
+   * Defaults to DEFAULT_HEARTBEAT_INTERVAL_MS (15 s). Tests inject a shorter
+   * value (e.g. 50 ms) to verify heartbeat behavior without real delays.
+   */
+  heartbeatIntervalMs?: number;
+}
+
+/**
  * Creates and configures the MCP server with all tools registered.
  *
  * Each tool handler calls the corresponding core function with the provided
@@ -198,9 +223,11 @@ async function createCallbackServer(): Promise<CallbackServer> {
  * startup credential read and no stale-state.
  *
  * @param coreDeps - Optional overrides for credentials path and fetch (for tests)
+ * @param opts     - Optional server-level configuration (heartbeat interval, etc.)
  * @returns Configured McpServer instance ready to connect to a transport
  */
-export function createServer(coreDeps?: CoreDeps): McpServer {
+export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpServer {
+  const heartbeatIntervalMs = opts?.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
   const server = new McpServer({
     name: PACKAGE_NAME,
     version: PACKAGE_VERSION,
@@ -280,34 +307,70 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
       // When absent (or extra is omitted, e.g. in tests), onProgress stays
       // undefined so publish behaves exactly as before.
       const progressToken = extra?._meta?.progressToken;
+
+      // Heartbeat state: tracks the last seen progress snapshot so the interval
+      // can re-emit it with a "still uploading" suffix. Both are null before any
+      // progress fires (i.e., before uploads begin).
+      let lastProgress: UploadProgress | null = null;
+      let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+      /** Sends a single best-effort MCP progress notification. Never throws. */
+      function sendProgress(p: UploadProgress, message: string): void {
+        const useBytes = p.totalBytes > 0;
+        const notification: ProgressNotification = {
+          method: "notifications/progress",
+          params: {
+            progressToken: progressToken as string | number,
+            progress: useBytes ? p.completedBytes : p.completed,
+            total: useBytes ? p.totalBytes : p.total,
+            // Human-readable detail; clients that render the optional
+            // message field show it next to the bar, others ignore it.
+            message,
+          },
+        };
+        // Best-effort: a dropped notification (e.g. client gone, transport
+        // closed) must never break the publish, so swallow the rejection.
+        extra
+          .sendNotification(notification)
+          .catch((err: unknown) =>
+            log(`[publish] progress notification failed: ${(err as Error).message}`),
+          );
+      }
+
       const onProgress =
         progressToken !== undefined
           ? (p: UploadProgress) => {
+              lastProgress = p;
               // Drive the percentage off bytes when we have them — file counts
               // mislead when sizes vary (one big asset vs many tiny files).
               // Fall back to file counts if every needed file is zero-length
               // (totalBytes === 0 would make the bar divide by zero).
-              const useBytes = p.totalBytes > 0;
-              const notification: ProgressNotification = {
-                method: "notifications/progress",
-                params: {
-                  progressToken,
-                  progress: useBytes ? p.completedBytes : p.completed,
-                  total: useBytes ? p.totalBytes : p.total,
-                  // Human-readable detail; clients that render the optional
-                  // message field show it next to the bar, others ignore it.
-                  message: `${formatBytes(p.completedBytes)} / ${formatBytes(p.totalBytes)} (${p.completed}/${p.total} files)`,
-                },
-              };
-              // Best-effort: a dropped notification (e.g. client gone, transport
-              // closed) must never break the publish, so swallow the rejection.
-              extra
-                .sendNotification(notification)
-                .catch((err: unknown) =>
-                  log(`[publish] progress notification failed: ${(err as Error).message}`),
-                );
+              const msg = `${formatBytes(p.completedBytes)} / ${formatBytes(p.totalBytes)} (${p.completed}/${p.total} files)`;
+              sendProgress(p, msg);
+
+              // Start heartbeat on first progress event (uploads have begun).
+              // If no file completes within heartbeatIntervalMs, re-emit the last
+              // progress snapshot so clients with idle-timeout logic stay active.
+              if (heartbeatTimer === null) {
+                heartbeatTimer = setInterval(() => {
+                  if (lastProgress !== null) {
+                    const hbMsg =
+                      `${formatBytes(lastProgress.completedBytes)} / ${formatBytes(lastProgress.totalBytes)} ` +
+                      `(${lastProgress.completed}/${lastProgress.total} files) — still uploading…`;
+                    sendProgress(lastProgress, hbMsg);
+                  }
+                }, heartbeatIntervalMs);
+              }
             }
           : undefined;
+
+      /** Stops the heartbeat timer. Safe to call multiple times. */
+      function stopHeartbeat(): void {
+        if (heartbeatTimer !== null) {
+          clearInterval(heartbeatTimer);
+          heartbeatTimer = null;
+        }
+      }
 
       try {
         const result = await publish(
@@ -324,6 +387,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
           },
           coreDeps,
         );
+        stopHeartbeat();
 
         const site = result.site;
         const visibilityLine =
@@ -377,6 +441,7 @@ export function createServer(coreDeps?: CoreDeps): McpServer {
           incrementalLine,
         );
       } catch (err) {
+        stopHeartbeat();
         log(`[publish] tool error slug=${slug as string} err=${(err as Error).message}`);
         return errResponse(err);
       }

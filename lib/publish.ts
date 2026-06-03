@@ -318,6 +318,12 @@ export function collectFilesWithHashes(dirPath: string): CollectWithHashesResult
 const UPLOAD_CONCURRENCY = 5;
 // Maximum retry attempts per file upload before failing.
 const UPLOAD_MAX_RETRIES = 3;
+/**
+ * Upload window duration in hours — must match the backend UPLOAD_WINDOW_SECONDS
+ * constant in packages/server/src/api/manifest-diff.ts (6 h).
+ * Used in the expired-URL error message so users know how to recover.
+ */
+const UPLOAD_WINDOW_HOURS = 6;
 
 /**
  * Uploads files to presigned R2 PUT URLs in parallel batches with retry.
@@ -378,8 +384,18 @@ export async function uploadChangedFiles(
 }
 
 /**
- * Uploads a single file to its presigned URL, retrying on failure.
+ * Uploads a single file to its presigned URL, retrying on transient failures.
  *
+ * HTTP 403 is treated as non-retryable: it means the presigned URL has expired
+ * or is otherwise invalid. Retrying the same dead URL wastes bandwidth (up to
+ * UPLOAD_MAX_RETRIES × file size) and always fails. The caller must start a
+ * new publish to obtain fresh presigned URLs.
+ *
+ * All other non-2xx responses (5xx, network errors, etc.) are retried up to
+ * UPLOAD_MAX_RETRIES times — they indicate transient server or network issues
+ * that may resolve on the next attempt.
+ *
+ * @throws Error immediately on HTTP 403 with an actionable message.
  * @throws Error with the file path after UPLOAD_MAX_RETRIES failed attempts.
  */
 async function uploadOneFile(
@@ -390,12 +406,24 @@ async function uploadOneFile(
   const bytes = fileMap[item.path];
 
   for (let attempt = 1; attempt <= UPLOAD_MAX_RETRIES; attempt++) {
-    const response = await fetchFn(item.upload_url, {
-      method: "PUT",
-      // Cast required: tsc's Uint8Array<ArrayBufferLike> doesn't satisfy
-      // BodyInit's ArrayBufferView<ArrayBuffer> — works at runtime in Bun/browsers
-      body: bytes as unknown as BodyInit,
-    });
+    let response: Response;
+    try {
+      response = await fetchFn(item.upload_url, {
+        method: "PUT",
+        // Cast required: tsc's Uint8Array<ArrayBufferLike> doesn't satisfy
+        // BodyInit's ArrayBufferView<ArrayBuffer> — works at runtime in Bun/browsers
+        body: bytes as unknown as BodyInit,
+      });
+    } catch (networkErr) {
+      // Network-level failure (DNS, timeout, connection reset). Retry — may be transient.
+      log(`[upload] file=${item.path} attempt=${attempt} network_error=${(networkErr as Error).message}`);
+      if (attempt === UPLOAD_MAX_RETRIES) {
+        throw new Error(
+          `Failed to upload '${item.path}' after ${UPLOAD_MAX_RETRIES} attempts: ${(networkErr as Error).message}`,
+        );
+      }
+      continue;
+    }
 
     if (response.ok) {
       log(`[upload] file=${item.path} attempt=${attempt} status=${response.status} ok`);
@@ -410,13 +438,22 @@ async function uploadOneFile(
     }
     log(`[upload] file=${item.path} attempt=${attempt} status=${response.status} body=${responseBody}`);
 
+    // 403 = expired or invalid presigned URL. Retrying the same URL never helps —
+    // fail fast with an actionable message so the user knows to re-publish.
+    if (response.status === 403) {
+      throw new Error(
+        `Failed to upload '${item.path}': presigned URL expired or invalid (HTTP 403). ` +
+        `The upload window is ${UPLOAD_WINDOW_HOURS} hours — start a new publish to get fresh URLs.`,
+      );
+    }
+
     // On the last attempt, throw so the caller knows this file failed
     if (attempt === UPLOAD_MAX_RETRIES) {
       throw new Error(
         `Failed to upload '${item.path}' after ${UPLOAD_MAX_RETRIES} attempts (HTTP ${response.status})`,
       );
     }
-    // Otherwise retry — presigned PUT is idempotent
+    // Otherwise retry — presigned PUT is idempotent for transient failures
   }
 }
 

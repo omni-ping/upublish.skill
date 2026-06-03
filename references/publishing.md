@@ -16,8 +16,8 @@ Use the `mcp_upublish_publish` tool:
 
 ## What happens
 
-1. All files in the directory are zipped and uploaded
-2. Files are extracted to R2 storage at `{username}/{slug}/`
+1. Files are hashed locally; only changed files are uploaded (incremental publish)
+2. Changed files are uploaded directly to R2 storage at `{username}/{slug}/`
 3. Site metadata is pushed to Cloudflare KV for edge access control
 4. The site is live within seconds at `https://{username}.upubli.sh/{slug}/`
 
@@ -44,18 +44,19 @@ Publishing to an existing slug **replaces the entire site**. All previous files 
 
 ## Size limits
 
-| Limit | Value | What happens |
-|-------|-------|-------------|
-| Single file | 25 MB | Files over this may fail to upload or cause timeouts |
-| Total archive | No hard limit documented | Practically, keep under 100 MB for reliable uploads |
-| Slug length | 3-63 characters | Rejected at API level |
+| Limit | Free tier | Paid tier | What happens |
+|-------|-----------|-----------|-------------|
+| Single file | 10 MB | 1 GB | Files over the plan limit are rejected by the server |
+| Slug length | 3-63 characters | 3-63 characters | Rejected at API level |
+
+Upload sessions are valid for 6 hours. If an upload takes longer (e.g. uploading a very large file on a slow connection), start a new publish to get fresh upload URLs.
 
 ### When the site is too big
 
 | Cause | Fix |
 |-------|-----|
 | Large images (hero, photos) | Compress — see `references/optimization.md` |
-| Video files | Host on YouTube/Vimeo and embed. Don't upload video to upublish. |
+| Video files | Host on YouTube/Vimeo and embed. Upload only if under your plan's single-file limit. |
 | `node_modules/` included | Publish the build output directory, not the source tree |
 | Source maps (`.map` files) | Remove them — they often double the JS size |
 | Full font families | Subset to Latin or switch to system fonts |

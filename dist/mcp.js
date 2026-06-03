@@ -24694,6 +24694,7 @@ function collectFilesWithHashes(dirPath) {
 }
 var UPLOAD_CONCURRENCY = 5;
 var UPLOAD_MAX_RETRIES = 3;
+var UPLOAD_WINDOW_HOURS = 6;
 async function uploadChangedFiles(opts) {
   const { needed, fileMap, fetchFn = fetch, onProgress } = opts;
   if (needed.length === 0) {
@@ -24721,10 +24722,19 @@ async function uploadChangedFiles(opts) {
 async function uploadOneFile(item, fileMap, fetchFn) {
   const bytes = fileMap[item.path];
   for (let attempt = 1;attempt <= UPLOAD_MAX_RETRIES; attempt++) {
-    const response = await fetchFn(item.upload_url, {
-      method: "PUT",
-      body: bytes
-    });
+    let response;
+    try {
+      response = await fetchFn(item.upload_url, {
+        method: "PUT",
+        body: bytes
+      });
+    } catch (networkErr) {
+      log(`[upload] file=${item.path} attempt=${attempt} network_error=${networkErr.message}`);
+      if (attempt === UPLOAD_MAX_RETRIES) {
+        throw new Error(`Failed to upload '${item.path}' after ${UPLOAD_MAX_RETRIES} attempts: ${networkErr.message}`);
+      }
+      continue;
+    }
     if (response.ok) {
       log(`[upload] file=${item.path} attempt=${attempt} status=${response.status} ok`);
       return;
@@ -24734,6 +24744,9 @@ async function uploadOneFile(item, fileMap, fetchFn) {
       responseBody = await response.text();
     } catch {}
     log(`[upload] file=${item.path} attempt=${attempt} status=${response.status} body=${responseBody}`);
+    if (response.status === 403) {
+      throw new Error(`Failed to upload '${item.path}': presigned URL expired or invalid (HTTP 403). ` + `The upload window is ${UPLOAD_WINDOW_HOURS} hours \u2014 start a new publish to get fresh URLs.`);
+    }
     if (attempt === UPLOAD_MAX_RETRIES) {
       throw new Error(`Failed to upload '${item.path}' after ${UPLOAD_MAX_RETRIES} attempts (HTTP ${response.status})`);
     }
@@ -25161,7 +25174,9 @@ function formatBytes(bytes) {
     return `${bytes} B`;
   if (bytes < 1024 * 1024)
     return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 function formatVersionEntry(version2) {
   const liveMarker = version2.is_live ? " (LIVE)" : "";
@@ -25239,7 +25254,9 @@ async function createCallbackServer() {
     close: async () => server.stop()
   };
 }
-function createServer(coreDeps) {
+var DEFAULT_HEARTBEAT_INTERVAL_MS = 15000;
+function createServer(coreDeps, opts) {
+  const heartbeatIntervalMs = opts?.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
   const server = new McpServer({
     name: PACKAGE_NAME,
     version: PACKAGE_VERSION
@@ -25260,7 +25277,9 @@ function createServer(coreDeps) {
   }, async ({ directory, slug, title, visibility, passcode, namespace, preview, force }, extra) => {
     log(`[publish] tool entry slug=${slug} dir=${directory}`);
     const progressToken = extra?._meta?.progressToken;
-    const onProgress = progressToken !== undefined ? (p) => {
+    let lastProgress = null;
+    let heartbeatTimer = null;
+    function sendProgress(p, message) {
       const useBytes = p.totalBytes > 0;
       const notification = {
         method: "notifications/progress",
@@ -25268,11 +25287,30 @@ function createServer(coreDeps) {
           progressToken,
           progress: useBytes ? p.completedBytes : p.completed,
           total: useBytes ? p.totalBytes : p.total,
-          message: `${formatBytes(p.completedBytes)} / ${formatBytes(p.totalBytes)} (${p.completed}/${p.total} files)`
+          message
         }
       };
       extra.sendNotification(notification).catch((err) => log(`[publish] progress notification failed: ${err.message}`));
+    }
+    const onProgress = progressToken !== undefined ? (p) => {
+      lastProgress = p;
+      const msg = `${formatBytes(p.completedBytes)} / ${formatBytes(p.totalBytes)} (${p.completed}/${p.total} files)`;
+      sendProgress(p, msg);
+      if (heartbeatTimer === null) {
+        heartbeatTimer = setInterval(() => {
+          if (lastProgress !== null) {
+            const hbMsg = `${formatBytes(lastProgress.completedBytes)} / ${formatBytes(lastProgress.totalBytes)} ` + `(${lastProgress.completed}/${lastProgress.total} files) \u2014 still uploading\u2026`;
+            sendProgress(lastProgress, hbMsg);
+          }
+        }, heartbeatIntervalMs);
+      }
     } : undefined;
+    function stopHeartbeat() {
+      if (heartbeatTimer !== null) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+    }
     try {
       const result = await publish2({
         directory,
@@ -25285,6 +25323,7 @@ function createServer(coreDeps) {
         force,
         onProgress
       }, coreDeps);
+      stopHeartbeat();
       const site = result.site;
       const visibilityLine = visibility && visibility !== "public" ? `
 Visibility: ${visibility}` : "";
@@ -25311,6 +25350,7 @@ Use the promote tool to make this preview live.`);
 ` + `Files: ${site.file_count}
 ` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + incrementalLine);
     } catch (err) {
+      stopHeartbeat();
       log(`[publish] tool error slug=${slug} err=${err.message}`);
       return errResponse(err);
     }

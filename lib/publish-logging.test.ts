@@ -301,11 +301,15 @@ describe("DW-1.4: uploadOneFile() logs attempt with HTTP status", () => {
   });
 
   it("test_DW_1_4_logs_response_body_on_non_ok_status", async () => {
+    // Use 500 (transient error) so the request retries and we can verify
+    // that both the status and response body are logged on non-ok responses.
+    // 403 is non-retryable (presigned URL expired) and tested separately in
+    // lib/upload-retry.test.ts (DW-5.1).
     let attempts = 0;
     const fetchFn = async () => {
       attempts++;
       if (attempts < 3) {
-        return new Response("Upload rejected by R2", { status: 403 });
+        return new Response("Internal Server Error", { status: 500 });
       }
       return new Response("", { status: 200 });
     };
@@ -316,10 +320,10 @@ describe("DW-1.4: uploadOneFile() logs attempt with HTTP status", () => {
     await uploadChangedFiles({ needed, fileMap, fetchFn });
 
     const failLines = logLines.filter(
-      (l) => l.startsWith("[upload]") && l.includes("file=index.html") && l.includes("status=403"),
+      (l) => l.startsWith("[upload]") && l.includes("file=index.html") && l.includes("status=500"),
     );
     expect(failLines.length).toBeGreaterThan(0);
-    expect(failLines[0]).toContain("body=Upload rejected by R2");
+    expect(failLines[0]).toContain("body=Internal Server Error");
   });
 });
 

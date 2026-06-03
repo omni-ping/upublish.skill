@@ -55,5 +55,5 @@ These apply to every content type. Run them after type-specific preparation.
 | Mixed content | `http://` resources on HTTPS page | Change to `https://` or `//` |
 | Case sensitivity | `Hero.jpg` referenced but file is `hero.jpg` | Match exactly |
 | `<base>` tag | `<base href="/">` breaks subdirectory hosting | Remove or set to `./` |
-| File size | Individual files over 25 MB | Compress or split |
+| File size | Individual files over 10 MB (free) or 1 GB (paid) | Compress or split; upgrade plan for larger files |
 | Server-side code | `.php`, `.py`, `.rb` expecting server execution | Not supported — static only |
