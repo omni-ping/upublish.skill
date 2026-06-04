@@ -24597,7 +24597,15 @@ async function listSites(apiClient, nsId) {
 
 // lib/publish.ts
 import { createHash } from "crypto";
-import { existsSync as existsSync2, readdirSync, readFileSync as readFileSync2, statSync } from "fs";
+import {
+  closeSync,
+  existsSync as existsSync2,
+  openSync,
+  readdirSync,
+  readFileSync as readFileSync2,
+  readSync,
+  statSync
+} from "fs";
 import { join as join3, relative } from "path";
 function isValidSlug(slug) {
   if (slug.length < 3 || slug.length > 63)
@@ -24657,6 +24665,23 @@ function matchesIgnore(relPath, name, patterns) {
   }
   return false;
 }
+var HASH_CHUNK_BYTES = 64 * 1024;
+function hashFileChunked(fullPath) {
+  const fd = openSync(fullPath, "r");
+  try {
+    const md5 = createHash("md5");
+    const buffer = Buffer.allocUnsafe(HASH_CHUNK_BYTES);
+    let size = 0;
+    let bytesRead;
+    while ((bytesRead = readSync(fd, buffer, 0, HASH_CHUNK_BYTES, null)) > 0) {
+      md5.update(buffer.subarray(0, bytesRead));
+      size += bytesRead;
+    }
+    return { hash: md5.digest("hex"), size };
+  } finally {
+    closeSync(fd);
+  }
+}
 function collectFiles(rootDir, currentDir, state, ignorePatterns) {
   const entries = readdirSync(currentDir, { withFileTypes: true });
   for (const entry of entries) {
@@ -24676,10 +24701,8 @@ function collectFiles(rootDir, currentDir, state, ignorePatterns) {
       if (isSuspicious(entry.name)) {
         state.warnings.push(relPath);
       }
-      const data = readFileSync2(fullPath);
-      const bytes = new Uint8Array(data);
-      state.fileMap[relPath] = bytes;
-      state.hashes[relPath] = createHash("md5").update(bytes).digest("hex");
+      const { hash, size } = hashFileChunked(fullPath);
+      state.files[relPath] = { hash, size, fullPath };
     }
   }
 }
@@ -24692,15 +24715,13 @@ function collectFilesWithHashes(dirPath) {
     }
   } catch {}
   const state = {
-    fileMap: {},
-    hashes: {},
+    files: {},
     excluded: [],
     warnings: []
   };
   collectFiles(dirPath, dirPath, state, ignorePatterns);
   return {
-    fileMap: state.fileMap,
-    hashes: state.hashes,
+    files: state.files,
     excluded: state.excluded,
     warnings: state.warnings
   };
@@ -24709,13 +24730,13 @@ var UPLOAD_CONCURRENCY = 5;
 var UPLOAD_MAX_RETRIES = 3;
 var UPLOAD_WINDOW_HOURS = 6;
 async function uploadChangedFiles(opts) {
-  const { needed, fileMap, fetchFn = fetch, onProgress } = opts;
+  const { needed, files, fetchFn = fetch, onProgress } = opts;
   if (needed.length === 0) {
     return;
   }
   const total = needed.length;
   const totalBatches = Math.ceil(total / UPLOAD_CONCURRENCY);
-  const sizeOf = (path3) => fileMap[path3]?.byteLength ?? 0;
+  const sizeOf = (path3) => files[path3]?.size ?? 0;
   const totalBytes = needed.reduce((sum, item) => sum + sizeOf(item.path), 0);
   let completed = 0;
   let completedBytes = 0;
@@ -24725,21 +24746,26 @@ async function uploadChangedFiles(opts) {
     const batch = needed.slice(batchStart, batchStart + UPLOAD_CONCURRENCY);
     log(`[upload] batch=${batchNum}/${totalBatches} files=${batch.map((f) => f.path).join(",")}`);
     await Promise.all(batch.map(async (item) => {
-      await uploadOneFile(item, fileMap, fetchFn);
+      await uploadOneFile(item, files, fetchFn);
       completed += 1;
       completedBytes += sizeOf(item.path);
       onProgress?.({ completed, total, completedBytes, totalBytes });
     }));
   }
 }
-async function uploadOneFile(item, fileMap, fetchFn) {
-  const bytes = fileMap[item.path];
+async function uploadOneFile(item, files, fetchFn) {
+  const fileInfo = files[item.path];
+  if (!fileInfo) {
+    throw new Error(`Cannot upload '${item.path}': path not found in files collection. ` + `This is a bug \u2014 the needed list and the files map are out of sync.`);
+  }
   for (let attempt = 1;attempt <= UPLOAD_MAX_RETRIES; attempt++) {
+    const body = Bun.file(fileInfo.fullPath).stream();
     let response;
     try {
       response = await fetchFn(item.upload_url, {
         method: "PUT",
-        body: bytes
+        body,
+        headers: { "Content-Length": String(fileInfo.size) }
       });
     } catch (networkErr) {
       log(`[upload] file=${item.path} attempt=${attempt} network_error=${networkErr.message}`);
@@ -24798,13 +24824,13 @@ async function publish(opts) {
     throw new Error("passcode is required when visibility is 'passcode'");
   }
   const collected = collectFilesWithHashes(directory);
-  if (Object.keys(collected.fileMap).length === 0) {
+  if (Object.keys(collected.files).length === 0) {
     throw new Error("Directory is empty \u2014 no files to publish");
   }
-  const files = Object.entries(collected.hashes).map(([path3, hash]) => ({
+  const files = Object.entries(collected.files).map(([path3, file]) => ({
     path: path3,
-    hash: force ? crypto.randomUUID() : hash,
-    size: collected.fileMap[path3].byteLength
+    hash: force ? crypto.randomUUID() : file.hash,
+    size: file.size
   }));
   const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
   log(`[publish] slug=${slug} files=${files.length} totalBytes=${totalBytes}${force ? " FORCE" : ""}`);
@@ -24819,7 +24845,7 @@ async function publish(opts) {
   log(`[manifest] version=${manifestResult.version} session_id=${manifestResult.session_id} base_version=${manifestResult.base_version} needed=${manifestResult.needed.length} total=${files.length}`);
   await uploadChangedFiles({
     needed: manifestResult.needed,
-    fileMap: collected.fileMap,
+    files: collected.files,
     fetchFn,
     onProgress
   });
@@ -24872,6 +24898,18 @@ async function deleteVersion(apiClient, nsId, slug, versionNumber) {
   const result = await apiClient.delete(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/versions/${encodeURIComponent(String(versionNumber))}`);
   return {
     version_number: result.version_number,
+    freed_bytes: result.freed_bytes,
+    usage: result.usage
+  };
+}
+async function setVersionsLimit(apiClient, nsId, slug, limit) {
+  if (!slug || slug.trim().length === 0) {
+    throw new Error("slug is required");
+  }
+  const result = await apiClient.put(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/versions/limit`, { limit });
+  return {
+    site: result.site,
+    pruned: result.pruned,
     freed_bytes: result.freed_bytes,
     usage: result.usage
   };
@@ -25085,6 +25123,11 @@ async function deleteSiteVersion(slug, versionNumber, namespaceName, deps) {
   const ns = await resolveNamespace(apiClient, namespaceName);
   return deleteVersion(apiClient, ns.id, slug, versionNumber);
 }
+async function setSiteVersionsLimit(slug, limit, namespaceName, deps) {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return setVersionsLimit(apiClient, ns.id, slug, limit);
+}
 async function addPasscode2(slug, code, label, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
@@ -25231,7 +25274,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.10.3";
+var PACKAGE_VERSION = "0.11.0";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -25496,6 +25539,28 @@ ${lines.join(`
       return okResponse(`Deleted version v${result.version_number} of '${slug}'.
 ` + `Reclaimed: ${formatBytes(result.freed_bytes)}
 ` + `Usage: ${formatUsage(result.usage)}`);
+    } catch (err) {
+      return errResponse(err);
+    }
+  });
+  server.registerTool("versions_limit", {
+    title: "Set Version Retention Limit",
+    description: "Sets or clears the version retention limit for a published site on upubli.sh. " + "When a limit is set, the oldest archived versions beyond that count are pruned " + "immediately, and future publishes will prune automatically. " + "Omit or pass null for `limit` to clear the limit (unlimited retention). " + "Returns the updated limit, pruned version numbers, and storage freed.",
+    inputSchema: {
+      slug: exports_external.string().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
+      limit: exports_external.union([exports_external.number().int().min(1), exports_external.null()]).optional().describe("Maximum number of non-staging versions to retain (integer \u2265 1). " + "Omit or pass null to clear the limit (unlimited retention). " + "The live version is always preserved regardless of the limit."),
+      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+    }
+  }, async ({ slug, limit, namespace }) => {
+    try {
+      const resolvedLimit = limit === undefined ? null : limit;
+      const result = await setSiteVersionsLimit(slug, resolvedLimit, namespace, coreDeps);
+      const limitDisplay = result.site.max_versions !== null ? `Limit set to ${result.site.max_versions} version${result.site.max_versions === 1 ? "" : "s"}.` : "Retention limit cleared (unlimited).";
+      const prunedDisplay = result.pruned.length > 0 ? `Pruned versions: ${result.pruned.map((v) => `v${v}`).join(", ")}
+` + `Reclaimed: ${formatBytes(result.freed_bytes)}
+` + `Usage: ${formatUsage(result.usage)}` : "No versions were pruned.";
+      return okResponse(`${limitDisplay}
+${prunedDisplay}`);
     } catch (err) {
       return errResponse(err);
     }
