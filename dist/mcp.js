@@ -24533,6 +24533,19 @@ class ApiClient {
     });
     return this.parseResponse(response);
   }
+  async patch(path3, body) {
+    const token = await this.tokenProvider();
+    const response = await this.fetchFn(`${this.baseUrl}${path3}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+    return this.parseResponse(response);
+  }
   async delete(path3) {
     const token = await this.tokenProvider();
     const response = await this.fetchFn(`${this.baseUrl}${path3}`, {
@@ -24918,6 +24931,34 @@ async function clearSubmissions(apiClient, nsId, slug) {
   return { message: response.message };
 }
 
+// lib/members.ts
+async function resolveUserId(apiClient, nsId, username) {
+  const { members } = await apiClient.get(`/api/ns/${nsId}/members`);
+  const found = members.find((m) => m.username === username);
+  if (!found) {
+    throw new Error(`Member '${username}' not found in namespace`);
+  }
+  return found.user_id;
+}
+async function listMembers(apiClient, nsId) {
+  const response = await apiClient.get(`/api/ns/${nsId}/members`);
+  return { members: response.members };
+}
+async function addMember(apiClient, nsId, username, role) {
+  const response = await apiClient.post(`/api/ns/${nsId}/members`, { username, role });
+  return { member: response.member };
+}
+async function removeMember(apiClient, nsId, username) {
+  const userId = await resolveUserId(apiClient, nsId, username);
+  const response = await apiClient.delete(`/api/ns/${nsId}/members/${userId}`);
+  return { ok: response.ok };
+}
+async function changeMemberRole(apiClient, nsId, username, role) {
+  const userId = await resolveUserId(apiClient, nsId, username);
+  const response = await apiClient.patch(`/api/ns/${nsId}/members/${userId}`, { role });
+  return { member: response.member };
+}
+
 // lib/qrcode.ts
 var import_qrcode = __toESM(require_server(), 1);
 import * as fs7 from "fs";
@@ -25097,6 +25138,28 @@ async function gate(args, deps) {
     }
   }
 }
+async function members(args, deps) {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, args.namespace);
+  switch (args.action) {
+    case "list": {
+      const result = await listMembers(apiClient, ns.id);
+      return { action: "list", ...result };
+    }
+    case "add": {
+      const result = await addMember(apiClient, ns.id, args.username, args.role);
+      return { action: "add", ...result };
+    }
+    case "remove": {
+      const result = await removeMember(apiClient, ns.id, args.username);
+      return { action: "remove", ...result };
+    }
+    case "role": {
+      const result = await changeMemberRole(apiClient, ns.id, args.username, args.role);
+      return { action: "role", ...result };
+    }
+  }
+}
 async function qrCode2(args, deps) {
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, args.namespace);
@@ -25168,7 +25231,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.10.0";
+var PACKAGE_VERSION = "0.10.2";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -25365,11 +25428,12 @@ Use the promote tool to make this preview live.`);
     try {
       const result = await list(namespace, coreDeps);
       const { sites } = result;
-      if (sites.length === 0) {
-        return okResponse("No sites published yet. Use the `publish` tool to deploy your first site.");
-      }
       const ns = result.namespace;
-      const header = `Sites in namespace "${ns.name}" (${ns.domain})`;
+      const roleMarker = ns.role && ns.role !== "owner" ? ` [${ns.role}]` : "";
+      if (sites.length === 0) {
+        return okResponse(`No sites published yet in namespace "${ns.name}" (${ns.domain})${roleMarker}. ` + "Use the `publish` tool to deploy your first site.");
+      }
+      const header = `Sites in namespace "${ns.name}" (${ns.domain})${roleMarker}`;
       const lines = sites.map((site) => formatSiteEntry(site));
       return okResponse(`${header}
 
@@ -25578,6 +25642,77 @@ ${fields2}`;
       return errResponse(err);
     }
   });
+  server.registerTool("members", {
+    title: "Namespace Members",
+    description: "Manages members of a shared namespace on upubli.sh. " + "Owners and admins can add, remove, and change member roles. " + `Any member can list the current member roster.
+
+` + `Actions:
+` + `  list   \u2014 List all members and their roles
+` + `  add    \u2014 Add a user by username with a given role (admin|user)
+` + `  remove \u2014 Remove a member by username
+` + "  role   \u2014 Change a member's role (admin|user)",
+    inputSchema: {
+      action: exports_external.enum(["list", "add", "remove", "role"]).describe("The member operation to perform: " + "'list' to show all members, 'add' to grant access, " + "'remove' to revoke access, 'role' to change a member's role."),
+      username: exports_external.string().optional().describe("The username to add, remove, or change role for. " + "Required for add, remove, and role actions."),
+      role: exports_external.enum(["admin", "user"]).optional().describe("The role to assign. Required for add and role actions. " + "'admin' can manage members; 'user' can publish and gate only."),
+      namespace: exports_external.string().optional().describe("Namespace name to manage members for. When omitted, the default namespace is used.")
+    }
+  }, async ({ action, username, role, namespace }) => {
+    try {
+      const actionStr = action;
+      const nsStr = namespace;
+      if (actionStr === "list") {
+        const result2 = await members({ action: "list", namespace: nsStr }, coreDeps);
+        if (result2.action !== "list")
+          return errResponse(new Error("Unexpected result"));
+        if (result2.members.length === 0) {
+          return okResponse("No members found. The namespace owner has sole access.");
+        }
+        const lines = result2.members.map((m) => `  ${m.username} \u2014 ${m.role}`);
+        return okResponse(`Members:
+${lines.join(`
+`)}`);
+      }
+      if (actionStr === "add") {
+        const usernameStr2 = username;
+        const roleStr2 = role;
+        if (!usernameStr2) {
+          return errResponse(new Error("username is required for the add action"));
+        }
+        if (!roleStr2) {
+          return errResponse(new Error("role is required for the add action"));
+        }
+        const result2 = await members({ action: "add", username: usernameStr2, role: roleStr2, namespace: nsStr }, coreDeps);
+        if (result2.action !== "add")
+          return errResponse(new Error("Unexpected result"));
+        return okResponse(`Added ${result2.member.username} as ${result2.member.role}`);
+      }
+      if (actionStr === "remove") {
+        const usernameStr2 = username;
+        if (!usernameStr2) {
+          return errResponse(new Error("username is required for the remove action"));
+        }
+        const result2 = await members({ action: "remove", username: usernameStr2, namespace: nsStr }, coreDeps);
+        if (result2.action !== "remove")
+          return errResponse(new Error("Unexpected result"));
+        return okResponse(`Removed ${usernameStr2} from namespace`);
+      }
+      const usernameStr = username;
+      const roleStr = role;
+      if (!usernameStr) {
+        return errResponse(new Error("username is required for the role action"));
+      }
+      if (!roleStr) {
+        return errResponse(new Error("role is required for the role action"));
+      }
+      const result = await members({ action: "role", username: usernameStr, role: roleStr, namespace: nsStr }, coreDeps);
+      if (result.action !== "role")
+        return errResponse(new Error("Unexpected result"));
+      return okResponse(`Changed ${usernameStr} role to ${result.member.role}`);
+    } catch (err) {
+      return errResponse(err);
+    }
+  });
   server.registerTool("promote", {
     title: "Promote Preview",
     description: "Promotes a staging preview version of a site to live on upubli.sh. " + "Use this after publishing with preview=true to make the staged version " + "available at the site's public URL. " + "Returns the live URL of the promoted site.",
@@ -25677,7 +25812,8 @@ ${fields2}`;
       if (result.namespaces.length > 0) {
         lines.push("", "Namespaces:");
         for (const ns of result.namespaces) {
-          lines.push(`  ${ns.name} (${ns.domain})`);
+          const roleMarker = ns.role && ns.role !== "owner" ? ` [${ns.role}]` : "";
+          lines.push(`  ${ns.name} (${ns.domain})${roleMarker}`);
         }
       }
       return okResponse(lines.join(`

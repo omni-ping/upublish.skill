@@ -353,7 +353,9 @@ describe("DW-5.5: version bumped consistently in all five locations", () => {
     expect(gemini.version).toBe(v);
     expect(mcpVersion).toBe(v);
 
-    // Must be bumped from 0.9.10 — new tool is a feature → 0.10.0
-    expect(v).toBe("0.10.0");
+    // Must be bumped from 0.9.10 — new tool is a feature → at least 0.10.0.
+    // CI auto-bumps the version on every merge to main, so assert a floor
+    // instead of pinning the exact version (a pin goes stale on the first bump).
+    expect(Bun.semver.order(v, "0.10.0")).toBeGreaterThanOrEqual(0);
   });
 });

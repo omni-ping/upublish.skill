@@ -31,6 +31,7 @@ import {
   listPasscodes,
   revokePasscode,
   gate,
+  members,
   qrCode,
 } from "../lib/core.ts";
 import type {
@@ -41,12 +42,13 @@ import type {
   TokenResponse,
   GateSubmission,
   UploadProgress,
+  Member,
 } from "../lib/core.ts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.10.0";
+export const PACKAGE_VERSION = "0.10.2";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -469,14 +471,18 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         const result = await list(namespace as string | undefined, coreDeps);
         const { sites } = result;
 
+        const ns = result.namespace;
+        // Show role marker for shared namespaces (admin/user). Owner is the
+        // default state — no marker keeps the output clean for most users.
+        const roleMarker = ns.role && ns.role !== "owner" ? ` [${ns.role}]` : "";
+
         if (sites.length === 0) {
           return okResponse(
-            "No sites published yet. Use the `publish` tool to deploy your first site.",
+            `No sites published yet in namespace "${ns.name}" (${ns.domain})${roleMarker}. ` +
+            "Use the `publish` tool to deploy your first site.",
           );
         }
-
-        const ns = result.namespace;
-        const header = `Sites in namespace "${ns.name}" (${ns.domain})`;
+        const header = `Sites in namespace "${ns.name}" (${ns.domain})${roleMarker}`;
         const lines = sites.map((site) => formatSiteEntry(site));
         return okResponse(`${header}\n\n${lines.join("\n\n")}`);
       } catch (err) {
@@ -876,6 +882,121 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
   );
 
   server.registerTool(
+    "members",
+    {
+      title: "Namespace Members",
+      description:
+        "Manages members of a shared namespace on upubli.sh. " +
+        "Owners and admins can add, remove, and change member roles. " +
+        "Any member can list the current member roster.\n\n" +
+        "Actions:\n" +
+        "  list   — List all members and their roles\n" +
+        "  add    — Add a user by username with a given role (admin|user)\n" +
+        "  remove — Remove a member by username\n" +
+        "  role   — Change a member's role (admin|user)",
+      inputSchema: {
+        action: z
+          .enum(["list", "add", "remove", "role"])
+          .describe(
+            "The member operation to perform: " +
+            "'list' to show all members, 'add' to grant access, " +
+            "'remove' to revoke access, 'role' to change a member's role.",
+          ),
+        username: z
+          .string()
+          .optional()
+          .describe(
+            "The username to add, remove, or change role for. " +
+            "Required for add, remove, and role actions.",
+          ),
+        role: z
+          .enum(["admin", "user"])
+          .optional()
+          .describe(
+            "The role to assign. Required for add and role actions. " +
+            "'admin' can manage members; 'user' can publish and gate only.",
+          ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name to manage members for. When omitted, the default namespace is used.",
+          ),
+      },
+    },
+    async ({ action, username, role, namespace }) => {
+      try {
+        const actionStr = action as "list" | "add" | "remove" | "role";
+        const nsStr = namespace as string | undefined;
+
+        if (actionStr === "list") {
+          const result = await members({ action: "list", namespace: nsStr }, coreDeps);
+          if (result.action !== "list") return errResponse(new Error("Unexpected result"));
+          if (result.members.length === 0) {
+            return okResponse("No members found. The namespace owner has sole access.");
+          }
+          const lines = result.members.map(
+            (m: Member) => `  ${m.username} — ${m.role}`,
+          );
+          return okResponse(`Members:\n${lines.join("\n")}`);
+        }
+
+        if (actionStr === "add") {
+          const usernameStr = username as string | undefined;
+          const roleStr = role as "admin" | "user" | undefined;
+          if (!usernameStr) {
+            return errResponse(new Error("username is required for the add action"));
+          }
+          if (!roleStr) {
+            return errResponse(new Error("role is required for the add action"));
+          }
+          const result = await members(
+            { action: "add", username: usernameStr, role: roleStr, namespace: nsStr },
+            coreDeps,
+          );
+          if (result.action !== "add") return errResponse(new Error("Unexpected result"));
+          return okResponse(
+            `Added ${result.member.username} as ${result.member.role}`,
+          );
+        }
+
+        if (actionStr === "remove") {
+          const usernameStr = username as string | undefined;
+          if (!usernameStr) {
+            return errResponse(new Error("username is required for the remove action"));
+          }
+          const result = await members(
+            { action: "remove", username: usernameStr, namespace: nsStr },
+            coreDeps,
+          );
+          if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
+          return okResponse(`Removed ${usernameStr} from namespace`);
+        }
+
+        // action === "role"
+        const usernameStr = username as string | undefined;
+        const roleStr = role as "admin" | "user" | undefined;
+        if (!usernameStr) {
+          return errResponse(new Error("username is required for the role action"));
+        }
+        if (!roleStr) {
+          return errResponse(new Error("role is required for the role action"));
+        }
+        const result = await members(
+          { action: "role", username: usernameStr, role: roleStr, namespace: nsStr },
+          coreDeps,
+        );
+        if (result.action !== "role") return errResponse(new Error("Unexpected result"));
+        return okResponse(
+          `Changed ${usernameStr} role to ${result.member.role}`,
+        );
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
     "promote",
     {
       title: "Promote Preview",
@@ -1057,7 +1178,10 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         if (result.namespaces.length > 0) {
           lines.push("", "Namespaces:");
           for (const ns of result.namespaces) {
-            lines.push(`  ${ns.name} (${ns.domain})`);
+            // Show role marker for shared namespaces (admin/user). Owner is the
+            // default state — no marker for clean output.
+            const roleMarker = ns.role && ns.role !== "owner" ? ` [${ns.role}]` : "";
+            lines.push(`  ${ns.name} (${ns.domain})${roleMarker}`);
           }
         }
 

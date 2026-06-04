@@ -103,6 +103,47 @@ describe("DW-1.7: ApiClient", () => {
     });
   });
 
+  describe("patch", () => {
+    it("test_DW_4_1_api_client_patch_sends_patch_with_json_body", async () => {
+      let capturedUrl = "";
+      let capturedMethod = "";
+      let capturedBody = "";
+      let capturedContentType = "";
+
+      const fetchFn = async (url: string, init?: RequestInit) => {
+        capturedUrl = url;
+        capturedMethod = init?.method ?? "";
+        capturedBody = init?.body as string;
+        capturedContentType =
+          (init?.headers as Record<string, string>)?.["Content-Type"] ?? "";
+        return new Response(
+          JSON.stringify({ member: { user_id: "u1", role: "admin" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      };
+
+      const client = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+      const result = await client.patch<{ member: { user_id: string; role: string } }>(
+        "/api/ns/ns1/members/u1",
+        { role: "admin" },
+      );
+
+      expect(capturedUrl).toBe(`${BASE_URL}/api/ns/ns1/members/u1`);
+      expect(capturedMethod).toBe("PATCH");
+      expect(capturedContentType).toBe("application/json");
+      expect(JSON.parse(capturedBody)).toEqual({ role: "admin" });
+      expect(result.member.role).toBe("admin");
+    });
+
+    it("test_DW_4_1_api_client_patch_propagates_non_2xx", async () => {
+      const fetchFn = mockFetch(403, { error: "Forbidden" });
+      const client = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+      await expect(
+        client.patch("/api/ns/ns1/members/u1", { role: "user" }),
+      ).rejects.toThrow("API error 403");
+    });
+  });
+
   describe("delete", () => {
     it("test_DW_1_7_api_client_delete", async () => {
       let capturedMethod = "";

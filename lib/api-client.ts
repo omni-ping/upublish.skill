@@ -71,6 +71,22 @@ export class ApiClient {
     return this.parseResponse<T>(response);
   }
 
+  /** PATCH request with a JSON body — returns parsed JSON body. */
+  async patch<T>(path: string, body: unknown): Promise<T> {
+    const token = await this.tokenProvider();
+    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    return this.parseResponse<T>(response);
+  }
+
   /** DELETE request — returns parsed JSON body. */
   async delete<T>(path: string): Promise<T> {
     const token = await this.tokenProvider();
