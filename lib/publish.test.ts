@@ -12,12 +12,14 @@
  * DW-5.8: progress output shows uploaded and skipped files
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "fs";
+import { describe, it, expect, beforeEach, afterEach, spyOn } from "bun:test";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, chmodSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { readFileSync, readdirSync } from "fs";
+import * as fsModule from "fs";
 import { dirname } from "path";
+import { createHash } from "node:crypto";
 import {
   publish,
   collectFilesWithHashes,
@@ -118,10 +120,10 @@ describe("DW-5.1: collectFilesWithHashes()", () => {
 
     const result = collectFilesWithHashes(tmpDir);
 
-    expect(result.hashes).toBeDefined();
-    expect(Object.keys(result.hashes)).toHaveLength(2);
-    expect(result.hashes["index.html"]).toBeDefined();
-    expect(result.hashes["style.css"]).toBeDefined();
+    expect(result.files).toBeDefined();
+    expect(Object.keys(result.files)).toHaveLength(2);
+    expect(result.files["index.html"].hash).toBeDefined();
+    expect(result.files["style.css"].hash).toBeDefined();
   });
 
   it("test_DW_5_1_md5_hash_correct_value", () => {
@@ -130,7 +132,7 @@ describe("DW-5.1: collectFilesWithHashes()", () => {
 
     const result = collectFilesWithHashes(tmpDir);
 
-    expect(result.hashes["test.txt"]).toBe("5d41402abc4b2a76b9719d911017c592");
+    expect(result.files["test.txt"].hash).toBe("5d41402abc4b2a76b9719d911017c592");
   });
 
   it("test_DW_5_1_hash_map_keyed_by_path", () => {
@@ -140,22 +142,12 @@ describe("DW-5.1: collectFilesWithHashes()", () => {
 
     const result = collectFilesWithHashes(tmpDir);
 
-    // Keys use the relative path (same as fileMap keys)
-    expect(result.hashes["index.html"]).toBeDefined();
-    expect(result.hashes[join("subdir", "app.js")]).toBeDefined();
+    // Keys use the relative path
+    expect(result.files["index.html"]).toBeDefined();
+    expect(result.files[join("subdir", "app.js")]).toBeDefined();
   });
 
-  it("test_DW_5_1_file_map_matches_hash_keys", () => {
-    writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
-
-    const result = collectFilesWithHashes(tmpDir);
-
-    const hashKeys = Object.keys(result.hashes).sort();
-    const fileMapKeys = Object.keys(result.fileMap).sort();
-    expect(hashKeys).toEqual(fileMapKeys);
-  });
-
-  it("test_DW_5_1_excluded_files_not_in_hash_map", () => {
+  it("test_DW_5_1_excluded_files_not_in_files_map", () => {
     writeFileSync(join(tmpDir, "index.html"), "<h1>Hi</h1>");
     writeFileSync(join(tmpDir, ".DS_Store"), "");
     writeFileSync(join(tmpDir, ".env"), "SECRET=abc");
@@ -163,9 +155,9 @@ describe("DW-5.1: collectFilesWithHashes()", () => {
     const result = collectFilesWithHashes(tmpDir);
 
     // Only index.html should be hashed — excluded files not present
-    expect(Object.keys(result.hashes)).toHaveLength(1);
-    expect(result.hashes[".DS_Store"]).toBeUndefined();
-    expect(result.hashes[".env"]).toBeUndefined();
+    expect(Object.keys(result.files)).toHaveLength(1);
+    expect(result.files[".DS_Store"]).toBeUndefined();
+    expect(result.files[".env"]).toBeUndefined();
   });
 
   it("test_DW_5_1_returns_excluded_and_warnings", () => {
@@ -179,10 +171,296 @@ describe("DW-5.1: collectFilesWithHashes()", () => {
     expect(result.warnings).toContain("nginx.conf");
   });
 
-  it("test_DW_5_1_empty_dir_returns_empty_hashes", () => {
+  it("test_DW_5_1_empty_dir_returns_empty_files", () => {
     const result = collectFilesWithHashes(tmpDir);
-    expect(Object.keys(result.hashes)).toHaveLength(0);
-    expect(Object.keys(result.fileMap)).toHaveLength(0);
+    expect(Object.keys(result.files)).toHaveLength(0);
+  });
+});
+
+// ─── DW-1.1–1.4 (Phase 1): streamed hash pass + collection contract ──────────
+
+describe("DW-1.1: collectFilesWithHashes returns the files contract", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-collect-contract-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("test_DW_1_1_collect_returns_files_contract", () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
+
+    const result = collectFilesWithHashes(tmpDir);
+
+    const entry = result.files["index.html"];
+    expect(entry).toBeDefined();
+    // CollectedFile = { hash, size, fullPath }
+    expect(typeof entry.hash).toBe("string");
+    expect(entry.hash).toHaveLength(32); // MD5 hex digest
+    expect(entry.size).toBe(Buffer.byteLength("<h1>Hello</h1>"));
+    expect(entry.fullPath).toBe(join(tmpDir, "index.html"));
+    // The old two-map shape is gone.
+    expect((result as unknown as { fileMap?: unknown }).fileMap).toBeUndefined();
+    expect((result as unknown as { hashes?: unknown }).hashes).toBeUndefined();
+  });
+
+  it("test_DW_1_1_no_filemap_field_in_publish_source", () => {
+    // Source guard: no `fileMap` token remains anywhere in lib/publish.ts.
+    const src = readFileSync(join(dirname(import.meta.path), "publish.ts"), "utf-8");
+    expect(src.includes("fileMap")).toBe(false);
+  });
+});
+
+describe("DW-1.2/1.3: chunked hashing matches a full-buffer reference", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-chunk-hash-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  // Deterministic pseudo-random bytes so the reference and the chunked impl
+  // hash the exact same content.
+  function fill(n: number): Buffer {
+    const b = Buffer.alloc(n);
+    for (let i = 0; i < n; i++) b[i] = (i * 31 + 7) & 0xff;
+    return b;
+  }
+  function refMd5(buf: Buffer): string {
+    return createHash("md5").update(buf).digest("hex");
+  }
+
+  it("test_DW_1_3_chunked_hash_matches_reference", () => {
+    // Sizes straddle the 64 KiB chunk boundary (±1) and span multiple chunks.
+    const CHUNK = 64 * 1024;
+    const sizes = [100, CHUNK - 1, CHUNK, CHUNK + 1, CHUNK * 3 + 17];
+    for (const [i, n] of sizes.entries()) {
+      const data = fill(n);
+      const name = `f${i}.bin`;
+      writeFileSync(join(tmpDir, name), data);
+      const entry = collectFilesWithHashes(tmpDir).files[name];
+      expect(entry.hash).toBe(refMd5(data));
+      expect(entry.size).toBe(n);
+    }
+  });
+
+  it("test_DW_1_2_hashes_large_file_via_bounded_chunks", () => {
+    // A file several × the chunk size: correctness here proves the chunked
+    // read loop runs (a single readFileSync would also pass, but DW-1.2 is
+    // additionally enforced by the source-scan test below).
+    const big = fill(64 * 1024 * 5 + 123);
+    writeFileSync(join(tmpDir, "big.bin"), big);
+
+    const entry = collectFilesWithHashes(tmpDir).files["big.bin"];
+    expect(entry.hash).toBe(refMd5(big));
+    expect(entry.size).toBe(big.byteLength);
+  });
+
+  it("test_DW_1_2_collection_does_not_readFileSync_file_bytes", () => {
+    // The content-hashing path must stream via readSync, not buffer the whole
+    // file with readFileSync. The only readFileSync left in the source is the
+    // tiny .upublishignore control file (and the transitional upload-body read,
+    // swapped in Phase 2) — assert collectFiles uses readSync.
+    const src = readFileSync(join(dirname(import.meta.path), "publish.ts"), "utf-8");
+    expect(src.includes("readSync(")).toBe(true);
+  });
+
+  it("test_DW_1_3_empty_file_canonical_md5", () => {
+    writeFileSync(join(tmpDir, "empty.txt"), "");
+
+    const entry = collectFilesWithHashes(tmpDir).files["empty.txt"];
+    expect(entry.hash).toBe("d41d8cd98f00b204e9800998ecf8427e");
+    expect(entry.size).toBe(0);
+  });
+});
+
+describe("DW-1.4: size derives from bytes hashed", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-size-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("test_DW_1_4_size_equals_bytes_hashed", () => {
+    const content = "a".repeat(4096) + "bcdef"; // 4101 bytes
+    writeFileSync(join(tmpDir, "doc.txt"), content);
+
+    const entry = collectFilesWithHashes(tmpDir).files["doc.txt"];
+    expect(entry.size).toBe(Buffer.byteLength(content));
+  });
+
+  it("test_DW_1_4_force_mode_random_hash_real_size", async () => {
+    // force=true sends random hashes to the manifest, but the reported size
+    // must remain the real on-disk byte count. Capture the manifest payload.
+    const content = "<h1>Hello</h1>";
+    writeFileSync(join(tmpDir, "index.html"), content);
+
+    const collected = collectFilesWithHashes(tmpDir);
+    const realHash = collected.files["index.html"].hash;
+
+    let capturedFiles: Record<string, { hash: string; size: number }> = {};
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        const body = init?.body ? JSON.parse(init.body as string) : {};
+        capturedFiles = body.files;
+        return new Response(
+          JSON.stringify({
+            needed: [{ path: "index.html", upload_url: "https://r2.example.com/1" }],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("r2.example.com") && init?.method === "PUT") {
+        return new Response("", { status: 200 });
+      }
+      if (url.includes("/finalize")) {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    await publish({
+      apiClient,
+      nsId: "ns-1",
+      directory: tmpDir,
+      slug: "my-site",
+      force: true,
+      fetchFn,
+    });
+
+    // Random hash != real collected hash, but size is the real byte count.
+    expect(capturedFiles["index.html"].hash).not.toBe(realHash);
+    expect(capturedFiles["index.html"].size).toBe(Buffer.byteLength(content));
+  });
+});
+
+describe("DW-1.2/1.3: hash error paths propagate and never leak an fd", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-hash-errpath-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("test_DW_1_3_unreadable_file_mid_walk_propagates", () => {
+    // An unreadable file encountered during the directory walk must surface as
+    // an error out of collectFilesWithHashes — collection has no swallow path
+    // for a file it cannot open. (Current, intended behavior.)
+    //
+    // Root bypasses Unix permission bits, so chmod 0o000 would NOT block the
+    // open and this assertion could not hold — skip gracefully when running as
+    // root rather than asserting something the environment can't produce.
+    if (process.getuid?.() === 0) return;
+
+    const badPath = join(tmpDir, "secret.txt");
+    writeFileSync(join(tmpDir, "index.html"), "<h1>ok</h1>");
+    writeFileSync(badPath, "cannot read me");
+    chmodSync(badPath, 0o000);
+
+    try {
+      expect(() => collectFilesWithHashes(tmpDir)).toThrow();
+    } finally {
+      // Restore perms so afterEach cleanup (and any reader) can remove the file.
+      chmodSync(badPath, 0o600);
+    }
+  });
+
+  it("test_DW_1_3_fd_closed_when_read_fails_mid_hash", () => {
+    // hashFileChunked() opens the file, then reads it in a chunk loop inside a
+    // try/finally that closes the fd. Prove the finally runs on the error path:
+    // force readSync to throw AFTER the open, then assert closeSync was still
+    // called with the fd that openSync handed out (the descriptor opened for
+    // this file), and that the read error propagated.
+    //
+    // spyOn redefines the property on the fs module record, so the named
+    // readSync/closeSync imports inside lib/publish.ts observe the spies. Both
+    // spies are restored in finally — scoped to this test, no global leak.
+    const filePath = join(tmpDir, "data.bin");
+    writeFileSync(filePath, "some bytes to hash");
+
+    const realCloseSync = fsModule.closeSync;
+    const closedFds: number[] = [];
+
+    const readSpy = spyOn(fsModule, "readSync").mockImplementation(() => {
+      throw new Error("simulated mid-hash read failure");
+    });
+    const closeSpy = spyOn(fsModule, "closeSync").mockImplementation(
+      ((fd: number) => {
+        closedFds.push(fd);
+        // Actually close so we don't leak the real descriptor in the test.
+        return (realCloseSync as (fd: number) => void)(fd);
+      }) as typeof fsModule.closeSync,
+    );
+
+    try {
+      expect(() => collectFilesWithHashes(tmpDir)).toThrow(
+        "simulated mid-hash read failure",
+      );
+
+      // The fd opened for the file was closed despite the read error — the
+      // try/finally in hashFileChunked ran. openSync returns one fd here.
+      expect(closeSpy).toHaveBeenCalledTimes(1);
+      expect(closedFds).toHaveLength(1);
+      expect(closeSpy).toHaveBeenCalledWith(closedFds[0]);
+    } finally {
+      readSpy.mockRestore();
+      closeSpy.mockRestore();
+    }
+  });
+});
+
+describe("DW-1.5: uploadOneFile reads the PUT body from files[path].fullPath", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-fullpath-body-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("test_DW_1_5_upload_reads_body_from_fullPath", async () => {
+    const content = "<h1>Body from disk</h1>";
+    const filePath = join(tmpDir, "index.html");
+    writeFileSync(filePath, content);
+
+    let capturedBody: BodyInit | undefined;
+    const fetchFn = async (_url: string, init?: RequestInit) => {
+      capturedBody = init?.body ?? undefined;
+      return new Response("", { status: 200 });
+    };
+
+    await uploadChangedFiles({
+      needed: [{ path: "index.html", upload_url: "https://r2.example.com/1" }],
+      files: { "index.html": { size: Buffer.byteLength(content), fullPath: filePath } },
+      fetchFn,
+    });
+
+    // The PUT body equals the on-disk bytes (read transitionally from fullPath).
+    expect(capturedBody).toBeDefined();
+    const sent = await new Response(capturedBody).arrayBuffer();
+    expect(Buffer.from(sent).toString("utf-8")).toBe(content);
   });
 });
 
@@ -404,7 +682,8 @@ describe("DW-5.4: uploadChangedFiles()", () => {
   });
 
   it("test_DW_5_4_upload_changed_files_puts_to_presigned_url", async () => {
-    writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
+    const filePath = join(tmpDir, "index.html");
+    writeFileSync(filePath, "<h1>Hello</h1>");
 
     const calls: Array<{ url: string; method: string }> = [];
 
@@ -413,15 +692,15 @@ describe("DW-5.4: uploadChangedFiles()", () => {
       return new Response("", { status: 200 });
     };
 
-    const fileMap = {
-      "index.html": new Uint8Array(Buffer.from("<h1>Hello</h1>")),
+    const files = {
+      "index.html": { size: Buffer.byteLength("<h1>Hello</h1>"), fullPath: filePath },
     };
 
     const needed = [
       { path: "index.html", upload_url: "https://r2.example.com/presigned/index.html" },
     ];
 
-    await uploadChangedFiles({ needed, fileMap, fetchFn });
+    await uploadChangedFiles({ needed, files, fetchFn });
 
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe("https://r2.example.com/presigned/index.html");
@@ -430,10 +709,6 @@ describe("DW-5.4: uploadChangedFiles()", () => {
 
   it("test_DW_5_4_upload_parallel_batches", async () => {
     // Create 7 files to verify batching (batch size 5 → 2 batches)
-    for (let i = 0; i < 7; i++) {
-      writeFileSync(join(tmpDir, `file${i}.html`), `<h${i}>`);
-    }
-
     const callOrder: string[] = [];
 
     const fetchFn = async (url: string) => {
@@ -441,25 +716,29 @@ describe("DW-5.4: uploadChangedFiles()", () => {
       return new Response("", { status: 200 });
     };
 
-    const fileMap: Record<string, Uint8Array> = {};
+    const files: Record<string, { size: number; fullPath: string }> = {};
     const needed: Array<{ path: string; upload_url: string }> = [];
 
     for (let i = 0; i < 7; i++) {
-      fileMap[`file${i}.html`] = new Uint8Array(Buffer.from(`<h${i}>`));
+      const content = `<h${i}>`;
+      const fullPath = join(tmpDir, `file${i}.html`);
+      writeFileSync(fullPath, content);
+      files[`file${i}.html`] = { size: Buffer.byteLength(content), fullPath };
       needed.push({
         path: `file${i}.html`,
         upload_url: `https://r2.example.com/file${i}.html`,
       });
     }
 
-    await uploadChangedFiles({ needed, fileMap, fetchFn });
+    await uploadChangedFiles({ needed, files, fetchFn });
 
     // All 7 files should have been uploaded
     expect(callOrder).toHaveLength(7);
   });
 
   it("test_DW_5_4_upload_retries_on_failure", async () => {
-    writeFileSync(join(tmpDir, "index.html"), "hello");
+    const filePath = join(tmpDir, "index.html");
+    writeFileSync(filePath, "hello");
 
     let attemptCount = 0;
 
@@ -472,33 +751,34 @@ describe("DW-5.4: uploadChangedFiles()", () => {
       return new Response("", { status: 200 });
     };
 
-    const fileMap = {
-      "index.html": new Uint8Array(Buffer.from("hello")),
+    const files = {
+      "index.html": { size: 5, fullPath: filePath },
     };
     const needed = [
       { path: "index.html", upload_url: "https://r2.example.com/index.html" },
     ];
 
     // Should succeed after retries (resolves without throwing)
-    await uploadChangedFiles({ needed, fileMap, fetchFn });
+    await uploadChangedFiles({ needed, files, fetchFn });
 
     expect(attemptCount).toBe(3);
   });
 
   it("test_DW_5_4_upload_fails_after_max_retries", async () => {
-    writeFileSync(join(tmpDir, "index.html"), "hello");
+    const filePath = join(tmpDir, "index.html");
+    writeFileSync(filePath, "hello");
 
     const fetchFn = async () => new Response("", { status: 500 });
 
-    const fileMap = {
-      "index.html": new Uint8Array(Buffer.from("hello")),
+    const files = {
+      "index.html": { size: 5, fullPath: filePath },
     };
     const needed = [
       { path: "index.html", upload_url: "https://r2.example.com/index.html" },
     ];
 
     await expect(
-      uploadChangedFiles({ needed, fileMap, fetchFn }),
+      uploadChangedFiles({ needed, files, fetchFn }),
     ).rejects.toThrow("index.html");
   });
 
@@ -509,7 +789,7 @@ describe("DW-5.4: uploadChangedFiles()", () => {
       return new Response("", { status: 200 });
     };
 
-    await uploadChangedFiles({ needed: [], fileMap: {}, fetchFn });
+    await uploadChangedFiles({ needed: [], files: {}, fetchFn });
 
     expect(callCount).toBe(0);
   });
@@ -852,16 +1132,30 @@ describe("DW-3.2: PublishArgs has no incremental field", () => {
 // ─── DW-1: onProgress callback threaded through publish core ─────────────────
 
 describe("DW-1.1/1.4: uploadChangedFiles fires onProgress", () => {
-  // Builds a needed[] of N files plus a matching fileMap, all uploads succeed.
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-progress-upload-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  // Builds a needed[] of N files plus a matching files map (on-disk, 4 bytes
+  // each: `<h0>`..), all uploads succeed.
   function makeUpload(count: number) {
-    const fileMap: Record<string, Uint8Array> = {};
+    const files: Record<string, { size: number; fullPath: string }> = {};
     const needed: Array<{ path: string; upload_url: string }> = [];
     for (let i = 0; i < count; i++) {
       const path = `file${i}.html`;
-      fileMap[path] = new Uint8Array(Buffer.from(`<h${i}>`));
+      const content = `<h${i}>`;
+      const fullPath = join(tmpDir, path);
+      writeFileSync(fullPath, content);
+      files[path] = { size: Buffer.byteLength(content), fullPath };
       needed.push({ path, upload_url: `https://r2.example.com/${path}` });
     }
-    return { fileMap, needed };
+    return { files, needed };
   }
 
   const okFetch = async () => new Response("", { status: 200 });
@@ -871,12 +1165,12 @@ describe("DW-1.1/1.4: uploadChangedFiles fires onProgress", () => {
     // Expect an initial all-zero report, then one report per file as it lands:
     // completed 1..6 and completedBytes 4,8,..,24 (files are equal-sized, so
     // the byte sequence is deterministic regardless of completion order).
-    const { fileMap, needed } = makeUpload(6);
+    const { files, needed } = makeUpload(6);
     const events: UploadProgress[] = [];
 
     await uploadChangedFiles({
       needed,
-      fileMap,
+      files,
       fetchFn: okFetch,
       onProgress: (p) => events.push({ ...p }),
     });
@@ -908,7 +1202,7 @@ describe("DW-1.1/1.4: uploadChangedFiles fires onProgress", () => {
 
     await uploadChangedFiles({
       needed: [],
-      fileMap: {},
+      files: {},
       fetchFn: okFetch,
       onProgress: (p) => events.push({ ...p }),
     });
