@@ -462,21 +462,44 @@ async function uploadOneFile(
   files: Record<string, { size: number; fullPath: string }>,
   fetchFn: FetchFn,
 ): Promise<void> {
-  // Transitional: eagerly read the body from disk. Phase 2 replaces this with a
-  // streamed Bun.file(fullPath) Blob constructed fresh per attempt.
-  const bytes = new Uint8Array(readFileSync(files[item.path].fullPath));
+  // Guard: file path must be present in the collected files contract. A missing
+  // entry is a programmer error (mismatch between needed list and files map) —
+  // throw an actionable message naming the path rather than silently sending an
+  // empty PUT or crashing with a generic "cannot read fullPath of undefined".
+  const fileInfo = files[item.path];
+  if (!fileInfo) {
+    throw new Error(
+      `Cannot upload '${item.path}': path not found in files collection. ` +
+      `This is a bug — the needed list and the files map are out of sync.`,
+    );
+  }
 
   for (let attempt = 1; attempt <= UPLOAD_MAX_RETRIES; attempt++) {
+    // Construct a fresh ReadableStream per attempt. A partially-consumed stream
+    // body must never be reused across retries — Bun.file().stream() opens a
+    // new read handle each call, so each attempt reads from the start of the file.
+    //
+    // Why stream() + explicit Content-Length rather than a Blob body:
+    //   - Bun.file Blob auto-sets Content-Type from the file extension (e.g.
+    //     .html → text/html;charset=utf-8). Presigned R2 PUTs are signed with
+    //     a specific ContentType in the PutObjectCommand on the backend; an
+    //     unexpected Content-Type header causes a signature 403.
+    //   - The current Uint8Array body sends NO Content-Type header (probe-verified).
+    //   - Bun.file().stream() also sends no Content-Type (probe-verified).
+    //   - R2 presigned PUTs require an explicit Content-Length header when using
+    //     a streaming body (no chunked transfer encoding); we supply it from the
+    //     contract size already collected in Phase 1.
+    const body = Bun.file(fileInfo.fullPath).stream();
     let response: Response;
     try {
       response = await fetchFn(item.upload_url, {
         method: "PUT",
-        // Cast required: tsc's Uint8Array<ArrayBufferLike> doesn't satisfy
-        // BodyInit's ArrayBufferView<ArrayBuffer> — works at runtime in Bun/browsers
-        body: bytes as unknown as BodyInit,
+        body,
+        headers: { "Content-Length": String(fileInfo.size) },
       });
     } catch (networkErr) {
-      // Network-level failure (DNS, timeout, connection reset). Retry — may be transient.
+      // Network-level failure (DNS, timeout, connection reset, or file deleted
+      // between collection and PUT). Retry — may be transient.
       log(`[upload] file=${item.path} attempt=${attempt} network_error=${(networkErr as Error).message}`);
       if (attempt === UPLOAD_MAX_RETRIES) {
         throw new Error(
