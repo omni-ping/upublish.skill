@@ -12,7 +12,7 @@ import { describe, it, expect, afterEach } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { listSiteVersions, deleteSiteVersion } from "./core.ts";
+import { listSiteVersions, deleteSiteVersion, setSiteVersionsLimit } from "./core.ts";
 import type { CoreDeps } from "./core.ts";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
@@ -188,5 +188,126 @@ describe("DW-4.2: core.deleteSiteVersion()", () => {
     await deleteSiteVersion("my-site", 3, "team", deps);
 
     expect(capturedUrl).toContain("/api/ns/ns-team/sites/my-site/versions/3");
+  });
+});
+
+// ─── DW-3.1 + DW-3.3: core.setSiteVersionsLimit() ────────────────────────────
+
+describe("DW-3.1: core.setSiteVersionsLimit()", () => {
+  it("test_DW_3_1_core_set_versions_limit_calls_domain", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    let capturedUrl = "";
+    let capturedMethod = "";
+    let capturedBody: unknown;
+
+    const fetchFn = makeMockFetch((url, init) => {
+      capturedUrl = url;
+      capturedMethod = init?.method ?? "";
+      capturedBody = JSON.parse(init?.body as string);
+      return new Response(
+        JSON.stringify({
+          site: { max_versions: 5 },
+          pruned: [1, 2],
+          freed_bytes: 2097152,
+          usage: { used_bytes: 8388608, limit_bytes: 104857600 },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    const result = await setSiteVersionsLimit("my-site", 5, undefined, deps);
+
+    expect(capturedMethod).toBe("PUT");
+    expect(capturedUrl).toContain(`/api/ns/${NS_ID}/sites/my-site/versions/limit`);
+    expect(capturedBody).toEqual({ limit: 5 });
+    expect(result.site.max_versions).toBe(5);
+    expect(result.pruned).toEqual([1, 2]);
+    expect(result.freed_bytes).toBe(2097152);
+    expect(result.usage.used_bytes).toBe(8388608);
+  });
+
+  it("test_DW_3_1_core_set_versions_limit_clear", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    let capturedBody: unknown;
+    const fetchFn = makeMockFetch((_url, init) => {
+      capturedBody = JSON.parse(init?.body as string);
+      return new Response(
+        JSON.stringify({ site: { max_versions: null }, pruned: [], freed_bytes: 0, usage: {} }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    const result = await setSiteVersionsLimit("my-site", null, undefined, deps);
+
+    expect(capturedBody).toEqual({ limit: null });
+    expect(result.site.max_versions).toBeNull();
+    expect(result.pruned).toEqual([]);
+  });
+
+  it("test_DW_3_3_not_authenticated_throws", async () => {
+    // Credentials read fresh on every call — missing file => "Not authenticated"
+    const deps: CoreDeps = {
+      credentialsPath: "/does/not/exist/credentials",
+      fetchFn: async () => new Response("{}", { status: 200 }),
+    };
+
+    await expect(setSiteVersionsLimit("my-site", 3, undefined, deps)).rejects.toThrow(
+      "Not authenticated",
+    );
+  });
+
+  it("test_DW_3_1_core_set_versions_limit_resolves_named_namespace", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    let capturedUrl = "";
+    const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
+      if (url.includes("/auth/token/refresh")) {
+        return new Response(
+          JSON.stringify({ access_token: "mock-access-token", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url) || /\/api\/ns\?/.test(url)) {
+        return new Response(
+          JSON.stringify({
+            namespaces: [
+              { id: "ns-default", name: "default", domain: "user.upubli.sh" },
+              { id: "ns-work", name: "work", domain: "work.upubli.sh" },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      capturedUrl = url;
+      return new Response(
+        JSON.stringify({ site: { max_versions: 10 }, pruned: [], freed_bytes: 0, usage: {} }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    };
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    await setSiteVersionsLimit("my-site", 10, "work", deps);
+
+    expect(capturedUrl).toContain("/api/ns/ns-work/sites/my-site/versions/limit");
+  });
+});
+
+// ─── DW-3.4: package.json version bump ───────────────────────────────────────
+
+describe("DW-3.4: version bump", () => {
+  it("test_DW_3_4_version_bumped_from_0_10_3", async () => {
+    const pkgJson = await import("../package.json", { assert: { type: "json" } });
+    const version: string = pkgJson.default.version;
+    const [major, minor] = version.split(".").map(Number);
+    // Must be a minor bump: 0.11.x or higher
+    expect(major).toBe(0);
+    expect(minor).toBeGreaterThanOrEqual(11);
   });
 });

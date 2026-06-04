@@ -41,10 +41,12 @@ import type { PromoteResult } from "./promote.ts";
 import {
   listVersions as domainListVersions,
   deleteVersion as domainDeleteVersion,
+  setVersionsLimit as domainSetVersionsLimit,
 } from "./versions.ts";
 import type {
   ListVersionsResult,
   DeleteVersionResult,
+  SetVersionsLimitResult,
   SiteVersion,
 } from "./versions.ts";
 import {
@@ -98,7 +100,7 @@ export type { LoginDeps, LoginResult, CallbackServer, TokenResponse };
 export type { PublishResult, UploadProgress };
 export type { DeleteResult };
 export type { PromoteResult };
-export type { ListVersionsResult, DeleteVersionResult, SiteVersion };
+export type { ListVersionsResult, DeleteVersionResult, SetVersionsLimitResult, SiteVersion };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
 export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, ChangeMemberRoleResult };
@@ -322,6 +324,32 @@ export async function deleteSiteVersion(
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
   return domainDeleteVersion(apiClient, ns.id, slug, versionNumber);
+}
+
+/**
+ * Sets or clears the retention limit for a site within the default (or named) namespace.
+ *
+ * When `limit` is a positive integer, the backend persists it and immediately prunes
+ * excess archived versions (oldest-first). When `limit` is null the limit is cleared.
+ * Returns the updated site record, pruned version numbers, bytes freed, and post-operation
+ * storage usage so callers can surface reclaimed storage.
+ *
+ * Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param slug - The URL-safe identifier of the site.
+ * @param limit - Positive integer (≥ 1) to set, or null to clear.
+ * @param namespaceName - Optional namespace name. Defaults to the user's default namespace.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function setSiteVersionsLimit(
+  slug: string,
+  limit: number | null,
+  namespaceName?: string,
+  deps?: CoreDeps,
+): Promise<SetVersionsLimitResult> {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return domainSetVersionsLimit(apiClient, ns.id, slug, limit);
 }
 
 /**

@@ -24,6 +24,7 @@ import {
   deleteOp,
   listSiteVersions,
   deleteSiteVersion,
+  setSiteVersionsLimit,
   login,
   status,
   logout,
@@ -38,6 +39,7 @@ import type {
   CoreDeps,
   Site,
   SiteVersion,
+  SetVersionsLimitResult,
   CallbackServer,
   TokenResponse,
   GateSubmission,
@@ -48,7 +50,7 @@ import type {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.10.3";
+export const PACKAGE_VERSION = "0.11.0";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -611,6 +613,65 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           `Reclaimed: ${formatBytes(result.freed_bytes)}\n` +
           `Usage: ${formatUsage(result.usage)}`,
         );
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "versions_limit",
+    {
+      title: "Set Version Retention Limit",
+      description:
+        "Sets or clears the version retention limit for a published site on upubli.sh. " +
+        "When a limit is set, the oldest archived versions beyond that count are pruned " +
+        "immediately, and future publishes will prune automatically. " +
+        "Omit or pass null for `limit` to clear the limit (unlimited retention). " +
+        "Returns the updated limit, pruned version numbers, and storage freed.",
+      inputSchema: {
+        slug: z
+          .string()
+          .describe(
+            "The URL-safe identifier of the site. " +
+            "Use the `list` tool to find available slugs.",
+          ),
+        limit: z
+          .union([z.number().int().min(1), z.null()])
+          .optional()
+          .describe(
+            "Maximum number of non-staging versions to retain (integer ≥ 1). " +
+            "Omit or pass null to clear the limit (unlimited retention). " +
+            "The live version is always preserved regardless of the limit.",
+          ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+          ),
+      },
+    },
+    async ({ slug, limit, namespace }) => {
+      try {
+        const resolvedLimit: number | null = (limit === undefined ? null : limit) as number | null;
+        const result: SetVersionsLimitResult = await setSiteVersionsLimit(
+          slug as string,
+          resolvedLimit,
+          namespace as string | undefined,
+          coreDeps,
+        );
+        const limitDisplay =
+          result.site.max_versions !== null
+            ? `Limit set to ${result.site.max_versions} version${result.site.max_versions === 1 ? "" : "s"}.`
+            : "Retention limit cleared (unlimited).";
+        const prunedDisplay =
+          result.pruned.length > 0
+            ? `Pruned versions: ${result.pruned.map((v) => `v${v}`).join(", ")}\n` +
+              `Reclaimed: ${formatBytes(result.freed_bytes)}\n` +
+              `Usage: ${formatUsage(result.usage)}`
+            : "No versions were pruned.";
+        return okResponse(`${limitDisplay}\n${prunedDisplay}`);
       } catch (err) {
         return errResponse(err);
       }
