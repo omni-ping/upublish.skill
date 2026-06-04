@@ -5,7 +5,10 @@
  *         5xx/network errors still retry up to the cap.
  */
 
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { mkdtempSync, writeFileSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 import { uploadChangedFiles } from "./publish.ts";
 import type { FetchFn } from "./types.ts";
 
@@ -38,9 +41,25 @@ function makeNetworkErrorFetch(): { fetchFn: FetchFn; callCount: () => number } 
 }
 
 const SAMPLE_FILE = { path: "index.html", upload_url: "https://r2.example.com/presigned" };
-const SAMPLE_FILE_MAP: Record<string, Uint8Array> = {
-  "index.html": new TextEncoder().encode("<h1>Hello</h1>"),
-};
+const SAMPLE_CONTENT = "<h1>Hello</h1>";
+
+// The new contract supplies an on-disk fullPath; uploadOneFile reads the body
+// transitionally from disk (Phase 1) / streams a Bun.file Blob (Phase 2).
+let tmpDir: string;
+let SAMPLE_FILES: Record<string, { size: number; fullPath: string }>;
+
+beforeAll(() => {
+  tmpDir = mkdtempSync(join(tmpdir(), "upublish-retry-"));
+  const fullPath = join(tmpDir, "index.html");
+  writeFileSync(fullPath, SAMPLE_CONTENT);
+  SAMPLE_FILES = {
+    "index.html": { size: Buffer.byteLength(SAMPLE_CONTENT), fullPath },
+  };
+});
+
+afterAll(() => {
+  rmSync(tmpDir, { recursive: true, force: true });
+});
 
 // ─── DW-5.1: 403 fails immediately ────────────────────────────────────────────
 
@@ -51,7 +70,7 @@ describe("DW-5.1: uploadOneFile — 403 fails immediately", () => {
     await expect(
       uploadChangedFiles({
         needed: [SAMPLE_FILE],
-        fileMap: SAMPLE_FILE_MAP,
+        files: SAMPLE_FILES,
         fetchFn,
       }),
     ).rejects.toThrow(/presigned URL expired/);
@@ -67,7 +86,7 @@ describe("DW-5.1: uploadOneFile — 403 fails immediately", () => {
     try {
       await uploadChangedFiles({
         needed: [SAMPLE_FILE],
-        fileMap: SAMPLE_FILE_MAP,
+        files: SAMPLE_FILES,
         fetchFn,
       });
     } catch (err) {
@@ -85,7 +104,7 @@ describe("DW-5.1: uploadOneFile — 403 fails immediately", () => {
 
     await uploadChangedFiles({
       needed: [SAMPLE_FILE],
-      fileMap: SAMPLE_FILE_MAP,
+      files: SAMPLE_FILES,
       fetchFn,
     });
 
@@ -103,7 +122,7 @@ describe("DW-5.1: uploadOneFile — 5xx retries to cap", () => {
     await expect(
       uploadChangedFiles({
         needed: [SAMPLE_FILE],
-        fileMap: SAMPLE_FILE_MAP,
+        files: SAMPLE_FILES,
         fetchFn,
       }),
     ).rejects.toThrow(/3 attempt/);
@@ -118,7 +137,7 @@ describe("DW-5.1: uploadOneFile — 5xx retries to cap", () => {
 
     await uploadChangedFiles({
       needed: [SAMPLE_FILE],
-      fileMap: SAMPLE_FILE_MAP,
+      files: SAMPLE_FILES,
       fetchFn,
     });
 
@@ -131,7 +150,7 @@ describe("DW-5.1: uploadOneFile — 5xx retries to cap", () => {
     await expect(
       uploadChangedFiles({
         needed: [SAMPLE_FILE],
-        fileMap: SAMPLE_FILE_MAP,
+        files: SAMPLE_FILES,
         fetchFn,
       }),
     ).rejects.toThrow(/3 attempt/);
@@ -145,7 +164,7 @@ describe("DW-5.1: uploadOneFile — 5xx retries to cap", () => {
     await expect(
       uploadChangedFiles({
         needed: [SAMPLE_FILE],
-        fileMap: SAMPLE_FILE_MAP,
+        files: SAMPLE_FILES,
         fetchFn,
       }),
     ).rejects.toThrow();

@@ -204,10 +204,12 @@ describe("DW-1.5: publish() logs finalize result and summary", () => {
 // ─── DW-1.3: uploadChangedFiles() batch logging ───────────────────────────────
 
 describe("DW-1.3: uploadChangedFiles() logs batch progress", () => {
+  let tmpDir: string;
   let logLines: string[];
   let spy: ReturnType<typeof spyOn>;
 
   beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-log-upload-"));
     logLines = [];
     spy = spyOn(logModule, "log").mockImplementation((msg: string) => {
       logLines.push(msg);
@@ -216,14 +218,19 @@ describe("DW-1.3: uploadChangedFiles() logs batch progress", () => {
 
   afterEach(() => {
     spy.mockRestore();
+    rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it("test_DW_1_3_logs_batch_number_and_file_names", async () => {
     const fetchFn = async () => new Response("", { status: 200 });
 
-    const fileMap: Record<string, Uint8Array> = {
-      "index.html": new Uint8Array(Buffer.from("<h1>")),
-      "style.css": new Uint8Array(Buffer.from("body {}")),
+    const indexPath = join(tmpDir, "index.html");
+    const stylePath = join(tmpDir, "style.css");
+    writeFileSync(indexPath, "<h1>");
+    writeFileSync(stylePath, "body {}");
+    const files: Record<string, { size: number; fullPath: string }> = {
+      "index.html": { size: 4, fullPath: indexPath },
+      "style.css": { size: 7, fullPath: stylePath },
     };
 
     const needed = [
@@ -231,7 +238,7 @@ describe("DW-1.3: uploadChangedFiles() logs batch progress", () => {
       { path: "style.css", upload_url: "https://r2.example.com/2" },
     ];
 
-    await uploadChangedFiles({ needed, fileMap, fetchFn });
+    await uploadChangedFiles({ needed, files, fetchFn });
 
     const batchLine = logLines.find((l) => l.startsWith("[upload]") && l.includes("batch="));
     expect(batchLine).toBeDefined();
@@ -243,15 +250,18 @@ describe("DW-1.3: uploadChangedFiles() logs batch progress", () => {
   it("test_DW_1_3_logs_multiple_batches_for_more_than_5_files", async () => {
     const fetchFn = async () => new Response("", { status: 200 });
 
-    const fileMap: Record<string, Uint8Array> = {};
+    const files: Record<string, { size: number; fullPath: string }> = {};
     const needed: Array<{ path: string; upload_url: string }> = [];
 
     for (let i = 0; i < 7; i++) {
-      fileMap[`file${i}.html`] = new Uint8Array(Buffer.from(`file${i}`));
+      const content = `file${i}`;
+      const fullPath = join(tmpDir, `file${i}.html`);
+      writeFileSync(fullPath, content);
+      files[`file${i}.html`] = { size: Buffer.byteLength(content), fullPath };
       needed.push({ path: `file${i}.html`, upload_url: `https://r2.example.com/file${i}` });
     }
 
-    await uploadChangedFiles({ needed, fileMap, fetchFn });
+    await uploadChangedFiles({ needed, files, fetchFn });
 
     const batchLines = logLines.filter((l) => l.startsWith("[upload]") && l.includes("batch="));
     expect(batchLines).toHaveLength(2);
@@ -262,7 +272,7 @@ describe("DW-1.3: uploadChangedFiles() logs batch progress", () => {
   it("test_DW_1_3_no_batch_log_when_needed_is_empty", async () => {
     const fetchFn = async () => new Response("", { status: 200 });
 
-    await uploadChangedFiles({ needed: [], fileMap: {}, fetchFn });
+    await uploadChangedFiles({ needed: [], files: {}, fetchFn });
 
     const batchLines = logLines.filter((l) => l.startsWith("[upload]") && l.includes("batch="));
     expect(batchLines).toHaveLength(0);
@@ -272,10 +282,12 @@ describe("DW-1.3: uploadChangedFiles() logs batch progress", () => {
 // ─── DW-1.4: uploadOneFile() per-file logging ────────────────────────────────
 
 describe("DW-1.4: uploadOneFile() logs attempt with HTTP status", () => {
+  let tmpDir: string;
   let logLines: string[];
   let spy: ReturnType<typeof spyOn>;
 
   beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-log-onefile-"));
     logLines = [];
     spy = spyOn(logModule, "log").mockImplementation((msg: string) => {
       logLines.push(msg);
@@ -284,15 +296,18 @@ describe("DW-1.4: uploadOneFile() logs attempt with HTTP status", () => {
 
   afterEach(() => {
     spy.mockRestore();
+    rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it("test_DW_1_4_logs_ok_upload_with_status", async () => {
     const fetchFn = async () => new Response("", { status: 200 });
 
-    const fileMap = { "index.html": new Uint8Array(Buffer.from("hello")) };
+    const fullPath = join(tmpDir, "index.html");
+    writeFileSync(fullPath, "hello");
+    const files = { "index.html": { size: 5, fullPath } };
     const needed = [{ path: "index.html", upload_url: "https://r2.example.com/1" }];
 
-    await uploadChangedFiles({ needed, fileMap, fetchFn });
+    await uploadChangedFiles({ needed, files, fetchFn });
 
     const fileLine = logLines.find((l) => l.startsWith("[upload]") && l.includes("file=index.html"));
     expect(fileLine).toBeDefined();
@@ -314,10 +329,12 @@ describe("DW-1.4: uploadOneFile() logs attempt with HTTP status", () => {
       return new Response("", { status: 200 });
     };
 
-    const fileMap = { "index.html": new Uint8Array(Buffer.from("hello")) };
+    const fullPath = join(tmpDir, "index.html");
+    writeFileSync(fullPath, "hello");
+    const files = { "index.html": { size: 5, fullPath } };
     const needed = [{ path: "index.html", upload_url: "https://r2.example.com/1" }];
 
-    await uploadChangedFiles({ needed, fileMap, fetchFn });
+    await uploadChangedFiles({ needed, files, fetchFn });
 
     const failLines = logLines.filter(
       (l) => l.startsWith("[upload]") && l.includes("file=index.html") && l.includes("status=500"),

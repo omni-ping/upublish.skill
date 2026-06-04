@@ -13,7 +13,15 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync } from "fs";
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+  statSync,
+} from "fs";
 import { join, relative } from "path";
 import type { ApiClient } from "./api-client.ts";
 import type { FetchFn, Site, Visibility } from "./types.ts";
@@ -112,15 +120,29 @@ export interface PublishResult {
 
 // ─── Incremental publish types ────────────────────────────────────────────────
 
+/**
+ * One collected file: its MD5 digest, byte size, and absolute path on disk.
+ *
+ * `fullPath` lets the uploader read/stream the body without knowing the
+ * directory root — the collection layer owns all path-join knowledge, so the
+ * upload layer stays a deep module behind this seam.
+ */
+export interface CollectedFile {
+  /**
+   * MD5 hex digest of the file's bytes.
+   * Matches the R2 ETag for single-part uploads (enables manifest diffing).
+   */
+  hash: string;
+  /** Byte size of the file, counted while hashing (no separate stat). */
+  size: number;
+  /** Absolute path to the file on disk. */
+  fullPath: string;
+}
+
 /** Result of collecting files with MD5 hashes. */
 export interface CollectWithHashesResult {
-  /** Map of relative path → raw file bytes. */
-  fileMap: Record<string, Uint8Array>;
-  /**
-   * Map of relative path → MD5 hex digest.
-   * Matches R2 ETag for single-part uploads.
-   */
-  hashes: Record<string, string>;
+  /** Map of relative path → collected file metadata (hash, size, fullPath). */
+  files: Record<string, CollectedFile>;
   /** Files/directories excluded by default rules or .upublishignore. */
   excluded: string[];
   /** Suspicious files included that may not be site content. */
@@ -134,8 +156,11 @@ export interface UploadChangedFilesOpts {
    * Returned by the manifest endpoint.
    */
   needed: Array<{ path: string; upload_url: string }>;
-  /** Map of relative path → raw bytes, used to supply PUT body. */
-  fileMap: Record<string, Uint8Array>;
+  /**
+   * Map of relative path → { size, fullPath }. `size` feeds byte-accurate
+   * progress; `fullPath` supplies the PUT body (read from disk).
+   */
+  files: Record<string, { size: number; fullPath: string }>;
   /**
    * Injectable fetch function. Defaults to global fetch.
    * Injected in tests to avoid real R2 calls.
@@ -232,11 +257,48 @@ function matchesIgnore(
 // ─── File Collection ──────────────────────────────────────────────────────────
 
 interface CollectState {
-  fileMap: Record<string, Uint8Array>;
-  /** MD5 hex digests per file. */
-  hashes: Record<string, string>;
+  /** Map of relative path → collected file metadata (hash, size, fullPath). */
+  files: Record<string, CollectedFile>;
   excluded: string[];
   warnings: string[];
+}
+
+/**
+ * Chunk size for streamed file hashing. Bounds collection memory: a file is
+ * never read whole into memory — it is hashed through a single reused buffer of
+ * this size, regardless of file size.
+ */
+const HASH_CHUNK_BYTES = 64 * 1024;
+
+/**
+ * Computes a file's MD5 digest by streaming it through a fixed-size buffer with
+ * chunked synchronous reads. Memory stays bounded by HASH_CHUNK_BYTES even for
+ * gigabyte files. The byte count is accumulated during the read, so `size`
+ * reflects exactly the bytes hashed (no separate stat / TOCTOU race).
+ *
+ * The file descriptor is closed in a `finally` so a read error mid-walk never
+ * leaks an fd.
+ *
+ * @param fullPath - Absolute path to the file to hash.
+ * @returns The MD5 hex digest and the number of bytes read.
+ */
+function hashFileChunked(fullPath: string): { hash: string; size: number } {
+  const fd = openSync(fullPath, "r");
+  try {
+    const md5 = createHash("md5");
+    const buffer = Buffer.allocUnsafe(HASH_CHUNK_BYTES);
+    let size = 0;
+    let bytesRead: number;
+    // readSync(..., null) advances the fd offset; returns 0 at EOF (and for an
+    // empty file on the first call → size 0, canonical empty-file MD5).
+    while ((bytesRead = readSync(fd, buffer, 0, HASH_CHUNK_BYTES, null)) > 0) {
+      md5.update(buffer.subarray(0, bytesRead));
+      size += bytesRead;
+    }
+    return { hash: md5.digest("hex"), size };
+  } finally {
+    closeSync(fd);
+  }
 }
 
 /** Recursively collects files, applying exclusion rules and flagging suspicious files. */
@@ -268,11 +330,10 @@ function collectFiles(
       if (isSuspicious(entry.name)) {
         state.warnings.push(relPath);
       }
-      const data = readFileSync(fullPath);
-      const bytes = new Uint8Array(data);
-      state.fileMap[relPath] = bytes;
-      // MD5 matches R2 ETag for single-part uploads
-      state.hashes[relPath] = createHash("md5").update(bytes).digest("hex");
+      // Stream-hash the file (bounded memory); MD5 matches the R2 ETag for
+      // single-part uploads. `size` is the bytes actually hashed.
+      const { hash, size } = hashFileChunked(fullPath);
+      state.files[relPath] = { hash, size, fullPath };
     }
   }
 }
@@ -285,7 +346,7 @@ function collectFiles(
  * publish flow to diff client files against the server manifest.
  *
  * @param dirPath - Root directory to walk.
- * @returns fileMap (path → bytes), hashes (path → MD5 hex), excluded, warnings.
+ * @returns files (path → { hash, size, fullPath }), excluded, warnings.
  */
 export function collectFilesWithHashes(dirPath: string): CollectWithHashesResult {
   let ignorePatterns: string[] = [];
@@ -299,16 +360,14 @@ export function collectFilesWithHashes(dirPath: string): CollectWithHashesResult
   }
 
   const state: CollectState = {
-    fileMap: {},
-    hashes: {},
+    files: {},
     excluded: [],
     warnings: [],
   };
   collectFiles(dirPath, dirPath, state, ignorePatterns);
 
   return {
-    fileMap: state.fileMap,
-    hashes: state.hashes,
+    files: state.files,
     excluded: state.excluded,
     warnings: state.warnings,
   };
@@ -333,14 +392,14 @@ const UPLOAD_WINDOW_HOURS = 6;
  * throwing. This is safe to retry because presigned PUT is idempotent.
  *
  * @param opts.needed     - Files to upload with their presigned PUT URLs.
- * @param opts.fileMap    - Map of path → bytes, supplies PUT body.
+ * @param opts.files      - Map of path → { size, fullPath }; fullPath supplies the PUT body.
  * @param opts.fetchFn    - Injectable fetch function (defaults to global fetch).
  * @throws Error with the file path if a file fails after all retry attempts.
  */
 export async function uploadChangedFiles(
   opts: UploadChangedFilesOpts,
 ): Promise<void> {
-  const { needed, fileMap, fetchFn = fetch, onProgress } = opts;
+  const { needed, files, fetchFn = fetch, onProgress } = opts;
 
   // Empty upload: early-return BEFORE any progress fires — no onProgress call
   // is made for a no-op upload (not even the initial zero report).
@@ -350,7 +409,7 @@ export async function uploadChangedFiles(
 
   const total = needed.length;
   const totalBatches = Math.ceil(total / UPLOAD_CONCURRENCY);
-  const sizeOf = (path: string) => fileMap[path]?.byteLength ?? 0;
+  const sizeOf = (path: string) => files[path]?.size ?? 0;
   const totalBytes = needed.reduce((sum, item) => sum + sizeOf(item.path), 0);
 
   // Cumulative counters advanced as each file lands. Mutated from within the
@@ -374,7 +433,7 @@ export async function uploadChangedFiles(
     log(`[upload] batch=${batchNum}/${totalBatches} files=${batch.map((f) => f.path).join(",")}`);
     await Promise.all(
       batch.map(async (item) => {
-        await uploadOneFile(item, fileMap, fetchFn);
+        await uploadOneFile(item, files, fetchFn);
         completed += 1;
         completedBytes += sizeOf(item.path);
         onProgress?.({ completed, total, completedBytes, totalBytes });
@@ -400,10 +459,12 @@ export async function uploadChangedFiles(
  */
 async function uploadOneFile(
   item: { path: string; upload_url: string },
-  fileMap: Record<string, Uint8Array>,
+  files: Record<string, { size: number; fullPath: string }>,
   fetchFn: FetchFn,
 ): Promise<void> {
-  const bytes = fileMap[item.path];
+  // Transitional: eagerly read the body from disk. Phase 2 replaces this with a
+  // streamed Bun.file(fullPath) Blob constructed fresh per attempt.
+  const bytes = new Uint8Array(readFileSync(files[item.path].fullPath));
 
   for (let attempt = 1; attempt <= UPLOAD_MAX_RETRIES; attempt++) {
     let response: Response;
@@ -515,16 +576,16 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   // Collect files and compute MD5 hashes
   const collected = collectFilesWithHashes(directory);
 
-  if (Object.keys(collected.fileMap).length === 0) {
+  if (Object.keys(collected.files).length === 0) {
     throw new Error("Directory is empty — no files to publish");
   }
 
   // Build file manifest to send to server.
   // When force=true, use random hashes so the server treats every file as changed.
-  const files = Object.entries(collected.hashes).map(([path, hash]) => ({
+  const files = Object.entries(collected.files).map(([path, file]) => ({
     path,
-    hash: force ? crypto.randomUUID() : hash,
-    size: collected.fileMap[path].byteLength,
+    hash: force ? crypto.randomUUID() : file.hash,
+    size: file.size,
   }));
 
   const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
@@ -548,7 +609,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   // Presigned URLs are self-authenticating — no Bearer token required.
   await uploadChangedFiles({
     needed: manifestResult.needed,
-    fileMap: collected.fileMap,
+    files: collected.files,
     fetchFn,
     onProgress,
   });
