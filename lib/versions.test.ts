@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from "bun:test";
-import { listVersions, deleteVersion } from "./versions.ts";
+import { listVersions, deleteVersion, setVersionsLimit } from "./versions.ts";
 import { ApiClient } from "./api-client.ts";
 
 const BASE_URL = "https://api.example.com";
@@ -146,5 +146,108 @@ describe("DW-4.1: deleteVersion", () => {
       mockFetch(409, { error: "Cannot delete the live version" }),
     );
     await expect(deleteVersion(delClient, NS_ID, "site", 3)).rejects.toThrow("API error 409");
+  });
+});
+
+// ─── DW-3.1 + DW-3.3: setVersionsLimit ───────────────────────────────────────
+
+describe("DW-3.1: setVersionsLimit — domain function", () => {
+  it("test_DW_3_1_set_versions_limit_happy_path", async () => {
+    const apiBody = {
+      site: { max_versions: 5 },
+      pruned: [1, 2, 3],
+      freed_bytes: 3145728,
+      usage: { used_bytes: 10485760, limit_bytes: 104857600 },
+    };
+
+    let capturedUrl = "";
+    let capturedMethod = "";
+    let capturedBody: unknown;
+
+    const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
+      capturedUrl = url;
+      capturedMethod = init?.method ?? "";
+      capturedBody = JSON.parse(init?.body as string);
+      return new Response(JSON.stringify(apiBody), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    const result = await setVersionsLimit(apiClient, NS_ID, "my-portfolio", 5);
+
+    // Correct HTTP method and URL
+    expect(capturedMethod).toBe("PUT");
+    expect(capturedUrl).toBe(`${BASE_URL}/api/ns/${NS_ID}/sites/my-portfolio/versions/limit`);
+    // Correct request body
+    expect(capturedBody).toEqual({ limit: 5 });
+    // Typed result
+    expect(result.site.max_versions).toBe(5);
+    expect(result.pruned).toEqual([1, 2, 3]);
+    expect(result.freed_bytes).toBe(3145728);
+    expect(result.usage.used_bytes).toBe(10485760);
+  });
+
+  it("test_DW_3_1_set_versions_limit_clear", async () => {
+    // limit=null clears the retention limit
+    const apiBody = {
+      site: { max_versions: null },
+      pruned: [],
+      freed_bytes: 0,
+      usage: { used_bytes: 10485760, limit_bytes: 104857600 },
+    };
+
+    let capturedBody: unknown;
+    const fetchFn = async (_url: string, init?: RequestInit): Promise<Response> => {
+      capturedBody = JSON.parse(init?.body as string);
+      return new Response(JSON.stringify(apiBody), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    const result = await setVersionsLimit(apiClient, NS_ID, "my-portfolio", null);
+
+    expect(capturedBody).toEqual({ limit: null });
+    expect(result.site.max_versions).toBeNull();
+    expect(result.pruned).toEqual([]);
+    expect(result.freed_bytes).toBe(0);
+  });
+
+  it("test_DW_3_1_set_versions_limit_url_encodes_slug", async () => {
+    let capturedUrl = "";
+    const fetchFn = async (url: string, _init?: RequestInit): Promise<Response> => {
+      capturedUrl = url;
+      return new Response(
+        JSON.stringify({ site: { max_versions: 3 }, pruned: [], freed_bytes: 0, usage: {} }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    await setVersionsLimit(apiClient, NS_ID, "my site", 3);
+
+    expect(capturedUrl).toBe(`${BASE_URL}/api/ns/${NS_ID}/sites/my%20site/versions/limit`);
+  });
+
+  it("test_DW_3_1_validates_slug", async () => {
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, {}));
+    await expect(setVersionsLimit(apiClient, NS_ID, "", 5)).rejects.toThrow("slug is required");
+    await expect(setVersionsLimit(apiClient, NS_ID, "   ", 5)).rejects.toThrow("slug is required");
+  });
+
+  it("test_DW_3_3_backend_400_passthrough", async () => {
+    // Backend 400 (e.g. limit=0) is surfaced as an error, not a crash
+    const fetchFn = mockFetch(400, { error: "limit must be a positive integer or null" });
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    await expect(setVersionsLimit(apiClient, NS_ID, "my-site", 0)).rejects.toThrow("API error 400");
+  });
+
+  it("test_DW_3_3_backend_404_unknown_slug_passthrough", async () => {
+    const fetchFn = mockFetch(404, { error: "Site not found" });
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    await expect(setVersionsLimit(apiClient, NS_ID, "ghost", 3)).rejects.toThrow("API error 404");
   });
 });

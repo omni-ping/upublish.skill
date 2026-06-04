@@ -53,12 +53,36 @@ export interface DeleteVersionResult {
   usage: StorageUsage;
 }
 
+/** Result of setting (or clearing) a site's version retention limit. */
+export interface SetVersionsLimitResult {
+  /** The updated site record, including the new max_versions value. */
+  site: {
+    /** The retention limit after the update. null means unlimited. */
+    max_versions: number | null;
+    /** Additional site fields returned by the API, passed through. */
+    [key: string]: unknown;
+  };
+  /** Version numbers that were pruned as a result of setting the limit. */
+  pruned: number[];
+  /** Bytes freed by pruning. 0 when no versions were pruned. */
+  freed_bytes: number;
+  /** Storage usage after the operation (for reclaimed-space feedback). */
+  usage: StorageUsage;
+}
+
 interface ListVersionsResponse {
   versions: SiteVersion[];
 }
 
 interface DeleteVersionResponse {
   version_number: number;
+  freed_bytes: number;
+  usage: StorageUsage;
+}
+
+interface SetVersionsLimitResponse {
+  site: { max_versions: number | null; [key: string]: unknown };
+  pruned: number[];
   freed_bytes: number;
   usage: StorageUsage;
 }
@@ -123,6 +147,47 @@ export async function deleteVersion(
 
   return {
     version_number: result.version_number,
+    freed_bytes: result.freed_bytes,
+    usage: result.usage,
+  };
+}
+
+// ─── Set / clear retention limit ──────────────────────────────────────────────
+
+/**
+ * Sets or clears the retention limit for a site.
+ *
+ * When `limit` is a positive integer, the backend persists it and immediately
+ * prunes excess archived versions (oldest-first). When `limit` is null the
+ * limit is cleared and no future automatic pruning occurs.
+ *
+ * @param apiClient - Authenticated API client.
+ * @param nsId - The namespace ID the site belongs to.
+ * @param slug - The URL-safe identifier of the site.
+ * @param limit - Positive integer (≥ 1) to set, or null to clear.
+ * @returns Updated site (including max_versions), pruned version numbers,
+ *          bytes freed, and post-operation storage usage.
+ * @throws Error if slug is empty.
+ * @throws Error on API failure (propagated from ApiClient).
+ */
+export async function setVersionsLimit(
+  apiClient: ApiClient,
+  nsId: string,
+  slug: string,
+  limit: number | null,
+): Promise<SetVersionsLimitResult> {
+  if (!slug || slug.trim().length === 0) {
+    throw new Error("slug is required");
+  }
+
+  const result = await apiClient.put<SetVersionsLimitResponse>(
+    `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/versions/limit`,
+    { limit },
+  );
+
+  return {
+    site: result.site,
+    pruned: result.pruned,
     freed_bytes: result.freed_bytes,
     usage: result.usage,
   };
