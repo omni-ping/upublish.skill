@@ -111,7 +111,8 @@ import type {
   AdminResyncReport,
   AdminDomain,
 } from "./admin.ts";
-import { resolveNamespace } from "./namespace.ts";
+import { resolveNamespace, namespaceCreate as domainNamespaceCreate } from "./namespace.ts";
+import type { NamespaceCreateResult } from "./namespace.ts";
 import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission } from "./types.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
@@ -128,6 +129,7 @@ export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResu
 export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, ChangeMemberRoleResult };
 export type { QrCodeArgs, QrCodeResult };
 export type { Namespace, Site, Visibility, GateConfig, GateSubmission };
+export type { NamespaceCreateResult };
 export type { NamespaceRole } from "./types.ts";
 export type {
   AdminUserArgs,
@@ -699,6 +701,29 @@ export async function adminDomains(
 }
 
 /**
+ * Creates a new root namespace and returns its id + domain.
+ *
+ * When `domain` is omitted the namespace is created on the hosted platform
+ * domain (`upubli.sh`). Tier-limit, taken, and invalid-name failures surface as
+ * thrown Errors with actionable messages (the tier-limit case names the upgrade
+ * path), which adapters render directly.
+ *
+ * @param name - The namespace name to create.
+ * @param domain - Optional hosted/custom domain; defaults to the platform domain.
+ * @param deps - Optional CoreDeps for test injection.
+ * @throws Error "Not authenticated" if no credentials are stored.
+ * @throws Error with an actionable message on any API failure.
+ */
+export async function namespaceCreate(
+  name: string,
+  domain?: string,
+  deps?: CoreDeps,
+): Promise<NamespaceCreateResult> {
+  const apiClient = await buildApiClient(deps);
+  return domainNamespaceCreate(apiClient, name, domain);
+}
+
+/**
  * Runs the interactive OAuth login flow and stores credentials.
  * The loginDeps bag provides OAuth plumbing (browser, callback server, logger).
  * The optional coreDeps.credentialsPath overrides the default credentials path.
@@ -707,10 +732,14 @@ export async function login(
   loginDeps: LoginDeps,
   coreDeps?: CoreDeps,
 ): Promise<LoginResult> {
-  // Apply credentialsPath override from CoreDeps if provided
-  const resolvedDeps: LoginDeps = coreDeps?.credentialsPath
-    ? { ...loginDeps, credentialsFilePath: coreDeps.credentialsPath }
-    : loginDeps;
+  // Thread CoreDeps overrides into the login bag: credentialsPath redirects
+  // where the refresh token is written; fetchFn (tests) drives the token
+  // exchange. An explicit loginDeps.fetchFn still wins if both are set.
+  const resolvedDeps: LoginDeps = {
+    ...loginDeps,
+    ...(coreDeps?.credentialsPath ? { credentialsFilePath: coreDeps.credentialsPath } : {}),
+    fetchFn: loginDeps.fetchFn ?? coreDeps?.fetchFn,
+  };
 
   return authLogin(resolvedDeps);
 }

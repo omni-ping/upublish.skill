@@ -10,6 +10,21 @@ Credentials have expired or the credentials file is missing. The MCP server read
 
 **Fix:** Call the `login` tool to re-authenticate — this opens a browser for Google sign-in. Tell the user what's happening ("Your session expired, opening the browser to re-authenticate").
 
+## "This client version is no longer supported" / HTTP 410 `upgrade_required`
+
+The plugin is calling a retired authentication endpoint. The sign-in flow was
+consolidated (one Google OAuth entry, single-use code + PKCE exchange), and the
+old per-flow auth routes now return **HTTP 410** with
+`{"error":"This client version is no longer supported — update the upublish plugin","code":"upgrade_required"}`.
+
+This means an **outdated plugin** is installed. Nothing is wrong with the
+account or the server.
+
+**Fix:** Update the upublish plugin to the latest version, then restart the
+session so the new MCP server is loaded. After updating, run `login` again — a
+first-time user will be taken through the browser onboarding page, and a
+returning user is signed in directly.
+
 ## "Invalid slug"
 
 Slug must be 3-63 characters: lowercase letters, numbers, and hyphens only. Must start and end with a letter or number.

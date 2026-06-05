@@ -378,18 +378,21 @@ describe("DW-1.1/1.6: core.login()", () => {
       openBrowser: async () => {},
       startCallbackServer: async () => ({
         port: 12345,
-        waitForTokens: async () => ({
-          access_token: "at",
-          refresh_token: "rt",
-          expires_in: 3600,
-          username: USERNAME,
-        }),
+        waitForCode: async () => "auth-code",
         close: async () => {},
       }),
       log: () => {},
     };
 
-    const coreDeps: CoreDeps = { credentialsPath: credFile };
+    // CoreDeps.fetchFn drives the token exchange (no real network).
+    const coreDeps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: async () =>
+        new Response(
+          JSON.stringify({ access_token: "at", refresh_token: "rt", expires_in: 3600, username: USERNAME }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    };
 
     const result = await login(loginDeps, coreDeps);
     expect(result.username).toBe(USERNAME);

@@ -89,28 +89,28 @@ afterEach(() => {
   }
 });
 
-// ─── DW-7.1: tool count 16 without env var, 21 with ─────────────────────────
+// ─── DW-7.1: tool count 17 without env var, 22 with ─────────────────────────
 
-describe("DW-7.1: tool count 16 without UPUBLISH_ADMIN, 21 with it", () => {
-  test("test_DW_7_1_without_env_var_16_tools", () => {
+describe("DW-7.1: tool count 17 without UPUBLISH_ADMIN, 22 with it", () => {
+  test("test_DW_7_1_without_env_var_17_tools", () => {
     delete process.env.UPUBLISH_ADMIN;
     const { deps, credFile } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
     // Base tools: publish, list, delete, versions_list, versions_delete, versions_limit,
     // passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
-    // promote, logout, login, status = 16
-    expect(Object.keys(tools).length).toBe(16);
+    // promote, logout, login, status, namespace_create = 17
+    expect(Object.keys(tools).length).toBe(17);
     fs.unlinkSync(credFile);
   });
 
-  test("test_DW_7_1_with_env_var_21_tools", () => {
+  test("test_DW_7_1_with_env_var_22_tools", () => {
     process.env.UPUBLISH_ADMIN = "1";
     const { deps, credFile } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    // 16 base + 5 admin: admin_user, admin_site, admin_stats, admin_storage, admin_domains = 21
-    expect(Object.keys(tools).length).toBe(21);
+    // 17 base + 5 admin: admin_user, admin_site, admin_stats, admin_storage, admin_domains = 22
+    expect(Object.keys(tools).length).toBe(22);
     fs.unlinkSync(credFile);
   });
 
@@ -119,7 +119,7 @@ describe("DW-7.1: tool count 16 without UPUBLISH_ADMIN, 21 with it", () => {
     const { deps, credFile } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    expect(Object.keys(tools).length).toBe(16);
+    expect(Object.keys(tools).length).toBe(17);
     fs.unlinkSync(credFile);
   });
 

@@ -147,10 +147,10 @@ describe("DW-2.1: server registers publish, list, delete tools", () => {
     const { deps } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    // 16 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
+    // 17 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
     // passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
-    // promote, logout, login, status
-    expect(Object.keys(tools).length).toBe(16);
+    // promote, logout, login, status, namespace_create
+    expect(Object.keys(tools).length).toBe(17);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
@@ -904,14 +904,14 @@ describe("DW-1.5: error message no longer references CLI commands", () => {
 // ─── DW-1.7: tool count assertions fixed ────────────────────────────────────
 
 describe("DW-1.7: tool count assertions are correct", () => {
-  test("test_DW_1_7_server_registers_exactly_nine_tools", () => {
+  test("test_DW_1_7_server_registers_exactly_seventeen_tools", () => {
     const { deps } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    // 16 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
+    // 17 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
     // passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
-    // promote, logout, login, status
-    expect(Object.keys(tools).length).toBe(16);
+    // promote, logout, login, status, namespace_create
+    expect(Object.keys(tools).length).toBe(17);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
@@ -924,10 +924,10 @@ describe("server structure", () => {
     const server = createServer(deps);
     expect(server).toBeDefined();
     const tools = getTools(server);
-    // 16 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
+    // 17 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
     // passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
-    // promote, logout, login, status
-    expect(Object.keys(tools).length).toBe(16);
+    // promote, logout, login, status, namespace_create
+    expect(Object.keys(tools).length).toBe(17);
     fs.unlinkSync(deps.credentialsPath!);
   });
 

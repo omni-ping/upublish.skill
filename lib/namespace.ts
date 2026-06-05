@@ -12,6 +12,18 @@
 import type { ApiClient } from "./api-client.ts";
 import type { Namespace } from "./types.ts";
 
+// ─── Constants ─────────────────────────────────────────────────────────────────
+
+/**
+ * Hosted platform domain a user's namespace is created on when no custom domain
+ * is supplied. Mirrors the backend's DEFAULT_NAMESPACE_DOMAIN — onboarding
+ * completion and `POST /api/ns` both treat this as the default hosted domain.
+ */
+const DEFAULT_NAMESPACE_DOMAIN = "upubli.sh";
+
+/** Where free-tier users go to lift the root-namespace limit. */
+const UPGRADE_URL = "https://upubli.sh/pricing";
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface SpaceResponse {
@@ -24,6 +36,19 @@ interface SpaceResponse {
 
 interface NamespacesResponse {
   namespaces: Namespace[];
+}
+
+/** Backend response shape for POST /api/ns. */
+interface CreateNamespaceResponse {
+  namespace: Namespace;
+}
+
+/** Result of creating a namespace — the new id and the domain it lives on. */
+export interface NamespaceCreateResult {
+  /** The created namespace's ID. */
+  namespace_id: string;
+  /** The domain the namespace lives under (e.g. "upubli.sh"). */
+  domain: string;
 }
 
 // ─── Resolution ──────────────────────────────────────────────────────────────
@@ -88,4 +113,58 @@ async function resolveDefault(apiClient: ApiClient): Promise<Namespace> {
 
   // No default set (or default not found) — fall back to first namespace
   return namespaces[0];
+}
+
+// ─── Creation ────────────────────────────────────────────────────────────────
+
+/**
+ * Creates a new root namespace via POST /api/ns and returns its id + domain.
+ *
+ * When `domain` is omitted the namespace is created on the hosted platform
+ * domain (`upubli.sh`) — the common case for first-time and free-tier users.
+ *
+ * Errors surface as thrown Errors with actionable messages (matching every
+ * other domain function, so the adapter just renders `err.message`):
+ *   - 409 → the name is already taken on that domain
+ *   - 400 → invalid name format
+ *   - 422 → reserved / disallowed name
+ *   - 403 (tier limit) → the message is enriched with the upgrade URL so the
+ *          agent can tell the user exactly how to lift the limit
+ *
+ * @param apiClient - Authenticated API client.
+ * @param name - The namespace name to create.
+ * @param domain - Optional hosted/custom domain; defaults to "upubli.sh".
+ * @returns The new namespace id and the domain it lives on.
+ * @throws Error with an actionable message on any API failure.
+ */
+export async function namespaceCreate(
+  apiClient: ApiClient,
+  name: string,
+  domain: string = DEFAULT_NAMESPACE_DOMAIN,
+): Promise<NamespaceCreateResult> {
+  let response: CreateNamespaceResponse;
+  try {
+    response = await apiClient.post<CreateNamespaceResponse>("/api/ns", { name, domain });
+  } catch (err) {
+    throw enrichNamespaceError(err as Error);
+  }
+  return {
+    namespace_id: response.namespace.id,
+    domain: response.namespace.domain,
+  };
+}
+
+/**
+ * Adds upgrade guidance to a tier-limit rejection. ApiClient collapses non-2xx
+ * responses to `API error <status>: <backend message>`; the backend's 403
+ * limit message already names the plan limit ("…allows N root namespace(s)"),
+ * so we only need to append where to upgrade. All other errors pass through
+ * unchanged — their backend text is already actionable.
+ */
+function enrichNamespaceError(err: Error): Error {
+  const isTierLimit = /API error 403/.test(err.message) && /limit/i.test(err.message);
+  if (isTierLimit) {
+    return new Error(`${err.message} Upgrade at ${UPGRADE_URL} to create more namespaces.`);
+  }
+  return err;
 }
