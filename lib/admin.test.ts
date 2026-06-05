@@ -4,12 +4,12 @@
  * Covers DW-7.2: admin functions take ApiClient (not CoreDeps — no credential wiring here)
  * Covers DW-7.3: each action maps to its backend endpoint (contract tests via mock ApiClient)
  * Covers DW-7.4: 403 surfaces as a clean error message (no stack trace)
- * Covers DW-7.5: docs/admin-operations.md exists and covers all 5 tools + coupon comp procedure
+ *
+ * DW-7.5 (operator docs) lives in the upublish meta-repo at docs/admin-operations.md —
+ * it cannot be asserted from this repo's CI (different repository, not checked out here).
  */
 
 import { describe, test, expect, beforeEach } from "bun:test";
-import * as fs from "node:fs";
-import * as path from "node:path";
 import type { ApiClient } from "./api-client.ts";
 import {
   adminUser,
@@ -448,54 +448,3 @@ describe("DW-7.4: 403 from API surfaces as clean error, no stack trace", () => {
   });
 });
 
-// ─── DW-7.5: docs/admin-operations.md exists and covers all tools ────────────
-
-describe("DW-7.5: docs/admin-operations.md covers all 5 tools + comp procedure", () => {
-  const DOCS_PATH = "/Users/r/repos/upublish/docs/admin-operations.md";
-
-  test("test_DW_7_5_docs_file_exists", () => {
-    expect(fs.existsSync(DOCS_PATH)).toBe(true);
-  });
-
-  test("test_DW_7_5_docs_cover_admin_user_tool", () => {
-    const content = fs.readFileSync(DOCS_PATH, "utf-8");
-    expect(content).toContain("admin_user");
-  });
-
-  test("test_DW_7_5_docs_cover_admin_site_tool", () => {
-    const content = fs.readFileSync(DOCS_PATH, "utf-8");
-    expect(content).toContain("admin_site");
-  });
-
-  test("test_DW_7_5_docs_cover_admin_stats_tool", () => {
-    const content = fs.readFileSync(DOCS_PATH, "utf-8");
-    expect(content).toContain("admin_stats");
-  });
-
-  test("test_DW_7_5_docs_cover_admin_storage_tool", () => {
-    const content = fs.readFileSync(DOCS_PATH, "utf-8");
-    expect(content).toContain("admin_storage");
-  });
-
-  test("test_DW_7_5_docs_cover_admin_domains_tool", () => {
-    const content = fs.readFileSync(DOCS_PATH, "utf-8");
-    expect(content).toContain("admin_domains");
-  });
-
-  test("test_DW_7_5_docs_cover_coupon_comp_procedure", () => {
-    const content = fs.readFileSync(DOCS_PATH, "utf-8");
-    // Must cover the comp mechanism (100% coupon in Stripe Dashboard)
-    expect(content).toContain("coupon");
-    expect(content).toContain("Stripe");
-    // Must explicitly warn against direct tier edits
-    expect(content).toContain("tier");
-  });
-
-  test("test_DW_7_5_docs_cover_all_admin_user_actions", () => {
-    const content = fs.readFileSync(DOCS_PATH, "utf-8");
-    // All 6 actions of admin_user must be documented
-    for (const action of ["lookup", "inspect", "role", "suspend", "ban", "reinstate"]) {
-      expect(content).toContain(action);
-    }
-  });
-});
