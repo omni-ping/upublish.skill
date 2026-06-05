@@ -89,6 +89,28 @@ import type {
 } from "./members.ts";
 import { qrCode as domainQrCode } from "./qrcode.ts";
 import type { QrCodeArgs, QrCodeResult } from "./qrcode.ts";
+import {
+  adminUser as domainAdminUser,
+  adminSite as domainAdminSite,
+  adminStats as domainAdminStats,
+  adminStorage as domainAdminStorage,
+  adminDomains as domainAdminDomains,
+} from "./admin.ts";
+import type {
+  AdminUserArgs,
+  AdminSiteArgs,
+  AdminStorageArgs,
+  AdminDomainsArgs,
+  AdminUserSummary,
+  AdminUserInspect,
+  AdminStatusResult,
+  AdminRoleResult,
+  AdminSiteBlockResult,
+  AdminStats,
+  AdminSweepReport,
+  AdminResyncReport,
+  AdminDomain,
+} from "./admin.ts";
 import { resolveNamespace } from "./namespace.ts";
 import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission } from "./types.ts";
 
@@ -107,6 +129,21 @@ export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, Ch
 export type { QrCodeArgs, QrCodeResult };
 export type { Namespace, Site, Visibility, GateConfig, GateSubmission };
 export type { NamespaceRole } from "./types.ts";
+export type {
+  AdminUserArgs,
+  AdminSiteArgs,
+  AdminStorageArgs,
+  AdminDomainsArgs,
+  AdminUserSummary,
+  AdminUserInspect,
+  AdminStatusResult,
+  AdminRoleResult,
+  AdminSiteBlockResult,
+  AdminStats,
+  AdminSweepReport,
+  AdminResyncReport,
+  AdminDomain,
+};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -580,6 +617,85 @@ export async function qrCode(args: QrCodeArgs, deps?: CoreDeps): Promise<QrCodeR
       },
     },
   );
+}
+
+// ─── Admin operations ─────────────────────────────────────────────────────────
+
+/**
+ * Dispatches user admin operations (lookup/inspect/role/suspend/ban/reinstate).
+ * Requires admin role on the authenticated user — non-admin callers receive 403.
+ * Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param args - Discriminated union of user admin arguments.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function adminUser(
+  args: AdminUserArgs,
+  deps?: CoreDeps,
+): Promise<AdminUserSummary | AdminUserInspect | AdminStatusResult | AdminRoleResult> {
+  const apiClient = await buildApiClient(deps);
+  return domainAdminUser(apiClient, args);
+}
+
+/**
+ * Dispatches site admin operations (block/unblock).
+ * Requires admin role on the authenticated user — non-admin callers receive 403.
+ * Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param args - Discriminated union of site admin arguments.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function adminSite(
+  args: AdminSiteArgs,
+  deps?: CoreDeps,
+): Promise<AdminSiteBlockResult> {
+  const apiClient = await buildApiClient(deps);
+  return domainAdminSite(apiClient, args);
+}
+
+/**
+ * Fetches platform-wide statistics.
+ * Requires admin role on the authenticated user — non-admin callers receive 403.
+ * Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function adminStats(deps?: CoreDeps): Promise<AdminStats> {
+  const apiClient = await buildApiClient(deps);
+  return domainAdminStats(apiClient);
+}
+
+/**
+ * Dispatches storage admin operations (sweep/resync).
+ * sweep defaults to dryRun=true. Pass dryRun=false explicitly for live runs.
+ * Requires admin role on the authenticated user — non-admin callers receive 403.
+ * Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param args - Discriminated union of storage admin arguments.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function adminStorage(
+  args: AdminStorageArgs,
+  deps?: CoreDeps,
+): Promise<AdminSweepReport | AdminResyncReport> {
+  const apiClient = await buildApiClient(deps);
+  return domainAdminStorage(apiClient, args);
+}
+
+/**
+ * Dispatches domain admin operations (list/add/remove).
+ * Requires admin role on the authenticated user — non-admin callers receive 403.
+ * Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param args - Discriminated union of domain admin arguments.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function adminDomains(
+  args: AdminDomainsArgs,
+  deps?: CoreDeps,
+): Promise<AdminDomain[] | AdminDomain | { ok: true }> {
+  const apiClient = await buildApiClient(deps);
+  return domainAdminDomains(apiClient, args);
 }
 
 /**

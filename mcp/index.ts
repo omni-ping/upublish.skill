@@ -34,6 +34,11 @@ import {
   gate,
   members,
   qrCode,
+  adminUser,
+  adminSite,
+  adminStats,
+  adminStorage,
+  adminDomains,
 } from "../lib/core.ts";
 import type {
   CoreDeps,
@@ -45,12 +50,20 @@ import type {
   GateSubmission,
   UploadProgress,
   Member,
+  AdminUserSummary,
+  AdminUserInspect,
+  AdminStatusResult,
+  AdminSiteBlockResult,
+  AdminStats,
+  AdminSweepReport,
+  AdminResyncReport,
+  AdminDomain,
 } from "../lib/core.ts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.11.0";
+export const PACKAGE_VERSION = "0.12.0";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -1255,6 +1268,371 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
       return okResponse(msg);
     },
   );
+
+  // ─── Admin tools (env-gated) ────────────────────────────────────────────────
+  // Only registered when UPUBLISH_ADMIN=1. Without the env var, the tool
+  // registry is byte-identical to the 16-tool baseline — existing tests pass.
+
+  if (process.env.UPUBLISH_ADMIN === "1") {
+    server.registerTool(
+      "admin_user",
+      {
+        title: "Admin: User",
+        description:
+          "Admin operations on a user account. Requires admin role.\n\n" +
+          "Actions:\n" +
+          "  lookup   — Look up a user by email address\n" +
+          "  inspect  — Full user context: space, storage, sites, namespaces\n" +
+          "  role     — Change a user's platform role (user|admin)\n" +
+          "  suspend  — Suspend a user account (reversible)\n" +
+          "  ban      — Permanently ban a user and block all their sites (triggers KV reconcile)\n" +
+          "  reinstate — Reinstate a suspended or banned user",
+        inputSchema: {
+          action: z
+            .enum(["lookup", "inspect", "role", "suspend", "ban", "reinstate"])
+            .describe("The admin user operation to perform."),
+          email: z
+            .string()
+            .optional()
+            .describe("User email address. Required for lookup action."),
+          userId: z
+            .string()
+            .optional()
+            .describe(
+              "User ID. Required for inspect, role, suspend, ban, and reinstate actions.",
+            ),
+          role: z
+            .enum(["user", "admin"])
+            .optional()
+            .describe("New platform role. Required for role action."),
+          reason: z
+            .string()
+            .optional()
+            .describe("Reason for status change. Recommended for suspend and ban actions."),
+        },
+      },
+      async ({ action, email, userId, role, reason }) => {
+        try {
+          const actionStr = action as "lookup" | "inspect" | "role" | "suspend" | "ban" | "reinstate";
+
+          if (actionStr === "lookup") {
+            if (!email) return errResponse(new Error("email is required for lookup action"));
+            const result = await adminUser(
+              { action: "lookup", email: email as string },
+              coreDeps,
+            ) as AdminUserSummary;
+            return okResponse(
+              `User: ${result.username} (${result.email})\n` +
+              `ID: ${result.id}\n` +
+              `Role: ${result.role}\n` +
+              `Status: ${result.status}${result.status_reason ? ` — ${result.status_reason}` : ""}`,
+            );
+          }
+
+          if (actionStr === "inspect") {
+            if (!userId) return errResponse(new Error("userId is required for inspect action"));
+            const result = await adminUser(
+              { action: "inspect", userId: userId as string },
+              coreDeps,
+            ) as AdminUserInspect;
+            const sitesLine = result.sites.length > 0
+              ? `\nSites (${result.sites.length}): ${result.sites.map((s) => s.slug).join(", ")}`
+              : "\nSites: none";
+            return okResponse(
+              `User: ${result.user.username} (${result.user.email})\n` +
+              `Status: ${result.user.status}${result.user.status_reason ? ` — ${result.user.status_reason}` : ""}\n` +
+              `Tier: ${result.space?.tier ?? "none"}\n` +
+              `Storage: ${formatBytes(result.storage_bytes)}` +
+              sitesLine,
+            );
+          }
+
+          if (actionStr === "role") {
+            if (!userId) return errResponse(new Error("userId is required for role action"));
+            if (!role) return errResponse(new Error("role is required for role action"));
+            const result = await adminUser(
+              { action: "role", userId: userId as string, role: role as "user" | "admin" },
+              coreDeps,
+            ) as { id: string; role: string };
+            return okResponse(`Role updated: ${result.id} → ${result.role}`);
+          }
+
+          if (actionStr === "suspend") {
+            if (!userId) return errResponse(new Error("userId is required for suspend action"));
+            const result = await adminUser(
+              { action: "suspend", userId: userId as string, reason: reason as string | undefined },
+              coreDeps,
+            ) as AdminStatusResult;
+            return okResponse(
+              `User ${result.id} suspended.\n` +
+              `Reason: ${result.status_reason ?? "(none)"}`,
+            );
+          }
+
+          if (actionStr === "ban") {
+            if (!userId) return errResponse(new Error("userId is required for ban action"));
+            const result = await adminUser(
+              { action: "ban", userId: userId as string, reason: reason as string | undefined },
+              coreDeps,
+            ) as AdminStatusResult;
+            const reconcileLine = result.reconcile
+              ? `\nKV reconcile: written=${result.reconcile.written} verified=${result.reconcile.verified} failed=${result.reconcile.failed.length}`
+              : "";
+            return okResponse(
+              `User ${result.id} banned.\n` +
+              `Reason: ${result.status_reason ?? "(none)"}` +
+              reconcileLine,
+            );
+          }
+
+          // reinstate
+          if (!userId) return errResponse(new Error("userId is required for reinstate action"));
+          const result = await adminUser(
+            { action: "reinstate", userId: userId as string },
+            coreDeps,
+          ) as AdminStatusResult;
+          return okResponse(`User ${result.id} reinstated (status: ${result.status}).`);
+        } catch (err) {
+          return errResponse(err);
+        }
+      },
+    );
+
+    server.registerTool(
+      "admin_site",
+      {
+        title: "Admin: Site",
+        description:
+          "Admin operations on a site. Requires admin role.\n\n" +
+          "Actions:\n" +
+          "  block   — Block a site (removes it from public access)\n" +
+          "  unblock — Unblock a previously blocked site",
+        inputSchema: {
+          action: z
+            .enum(["block", "unblock"])
+            .describe("The admin site operation to perform."),
+          siteId: z
+            .string()
+            .describe("The site ID to block or unblock."),
+          reason: z
+            .string()
+            .optional()
+            .describe("Reason for blocking. Recommended for block action."),
+        },
+      },
+      async ({ action, siteId, reason }) => {
+        try {
+          const actionStr = action as "block" | "unblock";
+          const siteIdStr = siteId as string;
+
+          if (actionStr === "block") {
+            const result = await adminSite(
+              { action: "block", siteId: siteIdStr, reason: reason as string | undefined },
+              coreDeps,
+            ) as AdminSiteBlockResult;
+            return okResponse(
+              `Site ${siteIdStr} blocked.\n` +
+              `Blocked at: ${result.site.blocked_at ?? "unknown"}`,
+            );
+          }
+
+          // unblock
+          const result = await adminSite(
+            { action: "unblock", siteId: siteIdStr },
+            coreDeps,
+          ) as AdminSiteBlockResult;
+          return okResponse(`Site ${siteIdStr} unblocked (blocked_at: ${result.site.blocked_at ?? "null"}).`);
+        } catch (err) {
+          return errResponse(err);
+        }
+      },
+    );
+
+    server.registerTool(
+      "admin_stats",
+      {
+        title: "Admin: Platform Stats",
+        description:
+          "Fetches platform-wide statistics. Requires admin role.\n\n" +
+          "Returns: users by tier, users by status, site count, namespace count, " +
+          "total storage, and blob deduplication ratio.",
+        inputSchema: {},
+      },
+      async () => {
+        try {
+          const result = await adminStats(coreDeps) as AdminStats;
+          const tierLines = Object.entries(result.users_by_tier)
+            .map(([tier, count]) => `  ${tier}: ${count}`)
+            .join("\n");
+          const statusLines = Object.entries(result.users_by_status)
+            .map(([status, count]) => `  ${status}: ${count}`)
+            .join("\n");
+          return okResponse(
+            `Platform Stats\n\n` +
+            `Users by tier:\n${tierLines}\n\n` +
+            `Users by status:\n${statusLines}\n\n` +
+            `Sites: ${result.site_count}\n` +
+            `Namespaces: ${result.namespace_count}\n` +
+            `Total storage: ${formatBytes(result.total_storage_bytes)}\n` +
+            `Blob dedup ratio: ${(result.blob_dedup_ratio * 100).toFixed(1)}%`,
+          );
+        } catch (err) {
+          return errResponse(err);
+        }
+      },
+    );
+
+    server.registerTool(
+      "admin_storage",
+      {
+        title: "Admin: Storage",
+        description:
+          "Admin storage operations. Requires admin role.\n\n" +
+          "Actions:\n" +
+          "  sweep  — Scan for and optionally delete orphaned blobs/prefixes. " +
+          "Defaults to dry-run=true. Pass confirm=true for live deletion.\n" +
+          "  resync — Resync KV access-control metadata for a site, user, or all entries.",
+        inputSchema: {
+          action: z
+            .enum(["sweep", "resync"])
+            .describe("The storage admin operation to perform."),
+          dryRun: z
+            .boolean()
+            .optional()
+            .describe(
+              "For sweep: when true (default), reports orphans without deleting. " +
+              "Pass false to actually delete orphaned blobs.",
+            ),
+          graceSeconds: z
+            .number()
+            .int()
+            .optional()
+            .describe(
+              "For sweep: grace period in seconds. Blobs newer than this are skipped.",
+            ),
+          scope: z
+            .enum(["site", "user", "all"])
+            .optional()
+            .describe("For resync: scope of the KV resync. Required for resync action."),
+          id: z
+            .string()
+            .optional()
+            .describe(
+              "For resync: the site or user ID to resync. Required when scope is site or user.",
+            ),
+        },
+      },
+      async ({ action, dryRun, graceSeconds, scope, id }) => {
+        try {
+          const actionStr = action as "sweep" | "resync";
+
+          if (actionStr === "sweep") {
+            const result = await adminStorage(
+              {
+                action: "sweep",
+                dryRun: dryRun as boolean | undefined,
+                graceSeconds: graceSeconds as number | undefined,
+              },
+              coreDeps,
+            ) as AdminSweepReport;
+            const mode = result.dry_run ? "DRY RUN" : "LIVE";
+            return okResponse(
+              `Storage sweep (${mode})\n` +
+              `Orphaned blobs: ${result.orphaned_blobs.length}\n` +
+              `Abandoned prefixes: ${result.abandoned_prefixes.length}\n` +
+              `Deleted bytes: ${formatBytes(result.deleted_bytes)}`,
+            );
+          }
+
+          // resync
+          if (!scope) return errResponse(new Error("scope is required for resync action"));
+          const result = await adminStorage(
+            {
+              action: "resync",
+              scope: scope as "site" | "user" | "all",
+              id: id as string | undefined,
+            },
+            coreDeps,
+          ) as AdminResyncReport;
+          return okResponse(
+            `KV resync complete\n` +
+            `Written: ${result.written}\n` +
+            `Verified: ${result.verified}\n` +
+            `Failed: ${result.failed.length}${result.failed.length > 0 ? `\n  ${result.failed.join("\n  ")}` : ""}`,
+          );
+        } catch (err) {
+          return errResponse(err);
+        }
+      },
+    );
+
+    server.registerTool(
+      "admin_domains",
+      {
+        title: "Admin: Domains",
+        description:
+          "Admin domain management. Requires admin role.\n\n" +
+          "Actions:\n" +
+          "  list   — List all registered custom domains\n" +
+          "  add    — Register a new custom domain\n" +
+          "  remove — Remove a registered custom domain",
+        inputSchema: {
+          action: z
+            .enum(["list", "add", "remove"])
+            .describe("The domain admin operation to perform."),
+          hostname: z
+            .string()
+            .optional()
+            .describe("Domain hostname (e.g. example.com). Required for add action."),
+          accessPolicy: z
+            .string()
+            .optional()
+            .describe("Access policy for the domain (e.g. 'open'). Required for add action."),
+          domainId: z
+            .string()
+            .optional()
+            .describe("Domain ID to remove. Required for remove action."),
+        },
+      },
+      async ({ action, hostname, accessPolicy, domainId }) => {
+        try {
+          const actionStr = action as "list" | "add" | "remove";
+
+          if (actionStr === "list") {
+            const result = await adminDomains({ action: "list" }, coreDeps) as AdminDomain[];
+            if (result.length === 0) {
+              return okResponse("No custom domains registered.");
+            }
+            const lines = result.map(
+              (d) => `  ${d.hostname} (${d.access_policy}) — ${d.namespace_count} namespace(s) [id: ${d.id}]`,
+            );
+            return okResponse(`Custom domains (${result.length}):\n${lines.join("\n")}`);
+          }
+
+          if (actionStr === "add") {
+            if (!hostname) return errResponse(new Error("hostname is required for add action"));
+            if (!accessPolicy) return errResponse(new Error("accessPolicy is required for add action"));
+            const result = await adminDomains(
+              { action: "add", hostname: hostname as string, accessPolicy: accessPolicy as string },
+              coreDeps,
+            ) as AdminDomain;
+            return okResponse(
+              `Domain registered: ${result.hostname}\n` +
+              `ID: ${result.id}\n` +
+              `Access policy: ${result.access_policy}`,
+            );
+          }
+
+          // remove
+          if (!domainId) return errResponse(new Error("domainId is required for remove action"));
+          await adminDomains({ action: "remove", domainId: domainId as string }, coreDeps);
+          return okResponse(`Domain ${domainId as string} removed.`);
+        } catch (err) {
+          return errResponse(err);
+        }
+      },
+    );
+  }
 
   return server;
 }
