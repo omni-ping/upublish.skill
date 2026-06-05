@@ -1,6 +1,6 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "omni-ping-upublish",
+  "name": "upublish.skill",
   "description": "Publish static sites to upubli.sh instantly",
   "owner": {
     "name": "omni-ping"
@@ -13,10 +13,7 @@
         "name": "omni-ping"
       },
       "category": "productivity",
-      "source": {
-        "source": "url",
-        "url": "https://github.com/omni-ping/upublish.skill.git"
-      },
+      "source": "./",
       "homepage": "https://github.com/omni-ping/upublish.skill"
     }
   ]

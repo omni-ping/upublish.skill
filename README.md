@@ -8,7 +8,7 @@ Publish static sites to [upubli.sh](https://upubli.sh) instantly. One directory 
 
 ```sh
 /plugin marketplace add omni-ping/upublish.skill
-/plugin install upublish@omni-ping-upublish
+/plugin install upublish@upublish.skill
 ```
 
 ### Codex
