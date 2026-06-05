@@ -19,15 +19,23 @@ There is no build step for development — Bun runs TypeScript directly. The `di
 ## Architecture
 
 ```
-mcp/index.ts       MCP server adapter — exposes login, status, publish, list, delete, passcode, and logout tools
+mcp/index.ts       MCP server adapter — exposes login, status, namespace_create, publish, list, delete, passcode, and logout tools
 lib/core.ts        Facade — all user-facing operations, wires credentials + ApiClient per call
-lib/auth.ts        OAuth login flow, PKCE, token refresh, credential read/write (~/.upublish/credentials)
+lib/auth.ts        Unified OAuth login (PKCE auth-code + token exchange), token refresh, credential read/write (~/.upublish/credentials)
 lib/api-client.ts  Thin HTTP client — Bearer token injection via async TokenProvider
+lib/namespace.ts   Namespace resolve + create (POST /api/ns)
 lib/publish.ts     Hash files, diff against server manifest, upload only changed files to presigned R2 URLs, then finalize
 lib/list.ts        GET /api/sites
 lib/delete.ts      DELETE /api/sites/:slug
 lib/types.ts       Shared types (Site, Visibility, FetchFn, TokenProvider)
 ```
+
+**Sign-in is one unified flow.** `login` opens `GET /auth/google?flow=local` with PKCE.
+First-time users transparently detour through a browser onboarding page (username +
+first namespace + terms); the callback returns a single-use `code`, which `login`
+exchanges at `POST /auth/token/exchange` for tokens — **tokens never appear in a URL**.
+Returning users are signed in directly. Old per-flow auth endpoints are retired and
+return HTTP 410 `upgrade_required`.
 
 **Key design rule: adapters import only from `lib/core.ts`.** `mcp/index.ts` calls core functions — it never constructs ApiClient or reads credentials directly. Core re-exports any types adapters need.
 

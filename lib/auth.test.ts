@@ -209,6 +209,24 @@ describe("DW-1.6: readCredentials and saveCredentials", () => {
 });
 
 // ─── login tests (DW-1.6) ───────────────────────────────────────────────────
+//
+// The callback now delivers a single-use `code`; login() exchanges it for
+// tokens at /auth/token/exchange. These deps supply both a code-yielding
+// callback server and a fetchFn that mocks the exchange response.
+
+/** A fetch that returns a successful exchange response for the given username. */
+function exchangeFetch(username: string, refreshToken: string) {
+  return async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        access_token: "at",
+        refresh_token: refreshToken,
+        expires_in: 3600,
+        username,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+}
 
 describe("DW-1.6: login", () => {
   it("test_DW_1_6_login_orchestrates_oauth", async () => {
@@ -226,16 +244,12 @@ describe("DW-1.6: login", () => {
       },
       startCallbackServer: async () => ({
         port: 12345,
-        waitForTokens: async () => ({
-          access_token: "access-tok",
-          refresh_token: "refresh-tok",
-          expires_in: 3600,
-          username: "testuser",
-        }),
+        waitForCode: async () => "auth-code-1",
         close: async () => {
           events.push("server:closed");
         },
       }),
+      fetchFn: exchangeFetch("testuser", "refresh-tok"),
       log: (msg: string) => {
         events.push(`log:${msg.substring(0, 30)}`);
       },
@@ -248,7 +262,7 @@ describe("DW-1.6: login", () => {
     expect(events).toContain("server:closed");
     expect(result.username).toBe("testuser");
 
-    // Verify credentials were saved
+    // Verify credentials were saved (from the exchange body, not a URL)
     const saved = fs.readFileSync(tmpFile, "utf-8");
     expect(saved).toBe("refresh-tok");
 
@@ -256,7 +270,7 @@ describe("DW-1.6: login", () => {
     fs.unlinkSync(tmpFile);
   });
 
-  it("login returns username and tokens from callback", async () => {
+  it("login returns username from the exchange", async () => {
     const tmpFile = path.join(
       os.tmpdir(),
       `upublish-test-login2-${Date.now()}`,
@@ -268,14 +282,10 @@ describe("DW-1.6: login", () => {
       openBrowser: async () => {},
       startCallbackServer: async () => ({
         port: 12345,
-        waitForTokens: async () => ({
-          access_token: "at",
-          refresh_token: "rt",
-          expires_in: 3600,
-          username: "alice",
-        }),
+        waitForCode: async () => "auth-code-2",
         close: async () => {},
       }),
+      fetchFn: exchangeFetch("alice", "rt"),
       log: () => {},
     };
 
@@ -286,7 +296,7 @@ describe("DW-1.6: login", () => {
     fs.unlinkSync(tmpFile);
   });
 
-  it("closes callback server even on error", async () => {
+  it("closes callback server even on a callback error", async () => {
     let serverClosed = false;
     const tmpFile = path.join(
       os.tmpdir(),
@@ -299,7 +309,7 @@ describe("DW-1.6: login", () => {
       openBrowser: async () => {},
       startCallbackServer: async () => ({
         port: 12345,
-        waitForTokens: async () => {
+        waitForCode: async () => {
           throw new Error("OAuth error: access_denied");
         },
         close: async () => {
