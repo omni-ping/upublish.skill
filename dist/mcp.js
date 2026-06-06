@@ -24446,14 +24446,40 @@ async function generatePkce() {
 }
 function buildAuthUrl(opts) {
   const params = new URLSearchParams({
+    flow: "local",
     redirect_uri: opts.redirectUri,
     code_challenge: opts.codeChallenge,
     code_challenge_method: "S256"
   });
-  return `${opts.apiBaseUrl}/auth/google/local?${params.toString()}`;
+  return `${opts.apiBaseUrl}/auth/google?${params.toString()}`;
 }
 function buildCallbackUrl(port) {
   return `http://localhost:${port}/callback`;
+}
+async function exchangeCodeForTokens(opts) {
+  const fetchFn = opts.fetchFn ?? ((url, init) => fetch(url, init));
+  let response;
+  try {
+    response = await fetchFn(`${opts.apiBaseUrl}/auth/token/exchange`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({ code: opts.code, code_verifier: opts.codeVerifier })
+    });
+  } catch (err) {
+    throw new Error(`Could not reach the upublish API to finish signing in (${err.message}). ` + `Check your connection and run login again.`);
+  }
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const body = await response.json();
+      detail = body.error ? ` \u2014 ${body.error}` : "";
+    } catch {}
+    throw new Error(`Sign-in could not be completed (HTTP ${response.status}${detail}). ` + `The authorization code may have expired or already been used \u2014 run login again.`);
+  }
+  return await response.json();
 }
 async function login(deps) {
   const {
@@ -24465,17 +24491,23 @@ async function login(deps) {
   const credFile = deps.credentialsFilePath ?? defaultCredentialsPath();
   const server = await startCallbackServer();
   const redirectUri = buildCallbackUrl(server.port);
-  const { codeChallenge } = await generatePkce();
+  const { codeVerifier, codeChallenge } = await generatePkce();
   const authUrl = buildAuthUrl({ apiBaseUrl, redirectUri, codeChallenge });
   log2("Opening browser for Google sign-in...");
   await open2(authUrl);
-  log2("Waiting for authentication (check your browser)...");
-  let tokens;
+  log2("Waiting for sign-in to finish in your browser (first-time setup happens there)...");
+  let code;
   try {
-    tokens = await server.waitForTokens();
+    code = await server.waitForCode();
   } finally {
     await server.close();
   }
+  const tokens = await exchangeCodeForTokens({
+    apiBaseUrl,
+    code,
+    codeVerifier,
+    fetchFn: deps.fetchFn
+  });
   await saveCredentials(credFile, tokens.refresh_token);
   log2("");
   log2(`Authenticated as: ${tokens.username}`);
@@ -25120,6 +25152,8 @@ async function adminDomains(apiClient, args) {
 }
 
 // lib/namespace.ts
+var DEFAULT_NAMESPACE_DOMAIN = "upubli.sh";
+var UPGRADE_URL = "https://upubli.sh/pricing";
 async function resolveNamespace(apiClient, namespaceName) {
   if (namespaceName !== undefined) {
     return resolveByName(apiClient, namespaceName);
@@ -25147,6 +25181,41 @@ async function resolveDefault(apiClient) {
     }
   }
   return namespaces[0];
+}
+async function namespaceCreate(apiClient, name, domain = DEFAULT_NAMESPACE_DOMAIN) {
+  let response;
+  try {
+    response = await apiClient.post("/api/ns", { name, domain });
+  } catch (err) {
+    throw enrichNamespaceError(err);
+  }
+  return {
+    namespace_id: response.namespace.id,
+    domain: response.namespace.domain
+  };
+}
+function enrichNamespaceError(err) {
+  const isTierLimit = /API error 403/.test(err.message) && /limit/i.test(err.message);
+  if (isTierLimit) {
+    return new Error(`${err.message} Upgrade at ${UPGRADE_URL} to create more namespaces.`);
+  }
+  return err;
+}
+
+// lib/rename.ts
+async function renameSite(apiClient, nsId, oldSlug, newSlug, redirect) {
+  const result = await apiClient.post(`/api/ns/${encodeURIComponent(nsId)}/sites/${encodeURIComponent(oldSlug)}/rename`, { new_slug: newSlug, redirect });
+  return {
+    url: result.url,
+    redirectExpiresAt: result.redirect_expires_at
+  };
+}
+async function renameNamespace(apiClient, nsId, newName, redirect) {
+  const result = await apiClient.post(`/api/ns/${encodeURIComponent(nsId)}/rename`, { new_name: newName, redirect });
+  return {
+    url: result.url,
+    redirectExpiresAt: result.redirect_expires_at
+  };
 }
 
 // lib/core.ts
@@ -25300,6 +25369,26 @@ async function qrCode2(args, deps) {
     }
   });
 }
+async function rename(opts, deps) {
+  let apiClient;
+  try {
+    apiClient = await buildApiClient(deps);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+  const redirect = opts.redirect ?? "30d";
+  try {
+    if (opts.site !== undefined) {
+      const result = await renameSite(apiClient, opts.nsId, opts.site, opts.newName, redirect);
+      return { success: true, url: result.url, redirectExpiresAt: result.redirectExpiresAt };
+    } else {
+      const result = await renameNamespace(apiClient, opts.nsId, opts.newName, redirect);
+      return { success: true, url: result.url, redirectExpiresAt: result.redirectExpiresAt };
+    }
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
 async function adminUser2(args, deps) {
   const apiClient = await buildApiClient(deps);
   return adminUser(apiClient, args);
@@ -25320,8 +25409,16 @@ async function adminDomains2(args, deps) {
   const apiClient = await buildApiClient(deps);
   return adminDomains(apiClient, args);
 }
+async function namespaceCreate2(name, domain, deps) {
+  const apiClient = await buildApiClient(deps);
+  return namespaceCreate(apiClient, name, domain);
+}
 async function login2(loginDeps, coreDeps) {
-  const resolvedDeps = coreDeps?.credentialsPath ? { ...loginDeps, credentialsFilePath: coreDeps.credentialsPath } : loginDeps;
+  const resolvedDeps = {
+    ...loginDeps,
+    ...coreDeps?.credentialsPath ? { credentialsFilePath: coreDeps.credentialsPath } : {},
+    fetchFn: loginDeps.fetchFn ?? coreDeps?.fetchFn
+  };
   return login(resolvedDeps);
 }
 async function status(deps) {
@@ -25381,7 +25478,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.1";
+var PACKAGE_VERSION = "0.12.4";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -25426,44 +25523,36 @@ function errResponse(err) {
   };
 }
 async function createCallbackServer() {
-  let resolveTokens;
-  let rejectTokens;
-  const tokenPromise = new Promise((resolve, reject) => {
-    resolveTokens = resolve;
-    rejectTokens = reject;
+  let resolveCode;
+  let rejectCode;
+  const codePromise = new Promise((resolve, reject) => {
+    resolveCode = resolve;
+    rejectCode = reject;
   });
   const server = Bun.serve({
     port: 0,
     fetch(req) {
       const url = new URL(req.url);
       if (url.pathname === "/callback") {
-        const accessToken = url.searchParams.get("access_token");
-        const refreshToken = url.searchParams.get("refresh_token");
-        const expiresIn = url.searchParams.get("expires_in");
-        const username = url.searchParams.get("username");
+        const code = url.searchParams.get("code");
         const error2 = url.searchParams.get("error");
         if (error2) {
-          rejectTokens(new Error(`OAuth error: ${error2}`));
-          return new Response("<html><body><h2>Authentication failed.</h2><p>You can close this tab.</p></body></html>", { headers: { "Content-Type": "text/html" } });
+          rejectCode(new Error(`OAuth error: ${error2}`));
+          return new Response("<html><body><h2>Sign-in failed.</h2><p>You can close this tab and return to your terminal.</p></body></html>", { headers: { "Content-Type": "text/html" } });
         }
-        if (!accessToken || !refreshToken || !expiresIn || !username) {
-          rejectTokens(new Error("OAuth callback missing required parameters"));
-          return new Response("<html><body><h2>Authentication error.</h2><p>Missing parameters. You can close this tab.</p></body></html>", { headers: { "Content-Type": "text/html" } });
+        if (!code) {
+          rejectCode(new Error("OAuth callback missing the authorization code"));
+          return new Response("<html><body><h2>Sign-in error.</h2><p>Missing authorization code. You can close this tab.</p></body></html>", { headers: { "Content-Type": "text/html" } });
         }
-        resolveTokens({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-          expires_in: parseInt(expiresIn, 10),
-          username
-        });
-        return new Response("<html><body><h2>Authenticated!</h2><p>You can close this tab and return to your terminal.</p></body></html>", { headers: { "Content-Type": "text/html" } });
+        resolveCode(code);
+        return new Response("<html><body><h2>Signed in!</h2><p>You can close this tab and return to your terminal.</p></body></html>", { headers: { "Content-Type": "text/html" } });
       }
       return new Response("Not found", { status: 404 });
     }
   });
   return {
     port: server.port,
-    waitForTokens: () => tokenPromise,
+    waitForCode: () => codePromise,
     close: async () => server.stop()
   };
 }
@@ -25993,6 +26082,63 @@ ${lines.join(`
     }
     const msg = result.error ? `Not authenticated. ${result.error}` : "Not authenticated. Use the login tool to sign in.";
     return okResponse(msg);
+  });
+  server.registerTool("namespace_create", {
+    title: "Create Namespace",
+    description: "Creates a new namespace (your URL prefix) on upubli.sh. " + "Sites publish under a namespace at `name.upubli.sh/slug/`. " + "Your first namespace is chosen during sign-in onboarding; use this tool " + "to add more. Namespace count is tier-limited \u2014 the free plan allows one; " + "a tier-limit error includes the upgrade link.",
+    inputSchema: {
+      name: exports_external.string().describe("The namespace name (3-63 chars, lowercase letters, numbers, hyphens)."),
+      domain: exports_external.string().optional().describe("Optional hosted/custom domain. Defaults to upubli.sh.")
+    }
+  }, async (args) => {
+    try {
+      const result = await namespaceCreate2(args.name, args.domain, coreDeps);
+      return okResponse(`Namespace created.
+ID: ${result.namespace_id}
+Domain: ${result.domain}`);
+    } catch (err) {
+      return errResponse(err);
+    }
+  });
+  server.registerTool("rename", {
+    title: "Rename Site or Namespace",
+    description: "Renames a site (slug) or a namespace on upubli.sh. " + "Provide `site` to rename a site within the namespace; omit `site` to rename the namespace itself. " + "Choose a redirect mode for old URLs: '30d' (default \u2014 safest, keeps old URLs working for 30 days), " + "'permanent' (301 redirect with no expiry), or 'off' (no redirect, old name released immediately). " + "Tier limits apply: Free accounts get one rename per resource lifetime; " + "Pro/Max accounts have a 30-day cooldown between renames of the same resource.",
+    inputSchema: {
+      nsId: exports_external.string().describe("The namespace ID. Use the status or list tool to find your namespace ID."),
+      site: exports_external.string().optional().describe("Slug of the site to rename. When provided, the site is renamed within the namespace. " + "When omitted, the namespace itself is renamed."),
+      newName: exports_external.string().describe("New slug for the site (when renaming a site) or new name for the namespace. " + "Must be 3-63 characters: lowercase letters, numbers, and hyphens only, " + "starting and ending with a letter or number."),
+      redirect: exports_external.enum(["off", "30d", "permanent"]).optional().describe("Redirect mode for old URLs. Defaults to '30d' (safest). " + "'off' \u2014 no redirect, old name released immediately. " + "'30d' \u2014 301 redirect for 30 days. " + "'permanent' \u2014 permanent 301 redirect with no expiry.")
+    }
+  }, async ({ nsId, site, newName, redirect }) => {
+    try {
+      const nsIdStr = nsId;
+      const newNameStr = newName;
+      if (!newNameStr) {
+        return errResponse(new Error("newName is required"));
+      }
+      if (!nsIdStr) {
+        return errResponse(new Error("nsId is required"));
+      }
+      const result = await rename({
+        nsId: nsIdStr,
+        site,
+        newName: newNameStr,
+        redirect
+      }, coreDeps);
+      if (!result.success) {
+        return errResponse(new Error(result.error));
+      }
+      const target = site ? `site '${site}'` : "namespace";
+      const effectiveRedirect = redirect ?? "30d";
+      const redirectLine = result.redirectExpiresAt ? `
+Redirect expires: ${result.redirectExpiresAt}` : effectiveRedirect === "off" ? `
+Redirect: none` : `
+Redirect: permanent`;
+      return okResponse(`Renamed ${target} to '${newNameStr}'.
+` + `New URL: ${result.url}` + redirectLine);
+    } catch (err) {
+      return errResponse(err);
+    }
   });
   if (process.env.UPUBLISH_ADMIN === "1") {
     server.registerTool("admin_user", {

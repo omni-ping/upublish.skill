@@ -26,7 +26,13 @@ export interface TokenResponse {
 
 export interface CallbackServer {
   port: number;
-  waitForTokens(): Promise<TokenResponse>;
+  /**
+   * Resolves with the single-use authorization `code` the unified OAuth flow
+   * redirects back to the loopback `redirect_uri`. Rejects if the redirect
+   * instead carries an `?error=…` (e.g. consent denied, banned account) or is
+   * missing the code. Tokens NEVER travel through this redirect — only the code.
+   */
+  waitForCode(): Promise<string>;
   close(): Promise<void>;
 }
 
@@ -37,10 +43,16 @@ export interface LoginDeps {
   credentialsFilePath?: string;
   /** Opens a URL in the default browser. */
   openBrowser(url: string): Promise<void>;
-  /** Starts the localhost callback server (receives tokens via redirect). */
+  /** Starts the localhost callback server (receives the auth code via redirect). */
   startCallbackServer(): Promise<CallbackServer>;
-  /** Logger (defaults to console.log). */
+  /** Logger (defaults to console.log). Must never receive secrets. */
   log(msg: string): void;
+  /**
+   * Injectable fetch for the token-exchange POST. Defaults to global fetch.
+   * Present here (not just CoreDeps) so login() can be driven entirely from
+   * the deps bag in tests with no real network.
+   */
+  fetchFn?: FetchFn;
 }
 
 export interface LoginResult {
@@ -177,18 +189,28 @@ export async function generatePkce(): Promise<{
 
 // ─── URL Building ────────────────────────────────────────────────────────────
 
-/** Builds the URL to open in the browser for Google OAuth consent. */
+/**
+ * Builds the URL to open in the browser for the unified Google OAuth flow.
+ *
+ * Targets the single entry `GET /auth/google` with `flow=local`. The server
+ * branches behind this URL: a brand-new or still-pending account is detoured
+ * through the browser onboarding page (username + first namespace + ToS) before
+ * bouncing back; a returning account bounces straight back. Either way the
+ * loopback `redirect_uri` ultimately receives a single-use `?code=…` — never a
+ * token. The PKCE `code_challenge` binds that code to the verifier login holds.
+ */
 export function buildAuthUrl(opts: {
   apiBaseUrl: string;
   redirectUri: string;
   codeChallenge: string;
 }): string {
   const params = new URLSearchParams({
+    flow: "local",
     redirect_uri: opts.redirectUri,
     code_challenge: opts.codeChallenge,
     code_challenge_method: "S256",
   });
-  return `${opts.apiBaseUrl}/auth/google/local?${params.toString()}`;
+  return `${opts.apiBaseUrl}/auth/google?${params.toString()}`;
 }
 
 /** Builds the localhost callback URL for a given port. */
@@ -196,16 +218,78 @@ export function buildCallbackUrl(port: number): string {
   return `http://localhost:${port}/callback`;
 }
 
+// ─── Token Exchange ──────────────────────────────────────────────────────────
+
+/**
+ * Redeems a single-use authorization code for tokens via PKCE.
+ *
+ * POSTs `{code, code_verifier}` to `/auth/token/exchange`. The server verifies
+ * S256(code_verifier) against the challenge the code was bound to and returns
+ * the tokens in the RESPONSE BODY — they never appear in a URL. The verifier is
+ * the PKCE secret; it is sent only in this POST body and is never logged.
+ *
+ * On a non-2xx response (unknown/expired/reused code → 400, verifier mismatch →
+ * 401, network failure → throw), this rejects with an actionable message telling
+ * the user to run login again. The caller writes no credentials on rejection.
+ */
+export async function exchangeCodeForTokens(opts: {
+  apiBaseUrl: string;
+  code: string;
+  codeVerifier: string;
+  fetchFn?: FetchFn;
+}): Promise<TokenResponse> {
+  const fetchFn: FetchFn = opts.fetchFn ?? ((url, init) => fetch(url, init));
+
+  let response: Response;
+  try {
+    response = await fetchFn(`${opts.apiBaseUrl}/auth/token/exchange`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ code: opts.code, code_verifier: opts.codeVerifier }),
+    });
+  } catch (err) {
+    // Network failure mid-exchange — nothing was issued, nothing to clean up.
+    throw new Error(
+      `Could not reach the upublish API to finish signing in (${(err as Error).message}). ` +
+      `Check your connection and run login again.`,
+    );
+  }
+
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const body = (await response.json()) as { error?: string };
+      detail = body.error ? ` — ${body.error}` : "";
+    } catch {
+      // Ignore parse error — fall back to status text.
+    }
+    throw new Error(
+      `Sign-in could not be completed (HTTP ${response.status}${detail}). ` +
+      `The authorization code may have expired or already been used — run login again.`,
+    );
+  }
+
+  return (await response.json()) as TokenResponse;
+}
+
 // ─── Login Orchestrator ──────────────────────────────────────────────────────
 
 /**
- * Runs the interactive OAuth login flow:
- * 1. Start localhost callback server
- * 2. Generate PKCE pair
- * 3. Open browser to OAuth consent page
- * 4. Wait for tokens (server redirects back with tokens)
- * 5. Store refresh token to credentials file
- * 6. Return username and credentials path
+ * Runs the interactive OAuth login flow against the unified entry:
+ * 1. Start the localhost callback server (it will receive a single-use code).
+ * 2. Generate the PKCE pair; the verifier is kept in scope for the exchange.
+ * 3. Open the browser to `/auth/google?flow=local`. A first-time user is
+ *    transparently detoured through the browser onboarding page; the agent
+ *    simply keeps waiting — there is no client-side branch for new vs returning.
+ * 4. Wait for the callback to deliver the auth `code` (or reject on `?error=`).
+ * 5. Exchange the code for tokens; tokens arrive only in the response body.
+ * 6. Store the refresh token (0600) and return the username + path.
+ *
+ * The callback server is always closed, and on any failure (callback error,
+ * exchange rejection, network drop) no credentials file is written.
  *
  * All side-effectful operations are injected via deps for testability.
  */
@@ -219,28 +303,39 @@ export async function login(deps: LoginDeps): Promise<LoginResult> {
 
   const credFile = deps.credentialsFilePath ?? defaultCredentialsPath();
 
-  // Start callback server
+  // Start callback server.
   const server = await startCallbackServer();
   const redirectUri = buildCallbackUrl(server.port);
 
-  // Generate PKCE
-  const { codeChallenge } = await generatePkce();
+  // Generate PKCE. The verifier is the secret half: it stays in this scope and
+  // is sent only in the exchange POST body — never in a URL, never logged.
+  const { codeVerifier, codeChallenge } = await generatePkce();
 
-  // Open browser to OAuth consent
+  // Open the browser to OAuth consent (unified entry).
   const authUrl = buildAuthUrl({ apiBaseUrl, redirectUri, codeChallenge });
   log("Opening browser for Google sign-in...");
   await open(authUrl);
 
-  // Wait for tokens
-  log("Waiting for authentication (check your browser)...");
-  let tokens: TokenResponse;
+  // Wait for the single-use code. First-time users finish setup (username +
+  // first namespace + ToS) in the browser before the code arrives — this is
+  // expected, not a hang, so the message tells the user where to look.
+  log("Waiting for sign-in to finish in your browser (first-time setup happens there)...");
+  let code: string;
   try {
-    tokens = await server.waitForTokens();
+    code = await server.waitForCode();
   } finally {
     await server.close();
   }
 
-  // Store refresh token
+  // Exchange the code for tokens. A rejection here leaves no credentials.
+  const tokens = await exchangeCodeForTokens({
+    apiBaseUrl,
+    code,
+    codeVerifier,
+    fetchFn: deps.fetchFn,
+  });
+
+  // Store refresh token (owner read/write only).
   await saveCredentials(credFile, tokens.refresh_token);
 
   log("");

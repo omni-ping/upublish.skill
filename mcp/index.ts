@@ -28,6 +28,7 @@ import {
   login,
   status,
   logout,
+  namespaceCreate,
   addPasscode,
   listPasscodes,
   revokePasscode,
@@ -47,7 +48,7 @@ import type {
   SiteVersion,
   SetVersionsLimitResult,
   CallbackServer,
-  TokenResponse,
+  NamespaceCreateResult,
   GateSubmission,
   UploadProgress,
   Member,
@@ -64,7 +65,7 @@ import type {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.12.1";
+export const PACKAGE_VERSION = "0.12.4";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -140,20 +141,21 @@ function errResponse(err: unknown): ToolResponse {
 // ─── Callback server (for OAuth login) ───────────────────────────────────────
 
 /**
- * Creates a localhost HTTP server that waits for the OAuth callback redirect.
- * The server reads tokens from query params on the /callback path.
- * Returns port, a promise that resolves on first callback, and a close fn.
+ * Creates a localhost HTTP server that waits for the unified OAuth callback.
+ * The unified flow redirects back with a single-use authorization `code` (or an
+ * `error`) on the /callback path — never tokens. The server resolves with that
+ * code; login() exchanges it for tokens out of band. New users finish browser
+ * onboarding first, so this may wait a while; there is no hard timeout.
+ * Returns port, a promise that resolves with the code, and a close fn.
  */
 async function createCallbackServer(): Promise<CallbackServer> {
-  let resolveTokens: (tokens: TokenResponse) => void;
-  let rejectTokens: (err: Error) => void;
+  let resolveCode: (code: string) => void;
+  let rejectCode: (err: Error) => void;
 
-  const tokenPromise = new Promise<TokenResponse>(
-    (resolve, reject) => {
-      resolveTokens = resolve;
-      rejectTokens = reject;
-    },
-  );
+  const codePromise = new Promise<string>((resolve, reject) => {
+    resolveCode = resolve;
+    rejectCode = reject;
+  });
 
   const server = Bun.serve({
     port: 0,
@@ -161,37 +163,29 @@ async function createCallbackServer(): Promise<CallbackServer> {
       const url = new URL(req.url);
 
       if (url.pathname === "/callback") {
-        const accessToken = url.searchParams.get("access_token");
-        const refreshToken = url.searchParams.get("refresh_token");
-        const expiresIn = url.searchParams.get("expires_in");
-        const username = url.searchParams.get("username");
+        const code = url.searchParams.get("code");
         const error = url.searchParams.get("error");
 
         if (error) {
-          rejectTokens(new Error(`OAuth error: ${error}`));
+          rejectCode(new Error(`OAuth error: ${error}`));
           return new Response(
-            "<html><body><h2>Authentication failed.</h2><p>You can close this tab.</p></body></html>",
+            "<html><body><h2>Sign-in failed.</h2><p>You can close this tab and return to your terminal.</p></body></html>",
             { headers: { "Content-Type": "text/html" } },
           );
         }
 
-        if (!accessToken || !refreshToken || !expiresIn || !username) {
-          rejectTokens(new Error("OAuth callback missing required parameters"));
+        if (!code) {
+          rejectCode(new Error("OAuth callback missing the authorization code"));
           return new Response(
-            "<html><body><h2>Authentication error.</h2><p>Missing parameters. You can close this tab.</p></body></html>",
+            "<html><body><h2>Sign-in error.</h2><p>Missing authorization code. You can close this tab.</p></body></html>",
             { headers: { "Content-Type": "text/html" } },
           );
         }
 
-        resolveTokens({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-          expires_in: parseInt(expiresIn, 10),
-          username,
-        });
+        resolveCode(code);
 
         return new Response(
-          "<html><body><h2>Authenticated!</h2><p>You can close this tab and return to your terminal.</p></body></html>",
+          "<html><body><h2>Signed in!</h2><p>You can close this tab and return to your terminal.</p></body></html>",
           { headers: { "Content-Type": "text/html" } },
         );
       }
@@ -202,7 +196,7 @@ async function createCallbackServer(): Promise<CallbackServer> {
 
   return {
     port: server.port,
-    waitForTokens: () => tokenPromise,
+    waitForCode: () => codePromise,
     close: async () => server.stop(),
   };
 }
@@ -1271,6 +1265,42 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
   );
 
   server.registerTool(
+    "namespace_create",
+    {
+      title: "Create Namespace",
+      description:
+        "Creates a new namespace (your URL prefix) on upubli.sh. " +
+        "Sites publish under a namespace at `name.upubli.sh/slug/`. " +
+        "Your first namespace is chosen during sign-in onboarding; use this tool " +
+        "to add more. Namespace count is tier-limited — the free plan allows one; " +
+        "a tier-limit error includes the upgrade link.",
+      inputSchema: {
+        name: z
+          .string()
+          .describe("The namespace name (3-63 chars, lowercase letters, numbers, hyphens)."),
+        domain: z
+          .string()
+          .optional()
+          .describe("Optional hosted/custom domain. Defaults to upubli.sh."),
+      },
+    },
+    async (args: { name: string; domain?: string }) => {
+      try {
+        const result: NamespaceCreateResult = await namespaceCreate(
+          args.name,
+          args.domain,
+          coreDeps,
+        );
+        return okResponse(
+          `Namespace created.\nID: ${result.namespace_id}\nDomain: ${result.domain}`,
+        );
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
     "rename",
     {
       title: "Rename Site or Namespace",
@@ -1359,7 +1389,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
 
   // ─── Admin tools (env-gated) ────────────────────────────────────────────────
   // Only registered when UPUBLISH_ADMIN=1. Without the env var, the tool
-  // registry is byte-identical to the 17-tool baseline — existing tests pass.
+  // registry is byte-identical to the 18-tool baseline — existing tests pass.
 
   if (process.env.UPUBLISH_ADMIN === "1") {
     server.registerTool(

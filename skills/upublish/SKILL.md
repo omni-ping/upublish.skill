@@ -29,6 +29,20 @@ Call the `status` tool to check auth state.
 | Shows "Authenticated" with username | Setup complete — continue to step 2 |
 | Shows "Not authenticated" | Call the `login` tool (opens browser for Google sign-in), then re-check |
 
+#### Signup happens on first login
+
+There is no separate signup step. The **first time** a user runs `login`, Google
+sign-in transparently detours them through a short **browser onboarding page** to
+finish setup — they pick a username, create their **first namespace**, and accept
+the terms. `login` waits while they do this; it is **not stuck**. Returning users
+skip onboarding and are signed in immediately.
+
+Tell the user what to expect so the wait makes sense, e.g.: *"A browser window
+opened — finish the quick setup (username + namespace) there and you'll be signed
+in automatically."* Once onboarding completes, `login` returns and `status` shows
+their username and first namespace. No manual namespace creation is needed to get
+started; use `namespace_create` only to add **more** namespaces later.
+
 ## Step 2: Route to action
 
 Match what the user wants and read the reference file, then follow it.
@@ -40,6 +54,7 @@ Match what the user wants and read the reference file, then follow it.
 | Figure out what type of content this is | `references/content-types/taxonomy.md` then the specific content type reference |
 | List, delete, or manage existing sites | `references/managing.md` |
 | Control who can access a site (passcode) | `references/visibility.md` |
+| Add another namespace (URL prefix) | Call `namespace_create` (free plan allows one; tier-limit errors include the upgrade link) |
 | Optimize site performance or reduce size | `references/optimization.md` |
 | Add SEO tags, social previews, or favicon | `references/seo-social.md` |
 | Check account info, namespaces, domains, or see what sites they have | Call `status` then `list` (no reference file needed) |
@@ -49,8 +64,9 @@ Match what the user wants and read the reference file, then follow it.
 
 | Tool | Description |
 |---|---|
-| `mcp_upublish_login` | Open browser for Google sign-in, returns auth URL |
+| `mcp_upublish_login` | Sign in with Google. First-time users finish a quick browser onboarding (username + first namespace + terms); returning users sign in directly |
 | `mcp_upublish_status` | Check authentication state, shows namespaces and domains |
+| `mcp_upublish_namespace_create` | Create an additional namespace (URL prefix); tier-limited, returns the new namespace id + domain |
 | `mcp_upublish_publish` | Publish a directory as a live site |
 | `mcp_upublish_list` | List all published sites with URLs |
 | `mcp_upublish_delete` | Delete a published site (permanent, confirm first) |
