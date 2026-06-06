@@ -1,6 +1,6 @@
 {
   "name": "upublish",
-  "version": "0.12.4",
+  "version": "0.12.5",
   "description": "Publish static sites to upubli.sh instantly. One directory becomes a live URL.",
   "author": {
     "name": "omni-ping"
