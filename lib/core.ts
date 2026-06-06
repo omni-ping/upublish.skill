@@ -153,6 +153,7 @@ export type {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const API_BASE_URL = process.env.UPUBLISH_API_URL ?? "https://api.upubli.sh";
+const SITE_BASE_URL = (process.env.UPUBLISH_SITE_URL ?? "https://upubli.sh").replace(/\/$/, "");
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

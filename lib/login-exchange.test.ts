@@ -161,26 +161,35 @@ describe("DW-5.1: login exchanges auth code for tokens", () => {
   });
 });
 
-// ─── DW-5.1 / DW-5.2: auth URL targets unified entry, carries no tokens ────────
+// ─── DW-5.1 / DW-5.2: auth URL targets the chooser, carries no tokens ──────────
+//
+// Updated for multi-provider-oauth Phase 5: buildAuthUrl now targets the website
+// chooser ({siteBaseUrl}/login) instead of the API entry ({apiBaseUrl}/auth/google).
+// The five pinned params are flow, redirect_uri, code_challenge,
+// code_challenge_method=S256, and intent=login.
 
-describe("DW-5.1/5.2: buildAuthUrl targets the unified flow", () => {
+const SITE_URL = "https://site.example.com";
+
+describe("DW-5.1/5.2: buildAuthUrl targets the chooser", () => {
   it("test_DW_5_1_auth_url_targets_unified_entry", () => {
+    // Updated: targets {siteBaseUrl}/login with five params (was /auth/google with four)
     const url = buildAuthUrl({
-      apiBaseUrl: BASE_URL,
+      siteBaseUrl: SITE_URL,
       redirectUri: "http://127.0.0.1:51234/callback",
       codeChallenge: "challenge-abc",
     });
     const parsed = new URL(url);
-    expect(parsed.pathname).toBe("/auth/google");
+    expect(parsed.pathname).toBe("/login");
     expect(parsed.searchParams.get("flow")).toBe("local");
     expect(parsed.searchParams.get("redirect_uri")).toBe("http://127.0.0.1:51234/callback");
     expect(parsed.searchParams.get("code_challenge")).toBe("challenge-abc");
     expect(parsed.searchParams.get("code_challenge_method")).toBe("S256");
+    expect(parsed.searchParams.get("intent")).toBe("login");
   });
 
   it("test_DW_5_2_auth_url_has_no_tokens", () => {
     const url = buildAuthUrl({
-      apiBaseUrl: BASE_URL,
+      siteBaseUrl: SITE_URL,
       redirectUri: "http://127.0.0.1:51234/callback",
       codeChallenge: "challenge-abc",
     });

@@ -37,8 +37,13 @@ export interface CallbackServer {
 }
 
 export interface LoginDeps {
-  /** API base URL, e.g. "https://api.upubli.sh" */
+  /** API base URL, e.g. "https://api.upubli.sh" — used for token exchange. */
   apiBaseUrl: string;
+  /**
+   * Website base URL, e.g. "https://upubli.sh" — used for the provider chooser
+   * (/login). Defaults to "https://upubli.sh" when omitted.
+   */
+  siteBaseUrl?: string;
   /** Credentials file path (defaults to ~/.upublish/credentials) */
   credentialsFilePath?: string;
   /** Opens a URL in the default browser. */
@@ -190,27 +195,32 @@ export async function generatePkce(): Promise<{
 // ─── URL Building ────────────────────────────────────────────────────────────
 
 /**
- * Builds the URL to open in the browser for the unified Google OAuth flow.
+ * Builds the URL to open in the browser for the provider-chooser OAuth flow.
  *
- * Targets the single entry `GET /auth/google` with `flow=local`. The server
- * branches behind this URL: a brand-new or still-pending account is detoured
- * through the browser onboarding page (username + first namespace + ToS) before
- * bouncing back; a returning account bounces straight back. Either way the
- * loopback `redirect_uri` ultimately receives a single-use `?code=…` — never a
- * token. The PKCE `code_challenge` binds that code to the verifier login holds.
+ * Targets `{siteBaseUrl}/login` with `flow=local`. The website's /login page
+ * renders a button per enabled provider and forwards all five params verbatim
+ * into `{API}/auth/:provider`. A brand-new or still-pending account is detoured
+ * through the browser onboarding page before bouncing back; a returning account
+ * bounces straight back. Either way the loopback `redirect_uri` ultimately
+ * receives a single-use `?code=…` — never a token. The PKCE `code_challenge`
+ * binds that code to the verifier login holds.
+ *
+ * A trailing slash on `siteBaseUrl` is stripped to avoid double-slash paths.
  */
 export function buildAuthUrl(opts: {
-  apiBaseUrl: string;
+  siteBaseUrl: string;
   redirectUri: string;
   codeChallenge: string;
 }): string {
+  const base = opts.siteBaseUrl.replace(/\/$/, "");
   const params = new URLSearchParams({
     flow: "local",
     redirect_uri: opts.redirectUri,
     code_challenge: opts.codeChallenge,
     code_challenge_method: "S256",
+    intent: "login",
   });
-  return `${opts.apiBaseUrl}/auth/google?${params.toString()}`;
+  return `${base}/login?${params.toString()}`;
 }
 
 /** Builds the localhost callback URL for a given port. */
@@ -311,9 +321,10 @@ export async function login(deps: LoginDeps): Promise<LoginResult> {
   // is sent only in the exchange POST body — never in a URL, never logged.
   const { codeVerifier, codeChallenge } = await generatePkce();
 
-  // Open the browser to OAuth consent (unified entry).
-  const authUrl = buildAuthUrl({ apiBaseUrl, redirectUri, codeChallenge });
-  log("Opening browser for Google sign-in...");
+  // Open the browser to the provider chooser (/login).
+  const siteBaseUrl = deps.siteBaseUrl ?? "https://upubli.sh";
+  const authUrl = buildAuthUrl({ siteBaseUrl, redirectUri, codeChallenge });
+  log("Opening browser for sign-in...");
   await open(authUrl);
 
   // Wait for the single-use code. First-time users finish setup (username +

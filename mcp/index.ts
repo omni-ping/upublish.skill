@@ -1187,8 +1187,8 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
     {
       title: "Login",
       description:
-        "Authenticates with upubli.sh via Google OAuth. " +
-        "Opens a browser for sign-in and waits for the OAuth callback. " +
+        "Authenticates with upubli.sh. " +
+        "Opens a browser sign-in page where you choose a provider and waits for the OAuth callback. " +
         "The auth URL is always included in the response so you can open " +
         "it in a different browser profile if needed.",
       inputSchema: {},
@@ -1200,6 +1200,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         const result = await login(
           {
             apiBaseUrl: process.env.UPUBLISH_API_URL ?? "https://api.upubli.sh",
+            siteBaseUrl: (process.env.UPUBLISH_SITE_URL ?? "https://upubli.sh").replace(/\/$/, ""),
             openBrowser: async (url: string) => {
               capturedAuthUrl = url;
               await open(url);
