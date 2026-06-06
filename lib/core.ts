@@ -112,6 +112,8 @@ import type {
   AdminDomain,
 } from "./admin.ts";
 import { resolveNamespace } from "./namespace.ts";
+import { renameSite, renameNamespace } from "./rename.ts";
+import type { RedirectMode } from "./rename.ts";
 import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission } from "./types.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
@@ -129,6 +131,7 @@ export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, Ch
 export type { QrCodeArgs, QrCodeResult };
 export type { Namespace, Site, Visibility, GateConfig, GateSubmission };
 export type { NamespaceRole } from "./types.ts";
+export type { RedirectMode };
 export type {
   AdminUserArgs,
   AdminSiteArgs,
@@ -210,6 +213,29 @@ export type StatusResult =
 export type LogoutResult =
   | { loggedOut: true }
   | { loggedOut: false; error: string };
+
+export interface RenameArgs {
+  /** Namespace ID. */
+  nsId: string;
+  /**
+   * Slug of the site to rename. When provided, a site rename is performed.
+   * When omitted, a namespace rename is performed.
+   */
+  site?: string;
+  /** New slug (site rename) or new namespace name (namespace rename). */
+  newName: string;
+  /**
+   * Redirect mode for old URLs. Defaults to '30d' when not specified.
+   * - 'off'       — no redirect, old name immediately released
+   * - '30d'       — 301 redirect for 30 days (default, safest)
+   * - 'permanent' — permanent 301 redirect (no expiry)
+   */
+  redirect?: RedirectMode;
+}
+
+export type RenameResult =
+  | { success: true; url: string; redirectExpiresAt: string | null }
+  | { success: false; error: string };
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -617,6 +643,50 @@ export async function qrCode(args: QrCodeArgs, deps?: CoreDeps): Promise<QrCodeR
       },
     },
   );
+}
+
+// ─── Rename ───────────────────────────────────────────────────────────────────
+
+/**
+ * Renames a site or namespace.
+ *
+ * When `opts.site` is provided, renames that site's slug within the given namespace.
+ * When `opts.site` is omitted, renames the namespace itself.
+ *
+ * Redirect mode defaults to '30d' (safest — preserves old URLs for 30 days).
+ * API error messages are surfaced verbatim in the returned error string.
+ *
+ * Unlike other core functions, this never throws for expected failures — it
+ * returns { success: false, error } so callers can surface the message
+ * without try/catch. Authentication failures (no credentials) are still
+ * surfaced as { success: false } rather than thrown.
+ *
+ * @param opts - Rename arguments: nsId, optional site slug, newName, optional redirect mode.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function rename(opts: RenameArgs, deps?: CoreDeps): Promise<RenameResult> {
+  let apiClient;
+  try {
+    apiClient = await buildApiClient(deps);
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
+
+  const redirect: RedirectMode = opts.redirect ?? "30d";
+
+  try {
+    if (opts.site !== undefined) {
+      // Site rename
+      const result = await renameSite(apiClient, opts.nsId, opts.site, opts.newName, redirect);
+      return { success: true, url: result.url, redirectExpiresAt: result.redirectExpiresAt };
+    } else {
+      // Namespace rename
+      const result = await renameNamespace(apiClient, opts.nsId, opts.newName, redirect);
+      return { success: true, url: result.url, redirectExpiresAt: result.redirectExpiresAt };
+    }
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
 }
 
 // ─── Admin operations ─────────────────────────────────────────────────────────

@@ -34,6 +34,7 @@ import {
   gate,
   members,
   qrCode,
+  rename,
   adminUser,
   adminSite,
   adminStats,
@@ -1269,9 +1270,96 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
     },
   );
 
+  server.registerTool(
+    "rename",
+    {
+      title: "Rename Site or Namespace",
+      description:
+        "Renames a site (slug) or a namespace on upubli.sh. " +
+        "Provide `site` to rename a site within the namespace; omit `site` to rename the namespace itself. " +
+        "Choose a redirect mode for old URLs: '30d' (default — safest, keeps old URLs working for 30 days), " +
+        "'permanent' (301 redirect with no expiry), or 'off' (no redirect, old name released immediately). " +
+        "Tier limits apply: Free accounts get one rename per resource lifetime; " +
+        "Pro/Max accounts have a 30-day cooldown between renames of the same resource.",
+      inputSchema: {
+        nsId: z
+          .string()
+          .describe("The namespace ID. Use the status or list tool to find your namespace ID."),
+        site: z
+          .string()
+          .optional()
+          .describe(
+            "Slug of the site to rename. When provided, the site is renamed within the namespace. " +
+            "When omitted, the namespace itself is renamed.",
+          ),
+        newName: z
+          .string()
+          .describe(
+            "New slug for the site (when renaming a site) or new name for the namespace. " +
+            "Must be 3-63 characters: lowercase letters, numbers, and hyphens only, " +
+            "starting and ending with a letter or number.",
+          ),
+        redirect: z
+          .enum(["off", "30d", "permanent"])
+          .optional()
+          .describe(
+            "Redirect mode for old URLs. Defaults to '30d' (safest). " +
+            "'off' — no redirect, old name released immediately. " +
+            "'30d' — 301 redirect for 30 days. " +
+            "'permanent' — permanent 301 redirect with no expiry.",
+          ),
+      },
+    },
+    async ({ nsId, site, newName, redirect }) => {
+      try {
+        const nsIdStr = nsId as string;
+        const newNameStr = newName as string | undefined;
+
+        if (!newNameStr) {
+          return errResponse(new Error("newName is required"));
+        }
+
+        if (!nsIdStr) {
+          return errResponse(new Error("nsId is required"));
+        }
+
+        const result = await rename(
+          {
+            nsId: nsIdStr,
+            site: site as string | undefined,
+            newName: newNameStr,
+            redirect: redirect as "off" | "30d" | "permanent" | undefined,
+          },
+          coreDeps,
+        );
+
+        if (!result.success) {
+          return errResponse(new Error(result.error));
+        }
+
+        const target = site ? `site '${site as string}'` : "namespace";
+        const effectiveRedirect = (redirect as string | undefined) ?? "30d";
+        const redirectLine =
+          result.redirectExpiresAt
+            ? `\nRedirect expires: ${result.redirectExpiresAt}`
+            : effectiveRedirect === "off"
+              ? "\nRedirect: none"
+              : "\nRedirect: permanent";
+
+        return okResponse(
+          `Renamed ${target} to '${newNameStr}'.\n` +
+          `New URL: ${result.url}` +
+          redirectLine,
+        );
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
   // ─── Admin tools (env-gated) ────────────────────────────────────────────────
   // Only registered when UPUBLISH_ADMIN=1. Without the env var, the tool
-  // registry is byte-identical to the 16-tool baseline — existing tests pass.
+  // registry is byte-identical to the 17-tool baseline — existing tests pass.
 
   if (process.env.UPUBLISH_ADMIN === "1") {
     server.registerTool(

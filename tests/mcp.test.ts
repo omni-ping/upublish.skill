@@ -147,10 +147,10 @@ describe("DW-2.1: server registers publish, list, delete tools", () => {
     const { deps } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    // 16 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
+    // 17 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
     // passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
-    // promote, logout, login, status
-    expect(Object.keys(tools).length).toBe(16);
+    // promote, logout, login, status, rename
+    expect(Object.keys(tools).length).toBe(17);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
@@ -904,14 +904,14 @@ describe("DW-1.5: error message no longer references CLI commands", () => {
 // ─── DW-1.7: tool count assertions fixed ────────────────────────────────────
 
 describe("DW-1.7: tool count assertions are correct", () => {
-  test("test_DW_1_7_server_registers_exactly_nine_tools", () => {
+  test("test_DW_1_7_server_registers_exactly_seventeen_tools", () => {
     const { deps } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    // 16 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
+    // 17 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
     // passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
-    // promote, logout, login, status
-    expect(Object.keys(tools).length).toBe(16);
+    // promote, logout, login, status, rename
+    expect(Object.keys(tools).length).toBe(17);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
@@ -924,10 +924,10 @@ describe("server structure", () => {
     const server = createServer(deps);
     expect(server).toBeDefined();
     const tools = getTools(server);
-    // 16 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
+    // 17 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
     // passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
-    // promote, logout, login, status
-    expect(Object.keys(tools).length).toBe(16);
+    // promote, logout, login, status, rename
+    expect(Object.keys(tools).length).toBe(17);
     fs.unlinkSync(deps.credentialsPath!);
   });
 
@@ -1491,5 +1491,138 @@ describe("DW-2.4: success response includes warning about suspicious files", () 
       fs.rmSync(tmpDir, { recursive: true, force: true });
       fs.unlinkSync(deps.credentialsPath!);
     }
+  });
+});
+
+// ─── DW-6.2: rename tool registered ─────────────────────────────────────────
+
+describe("DW-6.2: rename tool registered", () => {
+  test("test_DW_6_2_server_registers_rename_tool", () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
+    const tools = getTools(server);
+    expect("rename" in tools).toBe(true);
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_6_2_server_tool_count_is_17", () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
+    const tools = getTools(server);
+    // 17 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
+    // passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
+    // promote, logout, login, status, rename
+    expect(Object.keys(tools).length).toBe(17);
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+});
+
+// ─── DW-6.3: rename tool dirty paths via MCP handler ────────────────────────
+
+describe("DW-6.3: rename tool — dirty paths", () => {
+  test("test_DW_6_3_rename_tool_site_happy_path", async () => {
+    const { deps } = makeDeps(
+      makeMockFetch({ slug: "new-slug", url: "https://user.upubli.sh/new-slug/", redirect_expires_at: null }),
+    );
+    const server = createServer(deps);
+    const tools = getTools(server);
+
+    const result = await tools["rename"].handler({ nsId: DEFAULT_NS_ID, site: "old-slug", newName: "new-slug" });
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    expect(text).toContain("https://user.upubli.sh/new-slug/");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_6_3_rename_tool_ns_happy_path", async () => {
+    const { deps } = makeDeps(
+      makeMockFetch({ name: "new-ns", url: "https://new-ns.upubli.sh/", redirect_expires_at: null }),
+    );
+    const server = createServer(deps);
+    const tools = getTools(server);
+
+    // No site field -> namespace rename
+    const result = await tools["rename"].handler({ nsId: DEFAULT_NS_ID, newName: "new-ns" });
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    expect(text).toContain("https://new-ns.upubli.sh/");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_6_3_rename_tool_surfaces_4xx_verbatim", async () => {
+    const serverError = "Cannot rename: cooldown active, 12 days remaining";
+    const errorFetch = async (url: string, _init?: RequestInit): Promise<Response> => {
+      if (url.includes("/auth/token/refresh")) {
+        return new Response(
+          JSON.stringify({ access_token: "mock-access-token", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.endsWith("/api/space") || url.includes("/api/space?")) {
+        return new Response(
+          JSON.stringify({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (/\/api\/ns$/.test(url) || /\/api\/ns\?/.test(url)) {
+        return new Response(
+          JSON.stringify({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "user.upubli.sh" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(
+        JSON.stringify({ error: serverError }),
+        { status: 429, headers: { "Content-Type": "application/json" } },
+      );
+    };
+    const { credFile, deps } = makeDeps(errorFetch);
+    const server = createServer(deps);
+    const tools = getTools(server);
+
+    const result = await tools["rename"].handler({ nsId: DEFAULT_NS_ID, site: "my-site", newName: "new-slug" });
+
+    expect(result.isError).toBe(true);
+    const text = result.content[0].text;
+    expect(text).toContain(serverError);
+    fs.unlinkSync(credFile);
+  });
+
+  test("test_DW_6_3_rename_tool_missing_newName_is_handled", async () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
+    const tools = getTools(server);
+
+    const result = await tools["rename"].handler({ nsId: DEFAULT_NS_ID });
+
+    expect(result.isError).toBe(true);
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_6_3_rename_tool_missing_nsId_is_handled", async () => {
+    const { deps } = makeDeps();
+    const server = createServer(deps);
+    const tools = getTools(server);
+
+    const result = await tools["rename"].handler({ newName: "new-slug" });
+
+    expect(result.isError).toBe(true);
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+});
+
+// ─── DW-6.3: no version bump in diff ────────────────────────────────────────
+
+describe("DW-6.3: no version bump in package.json or manifests", () => {
+  test("test_DW_6_3_no_version_bump_package_json", () => {
+    // The plan explicitly forbids manual version bumps — CI owns them.
+    // We assert the version in package.json matches the original branch baseline
+    // (0.12.1) to prevent accidental bumps in this phase.
+    const pkgPath = path.join(path.resolve(import.meta.dir, ".."), "package.json");
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { version: string };
+    // The version should NOT have been bumped by this phase (CI owns bumping).
+    // Assert it still starts with 0.12 (the pre-phase baseline).
+    expect(pkg.version.startsWith("0.12")).toBe(true);
   });
 });
