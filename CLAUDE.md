@@ -30,12 +30,14 @@ lib/delete.ts      DELETE /api/sites/:slug
 lib/types.ts       Shared types (Site, Visibility, FetchFn, TokenProvider)
 ```
 
-**Sign-in is one unified flow.** `login` opens `GET /auth/google?flow=local` with PKCE.
-First-time users transparently detour through a browser onboarding page (username +
-first namespace + terms); the callback returns a single-use `code`, which `login`
-exchanges at `POST /auth/token/exchange` for tokens — **tokens never appear in a URL**.
-Returning users are signed in directly. Old per-flow auth endpoints are retired and
-return HTTP 410 `upgrade_required`.
+**Sign-in is one unified flow.** `login` opens `{SITE}/login?flow=local` — the
+website's provider chooser — with PKCE params. The chooser renders a button per
+enabled provider (Google, GitHub, Microsoft, Discord, GitLab); clicking one forwards
+all five params to `{API}/auth/:provider`. First-time users detour through browser
+onboarding (first namespace + terms) before the single-use `code` arrives; the callback
+returns that code, which `login` exchanges at `POST /auth/token/exchange` for tokens —
+**tokens never appear in a URL**. Returning users are signed in directly. Old per-flow
+auth endpoints are retired and return HTTP 410 `upgrade_required`.
 
 **Key design rule: adapters import only from `lib/core.ts`.** `mcp/index.ts` calls core functions — it never constructs ApiClient or reads credentials directly. Core re-exports any types adapters need.
 
@@ -68,4 +70,5 @@ bun build mcp/index.ts --target=bun --outfile=dist/mcp.js && chmod +x dist/mcp.j
 ## Environment
 
 - `UPUBLISH_API_URL` — overrides the API base URL (defaults to `https://api.upubli.sh`)
+- `UPUBLISH_SITE_URL` — overrides the website base URL used for the provider-chooser login page (defaults to `https://upubli.sh`)
 - Credentials stored at `~/.upublish/credentials` (refresh token, 0600 permissions)

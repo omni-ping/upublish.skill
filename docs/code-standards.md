@@ -1,250 +1,265 @@
-<!-- base-commit: 18626314847dd0bb62faf7e4e482808a366b2bbe -->
-<!-- generated: 2026-06-03 -->
+<!-- base-commit: a1574752c2870def4eaf887a4f65335a7cf8b04c -->
+<!-- generated: 2026-06-06 -->
 
 # Code Standards
 
+`@omniping/upublish` — a hexagonal MCP server + multi-platform AI plugin. Adapters (`mcp/index.ts`) call a single facade (`lib/core.ts`); domain modules under `lib/` hold the logic. No CLI binary, no `bin/`, no linter config — conventions are enforced by `bun:test`, not by eslint/biome/prettier.
+
 ## Forbidden Patterns
 
-**Never import from submodules in adapters** — adapters (`mcp/index.ts`) import only from `lib/core.ts`. Core re-exports any types adapters need. A test in `lib/publish.test.ts` explicitly verifies no `lib/` source file imports `@modelcontextprotocol/sdk`.
+**Never import a `lib/` submodule from an adapter** — `mcp/index.ts` imports only `lib/core.ts`, which re-exports every type adapters need. Enforced by a test in `lib/publish.test.ts` (and `lib/qrcode.test.ts`) that scans every non-test `lib/*.ts` for `@modelcontextprotocol/sdk`.
 
 ```typescript
-// BAD — adapter reaches into submodule, creates coupling
-import { readCredentials } from "../lib/auth.ts";
+// BAD — adapter reaches into a submodule, couples the MCP layer to internals
 import { ApiClient } from "../lib/api-client.ts";
+import { renameSite } from "../lib/rename.ts";
 
-// GOOD — adapter uses core facade; core wires internals
-import { list, publish, deleteOp, gate } from "../lib/core.ts";
-import type { PublishResult, GateResult, Site } from "../lib/core.ts";
+// GOOD — adapter uses the facade; core wires ApiClient + credentials per call
+import { rename, namespaceCreate, publish } from "../lib/core.ts";
+import type { RenameResult, NamespaceCreateResult } from "../lib/core.ts";
 ```
 
-**Never cache credentials at module level** — read fresh from disk on every operation. The MCP server picks up credentials written by login without a restart.
+**Never cache credentials at module scope** — `buildApiClient()` reads the credentials file on every core call. The MCP server picks up a token written by `login` without a restart.
 
 ```typescript
-// BAD — stale if user logs in after server starts
-const token = await readCredentials(credFile); // at module scope
+// BAD — captured once; stale if the user logs in after the server starts
+const refreshToken = await readCredentials(credFile); // at module load
 
-// GOOD — from lib/core.ts: buildApiClient() called inside each export
+// GOOD — lib/core.ts: every export rebuilds the client from disk
 export async function list(namespaceName?: string, deps?: CoreDeps): Promise<ListResult> {
-  const apiClient = await buildApiClient(deps); // reads disk on every call
+  const apiClient = await buildApiClient(deps); // reads disk every call
   const ns = await resolveNamespace(apiClient, namespaceName);
-  return listSites(apiClient, ns.id);
+  // ...
 }
 ```
 
-**Never use `any`** — zero `any` types in the codebase.
+**Never put tokens in a URL or log a PKCE verifier** — the loopback callback receives only a single-use `code`; tokens arrive solely in the `/auth/token/exchange` response body. The verifier is sent only in that POST body.
 
-**Never import `fflate`** — the zip-based upload path was removed (v0.9.0). The publish flow is presigned-URL-only: manifest → upload → finalize.
+```typescript
+// GOOD — lib/auth.ts buildAuthUrl(): only the code_challenge goes in the URL
+new URLSearchParams({ flow: "local", redirect_uri, code_challenge, code_challenge_method: "S256" });
+// the code_verifier stays in scope; exchangeCodeForTokens() sends it only in the body
+```
+
+**Never use `any`, `@ts-ignore`, or `eslint-disable`** — none exist in the codebase. Narrow `unknown`; cast args from MCP handlers explicitly (`slug as string`).
+
+**Never re-introduce zip-based upload (`fflate`)** — the publish flow is presigned-URL-only: manifest → PUT changed files → finalize. File bytes never pass through the API server.
 
 ## Code Examples
 
-### Domain function with DI
+### Domain function: injectable client, structured success type, throw on API error
 
 ```typescript
-// DO — lib/delete.ts: pure domain logic, injectable ApiClient, structured return
-export async function deleteSite(
-  apiClient: ApiClient,
-  nsId: string,
-  slug: string,
-): Promise<DeleteResult> {
-  if (!slug || slug.trim().length === 0) throw new Error("slug is required");
-  const result = await apiClient.delete<DeleteSiteResponse>(
-    `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}`,
+// DO — lib/rename.ts: takes the ApiClient, returns a typed success shape,
+// lets ApiClient.parseResponse throw on non-2xx (the facade catches it).
+export async function renameSite(
+  apiClient: ApiClient, nsId: string, oldSlug: string, newSlug: string, redirect: RedirectMode,
+): Promise<RenameSuccess> {
+  const result = await apiClient.post<SiteRenameResponse>(
+    `/api/ns/${encodeURIComponent(nsId)}/sites/${encodeURIComponent(oldSlug)}/rename`,
+    { new_slug: newSlug, redirect },
   );
-  return { message: result.message };
+  return { url: result.url, redirectExpiresAt: result.redirect_expires_at };
 }
 
-// DON'T — constructs its own client, reads credentials, untestable
-export async function deleteSite(slug: string): Promise<DeleteResult> {
+// DON'T — builds its own client, reads credentials, hardcodes the host: untestable
+export async function renameSite(slug: string, newSlug: string) {
   const token = await readCredentials("~/.upublish/credentials");
-  await fetch(`https://api.upubli.sh/api/sites/${slug}`, { method: "DELETE", ... });
+  await fetch(`https://api.upubli.sh/api/sites/${slug}/rename`, { method: "POST", /* ... */ });
 }
 ```
 
-### MCP tool registration
+### Facade dispatch: one core function fronts two domain ops
 
 ```typescript
-// DO — mcp/index.ts: zod schema, calls core, try/catch → okResponse/errResponse
-server.registerTool(
-  "delete",
-  {
-    title: "Delete Site",
-    description: "Permanently deletes a published site.",
-    inputSchema: {
-      slug: z.string().describe("The site slug to delete."),
-      namespace: z.string().optional().describe("Namespace name. Defaults to default namespace."),
-    },
-  },
-  async ({ slug, namespace }) => {
-    try {
-      const result = await deleteOp(slug as string, namespace as string | undefined, coreDeps);
-      return okResponse(result.message);
-    } catch (err) {
-      return errResponse(err);
-    }
-  },
-);
+// DO — lib/core.ts rename(): `site` present → site rename, absent → namespace rename.
+// Returns a discriminated union; it NEVER throws (see Error Handling).
+export async function rename(opts: RenameArgs, deps?: CoreDeps): Promise<RenameResult> {
+  let apiClient;
+  try { apiClient = await buildApiClient(deps); }
+  catch (err) { return { success: false, error: (err as Error).message }; }
+  const redirect: RedirectMode = opts.redirect ?? "30d";
+  try {
+    const result = opts.site !== undefined
+      ? await renameSite(apiClient, opts.nsId, opts.site, opts.newName, redirect)
+      : await renameNamespace(apiClient, opts.nsId, opts.newName, redirect);
+    return { success: true, url: result.url, redirectExpiresAt: result.redirectExpiresAt };
+  } catch (err) { return { success: false, error: (err as Error).message }; }
+}
 ```
 
-### Progress callback threading (sync, platform-agnostic)
-
-The `onProgress` callback in `publish()` and `uploadChangedFiles()` must be **synchronous and non-throwing**. `lib/` stays free of async notification machinery — the MCP adapter wraps an async `sendNotification` behind it.
+### MCP tool: zod schema → call core → check the result shape
 
 ```typescript
-// DO — mcp/index.ts: async MCP notification wrapped in sync callback
-const onProgress = progressToken !== undefined
-  ? (p: { completed: number; total: number }) => {
-      extra.sendNotification({ method: "notifications/progress", params: { progressToken, ...p } })
-        .catch((err) => log(`progress notification failed: ${(err as Error).message}`));
-    }
-  : undefined;
-await publish({ ..., onProgress }, coreDeps);
+// DO — mcp/index.ts: the rename tool checks result.success (not try/catch alone)
+// because core.rename() reports expected failures as { success: false }.
+async ({ nsId, site, newName, redirect }) => {
+  try {
+    const result = await rename({ nsId: nsId as string, site: site as string | undefined,
+      newName: newName as string, redirect: redirect as RedirectMode | undefined }, coreDeps);
+    if (!result.success) return errResponse(new Error(result.error));
+    return okResponse(`Renamed ... New URL: ${result.url}`);
+  } catch (err) { return errResponse(err); }
+}
 
-// DON'T — lib/ calling MCP SDK directly (breaks hexagonal boundary)
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"; // in lib/publish.ts
+// DON'T — for a throwing core fn (publish/list/namespaceCreate), try/catch is the
+// whole contract; there is no result.success to inspect.
+async ({ name, domain }) => {
+  try { const r = await namespaceCreate(name, domain, coreDeps); return okResponse(`...${r.namespace_id}`); }
+  catch (err) { return errResponse(err); }
+}
 ```
 
 ## Error Handling
 
-Core functions throw `Error` with human-readable messages on API failures. MCP tool handlers catch and return `errResponse()`. No Result wrapper types, no error codes.
+Two coexisting strategies — match the one the function you touch already uses. No Result wrapper, no error codes; failures carry a human-readable `Error.message`.
+
+**Throwing functions (the default):** `publish`, `list`, `deleteOp`, `promote`, `passcode*`, `gate*`, `members`, `versions*`, `qrcode`, `namespaceCreate`, admin ops. They throw `Error`; the MCP handler wraps every call in try/catch → `errResponse(err)`.
 
 ```typescript
-// lib/api-client.ts — single error format for all API failures
+// lib/api-client.ts — single error format for every API failure
 throw new Error(`API error ${response.status}: ${errorMessage}`);
-
-// mcp/index.ts — every tool handler wraps in try/catch
-try {
-  const result = await publish(args, coreDeps);
-  return okResponse(`Site published!\nURL: ${result.url}`);
-} catch (err) {
-  return errResponse(err); // { content: [{ type: "text", text: msg }], isError: true }
-}
 ```
 
-**Exception — `logout()` and `status()`:** These never throw for expected failures. `logout()` returns `{ loggedOut: false, error }` on filesystem failure. `status()` returns `{ authenticated: false }` when credentials are absent or the API rejects them — it uses its own inline credential check rather than `buildApiClient()`.
-
-**Best-effort operations are always wrapped silently:**
+**Structured-return functions (never throw for expected failures):** `rename`, `status`, `logout`. They return a discriminated union so callers branch on a flag, not a catch.
 
 ```typescript
-// lib/core.ts logout() — server revocation failure must not block local logout
-try {
-  await fetchFn(`${API_BASE_URL}/auth/token/revoke`, { ... });
-} catch {
-  // Silently ignore — best-effort revoke
-}
+// lib/core.ts — these encode failure in the type, including auth failure
+type StatusResult = { authenticated: true; username: string; namespaces: Namespace[] }
+                  | { authenticated: false; error?: string };
+type RenameResult = { success: true; url: string; redirectExpiresAt: string | null }
+                  | { success: false; error: string };
+type LogoutResult = { loggedOut: true } | { loggedOut: false; error: string };
+```
+
+**Error enrichment at the domain boundary** — `namespaceCreate` appends actionable guidance only to a tier-limit 403; all other errors pass through verbatim.
+
+```typescript
+// lib/namespace.ts — enrich the one case the agent can act on, leave the rest
+const isTierLimit = /API error 403/.test(err.message) && /limit/i.test(err.message);
+if (isTierLimit) return new Error(`${err.message} Upgrade at ${UPGRADE_URL} to create more namespaces.`);
+return err;
+```
+
+**Best-effort side effects are silently swallowed** — server-side token revoke on logout, and `log()`, must never block or break the primary operation.
+
+```typescript
+// lib/core.ts logout() — offline logout must still delete local creds
+try { await fetchFn(`${API_BASE_URL}/auth/token/revoke`, { /* ... */ }); }
+catch { /* best-effort revoke */ }
 ```
 
 ## Imports & Dependency Direction
 
 ```
-mcp/index.ts  →  lib/core.ts  →  lib/list.ts, lib/publish.ts, lib/delete.ts
-                                  lib/passcode.ts, lib/gate.ts
-                                  lib/auth.ts, lib/api-client.ts
-                                  lib/namespace.ts
+mcp/index.ts  →  lib/core.ts  →  domain modules (list, publish, delete, promote,
+                                  rename, namespace, passcode, gate, members,
+                                  versions, qrcode, admin, auth, api-client)
                               →  lib/types.ts   (leaf — no internal imports)
                               →  lib/log.ts     (leaf — no internal imports)
 ```
 
-`resolveNamespace()` returns a full `Namespace` object (`{ id, name, domain }`), not just the ID string. Core functions pass `ns.id` to domain functions and `ns` itself to callers. This avoids extra API calls to fetch namespace metadata alongside results.
+Use the `.ts` extension on every import (Bun requires it). Import order: `node:` builtins → external packages (`zod`, `@modelcontextprotocol/sdk`, `open`, `qrcode`) → internal (`./core.ts`, `../lib/core.ts`).
 
-Use `.ts` extension in all imports (Bun requires it). Import order: Node builtins (`node:fs`, `node:path`) → external packages (`zod`, `@modelcontextprotocol/sdk`) → internal (`../lib/core.ts`, `./types.ts`).
+When a core export name collides with the imported domain function, alias the import with a `domain` prefix and keep the bare name for the public facade export.
+
+```typescript
+// lib/core.ts — the export is publish(); the import is domainPublish()
+import { publish as domainPublish } from "./publish.ts";
+import { namespaceCreate as domainNamespaceCreate } from "./namespace.ts";
+export async function publish(args: PublishArgs, deps?: CoreDeps) { /* ... */ return domainPublish({ /* ... */ }); }
+```
+
+`resolveNamespace()` returns the full `Namespace` (`{ id, name, domain, role? }`), not just the id. Core passes `ns.id` down to domain functions and `ns` itself back to callers — avoids a second metadata fetch.
 
 ## Testing Patterns
 
-Framework: `bun:test`. Unit tests co-located in `lib/` as `*.test.ts`; adapter/integration tests in `tests/`.
+Framework: `bun:test`. Unit tests co-located in `lib/` as `*.test.ts` (the default `bun test` runs `lib/` only via the `test` script). Adapter/integration tests live in `tests/` (`bun run test:all`). No `bun:mock` — dependencies are injected.
 
-```sh
-bun test lib/   # unit tests only (default npm test)
-bun test        # all tests (unit + integration)
-```
-
-**Dependency injection over mocking:** Every core function accepts `CoreDeps { credentialsPath, fetchFn }`. Tests inject a temp credentials file and a mock `fetchFn` — no network calls, no `bun:mock`.
+**Inject `CoreDeps`, never mock modules.** Every core function takes `{ credentialsPath?, fetchFn? }`. Tests write a temp credentials file and supply a `fetchFn` that returns canned `Response`s — no network.
 
 ```typescript
-// tests/mcp.test.ts — mock fetch handles token refresh + namespace resolution
-function makeMockFetch(apiResponse: unknown = { sites: [] }) {
-  return async (url: string): Promise<Response> => {
-    if (url.includes("/auth/token/refresh"))
-      return new Response(JSON.stringify({ access_token: "mock-token", expires_in: 3600 }), { status: 200 });
-    if (url.endsWith("/api/space"))
-      return new Response(JSON.stringify({ space: { id: "sp1", default_namespace_id: "ns-default", tier: "free" } }), { status: 200 });
-    if (/\/api\/ns$/.test(url))
-      return new Response(JSON.stringify({ namespaces: [{ id: "ns-default", name: "default", domain: "user.upubli.sh" }] }), { status: 200 });
-    return new Response(JSON.stringify(apiResponse), { status: 200 });
-  };
-}
-const deps: CoreDeps = { credentialsPath: tmpCredFile, fetchFn: makeMockFetch() };
+// lib/core-rename.test.ts — temp cred file + a fetch that asserts on the request
+const fetchFn = makeMockFetch((url, init) => { /* assert url/method/body, return Response */ });
+const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+const result = await rename({ nsId, site, newName, redirect }, deps);
 ```
 
-**ApiClient test pattern:** Construct directly with a mock `TokenProvider` and mock `FetchFn`, capture and assert on URL/method/body.
+**`login()` is driven entirely from `LoginDeps`** — no real browser, server, or network. Stub `startCallbackServer().waitForCode()` to hand back the auth code, and `fetchFn` to answer the token exchange.
 
 ```typescript
-const staticTokenProvider = async () => "test-token";
-const client = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+// lib/login-exchange.test.ts
+makeDeps({ credentialsFilePath: credFile, startCallbackServer: codeServer("code-123"), fetchFn: exchangeOk() });
 ```
 
-**Test naming:** `test_DW_N_M_description` (DW = "done-when" criterion from the plan that motivated the test).
-
-**Hexagonal boundary test** — enforced in `lib/publish.test.ts`:
+**`ApiClient` tests:** construct directly with a static token provider + mock fetch; assert on captured URL/method/body.
 
 ```typescript
-it("test_DW_1_3_lib_has_no_mcp_sdk_imports", () => {
-  const files = readdirSync(libDir).filter(f => f.endsWith(".ts") && !f.endsWith(".test.ts"));
-  const offenders = files.filter(f => readFileSync(join(libDir, f), "utf-8").includes("@modelcontextprotocol/sdk"));
-  expect(offenders).toEqual([]);
-});
+const client = new ApiClient(BASE_URL, async () => "test-token", fetchFn);
+```
+
+**Test naming:** `test_DW_<phase>_<n>_<description>` — `DW` = the "done-when" criterion from the plan that motivated the test (e.g. `test_DW_5_1_collect_files_hashes_each_file`).
+
+**Boundary test (keep it green):** `lib/publish.test.ts` (and `lib/qrcode.test.ts`) read every non-test `lib/*.ts` and assert none import `@modelcontextprotocol/sdk`.
+
+```typescript
+const offenders: string[] = [];
+for (const f of files) if (readFileSync(join(libDir, f), "utf-8").includes("@modelcontextprotocol/sdk")) offenders.push(f);
+expect(offenders).toEqual([]);
 ```
 
 ## Naming Conventions
 
-Files: `kebab-case.ts`. Test files: `*.test.ts` for unit, `*.ns.test.ts` for namespace-scoped variants.
+Files: `kebab-case.ts`. Tests: `*.test.ts`; namespace-scoped variants use `*.ns.test.ts`; facade-vs-domain split uses `core-<feature>.test.ts` (e.g. `core-rename.test.ts`) for the facade and `<feature>.test.ts` for the domain module.
 
 Domain terms:
-- `slug` — URL-safe site identifier (not "name" or "id")
-- `namespace` / `ns` / `nsId` — multi-tenant space. `ns` is the full `Namespace` object; `nsId` is the string ID passed to domain functions.
-- `CoreDeps` — the DI bag for core functions (`credentialsPath`, `fetchFn`)
-- `deleteOp` — avoids shadowing the JS `delete` keyword
-- `domainPromote`, `domainPublish`, etc. — prefix used in `core.ts` when a core function name conflicts with an imported domain function name
+- `slug` — URL-safe site identifier (never "name" or "id")
+- `ns` is the full `Namespace` object; `nsId` is the bare id string passed to domain functions
+- `CoreDeps` — the DI bag for the facade (`credentialsPath`, `fetchFn`); `LoginDeps` — the richer bag for `login()` (browser, callback server, logger, fetch)
+- `deleteOp` — facade name for delete (avoids shadowing the `delete` keyword)
+- `domainPublish`, `domainNamespaceCreate`, … — `domain`-prefixed import aliases in `core.ts` where the facade reuses the export name
 
-DB columns on the `Site` type use `snake_case` (mirrors the API response verbatim): `user_id`, `created_at`, `file_count`, `total_size`, `passcode_hash`.
+API responses use `snake_case` and types mirror them verbatim: `user_id`, `file_count`, `passcode_hash`, `redirect_expires_at`, `default_namespace_id`. Map to camelCase only when building the lib-facing success type (`redirect_expires_at` → `redirectExpiresAt`).
 
 ## File Organization
 
 ```
-lib/           Domain logic + core facade. Unit tests co-located.
-  core.ts        Facade — all user-facing operations; wires credentials + ApiClient per call
-  auth.ts        OAuth login (PKCE), token refresh, credential read/write
-  api-client.ts  Thin HTTP client — Bearer token injection, manifest/finalize methods
-  publish.ts     Hash files, diff manifest, presigned R2 upload with retry, finalize
-  list.ts        GET /api/ns/:nsId/sites
-  delete.ts      DELETE /api/ns/:nsId/sites/:slug
-  promote.ts     POST /api/ns/:nsId/sites/:slug/promote
-  passcode.ts    Passcode CRUD
-  gate.ts        Form gate CRUD + submissions
-  namespace.ts   Namespace resolution (by name or default)
-  types.ts       Shared types — leaf module, no internal imports
-  log.ts         File logger (~/.upublish/publish.log) — never throws
-mcp/           MCP server adapter
-  index.ts       Tool registration, createServer() factory, okResponse/errResponse helpers
-tests/         Integration/adapter tests (imports from mcp/)
-skills/        Skill definitions for AI agents
-references/    Markdown docs for skill routing
-dist/          Pre-built bundle (mcp.js) — rebuilt by CI, not edited by hand
+lib/             Domain logic + facade. Unit tests co-located as *.test.ts.
+  core.ts          Facade — every user-facing op; buildApiClient() per call; re-exports for adapters
+  auth.ts          Unified PKCE login: generatePkce, buildAuthUrl, exchangeCodeForTokens, token refresh, cred I/O
+  api-client.ts    Thin HTTP client — Bearer injection, get/post/put/patch/delete, manifest()/finalize()
+  publish.ts       Hash files, diff manifest, stream presigned PUT uploads w/ retry, finalize
+  rename.ts        renameSite + renameNamespace (POST .../rename) — NEW
+  namespace.ts     resolveNamespace + namespaceCreate (POST /api/ns) w/ tier-limit enrichment
+  list/delete/promote/passcode/gate/members/versions/qrcode.ts  one domain area each
+  admin.ts         Env-gated admin ops (user/site/stats/storage/domains)
+  types.ts         Shared types (leaf) | log.ts  file logger ~/.upublish/publish.log (leaf, never throws)
+mcp/index.ts     MCP adapter — createServer(coreDeps?, opts?) factory, tool registry, okResponse/errResponse
+tests/           Integration/adapter tests (import from mcp/)
+references/      Markdown docs the skill/GEMINI.md route users to
+dist/mcp.js      Pre-built bundle — rebuilt by CI, never hand-edited
 ```
+
+New domain area: add `lib/<area>.ts` + co-located `lib/<area>.test.ts`, wire it through `lib/core.ts` (import + facade fn + type re-export), then register the MCP tool in `mcp/index.ts`.
 
 ## Technology Decisions
 
-- **Bun** as runtime, test runner, and bundler. No Node.js-specific APIs except `node:` builtins (which Bun provides).
-- **No fflate** — removed in v0.9.0. Publish flow is presigned-URL-only (manifest → PUT → finalize). Do not re-introduce zip-based upload.
-- **zod** for MCP tool input schemas — required by `@modelcontextprotocol/sdk`.
-- **No build step for dev** — Bun runs TypeScript directly. `dist/mcp.js` is a pre-built bundle for plugin distribution. Rebuild after every source change: `bun build mcp/index.ts --target=bun --outfile=dist/mcp.js && chmod +x dist/mcp.js`.
-- **Version must be bumped with every change** — plugins only receive updates when the version number changes. Version appears in 5 places: `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`, `mcp/index.ts` (`PACKAGE_VERSION`).
+- **Bun** is runtime, test runner, and bundler. Only `node:` builtins, no Node-specific runtime APIs. No build step in dev — Bun runs `.ts` directly.
+- **PKCE auth is real (RFC 7636)** via Web Crypto (`crypto.subtle`), not `node:crypto`. One unified entry `GET /auth/google?flow=local`; the legacy per-flow endpoints return HTTP 410 `upgrade_required` — do not call them.
+- **No linter/formatter config** (no eslint/biome/prettier). Style is enforced by tests and review, not tooling. `tsconfig.json` is strict.
+- **zod** for MCP input schemas (required by the SDK). **open** for the browser launch, **qrcode** for the qrcode tool.
+- **Version must be bumped on every change** — plugins only update when the number changes. It lives in five files that must stay in sync: `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`, `mcp/index.ts` (`PACKAGE_VERSION`). CI bumps them on merge.
+- **Rebuild `dist/mcp.js` on every source change** — installed plugins run the bundle, not the source: `bun build mcp/index.ts --target=bun --outfile=dist/mcp.js && chmod +x dist/mcp.js`.
+- **Admin tools are env-gated** — only registered when `UPUBLISH_ADMIN=1`; otherwise the registry is byte-identical to the public baseline.
 
 ## Exemplar Files
 
-**`lib/core.ts`** — facade pattern, fresh-credential-per-call via `buildApiClient()`, `CoreDeps` injection, re-exports for adapters, discriminated union dispatch (`gate()`).
+**`lib/core.ts`** — the facade: `buildApiClient()` fresh-creds-per-call, `CoreDeps` injection, `domain*` import aliasing, adapter type re-exports, both error strategies (throwing `publish`/`list` vs structured-return `rename`/`status`/`logout`).
 
-**`lib/publish.ts`** — presigned-URL publish flow: `collectFilesWithHashes()` → `manifest()` → `uploadChangedFiles()` (batched parallel with retry, `onProgress` callback) → `finalize()`. Shows sync-callback threading pattern and `force` flag (randomized hashes to bypass diff).
+**`lib/rename.ts` + `lib/core.ts` rename()** — newest convention pair: a slim domain module that throws, fronted by a facade fn that catches into a `{ success }` union and dispatches site-vs-namespace on one optional arg.
 
-**`mcp/index.ts`** — `createServer(coreDeps?)` factory for test injection, `okResponse`/`errResponse` helpers, MCP progress notification pattern (async notification wrapped in sync `onProgress`).
+**`lib/auth.ts`** — the full PKCE login: `generatePkce()` (Web Crypto), `buildAuthUrl()` (challenge only), loopback `waitForCode()`, `exchangeCodeForTokens()` (verifier in body, tokens in response), `createTokenProvider()` (transparent refresh). Fully deps-injected.
 
-**`lib/api-client.ts`** — token-provider pattern (called before every request for transparent refresh), typed `manifest()` and `finalize()` methods, single `parseResponse()` for all error handling.
+**`lib/api-client.ts`** — token-provider-per-request pattern, the verb methods, typed `manifest()`/`finalize()`, single `parseResponse()` that is the one place errors are thrown.
+
+**`mcp/index.ts`** — `createServer(coreDeps?, opts?)` factory for test injection, `okResponse`/`errResponse`, env-gated admin registration, and the two adapter idioms (try/catch-only for throwing core fns; `if (!result.success)` for structured-return fns).

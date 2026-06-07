@@ -8,12 +8,12 @@ The upublish MCP server isn't registered. The plugin needs to be installed and t
 
 Credentials have expired or the credentials file is missing. The MCP server reads a refresh token from `~/.upublish/credentials`.
 
-**Fix:** Call the `login` tool to re-authenticate — this opens a browser for Google sign-in. Tell the user what's happening ("Your session expired, opening the browser to re-authenticate").
+**Fix:** Call the `login` tool to re-authenticate — this opens the sign-in page in a browser. Tell the user what's happening ("Your session expired, opening the browser to re-authenticate").
 
 ## "This client version is no longer supported" / HTTP 410 `upgrade_required`
 
 The plugin is calling a retired authentication endpoint. The sign-in flow was
-consolidated (one Google OAuth entry, single-use code + PKCE exchange), and the
+consolidated (provider chooser at `/login`, single-use code + PKCE exchange), and the
 old per-flow auth routes now return **HTTP 410** with
 `{"error":"This client version is no longer supported — update the upublish plugin","code":"upgrade_required"}`.
 

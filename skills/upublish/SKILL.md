@@ -27,21 +27,22 @@ Call the `status` tool to check auth state.
 | Output | Action |
 |---|---|
 | Shows "Authenticated" with username | Setup complete — continue to step 2 |
-| Shows "Not authenticated" | Call the `login` tool (opens browser for Google sign-in), then re-check |
+| Shows "Not authenticated" | Call the `login` tool (opens the sign-in page in a browser), then re-check |
 
 #### Signup happens on first login
 
-There is no separate signup step. The **first time** a user runs `login`, Google
-sign-in transparently detours them through a short **browser onboarding page** to
-finish setup — they pick a username, create their **first namespace**, and accept
-the terms. `login` waits while they do this; it is **not stuck**. Returning users
-skip onboarding and are signed in immediately.
+There is no separate signup step. `login` opens `upubli.sh/login`, where the user
+picks a sign-in provider (Google, GitHub, Microsoft, Discord, or GitLab). The
+**first time** they sign in, they are transparently detoured through a short
+**browser onboarding page** to finish setup — they create their **first namespace**
+and accept the terms. `login` waits while they do this; it is **not stuck**.
+Returning users skip onboarding and are signed in immediately.
 
 Tell the user what to expect so the wait makes sense, e.g.: *"A browser window
-opened — finish the quick setup (username + namespace) there and you'll be signed
-in automatically."* Once onboarding completes, `login` returns and `status` shows
-their username and first namespace. No manual namespace creation is needed to get
-started; use `namespace_create` only to add **more** namespaces later.
+opened — choose a sign-in provider, then finish the quick setup (namespace) there
+and you'll be signed in automatically."* Once onboarding completes, `login` returns
+and `status` shows their username and first namespace. No manual namespace creation
+is needed to get started; use `namespace_create` only to add **more** namespaces later.
 
 ## Step 2: Route to action
 
@@ -64,7 +65,7 @@ Match what the user wants and read the reference file, then follow it.
 
 | Tool | Description |
 |---|---|
-| `mcp_upublish_login` | Sign in with Google. First-time users finish a quick browser onboarding (username + first namespace + terms); returning users sign in directly |
+| `mcp_upublish_login` | Opens the sign-in page (choose a provider). First-time users finish a quick browser onboarding (first namespace + terms); returning users sign in directly |
 | `mcp_upublish_status` | Check authentication state, shows namespaces and domains |
 | `mcp_upublish_namespace_create` | Create an additional namespace (URL prefix); tier-limited, returns the new namespace id + domain |
 | `mcp_upublish_publish` | Publish a directory as a live site |

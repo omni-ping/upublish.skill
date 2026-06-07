@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.6] — 2026-06-06
+
+### Changed
+
+- `login` now opens the website's provider chooser at `{SITE}/login` instead of going
+  directly to Google OAuth. Users can sign in with Google, GitHub, Microsoft, Discord,
+  or GitLab. The chooser forwards PKCE params to the chosen provider; the rest of the
+  flow (single-use code + token exchange) is unchanged.
+- New `UPUBLISH_SITE_URL` environment variable overrides the website base URL used for
+  the provider-chooser login page (defaults to `https://upubli.sh`).
+- All MCP/CLI copy is now provider-neutral — no hardcoded "Google" references in log
+  messages or tool descriptions.
+
 ## [0.6.0] — 2026-05-22
 
 ### Added

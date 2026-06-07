@@ -19,13 +19,14 @@ Check for `mcp_upublish_publish` in your available tools before proceeding.
 | State | Action |
 |---|---|
 | MCP tools available, calls succeed | Go to Step 2 |
-| MCP tools available but return "Not authenticated" | Call `mcp_upublish_login` to open browser for Google sign-in |
+| MCP tools available but return "Not authenticated" | Call `mcp_upublish_login` to open the sign-in page in a browser |
 | MCP tools not found | Tell the user the extension is not installed or needs a restart |
 
-**Signup happens on first login.** The first time a user signs in, Google OAuth
-detours them through a short browser onboarding page (username + first namespace +
-terms). `mcp_upublish_login` waits while they finish — it is not stuck. Returning
-users sign in directly. Tell the user to complete setup in the browser window.
+**Signup happens on first login.** The sign-in page lets users choose a provider
+(Google, GitHub, Microsoft, Discord, or GitLab). First-time users are detoured through
+a short browser onboarding page (first namespace + terms) before the login completes.
+`mcp_upublish_login` waits while they finish — it is not stuck. Returning users sign in
+directly. Tell the user to complete setup in the browser window.
 
 ## Step 2: Route to the right workflow
 
@@ -38,7 +39,7 @@ users sign in directly. Tell the user to complete setup in the browser window.
 
 ## Available tools
 
-- `mcp_upublish_login` — sign in with Google; first-time users finish a quick browser onboarding (username + first namespace + terms), returning users sign in directly
+- `mcp_upublish_login` — opens the sign-in page (choose a provider); first-time users finish a quick browser onboarding (first namespace + terms), returning users sign in directly
 - `mcp_upublish_status` — check authentication state
 - `mcp_upublish_namespace_create` — create an additional namespace (URL prefix); tier-limited, returns the new namespace id + domain
 - `mcp_upublish_publish` — publish a directory as a live site
