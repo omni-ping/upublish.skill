@@ -24445,13 +24445,15 @@ async function generatePkce() {
   return { codeVerifier, codeChallenge };
 }
 function buildAuthUrl(opts) {
+  const base = opts.siteBaseUrl.replace(/\/$/, "");
   const params = new URLSearchParams({
     flow: "local",
     redirect_uri: opts.redirectUri,
     code_challenge: opts.codeChallenge,
-    code_challenge_method: "S256"
+    code_challenge_method: "S256",
+    intent: "login"
   });
-  return `${opts.apiBaseUrl}/auth/google?${params.toString()}`;
+  return `${base}/login?${params.toString()}`;
 }
 function buildCallbackUrl(port) {
   return `http://localhost:${port}/callback`;
@@ -24492,8 +24494,9 @@ async function login(deps) {
   const server = await startCallbackServer();
   const redirectUri = buildCallbackUrl(server.port);
   const { codeVerifier, codeChallenge } = await generatePkce();
-  const authUrl = buildAuthUrl({ apiBaseUrl, redirectUri, codeChallenge });
-  log2("Opening browser for Google sign-in...");
+  const siteBaseUrl = deps.siteBaseUrl ?? "https://upubli.sh";
+  const authUrl = buildAuthUrl({ siteBaseUrl, redirectUri, codeChallenge });
+  log2("Opening browser for sign-in...");
   await open2(authUrl);
   log2("Waiting for sign-in to finish in your browser (first-time setup happens there)...");
   let code;
@@ -25220,6 +25223,7 @@ async function renameNamespace(apiClient, nsId, newName, redirect) {
 
 // lib/core.ts
 var API_BASE_URL = process.env.UPUBLISH_API_URL ?? "https://api.upubli.sh";
+var SITE_BASE_URL = (process.env.UPUBLISH_SITE_URL ?? "https://upubli.sh").replace(/\/$/, "");
 async function buildApiClient(deps) {
   const credFile = deps?.credentialsPath ?? defaultCredentialsPath();
   const refreshToken = await readCredentials(credFile);
@@ -25478,7 +25482,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.5";
+var PACKAGE_VERSION = "0.12.6";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -26030,13 +26034,14 @@ ${lines.join(`
   });
   server.registerTool("login", {
     title: "Login",
-    description: "Authenticates with upubli.sh via Google OAuth. " + "Opens a browser for sign-in and waits for the OAuth callback. " + "The auth URL is always included in the response so you can open " + "it in a different browser profile if needed.",
+    description: "Authenticates with upubli.sh. " + "Opens a browser sign-in page where you choose a provider and waits for the OAuth callback. " + "The auth URL is always included in the response so you can open " + "it in a different browser profile if needed.",
     inputSchema: {}
   }, async () => {
     let capturedAuthUrl = "";
     try {
       const result = await login2({
         apiBaseUrl: process.env.UPUBLISH_API_URL ?? "https://api.upubli.sh",
+        siteBaseUrl: (process.env.UPUBLISH_SITE_URL ?? "https://upubli.sh").replace(/\/$/, ""),
         openBrowser: async (url) => {
           capturedAuthUrl = url;
           await open_default(url);
