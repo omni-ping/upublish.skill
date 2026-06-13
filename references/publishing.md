@@ -9,7 +9,7 @@ Use the `mcp_upublish_publish` tool:
 | Parameter | Required | Description |
 |---|---|---|
 | `directory` | yes | Path to the directory to publish |
-| `slug` | yes | URL-safe name (3-63 chars, lowercase alphanumeric + hyphens) |
+| `slug` | yes | URL-safe name (1-63 chars, lowercase alphanumeric + hyphens) |
 | `title` | no | Human-readable title (defaults to slug) |
 | `visibility` | no | `public` (default) or `passcode` |
 | `passcode` | no | Required when visibility is `passcode` |
@@ -31,7 +31,7 @@ Publishing to an existing slug **replaces the entire site**. All previous files 
 
 - Use lowercase, descriptive names: `my-portfolio`, `project-docs`, `demo-v2`
 - Slugs must start and end with a letter or number
-- Minimum 3 characters, maximum 63
+- Minimum 1 character, maximum 63
 
 ## Example workflow
 
@@ -47,7 +47,7 @@ Publishing to an existing slug **replaces the entire site**. All previous files 
 | Limit | Free tier | Paid tier | What happens |
 |-------|-----------|-----------|-------------|
 | Single file | 10 MB | 1 GB | Files over the plan limit are rejected by the server |
-| Slug length | 3-63 characters | 3-63 characters | Rejected at API level |
+| Slug length | 1-63 characters | 1-63 characters | Rejected at API level |
 
 Upload sessions are valid for 6 hours. If an upload takes longer (e.g. uploading a very large file on a slow connection), start a new publish to get fresh upload URLs.
 
