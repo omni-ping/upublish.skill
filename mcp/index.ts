@@ -25,6 +25,7 @@ import {
   listSiteVersions,
   deleteSiteVersion,
   setSiteVersionsLimit,
+  analytics,
   login,
   status,
   logout,
@@ -310,9 +311,18 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             "When true, uploads all files regardless of whether they changed. " +
             "Use this to force a full re-upload when the site is broken or out of sync.",
           ),
+        analytics_enabled: z
+          .boolean()
+          .optional()
+          .describe(
+            "Per-site analytics. Defaults to on. Set false to publish WITHOUT the " +
+            "analytics script (e.g. \"publish ... with no analytics\"). To toggle " +
+            "analytics on an already-published site without republishing, use the " +
+            "analytics tool instead.",
+          ),
       },
     },
-    async ({ directory, slug, title, visibility, passcode, namespace, preview, force }, extra) => {
+    async ({ directory, slug, title, visibility, passcode, namespace, preview, force, analytics_enabled }, extra) => {
       log(`[publish] tool entry slug=${slug as string} dir=${directory as string}`);
 
       // Only emit MCP progress when the client supplied a progressToken in _meta.
@@ -395,6 +405,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             namespace: namespace as string | undefined,
             preview: preview as boolean | undefined,
             force: force as boolean | undefined,
+            analyticsEnabled: analytics_enabled as boolean | undefined,
             onProgress,
           },
           coreDeps,
@@ -680,6 +691,57 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
               `Usage: ${formatUsage(result.usage)}`
             : "No versions were pruned.";
         return okResponse(`${limitDisplay}\n${prunedDisplay}`);
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "analytics",
+    {
+      title: "Toggle Site Analytics",
+      description:
+        "Turns the per-site analytics script on or off for an already-published " +
+        "site on upubli.sh — WITHOUT republishing. Use for requests like " +
+        "\"turn off analytics for my-portfolio\" or \"turn analytics back on for my-portfolio\". " +
+        "Analytics is on by default; to publish a new site with analytics off, use the " +
+        "publish tool's analytics_enabled option instead.",
+      inputSchema: {
+        slug: z
+          .string()
+          .describe(
+            "The URL-safe identifier of the site. Use the `list` tool to find available slugs.",
+          ),
+        enabled: z
+          .boolean()
+          .describe(
+            "true to enable analytics (inject the script), false to disable it.",
+          ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+          ),
+      },
+    },
+    async ({ slug, enabled, namespace }) => {
+      try {
+        const result = await analytics(
+          slug as string,
+          enabled as boolean,
+          namespace as string | undefined,
+          coreDeps,
+        );
+        const state = result.site.analytics_enabled === false ? "OFF" : "ON";
+        return okResponse(
+          `Analytics is now ${state} for "${result.site.slug}". ` +
+          (state === "OFF"
+            ? "New page views will no longer be tracked; the analytics script is no longer injected."
+            : "The analytics script will be injected on future page loads.") +
+          "\nNo republish was needed — this took effect immediately.",
+        );
       } catch (err) {
         return errResponse(err);
       }

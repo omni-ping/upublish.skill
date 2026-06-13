@@ -24838,6 +24838,7 @@ async function publish(opts) {
     passcodeLabel,
     preview,
     force,
+    analyticsEnabled,
     fetchFn = fetch,
     onProgress
   } = opts;
@@ -24875,7 +24876,8 @@ async function publish(opts) {
     visibility,
     passcode: visibility === "passcode" ? passcode : undefined,
     passcode_label: visibility === "passcode" ? passcodeLabel ?? "default" : undefined,
-    preview
+    preview,
+    analytics_enabled: analyticsEnabled
   });
   log(`[manifest] version=${manifestResult.version} session_id=${manifestResult.session_id} base_version=${manifestResult.base_version} needed=${manifestResult.needed.length} total=${files.length}`);
   await uploadChangedFiles({
@@ -24948,6 +24950,20 @@ async function setVersionsLimit(apiClient, nsId, slug, limit) {
     freed_bytes: result.freed_bytes,
     usage: result.usage
   };
+}
+
+// lib/analytics.ts
+async function setAnalyticsEnabled(apiClient, nsId, slug, enabled) {
+  if (!slug || slug.trim().length === 0) {
+    throw new Error("slug is required");
+  }
+  const list = await apiClient.get(`/api/ns/${nsId}/sites`);
+  const site = list.sites.find((s) => s.slug === slug);
+  if (!site) {
+    throw new Error(`Site "${slug}" not found in this namespace.`);
+  }
+  const result = await apiClient.patch(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/visibility`, { visibility: site.visibility, analytics_enabled: enabled });
+  return { site: result.site };
 }
 
 // lib/passcode.ts
@@ -25259,6 +25275,7 @@ async function publish2(args, deps) {
     passcodeLabel: args.passcodeLabel,
     preview: args.preview,
     force: args.force,
+    analyticsEnabled: args.analyticsEnabled,
     fetchFn: deps?.fetchFn,
     onProgress: args.onProgress
   });
@@ -25287,6 +25304,11 @@ async function setSiteVersionsLimit(slug, limit, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
   return setVersionsLimit(apiClient, ns.id, slug, limit);
+}
+async function analytics(slug, enabled, namespaceName, deps) {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return setAnalyticsEnabled(apiClient, ns.id, slug, enabled);
 }
 async function addPasscode2(slug, code, label, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
@@ -25578,9 +25600,10 @@ function createServer(coreDeps, opts) {
       passcode: exports_external.string().optional().describe("Passcode for passcode-protected sites. Required when visibility is 'passcode'."),
       namespace: exports_external.string().optional().describe("Namespace name to publish into. When omitted, the default namespace is used."),
       preview: exports_external.boolean().optional().describe("When true, publishes as a staging preview instead of going live immediately. " + "The response includes a preview_url where the staging version can be reviewed. " + "Use the promote tool to promote the staging version to live."),
-      force: exports_external.boolean().optional().describe("When true, uploads all files regardless of whether they changed. " + "Use this to force a full re-upload when the site is broken or out of sync.")
+      force: exports_external.boolean().optional().describe("When true, uploads all files regardless of whether they changed. " + "Use this to force a full re-upload when the site is broken or out of sync."),
+      analytics_enabled: exports_external.boolean().optional().describe("Per-site analytics. Defaults to on. Set false to publish WITHOUT the " + 'analytics script (e.g. "publish ... with no analytics"). To toggle ' + "analytics on an already-published site without republishing, use the " + "analytics tool instead.")
     }
-  }, async ({ directory, slug, title, visibility, passcode, namespace, preview, force }, extra) => {
+  }, async ({ directory, slug, title, visibility, passcode, namespace, preview, force, analytics_enabled }, extra) => {
     log(`[publish] tool entry slug=${slug} dir=${directory}`);
     const progressToken = extra?._meta?.progressToken;
     let lastProgress = null;
@@ -25627,6 +25650,7 @@ function createServer(coreDeps, opts) {
         namespace,
         preview,
         force,
+        analyticsEnabled: analytics_enabled,
         onProgress
       }, coreDeps);
       stopHeartbeat();
@@ -25761,6 +25785,24 @@ ${lines.join(`
 ` + `Usage: ${formatUsage(result.usage)}` : "No versions were pruned.";
       return okResponse(`${limitDisplay}
 ${prunedDisplay}`);
+    } catch (err) {
+      return errResponse(err);
+    }
+  });
+  server.registerTool("analytics", {
+    title: "Toggle Site Analytics",
+    description: "Turns the per-site analytics script on or off for an already-published " + "site on upubli.sh \u2014 WITHOUT republishing. Use for requests like " + '"turn off analytics for my-portfolio" or "turn analytics back on for my-portfolio". ' + "Analytics is on by default; to publish a new site with analytics off, use the " + "publish tool's analytics_enabled option instead.",
+    inputSchema: {
+      slug: exports_external.string().describe("The URL-safe identifier of the site. Use the `list` tool to find available slugs."),
+      enabled: exports_external.boolean().describe("true to enable analytics (inject the script), false to disable it."),
+      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+    }
+  }, async ({ slug, enabled, namespace }) => {
+    try {
+      const result = await analytics(slug, enabled, namespace, coreDeps);
+      const state = result.site.analytics_enabled === false ? "OFF" : "ON";
+      return okResponse(`Analytics is now ${state} for "${result.site.slug}". ` + (state === "OFF" ? "New page views will no longer be tracked; the analytics script is no longer injected." : "The analytics script will be injected on future page loads.") + `
+No republish was needed \u2014 this took effect immediately.`);
     } catch (err) {
       return errResponse(err);
     }

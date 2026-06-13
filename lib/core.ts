@@ -49,6 +49,8 @@ import type {
   SetVersionsLimitResult,
   SiteVersion,
 } from "./versions.ts";
+import { setAnalyticsEnabled as domainSetAnalyticsEnabled } from "./analytics.ts";
+import type { SetAnalyticsResult } from "./analytics.ts";
 import {
   addPasscode as domainAddPasscode,
   listPasscodes as domainListPasscodes,
@@ -126,6 +128,7 @@ export type { PublishResult, UploadProgress };
 export type { DeleteResult };
 export type { PromoteResult };
 export type { ListVersionsResult, DeleteVersionResult, SetVersionsLimitResult, SiteVersion };
+export type { SetAnalyticsResult };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
 export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, ChangeMemberRoleResult };
@@ -193,6 +196,11 @@ export interface PublishArgs {
   preview?: boolean;
   /** When true, uploads all files regardless of whether they changed. */
   force?: boolean;
+  /**
+   * Per-site analytics opt-out (Phase 3). false ⇒ publish with the analytics
+   * script disabled ("publish … no analytics"). Omit to keep the default ON.
+   */
+  analyticsEnabled?: boolean;
   /**
    * Optional synchronous progress callback fired during the upload phase.
    * Threaded down to uploadChangedFiles(). Must be synchronous and
@@ -310,6 +318,7 @@ export async function publish(
     passcodeLabel: args.passcodeLabel,
     preview: args.preview,
     force: args.force,
+    analyticsEnabled: args.analyticsEnabled,
     // Pass fetchFn so presigned R2 uploads use the injected fetch in tests
     fetchFn: deps?.fetchFn,
     // Thread the progress callback down to the upload loop (adapter supplies it)
@@ -416,6 +425,28 @@ export async function setSiteVersionsLimit(
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
   return domainSetVersionsLimit(apiClient, ns.id, slug, limit);
+}
+
+/**
+ * Turns per-site analytics on or off WITHOUT republishing.
+ *
+ * Maps "turn off analytics for X" / "turn analytics back on for X" to the
+ * site-settings PATCH. Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param slug - The site slug.
+ * @param enabled - true ⇒ analytics ON, false ⇒ OFF.
+ * @param namespaceName - Optional namespace name. Defaults to the user's default namespace.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function analytics(
+  slug: string,
+  enabled: boolean,
+  namespaceName?: string,
+  deps?: CoreDeps,
+): Promise<SetAnalyticsResult> {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return domainSetAnalyticsEnabled(apiClient, ns.id, slug, enabled);
 }
 
 /**

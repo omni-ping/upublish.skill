@@ -82,6 +82,12 @@ export interface PublishOpts {
    */
   force?: boolean;
   /**
+   * Per-site analytics opt-out (Phase 3). When false, the published site will
+   * NOT get the analytics script injected at the edge. Omit to leave the default
+   * (analytics ON — opt-out, not opt-in). Threaded into the manifest body.
+   */
+  analyticsEnabled?: boolean;
+  /**
    * Injectable fetch function for presigned R2 uploads.
    * Presigned URLs are self-authenticating — no Bearer token is needed.
    * Defaults to global fetch. Injected in tests to avoid real network calls.
@@ -566,6 +572,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     passcodeLabel,
     preview,
     force,
+    analyticsEnabled,
     fetchFn = fetch,
     onProgress,
   } = opts;
@@ -624,6 +631,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     passcode_label:
       visibility === "passcode" ? (passcodeLabel ?? "default") : undefined,
     preview,
+    analytics_enabled: analyticsEnabled,
   });
 
   log(`[manifest] version=${manifestResult.version} session_id=${manifestResult.session_id} base_version=${manifestResult.base_version} needed=${manifestResult.needed.length} total=${files.length}`);

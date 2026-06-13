@@ -122,6 +122,7 @@ export class ApiClient {
       passcode?: string;
       passcode_label?: string;
       preview?: boolean;
+      analytics_enabled?: boolean;
     },
   ): Promise<{
     needed: Array<{ path: string; upload_url: string }>;
