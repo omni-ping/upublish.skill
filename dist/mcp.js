@@ -24838,6 +24838,7 @@ async function publish(opts) {
     passcodeLabel,
     preview,
     force,
+    analyticsEnabled,
     fetchFn = fetch,
     onProgress
   } = opts;
@@ -24875,7 +24876,8 @@ async function publish(opts) {
     visibility,
     passcode: visibility === "passcode" ? passcode : undefined,
     passcode_label: visibility === "passcode" ? passcodeLabel ?? "default" : undefined,
-    preview
+    preview,
+    analytics_enabled: analyticsEnabled
   });
   log(`[manifest] version=${manifestResult.version} session_id=${manifestResult.session_id} base_version=${manifestResult.base_version} needed=${manifestResult.needed.length} total=${files.length}`);
   await uploadChangedFiles({
@@ -24948,6 +24950,20 @@ async function setVersionsLimit(apiClient, nsId, slug, limit) {
     freed_bytes: result.freed_bytes,
     usage: result.usage
   };
+}
+
+// lib/analytics.ts
+async function setAnalyticsEnabled(apiClient, nsId, slug, enabled) {
+  if (!slug || slug.trim().length === 0) {
+    throw new Error("slug is required");
+  }
+  const list = await apiClient.get(`/api/ns/${nsId}/sites`);
+  const site = list.sites.find((s) => s.slug === slug);
+  if (!site) {
+    throw new Error(`Site "${slug}" not found in this namespace.`);
+  }
+  const result = await apiClient.patch(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/visibility`, { visibility: site.visibility, analytics_enabled: enabled });
+  return { site: result.site };
 }
 
 // lib/passcode.ts
@@ -25205,6 +25221,90 @@ function enrichNamespaceError(err) {
   return err;
 }
 
+// lib/domain.ts
+var PRICING_URL = "https://upubli.sh/pricing";
+async function domain(apiClient, args) {
+  try {
+    switch (args.action) {
+      case "add":
+        return await add(apiClient, args.hostname);
+      case "status":
+        return await status(apiClient, args.id);
+      case "list":
+        return await list(apiClient);
+      case "remove":
+        return await remove(apiClient, args.id);
+    }
+  } catch (err) {
+    throw mapDomainError(err);
+  }
+}
+async function add(apiClient, hostname2) {
+  const res = await apiClient.post("/api/domains", { hostname: hostname2 });
+  return {
+    action: "add",
+    hostname: res.domain.hostname,
+    records: toRecords(res.dns_instructions),
+    namespace: {
+      id: res.namespace.id,
+      name: res.namespace.name,
+      domain: res.namespace.domain
+    },
+    note: `Custom domains are a pro/max feature. "${res.domain.hostname}" becomes its own ` + `namespace \u2014 its landing page is at ${res.domain.hostname}/ and everything you ` + `publish to it serves at ${res.domain.hostname}/slug/. Add the DNS record(s) above ` + `at your registrar (only you can do that), then check status until it goes active. ` + `Plans: ${PRICING_URL}`
+  };
+}
+async function status(apiClient, id) {
+  const res = await apiClient.get(`/api/domains/${encodeURIComponent(id)}/status`);
+  const d = res.domain;
+  const active = d.verified === true || !!d.verified_at || d.hostname_status === "active" && d.ssl_status === "active";
+  return {
+    action: "status",
+    hostname: d.hostname,
+    active,
+    validationErrors: d.error_message ?? null
+  };
+}
+async function list(apiClient) {
+  const res = await apiClient.get("/api/domains");
+  return { action: "list", domains: res.domains };
+}
+async function remove(apiClient, id) {
+  const res = await apiClient.delete(`/api/domains/${encodeURIComponent(id)}`);
+  return { action: "remove", message: res.message };
+}
+function toRecords(instructions) {
+  if ("cname" in instructions) {
+    const leg = instructions.cname;
+    return [{ type: "CNAME", name: recordName(leg), value: leg.value }];
+  }
+  return [
+    { type: "A", name: recordName(instructions.apex), value: instructions.apex.value },
+    { type: "CNAME", name: recordName(instructions.www), value: instructions.www.value }
+  ];
+}
+function recordName(leg) {
+  const labels = leg.hostname.split(".");
+  if (leg.type === "A" && labels.length === 2)
+    return "@";
+  return labels[0];
+}
+function mapDomainError(err) {
+  const m = err.message;
+  if (/API error 403/.test(m)) {
+    return new Error(`Custom domains are a pro or max feature. Upgrade at ${PRICING_URL} to connect your own domain.`);
+  }
+  if (/API error 429/.test(m)) {
+    return new Error("Cloudflare's custom-hostname quota is temporarily exceeded. Wait a moment and try again.");
+  }
+  if (/API error 409/.test(m)) {
+    return new Error("That hostname is already connected (or registered elsewhere on Cloudflare).");
+  }
+  if (/API error 502/.test(m)) {
+    return new Error("Cloudflare is unreachable right now \u2014 try again in a moment.");
+  }
+  return err;
+}
+
 // lib/rename.ts
 async function renameSite(apiClient, nsId, oldSlug, newSlug, redirect) {
   const result = await apiClient.post(`/api/ns/${encodeURIComponent(nsId)}/sites/${encodeURIComponent(oldSlug)}/rename`, { new_slug: newSlug, redirect });
@@ -25238,7 +25338,7 @@ async function buildApiClient(deps) {
   });
   return new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch);
 }
-async function list(namespaceName, deps) {
+async function list2(namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
   const result = await listSites(apiClient, ns.id);
@@ -25259,6 +25359,7 @@ async function publish2(args, deps) {
     passcodeLabel: args.passcodeLabel,
     preview: args.preview,
     force: args.force,
+    analyticsEnabled: args.analyticsEnabled,
     fetchFn: deps?.fetchFn,
     onProgress: args.onProgress
   });
@@ -25287,6 +25388,11 @@ async function setSiteVersionsLimit(slug, limit, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
   return setVersionsLimit(apiClient, ns.id, slug, limit);
+}
+async function analytics(slug, enabled, namespaceName, deps) {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return setAnalyticsEnabled(apiClient, ns.id, slug, enabled);
 }
 async function addPasscode2(slug, code, label, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
@@ -25413,9 +25519,13 @@ async function adminDomains2(args, deps) {
   const apiClient = await buildApiClient(deps);
   return adminDomains(apiClient, args);
 }
-async function namespaceCreate2(name, domain, deps) {
+async function namespaceCreate2(name, domain2, deps) {
   const apiClient = await buildApiClient(deps);
-  return namespaceCreate(apiClient, name, domain);
+  return namespaceCreate(apiClient, name, domain2);
+}
+async function domain2(args, deps) {
+  const apiClient = await buildApiClient(deps);
+  return domain(apiClient, args);
 }
 async function login2(loginDeps, coreDeps) {
   const resolvedDeps = {
@@ -25425,7 +25535,7 @@ async function login2(loginDeps, coreDeps) {
   };
   return login(resolvedDeps);
 }
-async function status(deps) {
+async function status2(deps) {
   const credFile = deps?.credentialsPath ?? defaultCredentialsPath();
   const refreshToken = await readCredentials(credFile);
   if (!refreshToken) {
@@ -25578,9 +25688,10 @@ function createServer(coreDeps, opts) {
       passcode: exports_external.string().optional().describe("Passcode for passcode-protected sites. Required when visibility is 'passcode'."),
       namespace: exports_external.string().optional().describe("Namespace name to publish into. When omitted, the default namespace is used."),
       preview: exports_external.boolean().optional().describe("When true, publishes as a staging preview instead of going live immediately. " + "The response includes a preview_url where the staging version can be reviewed. " + "Use the promote tool to promote the staging version to live."),
-      force: exports_external.boolean().optional().describe("When true, uploads all files regardless of whether they changed. " + "Use this to force a full re-upload when the site is broken or out of sync.")
+      force: exports_external.boolean().optional().describe("When true, uploads all files regardless of whether they changed. " + "Use this to force a full re-upload when the site is broken or out of sync."),
+      analytics_enabled: exports_external.boolean().optional().describe("Per-site analytics. Defaults to on. Set false to publish WITHOUT the " + 'analytics script (e.g. "publish ... with no analytics"). To toggle ' + "analytics on an already-published site without republishing, use the " + "analytics tool instead.")
     }
-  }, async ({ directory, slug, title, visibility, passcode, namespace, preview, force }, extra) => {
+  }, async ({ directory, slug, title, visibility, passcode, namespace, preview, force, analytics_enabled }, extra) => {
     log(`[publish] tool entry slug=${slug} dir=${directory}`);
     const progressToken = extra?._meta?.progressToken;
     let lastProgress = null;
@@ -25627,6 +25738,7 @@ function createServer(coreDeps, opts) {
         namespace,
         preview,
         force,
+        analyticsEnabled: analytics_enabled,
         onProgress
       }, coreDeps);
       stopHeartbeat();
@@ -25669,7 +25781,7 @@ Use the promote tool to make this preview live.`);
     }
   }, async ({ namespace }) => {
     try {
-      const result = await list(namespace, coreDeps);
+      const result = await list2(namespace, coreDeps);
       const { sites } = result;
       const ns = result.namespace;
       const roleMarker = ns.role && ns.role !== "owner" ? ` [${ns.role}]` : "";
@@ -25761,6 +25873,24 @@ ${lines.join(`
 ` + `Usage: ${formatUsage(result.usage)}` : "No versions were pruned.";
       return okResponse(`${limitDisplay}
 ${prunedDisplay}`);
+    } catch (err) {
+      return errResponse(err);
+    }
+  });
+  server.registerTool("analytics", {
+    title: "Toggle Site Analytics",
+    description: "Turns the per-site analytics script on or off for an already-published " + "site on upubli.sh \u2014 WITHOUT republishing. Use for requests like " + '"turn off analytics for my-portfolio" or "turn analytics back on for my-portfolio". ' + "Analytics is on by default; to publish a new site with analytics off, use the " + "publish tool's analytics_enabled option instead.",
+    inputSchema: {
+      slug: exports_external.string().describe("The URL-safe identifier of the site. Use the `list` tool to find available slugs."),
+      enabled: exports_external.boolean().describe("true to enable analytics (inject the script), false to disable it."),
+      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+    }
+  }, async ({ slug, enabled, namespace }) => {
+    try {
+      const result = await analytics(slug, enabled, namespace, coreDeps);
+      const state = result.site.analytics_enabled === false ? "OFF" : "ON";
+      return okResponse(`Analytics is now ${state} for "${result.site.slug}". ` + (state === "OFF" ? "New page views will no longer be tracked; the analytics script is no longer injected." : "The analytics script will be injected on future page loads.") + `
+No republish was needed \u2014 this took effect immediately.`);
     } catch (err) {
       return errResponse(err);
     }
@@ -26072,7 +26202,7 @@ ${lines.join(`
     description: "Checks whether you are currently authenticated with upubli.sh. " + "Returns your username and available namespaces (with domains) if authenticated, " + "or a not-authenticated message.",
     inputSchema: {}
   }, async () => {
-    const result = await status(coreDeps);
+    const result = await status2(coreDeps);
     if (result.authenticated) {
       const lines = [`Authenticated as: ${result.username}`];
       if (result.namespaces.length > 0) {
@@ -26101,6 +26231,75 @@ ${lines.join(`
       return okResponse(`Namespace created.
 ID: ${result.namespace_id}
 Domain: ${result.domain}`);
+    } catch (err) {
+      return errResponse(err);
+    }
+  });
+  server.registerTool("domain", {
+    title: "Custom Domain",
+    description: "Connect, check, list, or remove a custom domain on upubli.sh (pro/max). " + "A custom domain becomes its own namespace \u2014 sites then serve at " + "`yourname.com/slug/` instead of `you.upubli.sh/slug/`.\n\n" + `Actions:
+` + "  add    \u2014 Connect a domain you own. Enter the ROOT (example.com), not " + "www.example.com; a subdomain (blog.example.com) works too. Returns the " + `DNS record(s) to add at your registrar \u2014 only the human can create DNS.
+` + "  status \u2014 Check whether a connected domain is live yet (pending vs active, " + `plus any validation errors like CAA).
+` + `  list   \u2014 List the account's custom domains.
+` + "  remove \u2014 Disconnect a custom domain by id.",
+    inputSchema: {
+      action: exports_external.enum(["add", "status", "list", "remove"]).describe("The domain operation: 'add' to connect a hostname, 'status' to check " + "if it's live, 'list' to see all custom domains, 'remove' to disconnect."),
+      hostname: exports_external.string().optional().describe("The domain to connect. Required when action is 'add'. Use the root " + "(example.com), not www.example.com; a subdomain (blog.example.com) is fine."),
+      id: exports_external.string().optional().describe("The custom-domain id. Required for 'status' and 'remove'. Use 'list' to find ids.")
+    }
+  }, async ({ action, hostname: hostname2, id }) => {
+    try {
+      const act = action;
+      if (act === "add") {
+        if (!hostname2) {
+          return errResponse(new Error("hostname is required when action is 'add'"));
+        }
+        const result2 = await domain2({ action: "add", hostname: hostname2 }, coreDeps);
+        if (result2.action !== "add")
+          return errResponse(new Error("Unexpected result"));
+        const records = result2.records.map((r) => `  ${r.type}  name: ${r.name}  value: ${r.value}`).join(`
+`);
+        return okResponse(`Connected "${result2.hostname}" (id: ${result2.namespace.id}).
+
+` + `Add these DNS record(s) at your registrar:
+${records}
+
+` + `${result2.note}`);
+      }
+      if (act === "status") {
+        if (!id) {
+          return errResponse(new Error("id is required when action is 'status'"));
+        }
+        const result2 = await domain2({ action: "status", id }, coreDeps);
+        if (result2.action !== "status")
+          return errResponse(new Error("Unexpected result"));
+        const state = result2.active ? "ACTIVE" : "PENDING";
+        const errLine = result2.validationErrors ? `
+Validation errors: ${result2.validationErrors}` : "";
+        return okResponse(`Custom domain "${result2.hostname}" is ${state}.` + (result2.active ? " It's live \u2014 publish to it like any namespace." : " DNS is still propagating, or the record(s) need a fix. Re-check shortly.") + errLine);
+      }
+      if (act === "remove") {
+        if (!id) {
+          return errResponse(new Error("id is required when action is 'remove'"));
+        }
+        const result2 = await domain2({ action: "remove", id }, coreDeps);
+        if (result2.action !== "remove")
+          return errResponse(new Error("Unexpected result"));
+        return okResponse(result2.message);
+      }
+      const result = await domain2({ action: "list" }, coreDeps);
+      if (result.action !== "list")
+        return errResponse(new Error("Unexpected result"));
+      if (result.domains.length === 0) {
+        return okResponse("No custom domains connected. Use the 'add' action to connect one.");
+      }
+      const lines = result.domains.map((d) => {
+        const state = d.verified ? "active" : "pending";
+        return `  ${d.hostname} \u2014 ${state} (id: ${d.id})`;
+      });
+      return okResponse(`Custom domains (${result.domains.length}):
+${lines.join(`
+`)}`);
     } catch (err) {
       return errResponse(err);
     }
@@ -26258,7 +26457,7 @@ KV reconcile: written=${result2.reconcile.written} verified=${result2.reconcile.
         const result = await adminStats2(coreDeps);
         const tierLines = Object.entries(result.users_by_tier).map(([tier, count]) => `  ${tier}: ${count}`).join(`
 `);
-        const statusLines = Object.entries(result.users_by_status).map(([status2, count]) => `  ${status2}: ${count}`).join(`
+        const statusLines = Object.entries(result.users_by_status).map(([status3, count]) => `  ${status3}: ${count}`).join(`
 `);
         return okResponse(`Platform Stats
 

@@ -147,10 +147,10 @@ describe("DW-2.1: server registers publish, list, delete tools", () => {
     const { deps } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    // 18 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
+    // 20 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
     // passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
-    // promote, logout, login, status, namespace_create, rename
-    expect(Object.keys(tools).length).toBe(18);
+    // promote, logout, login, status, namespace_create, domain, rename, analytics
+    expect(Object.keys(tools).length).toBe(20);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
@@ -908,10 +908,10 @@ describe("DW-1.7: tool count assertions are correct", () => {
     const { deps } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    // 18 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
+    // 20 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
     // passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
-    // promote, logout, login, status, namespace_create, rename
-    expect(Object.keys(tools).length).toBe(18);
+    // promote, logout, login, status, namespace_create, domain, rename, analytics
+    expect(Object.keys(tools).length).toBe(20);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
@@ -924,10 +924,10 @@ describe("server structure", () => {
     const server = createServer(deps);
     expect(server).toBeDefined();
     const tools = getTools(server);
-    // 18 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
+    // 20 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
     // passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
-    // promote, logout, login, status, namespace_create, rename
-    expect(Object.keys(tools).length).toBe(18);
+    // promote, logout, login, status, namespace_create, domain, rename, analytics
+    expect(Object.keys(tools).length).toBe(20);
     fs.unlinkSync(deps.credentialsPath!);
   });
 
@@ -1509,10 +1509,10 @@ describe("DW-6.2: rename tool registered", () => {
     const { deps } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    // 18 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
+    // 20 tools: publish, list, delete, versions_list, versions_delete, versions_limit,
     // passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
-    // promote, logout, login, status, namespace_create, rename
-    expect(Object.keys(tools).length).toBe(18);
+    // promote, logout, login, status, namespace_create, domain, rename, analytics
+    expect(Object.keys(tools).length).toBe(20);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });

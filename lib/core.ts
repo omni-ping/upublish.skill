@@ -49,6 +49,8 @@ import type {
   SetVersionsLimitResult,
   SiteVersion,
 } from "./versions.ts";
+import { setAnalyticsEnabled as domainSetAnalyticsEnabled } from "./analytics.ts";
+import type { SetAnalyticsResult } from "./analytics.ts";
 import {
   addPasscode as domainAddPasscode,
   listPasscodes as domainListPasscodes,
@@ -113,6 +115,17 @@ import type {
 } from "./admin.ts";
 import { resolveNamespace, namespaceCreate as domainNamespaceCreate } from "./namespace.ts";
 import type { NamespaceCreateResult } from "./namespace.ts";
+import { domain as domainDomain } from "./domain.ts";
+import type {
+  DomainArgs,
+  DomainResult,
+  DomainAddResult,
+  DomainStatusResult,
+  DomainListResult,
+  DomainRemoveResult,
+  CustomDomain,
+  DnsRecord,
+} from "./domain.ts";
 import { renameSite, renameNamespace } from "./rename.ts";
 import type { RedirectMode } from "./rename.ts";
 import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission } from "./types.ts";
@@ -126,12 +139,23 @@ export type { PublishResult, UploadProgress };
 export type { DeleteResult };
 export type { PromoteResult };
 export type { ListVersionsResult, DeleteVersionResult, SetVersionsLimitResult, SiteVersion };
+export type { SetAnalyticsResult };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
 export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, ChangeMemberRoleResult };
 export type { QrCodeArgs, QrCodeResult };
 export type { Namespace, Site, Visibility, GateConfig, GateSubmission };
 export type { NamespaceCreateResult };
+export type {
+  DomainArgs,
+  DomainResult,
+  DomainAddResult,
+  DomainStatusResult,
+  DomainListResult,
+  DomainRemoveResult,
+  CustomDomain,
+  DnsRecord,
+};
 export type { NamespaceRole } from "./types.ts";
 export type { RedirectMode };
 export type {
@@ -193,6 +217,11 @@ export interface PublishArgs {
   preview?: boolean;
   /** When true, uploads all files regardless of whether they changed. */
   force?: boolean;
+  /**
+   * Per-site analytics opt-out (Phase 3). false ⇒ publish with the analytics
+   * script disabled ("publish … no analytics"). Omit to keep the default ON.
+   */
+  analyticsEnabled?: boolean;
   /**
    * Optional synchronous progress callback fired during the upload phase.
    * Threaded down to uploadChangedFiles(). Must be synchronous and
@@ -310,6 +339,7 @@ export async function publish(
     passcodeLabel: args.passcodeLabel,
     preview: args.preview,
     force: args.force,
+    analyticsEnabled: args.analyticsEnabled,
     // Pass fetchFn so presigned R2 uploads use the injected fetch in tests
     fetchFn: deps?.fetchFn,
     // Thread the progress callback down to the upload loop (adapter supplies it)
@@ -416,6 +446,28 @@ export async function setSiteVersionsLimit(
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
   return domainSetVersionsLimit(apiClient, ns.id, slug, limit);
+}
+
+/**
+ * Turns per-site analytics on or off WITHOUT republishing.
+ *
+ * Maps "turn off analytics for X" / "turn analytics back on for X" to the
+ * site-settings PATCH. Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param slug - The site slug.
+ * @param enabled - true ⇒ analytics ON, false ⇒ OFF.
+ * @param namespaceName - Optional namespace name. Defaults to the user's default namespace.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function analytics(
+  slug: string,
+  enabled: boolean,
+  namespaceName?: string,
+  deps?: CoreDeps,
+): Promise<SetAnalyticsResult> {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return domainSetAnalyticsEnabled(apiClient, ns.id, slug, enabled);
 }
 
 /**
@@ -792,6 +844,26 @@ export async function namespaceCreate(
 ): Promise<NamespaceCreateResult> {
   const apiClient = await buildApiClient(deps);
   return domainNamespaceCreate(apiClient, name, domain);
+}
+
+/**
+ * Connect/check/list/remove a custom domain (pro/max).
+ *
+ * Wraps the space-level /api/domains endpoints — these are NOT namespace-scoped,
+ * so no namespace is resolved here (mirrors adminDomains). Errors surface as
+ * thrown Errors with friendly, actionable messages the adapter renders directly.
+ *
+ * @param args - Discriminated union of domain arguments (add/status/list/remove).
+ * @param deps - Optional CoreDeps for test injection.
+ * @throws Error "Not authenticated" if no credentials are stored.
+ * @throws Error with a friendly message on API failure.
+ */
+export async function domain(
+  args: DomainArgs,
+  deps?: CoreDeps,
+): Promise<DomainResult> {
+  const apiClient = await buildApiClient(deps);
+  return domainDomain(apiClient, args);
 }
 
 /**

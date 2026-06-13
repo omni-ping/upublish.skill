@@ -32,6 +32,12 @@ export interface Site {
   total_size: number;
   visibility: Visibility;
   passcode_hash: string | null;
+  /**
+   * Per-site analytics opt-out (Phase 3). false = analytics disabled for this
+   * site. Optional: older API responses predating the field omit it (treated as
+   * ON by the edge). Present on list and settings-PATCH responses going forward.
+   */
+  analytics_enabled?: boolean;
   /** Production URL — present on list responses. */
   url?: string;
 }

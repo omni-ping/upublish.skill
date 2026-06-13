@@ -25,10 +25,12 @@ import {
   listSiteVersions,
   deleteSiteVersion,
   setSiteVersionsLimit,
+  analytics,
   login,
   status,
   logout,
   namespaceCreate,
+  domain,
   addPasscode,
   listPasscodes,
   revokePasscode,
@@ -310,9 +312,18 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             "When true, uploads all files regardless of whether they changed. " +
             "Use this to force a full re-upload when the site is broken or out of sync.",
           ),
+        analytics_enabled: z
+          .boolean()
+          .optional()
+          .describe(
+            "Per-site analytics. Defaults to on. Set false to publish WITHOUT the " +
+            "analytics script (e.g. \"publish ... with no analytics\"). To toggle " +
+            "analytics on an already-published site without republishing, use the " +
+            "analytics tool instead.",
+          ),
       },
     },
-    async ({ directory, slug, title, visibility, passcode, namespace, preview, force }, extra) => {
+    async ({ directory, slug, title, visibility, passcode, namespace, preview, force, analytics_enabled }, extra) => {
       log(`[publish] tool entry slug=${slug as string} dir=${directory as string}`);
 
       // Only emit MCP progress when the client supplied a progressToken in _meta.
@@ -395,6 +406,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             namespace: namespace as string | undefined,
             preview: preview as boolean | undefined,
             force: force as boolean | undefined,
+            analyticsEnabled: analytics_enabled as boolean | undefined,
             onProgress,
           },
           coreDeps,
@@ -680,6 +692,57 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
               `Usage: ${formatUsage(result.usage)}`
             : "No versions were pruned.";
         return okResponse(`${limitDisplay}\n${prunedDisplay}`);
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "analytics",
+    {
+      title: "Toggle Site Analytics",
+      description:
+        "Turns the per-site analytics script on or off for an already-published " +
+        "site on upubli.sh — WITHOUT republishing. Use for requests like " +
+        "\"turn off analytics for my-portfolio\" or \"turn analytics back on for my-portfolio\". " +
+        "Analytics is on by default; to publish a new site with analytics off, use the " +
+        "publish tool's analytics_enabled option instead.",
+      inputSchema: {
+        slug: z
+          .string()
+          .describe(
+            "The URL-safe identifier of the site. Use the `list` tool to find available slugs.",
+          ),
+        enabled: z
+          .boolean()
+          .describe(
+            "true to enable analytics (inject the script), false to disable it.",
+          ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+          ),
+      },
+    },
+    async ({ slug, enabled, namespace }) => {
+      try {
+        const result = await analytics(
+          slug as string,
+          enabled as boolean,
+          namespace as string | undefined,
+          coreDeps,
+        );
+        const state = result.site.analytics_enabled === false ? "OFF" : "ON";
+        return okResponse(
+          `Analytics is now ${state} for "${result.site.slug}". ` +
+          (state === "OFF"
+            ? "New page views will no longer be tracked; the analytics script is no longer injected."
+            : "The analytics script will be injected on future page loads.") +
+          "\nNo republish was needed — this took effect immediately.",
+        );
       } catch (err) {
         return errResponse(err);
       }
@@ -1294,6 +1357,111 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         );
         return okResponse(
           `Namespace created.\nID: ${result.namespace_id}\nDomain: ${result.domain}`,
+        );
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "domain",
+    {
+      title: "Custom Domain",
+      description:
+        "Connect, check, list, or remove a custom domain on upubli.sh (pro/max). " +
+        "A custom domain becomes its own namespace — sites then serve at " +
+        "`yourname.com/slug/` instead of `you.upubli.sh/slug/`.\n\n" +
+        "Actions:\n" +
+        "  add    — Connect a domain you own. Enter the ROOT (example.com), not " +
+        "www.example.com; a subdomain (blog.example.com) works too. Returns the " +
+        "DNS record(s) to add at your registrar — only the human can create DNS.\n" +
+        "  status — Check whether a connected domain is live yet (pending vs active, " +
+        "plus any validation errors like CAA).\n" +
+        "  list   — List the account's custom domains.\n" +
+        "  remove — Disconnect a custom domain by id.",
+      inputSchema: {
+        action: z
+          .enum(["add", "status", "list", "remove"])
+          .describe(
+            "The domain operation: 'add' to connect a hostname, 'status' to check " +
+            "if it's live, 'list' to see all custom domains, 'remove' to disconnect.",
+          ),
+        hostname: z
+          .string()
+          .optional()
+          .describe(
+            "The domain to connect. Required when action is 'add'. Use the root " +
+            "(example.com), not www.example.com; a subdomain (blog.example.com) is fine.",
+          ),
+        id: z
+          .string()
+          .optional()
+          .describe(
+            "The custom-domain id. Required for 'status' and 'remove'. Use 'list' to find ids.",
+          ),
+      },
+    },
+    async ({ action, hostname, id }) => {
+      try {
+        const act = action as "add" | "status" | "list" | "remove";
+
+        if (act === "add") {
+          if (!hostname) {
+            return errResponse(new Error("hostname is required when action is 'add'"));
+          }
+          const result = await domain({ action: "add", hostname: hostname as string }, coreDeps);
+          if (result.action !== "add") return errResponse(new Error("Unexpected result"));
+          const records = result.records
+            .map((r) => `  ${r.type}  name: ${r.name}  value: ${r.value}`)
+            .join("\n");
+          return okResponse(
+            `Connected "${result.hostname}" (id: ${result.namespace.id}).\n\n` +
+            `Add these DNS record(s) at your registrar:\n${records}\n\n` +
+            `${result.note}`,
+          );
+        }
+
+        if (act === "status") {
+          if (!id) {
+            return errResponse(new Error("id is required when action is 'status'"));
+          }
+          const result = await domain({ action: "status", id: id as string }, coreDeps);
+          if (result.action !== "status") return errResponse(new Error("Unexpected result"));
+          const state = result.active ? "ACTIVE" : "PENDING";
+          const errLine = result.validationErrors
+            ? `\nValidation errors: ${result.validationErrors}`
+            : "";
+          return okResponse(
+            `Custom domain "${result.hostname}" is ${state}.` +
+            (result.active
+              ? " It's live — publish to it like any namespace."
+              : " DNS is still propagating, or the record(s) need a fix. Re-check shortly.") +
+            errLine,
+          );
+        }
+
+        if (act === "remove") {
+          if (!id) {
+            return errResponse(new Error("id is required when action is 'remove'"));
+          }
+          const result = await domain({ action: "remove", id: id as string }, coreDeps);
+          if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
+          return okResponse(result.message);
+        }
+
+        // action === "list"
+        const result = await domain({ action: "list" }, coreDeps);
+        if (result.action !== "list") return errResponse(new Error("Unexpected result"));
+        if (result.domains.length === 0) {
+          return okResponse("No custom domains connected. Use the 'add' action to connect one.");
+        }
+        const lines = result.domains.map((d) => {
+          const state = d.verified ? "active" : "pending";
+          return `  ${d.hostname} — ${state} (id: ${d.id})`;
+        });
+        return okResponse(
+          `Custom domains (${result.domains.length}):\n${lines.join("\n")}`,
         );
       } catch (err) {
         return errResponse(err);
