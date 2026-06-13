@@ -27,7 +27,7 @@ returning user is signed in directly.
 
 ## "Invalid slug"
 
-Slug must be 3-63 characters: lowercase letters, numbers, and hyphens only. Must start and end with a letter or number.
+Slug must be 1-63 characters: lowercase letters, numbers, and hyphens only. Must start and end with a letter or number.
 
 **Fix:** Suggest a valid slug based on what the user intended. Don't error out — fix it and confirm.
 

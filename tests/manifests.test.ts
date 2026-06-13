@@ -48,6 +48,42 @@ describe("DW-4.3 .mcp.json at repo root", () => {
   });
 });
 
+describe("Codex native plugin packaging", () => {
+  test("manifest paths are relative to the plugin root", () => {
+    const data = readJson(".codex-plugin/plugin.json") as Record<string, unknown>;
+    expect(data.skills).toBe("./skills/");
+    expect(data.mcpServers).toBe("./.mcp.json");
+  });
+
+  test("marketplace installs the complete Git-backed plugin", () => {
+    expect(fileExists(".agents/plugins/marketplace.json")).toBe(true);
+    const marketplace = readJson(".agents/plugins/marketplace.json") as {
+      name: string;
+      plugins: Array<Record<string, unknown>>;
+    };
+    expect(marketplace.name).toBe("upublish");
+    const plugin = marketplace.plugins[0];
+    expect(plugin.name).toBe("upublish");
+    expect(plugin.category).toBe("Productivity");
+    expect(plugin.policy).toEqual({
+      installation: "AVAILABLE",
+      authentication: "ON_USE",
+    });
+    expect(plugin.source).toEqual({
+      source: "url",
+      url: "https://github.com/omni-ping/upublish.skill.git",
+      ref: "main",
+    });
+  });
+
+  test("README uses native Codex plugin installation", () => {
+    const content = readText("README.md");
+    expect(content).toContain("codex plugin marketplace add omni-ping/upublish.skill");
+    expect(content).toContain("codex plugin add upublish@upublish");
+    expect(content).not.toContain("npx skills add");
+  });
+});
+
 // ─── DW-4.4: gemini-extension.json ───────────────────────────────────────────
 
 describe("DW-4.4 gemini-extension.json", () => {
@@ -102,6 +138,13 @@ describe("DW-4.5 SKILL.md MCP-only bootstrap", () => {
     const content = readText("skills/upublish/SKILL.md");
     expect(content).toContain("name: upublish");
     expect(content).toContain("description:");
+  });
+
+  test("test_DW_4_5_skill_routes_to_packaged_root_references", () => {
+    const content = readText("skills/upublish/SKILL.md");
+    expect(content).toContain("../../references/publishing.md");
+    expect(content).toContain("../../references/pre-publish-checklist.md");
+    expect(content).not.toMatch(/(?<!\.\.\/\.\.\/)`references\/publishing\.md`/);
   });
 });
 
