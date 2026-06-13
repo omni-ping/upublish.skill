@@ -1,6 +1,6 @@
 {
   "name": "upublish",
-  "version": "0.12.7",
+  "version": "0.12.8",
   "description": "Publish static sites to upubli.sh instantly. One directory becomes a live URL at username.upubli.sh/slug/.",
   "author": {
     "name": "omni-ping",
@@ -8,7 +8,12 @@
   },
   "homepage": "https://upubli.sh",
   "repository": "https://github.com/omni-ping/upublish.skill",
-  "keywords": ["publishing", "static-sites", "deployment", "mcp"],
+  "keywords": [
+    "publishing",
+    "static-sites",
+    "deployment",
+    "mcp"
+  ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
@@ -17,7 +22,10 @@
     "longDescription": "Publish and manage static sites on upubli.sh with guided workflows and bundled MCP tools.",
     "developerName": "upublish",
     "category": "Productivity",
-    "capabilities": ["Read", "Write"],
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
     "websiteURL": "https://upubli.sh",
     "defaultPrompt": [
       "Publish this static site with upublish.",
