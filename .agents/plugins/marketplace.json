@@ -1,0 +1,21 @@
+{
+  "name": "upublish",
+  "interface": {
+    "displayName": "upublish"
+  },
+  "plugins": [
+    {
+      "name": "upublish",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/omni-ping/upublish.skill.git",
+        "ref": "main"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

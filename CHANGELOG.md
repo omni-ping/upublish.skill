@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.7] — 2026-06-11
+
+### Changed
+
+- Codex now installs the complete native plugin through the repository
+  marketplace instead of installing only the standalone skill.
+- Codex manifest paths, metadata, and MCP packaging now follow the native
+  plugin layout.
+- Skill reference paths now resolve correctly from the installed skill folder.
+- Installation documentation now explains which components each plugin
+  installation includes.
+
 ## [0.12.6] — 2026-06-06
 
 ### Changed

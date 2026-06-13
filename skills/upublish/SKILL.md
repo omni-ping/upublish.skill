@@ -50,16 +50,16 @@ Match what the user wants and read the reference file, then follow it.
 
 | User wants to... | Reference |
 |---|---|
-| Publish a directory as a live site | `references/publishing.md` |
-| **Pre-publish validation (REQUIRED before every publish)** | `references/pre-publish-checklist.md` |
-| Figure out what type of content this is | `references/content-types/taxonomy.md` then the specific content type reference |
-| List, delete, or manage existing sites | `references/managing.md` |
-| Control who can access a site (passcode) | `references/visibility.md` |
+| Publish a directory as a live site | `../../references/publishing.md` |
+| **Pre-publish validation (REQUIRED before every publish)** | `../../references/pre-publish-checklist.md` |
+| Figure out what type of content this is | `../../references/content-types/taxonomy.md` then the specific content type reference |
+| List, delete, or manage existing sites | `../../references/managing.md` |
+| Control who can access a site (passcode) | `../../references/visibility.md` |
 | Add another namespace (URL prefix) | Call `namespace_create` (free plan allows one; tier-limit errors include the upgrade link) |
-| Optimize site performance or reduce size | `references/optimization.md` |
-| Add SEO tags, social previews, or favicon | `references/seo-social.md` |
+| Optimize site performance or reduce size | `../../references/optimization.md` |
+| Add SEO tags, social previews, or favicon | `../../references/seo-social.md` |
 | Check account info, namespaces, domains, or see what sites they have | Call `status` then `list` (no reference file needed) |
-| Fix something that is broken | `references/troubleshooting.md` |
+| Fix something that is broken | `../../references/troubleshooting.md` |
 
 ## Available MCP tools
 
@@ -90,8 +90,8 @@ Match what the user wants and read the reference file, then follow it.
 User: "publish my portfolio site"
 Agent:
   1. Bootstrap passes (MCP tools available, authenticated)
-  2. Read references/pre-publish-checklist.md — run all checks, fix issues
-  3. Read references/publishing.md — follow the workflow
+  2. Read ../../references/pre-publish-checklist.md — run all checks, fix issues
+  3. Read ../../references/publishing.md — follow the workflow
   4. Call mcp_upublish_publish(directory: "/path/to/portfolio", slug: "portfolio")
   5. Share the URL: "Your site is live at https://ryan.upubli.sh/portfolio/"
 ```
