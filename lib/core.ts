@@ -115,6 +115,17 @@ import type {
 } from "./admin.ts";
 import { resolveNamespace, namespaceCreate as domainNamespaceCreate } from "./namespace.ts";
 import type { NamespaceCreateResult } from "./namespace.ts";
+import { domain as domainDomain } from "./domain.ts";
+import type {
+  DomainArgs,
+  DomainResult,
+  DomainAddResult,
+  DomainStatusResult,
+  DomainListResult,
+  DomainRemoveResult,
+  CustomDomain,
+  DnsRecord,
+} from "./domain.ts";
 import { renameSite, renameNamespace } from "./rename.ts";
 import type { RedirectMode } from "./rename.ts";
 import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission } from "./types.ts";
@@ -135,6 +146,16 @@ export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, Ch
 export type { QrCodeArgs, QrCodeResult };
 export type { Namespace, Site, Visibility, GateConfig, GateSubmission };
 export type { NamespaceCreateResult };
+export type {
+  DomainArgs,
+  DomainResult,
+  DomainAddResult,
+  DomainStatusResult,
+  DomainListResult,
+  DomainRemoveResult,
+  CustomDomain,
+  DnsRecord,
+};
 export type { NamespaceRole } from "./types.ts";
 export type { RedirectMode };
 export type {
@@ -823,6 +844,26 @@ export async function namespaceCreate(
 ): Promise<NamespaceCreateResult> {
   const apiClient = await buildApiClient(deps);
   return domainNamespaceCreate(apiClient, name, domain);
+}
+
+/**
+ * Connect/check/list/remove a custom domain (pro/max).
+ *
+ * Wraps the space-level /api/domains endpoints — these are NOT namespace-scoped,
+ * so no namespace is resolved here (mirrors adminDomains). Errors surface as
+ * thrown Errors with friendly, actionable messages the adapter renders directly.
+ *
+ * @param args - Discriminated union of domain arguments (add/status/list/remove).
+ * @param deps - Optional CoreDeps for test injection.
+ * @throws Error "Not authenticated" if no credentials are stored.
+ * @throws Error with a friendly message on API failure.
+ */
+export async function domain(
+  args: DomainArgs,
+  deps?: CoreDeps,
+): Promise<DomainResult> {
+  const apiClient = await buildApiClient(deps);
+  return domainDomain(apiClient, args);
 }
 
 /**

@@ -99,8 +99,8 @@ describe("DW-7.1: tool count 19 without UPUBLISH_ADMIN, 24 with it", () => {
     const tools = getTools(server);
     // Base tools: publish, list, delete, versions_list, versions_delete, versions_limit,
     // passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
-    // promote, logout, login, status, namespace_create, rename, analytics = 19
-    expect(Object.keys(tools).length).toBe(19);
+    // promote, logout, login, status, namespace_create, domain, rename, analytics = 20
+    expect(Object.keys(tools).length).toBe(20);
     fs.unlinkSync(credFile);
   });
 
@@ -109,8 +109,8 @@ describe("DW-7.1: tool count 19 without UPUBLISH_ADMIN, 24 with it", () => {
     const { deps, credFile } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    // 19 base + 5 admin: admin_user, admin_site, admin_stats, admin_storage, admin_domains = 24
-    expect(Object.keys(tools).length).toBe(24);
+    // 20 base + 5 admin: admin_user, admin_site, admin_stats, admin_storage, admin_domains = 25
+    expect(Object.keys(tools).length).toBe(25);
     fs.unlinkSync(credFile);
   });
 
@@ -119,7 +119,7 @@ describe("DW-7.1: tool count 19 without UPUBLISH_ADMIN, 24 with it", () => {
     const { deps, credFile } = makeDeps();
     const server = createServer(deps);
     const tools = getTools(server);
-    expect(Object.keys(tools).length).toBe(19);
+    expect(Object.keys(tools).length).toBe(20);
     fs.unlinkSync(credFile);
   });
 
