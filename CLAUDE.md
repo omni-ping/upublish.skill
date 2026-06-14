@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-upublish is an MCP server + multi-platform AI plugin for publishing static sites to [upubli.sh](https://upubli.sh). It installs into Claude Code, Gemini CLI, and Codex as a plugin/extension.
+upublish is an MCP server + multi-platform AI plugin for publishing static sites to upubli.sh and pinn.sh (two hosted platform alternatives). It installs into Claude Code, Gemini CLI, and Codex as a plugin/extension.
 
 ## Commands
 

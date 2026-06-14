@@ -1333,8 +1333,9 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
     {
       title: "Create Namespace",
       description:
-        "Creates a new namespace (your URL prefix) on upubli.sh. " +
-        "Sites publish under a namespace at `name.upubli.sh/slug/`. " +
+        "Creates a new namespace (your URL prefix) on a hosted platform domain. " +
+        "You can choose between upubli.sh or pinn.sh (both available to all users). " +
+        "Sites publish under a namespace at `name.{domain}/slug/`. " +
         "Your first namespace is chosen during sign-in onboarding; use this tool " +
         "to add more. Namespace count is tier-limited — the free plan allows one; " +
         "a tier-limit error includes the upgrade link.",
@@ -1345,7 +1346,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         domain: z
           .string()
           .optional()
-          .describe("Optional hosted/custom domain. Defaults to upubli.sh."),
+          .describe("Optional hosted domain (upubli.sh or pinn.sh) or custom domain. Defaults to upubli.sh."),
       },
     },
     async (args: { name: string; domain?: string }) => {

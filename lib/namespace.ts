@@ -15,9 +15,11 @@ import type { Namespace } from "./types.ts";
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 /**
- * Hosted platform domain a user's namespace is created on when no custom domain
- * is supplied. Mirrors the backend's DEFAULT_NAMESPACE_DOMAIN — onboarding
- * completion and `POST /api/ns` both treat this as the default hosted domain.
+ * Default hosted platform domain a user's namespace is created on when no
+ * custom domain is supplied. Mirrors the backend's DEFAULT_NAMESPACE_DOMAIN —
+ * onboarding completion and `POST /api/ns` both treat this as the default
+ * hosted domain. Note: users can also select pinn.sh as an alternative hosted
+ * apex at signup/onboarding and when creating additional namespaces.
  */
 const DEFAULT_NAMESPACE_DOMAIN = "upubli.sh";
 
