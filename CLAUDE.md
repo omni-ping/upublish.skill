@@ -36,8 +36,8 @@ enabled provider (Google, GitHub, Microsoft, Discord, GitLab); clicking one forw
 all five params to `{API}/auth/:provider`. First-time users detour through browser
 onboarding (first namespace + terms) before the single-use `code` arrives; the callback
 returns that code, which `login` exchanges at `POST /auth/token/exchange` for tokens —
-**tokens never appear in a URL**. Returning users are signed in directly. Old per-flow
-auth endpoints are retired and return HTTP 410 `upgrade_required`.
+**tokens never appear in a URL**. Returning users are signed in directly. The old
+per-flow auth endpoints have been removed (the skill never calls them).
 
 **Key design rule: adapters import only from `lib/core.ts`.** `mcp/index.ts` calls core functions — it never constructs ApiClient or reads credentials directly. Core re-exports any types adapters need.
 
