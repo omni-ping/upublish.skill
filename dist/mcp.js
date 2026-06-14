@@ -25592,7 +25592,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.11";
+var PACKAGE_VERSION = "0.12.12";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -26220,10 +26220,10 @@ ${lines.join(`
   });
   server.registerTool("namespace_create", {
     title: "Create Namespace",
-    description: "Creates a new namespace (your URL prefix) on upubli.sh. " + "Sites publish under a namespace at `name.upubli.sh/slug/`. " + "Your first namespace is chosen during sign-in onboarding; use this tool " + "to add more. Namespace count is tier-limited \u2014 the free plan allows one; " + "a tier-limit error includes the upgrade link.",
+    description: "Creates a new namespace (your URL prefix) on a hosted platform domain. " + "You can choose between upubli.sh or pinn.sh (both available to all users). " + "Sites publish under a namespace at `name.{domain}/slug/`. " + "Your first namespace is chosen during sign-in onboarding; use this tool " + "to add more. Namespace count is tier-limited \u2014 the free plan allows one; " + "a tier-limit error includes the upgrade link.",
     inputSchema: {
       name: exports_external.string().describe("The namespace name (3-63 chars, lowercase letters, numbers, hyphens)."),
-      domain: exports_external.string().optional().describe("Optional hosted/custom domain. Defaults to upubli.sh.")
+      domain: exports_external.string().optional().describe("Optional hosted domain (upubli.sh or pinn.sh) or custom domain. Defaults to upubli.sh.")
     }
   }, async (args) => {
     try {
