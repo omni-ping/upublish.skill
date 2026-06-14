@@ -291,7 +291,7 @@ export async function exchangeCodeForTokens(opts: {
  * Runs the interactive OAuth login flow against the unified entry:
  * 1. Start the localhost callback server (it will receive a single-use code).
  * 2. Generate the PKCE pair; the verifier is kept in scope for the exchange.
- * 3. Open the browser to `/auth/google?flow=local`. A first-time user is
+ * 3. Open the browser to `/login?flow=local` (the provider chooser). A first-time user is
  *    transparently detoured through the browser onboarding page; the agent
  *    simply keeps waiting — there is no client-side branch for new vs returning.
  * 4. Wait for the callback to deliver the auth `code` (or reject on `?error=`).
