@@ -207,6 +207,8 @@ describe("DW-4.8 no absolute paths in manifests or docs", () => {
       ".codex-plugin/plugin.json",
       ".mcp.json",
       "gemini-extension.json",
+      "plugin.json",
+      "mcp_config.json",
     ];
     for (const m of manifests) {
       const content = readText(m);
@@ -244,5 +246,36 @@ describe("DW-4.9 gemini-extension.json schema compliance", () => {
     }
     // contextFileName should point to GEMINI.md
     expect(data.contextFileName).toBe("GEMINI.md");
+  });
+});
+
+describe("Antigravity plugin.json", () => {
+  test("plugin.json exists and is valid", () => {
+    expect(fileExists("plugin.json")).toBe(true);
+    const data = readJson("plugin.json") as Record<string, unknown>;
+    expect(data.name).toBe("upublish");
+    expect(typeof data.version).toBe("string");
+    expect(typeof data.description).toBe("string");
+  });
+
+  test("plugin.json version matches package.json", () => {
+    const plugin = readJson("plugin.json") as Record<string, unknown>;
+    const pkg = readJson("package.json") as Record<string, unknown>;
+    expect(plugin.version).toBe(pkg.version);
+  });
+});
+
+describe("Antigravity mcp_config.json", () => {
+  test("mcp_config.json exists and is valid", () => {
+    expect(fileExists("mcp_config.json")).toBe(true);
+    const data = readJson("mcp_config.json") as Record<string, unknown>;
+    expect(data.mcpServers).toBeDefined();
+    const servers = data.mcpServers as Record<string, Record<string, unknown>>;
+    expect(servers.upublish).toBeDefined();
+    expect(servers.upublish.command).toBe("bun");
+    const args = servers.upublish.args as string[];
+    expect(args).toContain("run");
+    const hasExtPath = args.some((a) => a.includes("${extensionPath}"));
+    expect(hasExtPath).toBe(true);
   });
 });

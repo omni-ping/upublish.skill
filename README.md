@@ -22,6 +22,12 @@ codex plugin marketplace add omni-ping/upublish.skill
 codex plugin add upublish@upublish
 ```
 
+### Antigravity CLI
+
+```sh
+agy plugin install omni-ping/upublish.skill
+```
+
 ### Gemini CLI
 
 ```sh
@@ -40,8 +46,8 @@ gemini extensions install omni-ping/upublish.skill
 - `dist/mcp.js` provides login, publishing, site management, namespaces,
   passcodes, versions, previews, promotion, and member-management tools.
 - `.claude-plugin/`, `.codex-plugin/`, `.agents/plugins/marketplace.json`,
-  `.mcp.json`, and `gemini-extension.json` adapt the same implementation to
-  Claude Code, Codex, and Gemini CLI.
+  `.mcp.json`, `gemini-extension.json`, `plugin.json`, and `mcp_config.json` adapt the same implementation to
+  Claude Code, Codex, Gemini CLI, and Antigravity CLI.
 
 This plugin does not currently ship separate commands, hooks, or subagents.
 Those should only be added when they provide behavior that does not belong in

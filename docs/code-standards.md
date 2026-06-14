@@ -248,7 +248,7 @@ New domain area: add `lib/<area>.ts` + co-located `lib/<area>.test.ts`, wire it 
 - **PKCE auth is real (RFC 7636)** via Web Crypto (`crypto.subtle`), not `node:crypto`. One unified entry `GET /auth/google?flow=local`; the legacy per-flow endpoints return HTTP 410 `upgrade_required` — do not call them.
 - **No linter/formatter config** (no eslint/biome/prettier). Style is enforced by tests and review, not tooling. `tsconfig.json` is strict.
 - **zod** for MCP input schemas (required by the SDK). **open** for the browser launch, **qrcode** for the qrcode tool.
-- **Version must be bumped on every change** — plugins only update when the number changes. It lives in five files that must stay in sync: `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`, `mcp/index.ts` (`PACKAGE_VERSION`). CI bumps them on merge.
+- **Version must be bumped on every change** — plugins only update when the number changes. It lives in six files that must stay in sync: `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`, `plugin.json` (root), `mcp/index.ts` (`PACKAGE_VERSION`). CI bumps them on merge.
 - **Rebuild `dist/mcp.js` on every source change** — installed plugins run the bundle, not the source: `bun build mcp/index.ts --target=bun --outfile=dist/mcp.js && chmod +x dist/mcp.js`.
 - **Admin tools are env-gated** — only registered when `UPUBLISH_ADMIN=1`; otherwise the registry is byte-identical to the public baseline.
 

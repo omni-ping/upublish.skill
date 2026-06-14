@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.10] — 2026-06-14
+
+### Added
+
+- Add native support for the new Antigravity CLI (`agy`) by adding root-level `plugin.json` and `mcp_config.json` manifests.
+- Updated CI workflows and automated tests to track and synchronize the new configuration manifests.
+
 ## [0.12.7] — 2026-06-11
 
 ### Changed

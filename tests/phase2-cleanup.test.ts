@@ -146,6 +146,7 @@ describe("DW-2.6 CI workflow no npm publish, has gemini version bump", () => {
   test("test_DW_2_6_gemini_version_bump_in_sed_step", () => {
     const content = readText(".github/workflows/ci.yml");
     expect(content).toContain("gemini-extension.json");
+    expect(content).toContain("plugin.json");
   });
 
   test("test_DW_2_6_gemini_in_git_add", () => {
@@ -153,6 +154,8 @@ describe("DW-2.6 CI workflow no npm publish, has gemini version bump", () => {
     // The git add line should include gemini-extension.json
     const gitAddMatch = content.match(/git add.*gemini-extension\.json/);
     expect(gitAddMatch).not.toBeNull();
+    const gitAddPluginMatch = content.match(/git add.*plugin\.json/);
+    expect(gitAddPluginMatch).not.toBeNull();
   });
 });
 

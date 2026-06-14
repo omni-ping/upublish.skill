@@ -49,16 +49,17 @@ Every core function accepts an optional `CoreDeps` bag (`credentialsPath`, `fetc
 
 ## Plugin manifests
 
-The repo ships plugin configs for three platforms:
+The repo ships plugin configs for four platforms:
 - `.claude-plugin/` — Claude Code (`plugin.json`, `marketplace.json`)
 - `.codex-plugin/plugin.json` — Codex
 - `gemini-extension.json` + `GEMINI.md` — Gemini CLI
+- `plugin.json` + `mcp_config.json` — Antigravity CLI
 
 `references/` contains markdown docs that the skill and GEMINI.md route users to (publishing, visibility, managing, troubleshooting).
 
 ## Version tracking
 
-The version appears in five places that must stay in sync: `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`, and `mcp/index.ts` (`PACKAGE_VERSION`). CI bumps all of them automatically on merge to main.
+The version appears in six places that must stay in sync: `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`, `plugin.json` (root), and `mcp/index.ts` (`PACKAGE_VERSION`). CI bumps all of them automatically on merge to main.
 
 **Every change to this repo must include a version bump.** Plugin users only receive updates when the version number changes — without a bump, changes are invisible to installed plugins.
 
