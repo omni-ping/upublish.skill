@@ -23,6 +23,7 @@
     ".agents/",
     ".claude-plugin/",
     ".codex-plugin/",
+    "codex-mcp.json",
     ".mcp.json"
   ],
   "publishConfig": {

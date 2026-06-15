@@ -52,7 +52,28 @@ describe("Codex native plugin packaging", () => {
   test("manifest paths are relative to the plugin root", () => {
     const data = readJson(".codex-plugin/plugin.json") as Record<string, unknown>;
     expect(data.skills).toBe("./skills/");
-    expect(data.mcpServers).toBe("./.mcp.json");
+    // Codex gets its OWN mcpServers file, not Claude's .mcp.json — the latter
+    // launches via ${CLAUDE_PLUGIN_ROOT}, a var Codex never sets (it would
+    // expand to empty → `bun run /dist/mcp.js` → Module not found).
+    expect(data.mcpServers).toBe("./codex-mcp.json");
+  });
+
+  test("codex-mcp.json launches the bundle without a host-specific path var", () => {
+    expect(fileExists("codex-mcp.json")).toBe(true);
+    const data = readJson("codex-mcp.json") as Record<string, unknown>;
+    const servers = data.mcpServers as Record<string, unknown>;
+    const upublish = servers.upublish as Record<string, unknown>;
+    expect(upublish).toBeDefined();
+    // Codex resolves the bundle via cwd="." (the plugin root) + a relative path,
+    // matching the native openai-developers plugin pattern.
+    expect(upublish.cwd).toBe(".");
+    expect(upublish.command).toBe("bun");
+    const args = upublish.args as string[];
+    expect(args.some((a) => a.includes("dist/mcp.js"))).toBe(true);
+    // No Claude/Gemini/Antigravity path token may leak into the Codex launch.
+    const blob = JSON.stringify(data);
+    expect(blob).not.toContain("CLAUDE_PLUGIN_ROOT");
+    expect(blob).not.toContain("extensionPath");
   });
 
   test("marketplace installs the complete Git-backed plugin", () => {
@@ -205,6 +226,7 @@ describe("DW-4.8 no absolute paths in manifests or docs", () => {
   test("test_DW_4_8_no_absolute_paths_in_manifests", () => {
     const manifests = [
       ".codex-plugin/plugin.json",
+      "codex-mcp.json",
       ".mcp.json",
       "gemini-extension.json",
       "plugin.json",

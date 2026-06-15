@@ -50,8 +50,8 @@ Every core function accepts an optional `CoreDeps` bag (`credentialsPath`, `fetc
 ## Plugin manifests
 
 The repo ships plugin configs for four platforms:
-- `.claude-plugin/` — Claude Code (`plugin.json`, `marketplace.json`)
-- `.codex-plugin/plugin.json` — Codex
+- `.claude-plugin/` — Claude Code (`plugin.json`, `marketplace.json`); MCP via `.mcp.json` (`${CLAUDE_PLUGIN_ROOT}`)
+- `.codex-plugin/plugin.json` — Codex; MCP via `codex-mcp.json` (`cwd:"."` + relative path — Codex sets no plugin-root var)
 - `gemini-extension.json` + `GEMINI.md` — Gemini CLI
 - `plugin.json` + `mcp_config.json` — Antigravity CLI
 

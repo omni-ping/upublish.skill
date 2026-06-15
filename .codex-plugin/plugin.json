@@ -15,7 +15,7 @@
     "mcp"
   ],
   "skills": "./skills/",
-  "mcpServers": "./.mcp.json",
+  "mcpServers": "./codex-mcp.json",
   "interface": {
     "displayName": "upublish",
     "shortDescription": "Publish static sites to the web instantly",

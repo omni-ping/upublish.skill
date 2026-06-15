@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "upublish": {
+      "cwd": ".",
+      "command": "bun",
+      "args": ["run", "dist/mcp.js"]
+    }
+  }
+}
