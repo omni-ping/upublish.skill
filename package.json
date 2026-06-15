@@ -3,6 +3,9 @@
   "version": "0.12.11",
   "private": false,
   "type": "module",
+  "exports": {
+    ".": "./mcp/index.ts"
+  },
   "scripts": {
     "test": "bun test lib/",
     "test:all": "bun test"

@@ -46,6 +46,7 @@ import {
 } from "../lib/core.ts";
 import type {
   CoreDeps,
+  TokenProvider,
   Site,
   SiteVersion,
   SetVersionsLimitResult,
@@ -63,6 +64,11 @@ import type {
   AdminResyncReport,
   AdminDomain,
 } from "../lib/core.ts";
+
+// ─── Public package API ───────────────────────────────────────────────────────
+// Re-export types that external consumers (e.g. the backend MCP router) need
+// to import from the package entry without reaching into internal submodules.
+export type { CoreDeps, TokenProvider };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
