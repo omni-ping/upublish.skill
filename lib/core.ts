@@ -128,7 +128,7 @@ import type {
 } from "./domain.ts";
 import { renameSite, renameNamespace } from "./rename.ts";
 import type { RedirectMode } from "./rename.ts";
-import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission } from "./types.ts";
+import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission, TokenProvider } from "./types.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
 
@@ -156,7 +156,7 @@ export type {
   CustomDomain,
   DnsRecord,
 };
-export type { NamespaceRole } from "./types.ts";
+export type { NamespaceRole, TokenProvider } from "./types.ts";
 export type { RedirectMode };
 export type {
   AdminUserArgs,
@@ -187,6 +187,19 @@ export interface CoreDeps {
   credentialsPath?: string;
   /** HTTP fetch function. Defaults to global fetch. */
   fetchFn?: FetchFn;
+  /**
+   * Injected token provider for hosted/remote use.
+   *
+   * When supplied, this provider is used AS-IS instead of the disk-backed
+   * refresh flow — the host (e.g. the backend's /mcp router) supplies a
+   * closure that returns the validated per-request bearer token.
+   *
+   * Invoked on every API call (no caching) so per-request injection holds.
+   * Takes precedence over credentialsPath when both are given.
+   *
+   * When omitted, the stdio/disk default path is used unchanged.
+   */
+  tokenProvider?: TokenProvider;
 }
 
 export interface PublishArgs {
@@ -272,18 +285,44 @@ export type RenameResult =
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 /**
- * Reads credentials from disk and builds an authenticated ApiClient.
- * Throws "Not authenticated" if no credentials file exists or is empty.
+ * Builds an authenticated ApiClient.
+ *
+ * Two paths:
+ *
+ * 1. Injected provider (hosted/remote use): when `deps.tokenProvider` is
+ *    supplied, it is used directly — no credential file is read. The caller
+ *    is responsible for supplying a provider that returns a valid bearer on
+ *    every invocation. Takes precedence over `credentialsPath`.
+ *
+ * 2. Disk-backed default (stdio/CLI use): reads a refresh token from the
+ *    credentials file and creates a refresh-backed TokenProvider. Throws
+ *    "Not authenticated" if no credentials file exists or is empty.
  */
 async function buildApiClient(deps?: CoreDeps): Promise<ApiClient> {
+  const fetchFn: FetchFn | undefined = deps?.fetchFn;
+
+  // Injected provider wins — skip disk entirely.
+  if (deps?.tokenProvider) {
+    const rawProvider = deps.tokenProvider;
+    // Wrap to fail closed on empty/whitespace-only bearer — mirrors the
+    // "Not authenticated" error the disk path throws when unauthenticated.
+    const guardedProvider: TokenProvider = async () => {
+      const token = await rawProvider();
+      if (!token || !token.trim()) {
+        throw new Error("Not authenticated. Use the login tool to sign in.");
+      }
+      return token;
+    };
+    return new ApiClient(API_BASE_URL, guardedProvider, fetchFn ?? fetch);
+  }
+
+  // Disk-backed default path (stdio adapter, unchanged behavior).
   const credFile = deps?.credentialsPath ?? defaultCredentialsPath();
   const refreshToken = await readCredentials(credFile);
 
   if (!refreshToken) {
     throw new Error("Not authenticated. Use the login tool to sign in.");
   }
-
-  const fetchFn: FetchFn | undefined = deps?.fetchFn;
 
   const tokenProvider = createTokenProvider({
     refreshToken,
