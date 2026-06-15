@@ -25325,12 +25325,23 @@ async function renameNamespace(apiClient, nsId, newName, redirect) {
 var API_BASE_URL = process.env.UPUBLISH_API_URL ?? "https://api.upubli.sh";
 var SITE_BASE_URL = (process.env.UPUBLISH_SITE_URL ?? "https://upubli.sh").replace(/\/$/, "");
 async function buildApiClient(deps) {
+  const fetchFn = deps?.fetchFn;
+  if (deps?.tokenProvider) {
+    const rawProvider = deps.tokenProvider;
+    const guardedProvider = async () => {
+      const token = await rawProvider();
+      if (!token || !token.trim()) {
+        throw new Error("Not authenticated. Use the login tool to sign in.");
+      }
+      return token;
+    };
+    return new ApiClient(API_BASE_URL, guardedProvider, fetchFn ?? fetch);
+  }
   const credFile = deps?.credentialsPath ?? defaultCredentialsPath();
   const refreshToken = await readCredentials(credFile);
   if (!refreshToken) {
     throw new Error("Not authenticated. Use the login tool to sign in.");
   }
-  const fetchFn = deps?.fetchFn;
   const tokenProvider = createTokenProvider({
     refreshToken,
     apiBaseUrl: API_BASE_URL,
@@ -25592,7 +25603,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.12";
+var PACKAGE_VERSION = "0.12.13";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
