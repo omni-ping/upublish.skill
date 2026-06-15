@@ -272,10 +272,17 @@ describe("Antigravity mcp_config.json", () => {
     expect(data.mcpServers).toBeDefined();
     const servers = data.mcpServers as Record<string, Record<string, unknown>>;
     expect(servers.upublish).toBeDefined();
-    expect(servers.upublish.command).toBe("bun");
+    // Antigravity (`agy`) copies mcp_config.json verbatim and does NOT expand
+    // ${extensionPath}, injects no plugin-dir env var, and launches the server
+    // with cwd = the workspace (not the plugin dir). So the path must be
+    // resolved by the shell at runtime, anchored on agy's deterministic staging
+    // location ($HOME/.gemini/config/plugins/upublish). A bare `bun run
+    // ${extensionPath}/...` reaches bun literally and fails with "Module not found".
+    expect(servers.upublish.command).toBe("sh");
     const args = servers.upublish.args as string[];
-    expect(args).toContain("run");
-    const hasExtPath = args.some((a) => a.includes("${extensionPath}"));
-    expect(hasExtPath).toBe(true);
+    expect(args).toContain("-c");
+    const script = args.find((a) => a.includes("dist/mcp.js")) ?? "";
+    expect(script).toContain("$HOME/.gemini/config/plugins/upublish/dist/mcp.js");
+    expect(script).not.toContain("${extensionPath}");
   });
 });

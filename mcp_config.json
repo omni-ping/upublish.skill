@@ -1,10 +1,10 @@
 {
   "mcpServers": {
     "upublish": {
-      "command": "bun",
+      "command": "sh",
       "args": [
-        "run",
-        "${extensionPath}/dist/mcp.js"
+        "-c",
+        "exec bun run \"$HOME/.gemini/config/plugins/upublish/dist/mcp.js\""
       ]
     }
   }
