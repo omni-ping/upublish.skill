@@ -970,8 +970,8 @@ describe("DW-2.1: list output has labeled fields and namespace header", () => {
 
     expect(result.isError).toBeUndefined();
     const text = result.content[0].text;
-    // Namespace header with name and domain
-    expect(text).toContain('Sites in namespace "default" (user.upubli.sh)');
+    // Address header with name and domain
+    expect(text).toContain('Sites in address "default" (user.upubli.sh)');
     fs.unlinkSync(deps.credentialsPath!);
   });
 
@@ -985,8 +985,8 @@ describe("DW-2.1: list output has labeled fields and namespace header", () => {
     const text = result.content[0].text;
     // Empty list should still show the helpful empty message
     expect(text).toContain("No sites");
-    // No namespace header needed for empty result
-    expect(text).not.toContain("Sites in namespace");
+    // No address header needed for empty result
+    expect(text).not.toContain("Sites in address");
     fs.unlinkSync(deps.credentialsPath!);
   });
 
@@ -1056,7 +1056,7 @@ describe("DW-2.2: status output includes namespace info when authenticated", () 
     expect(result.isError).toBeUndefined();
     const text = result.content[0].text;
     expect(text).toContain("Authenticated as: testuser");
-    expect(text).toContain("Namespaces:");
+    expect(text).toContain("Addresses:");
     expect(text).toContain("default (testuser.upubli.sh)");
     expect(text).toContain("my-team (team.upubli.sh)");
     fs.unlinkSync(deps.credentialsPath!);
@@ -1075,7 +1075,7 @@ describe("DW-2.2: status output includes namespace info when authenticated", () 
     expect(result.isError).toBeUndefined();
     const text = result.content[0].text;
     expect(text).toContain("Not authenticated");
-    expect(text).not.toContain("Namespaces:");
+    expect(text).not.toContain("Addresses:");
   });
 
   test("test_DW_2_2_status_single_namespace", async () => {
@@ -1113,7 +1113,7 @@ describe("DW-2.2: status output includes namespace info when authenticated", () 
     expect(result.isError).toBeUndefined();
     const text = result.content[0].text;
     expect(text).toContain("Authenticated as: solo");
-    expect(text).toContain("Namespaces:");
+    expect(text).toContain("Addresses:");
     expect(text).toContain("default (solo.upubli.sh)");
     fs.unlinkSync(deps.credentialsPath!);
   });
@@ -1149,7 +1149,7 @@ describe("DW-2.2: status output includes namespace info when authenticated", () 
     const text = result.content[0].text;
     expect(text).toContain("Authenticated as: testuser");
     // No Namespaces section when the fetch fails
-    expect(text).not.toContain("Namespaces:");
+    expect(text).not.toContain("Addresses:");
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
