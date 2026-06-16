@@ -1,6 +1,6 @@
 {
   "name": "upublish",
-  "version": "0.12.16",
+  "version": "0.12.17",
   "description": "Publish static sites to upubli.sh instantly. One directory becomes a live URL at username.upubli.sh/slug/. Supports public, unlisted, and passcode-protected sites.",
   "mcpServers": {
     "upublish": {
