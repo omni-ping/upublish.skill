@@ -43,6 +43,7 @@ import {
   adminStats,
   adminStorage,
   adminDomains,
+  displayMsg,
 } from "../lib/core.ts";
 import type {
   CoreDeps,
@@ -140,8 +141,11 @@ function okResponse(text: string): ToolResponse {
 }
 
 function errResponse(err: unknown): ToolResponse {
+  // Apply displayMsg at the single MCP error-display boundary so backend-originated
+  // "namespace" error text (from lib/*.ts) is translated to "address" for users.
+  // lib/* functions stay raw (for testability and correctness); translation happens here.
   return {
-    content: [{ type: "text" as const, text: (err as Error).message }],
+    content: [{ type: "text" as const, text: displayMsg((err as Error).message) }],
     isError: true,
   };
 }

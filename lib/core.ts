@@ -129,6 +129,7 @@ import type {
 import { renameSite, renameNamespace } from "./rename.ts";
 import type { RedirectMode } from "./rename.ts";
 import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission, TokenProvider } from "./types.ts";
+import { displayMsg } from "./display-msg.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
 
@@ -158,6 +159,7 @@ export type {
 };
 export type { NamespaceRole, TokenProvider } from "./types.ts";
 export type { RedirectMode };
+export { displayMsg };
 export type {
   AdminUserArgs,
   AdminSiteArgs,
