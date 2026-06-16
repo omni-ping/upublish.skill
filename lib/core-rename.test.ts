@@ -58,6 +58,33 @@ function makeMockFetch(
   };
 }
 
+/**
+ * Like makeMockFetch but lets the caller control the namespace list returned by
+ * GET /api/ns — needed to test resolution by NAME (resolved UUID != the name)
+ * and the unknown-ref dirty paths. opFn receives the rename request; for the
+ * unknown-ref cases opFn asserts it is never reached.
+ */
+function makeMockFetchWithNamespaces(
+  namespaces: Array<{ id: string; name: string; domain: string }>,
+  opFn: (url: string, init?: RequestInit) => Response | Promise<Response>,
+): (url: string, init?: RequestInit) => Promise<Response> {
+  return async (url: string, init?: RequestInit) => {
+    if (url.includes("/auth/token/refresh")) {
+      return new Response(
+        JSON.stringify({ access_token: "mock-access-token", expires_in: 3600 }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (/\/api\/ns$/.test(url) || /\/api\/ns\?/.test(url)) {
+      return new Response(
+        JSON.stringify({ namespaces }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    return opFn(url, init);
+  };
+}
+
 const tmpFiles: string[] = [];
 
 afterEach(() => {
@@ -225,6 +252,92 @@ describe("DW-6.1: core.rename() namespace happy path", () => {
   });
 });
 
+// ─── DW-1.2: nsId resolved (name OR UUID) to a UUID before the HTTP call ─────
+
+describe("DW-1.2: rename resolves nsId to a UUID before the request", () => {
+  const NS_UUID = "ns-real-uuid-123";
+
+  it("test_DW_1_2_site_rename_by_name_hits_resolved_uuid", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    let capturedUrl = "";
+
+    // GET /api/ns returns a namespace named "ryan" whose id is a distinct UUID.
+    const fetchFn = makeMockFetchWithNamespaces(
+      [{ id: NS_UUID, name: "ryan", domain: "ryan.upubli.sh" }],
+      (url) => {
+        capturedUrl = url;
+        return new Response(
+          JSON.stringify({ slug: "new-slug", url: "https://ryan.upubli.sh/new-slug/", redirect_expires_at: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      },
+    );
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    // Caller passes the NAME "ryan" — the path that 404s today.
+    const result = await rename({ nsId: "ryan", site: "old-slug", newName: "new-slug" }, deps);
+
+    expect(result.success).toBe(true);
+    // The rename request must hit the resolved UUID, never the raw name "ryan".
+    expect(capturedUrl).toContain(`/api/ns/${NS_UUID}/sites/old-slug/rename`);
+    expect(capturedUrl).not.toContain("/api/ns/ryan/");
+  });
+
+  it("test_DW_1_2_ns_rename_by_name_hits_resolved_uuid", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    let capturedUrl = "";
+
+    const fetchFn = makeMockFetchWithNamespaces(
+      [{ id: NS_UUID, name: "ryan", domain: "ryan.upubli.sh" }],
+      (url) => {
+        capturedUrl = url;
+        return new Response(
+          JSON.stringify({ name: "new-ns", url: "https://new-ns.upubli.sh/", redirect_expires_at: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      },
+    );
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    // site omitted → namespace rename, by NAME.
+    const result = await rename({ nsId: "ryan", newName: "new-ns" }, deps);
+
+    expect(result.success).toBe(true);
+    expect(capturedUrl).toContain(`/api/ns/${NS_UUID}/rename`);
+    expect(capturedUrl).not.toContain("/api/ns/ryan/");
+  });
+
+  it("test_DW_1_2_site_rename_by_uuid_is_backcompat", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    let capturedUrl = "";
+
+    // Caller passes the UUID directly (the historically-documented usage); the
+    // namespace's name differs, so resolution must match by id.
+    const fetchFn = makeMockFetchWithNamespaces(
+      [{ id: NS_UUID, name: "ryan", domain: "ryan.upubli.sh" }],
+      (url) => {
+        capturedUrl = url;
+        return new Response(
+          JSON.stringify({ slug: "new-slug", url: "https://ryan.upubli.sh/new-slug/", redirect_expires_at: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      },
+    );
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    const result = await rename({ nsId: NS_UUID, site: "old-slug", newName: "new-slug" }, deps);
+
+    expect(result.success).toBe(true);
+    expect(capturedUrl).toContain(`/api/ns/${NS_UUID}/sites/old-slug/rename`);
+  });
+});
+
 // ─── DW-6.3: Dirty paths ─────────────────────────────────────────────────────
 
 describe("DW-6.3: core.rename() dirty paths", () => {
@@ -302,6 +415,74 @@ describe("DW-6.3: core.rename() dirty paths", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toContain("authenticated");
+    }
+  });
+
+  it("test_DW_1_2_site_rename_unknown_ref_returns_failure_no_request", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    let renameRequested = false;
+
+    const fetchFn = makeMockFetchWithNamespaces(
+      [{ id: "ns-abc", name: "ryan", domain: "ryan.upubli.sh" }],
+      () => {
+        renameRequested = true;
+        return new Response("{}", { status: 200 });
+      },
+    );
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    const result = await rename({ nsId: "ghost", site: "old-slug", newName: "new-slug" }, deps);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Namespace 'ghost' not found");
+      expect(result.error).toContain("Available namespaces: ryan");
+    }
+    // Resolution failed before any rename HTTP request was issued.
+    expect(renameRequested).toBe(false);
+  });
+
+  it("test_DW_1_2_ns_rename_unknown_ref_returns_failure_no_request", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    let renameRequested = false;
+
+    const fetchFn = makeMockFetchWithNamespaces(
+      [{ id: "ns-abc", name: "ryan", domain: "ryan.upubli.sh" }],
+      () => {
+        renameRequested = true;
+        return new Response("{}", { status: 200 });
+      },
+    );
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    // site omitted → namespace rename branch.
+    const result = await rename({ nsId: "ghost", newName: "new-ns" }, deps);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Namespace 'ghost' not found");
+    }
+    expect(renameRequested).toBe(false);
+  });
+
+  it("test_DW_1_2_rename_no_namespaces_returns_none_hint", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const fetchFn = makeMockFetchWithNamespaces([], () =>
+      new Response("{}", { status: 200 }),
+    );
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    const result = await rename({ nsId: "anything", site: "old-slug", newName: "new-slug" }, deps);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Available namespaces: (none)");
     }
   });
 });

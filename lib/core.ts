@@ -113,7 +113,7 @@ import type {
   AdminResyncReport,
   AdminDomain,
 } from "./admin.ts";
-import { resolveNamespace, namespaceCreate as domainNamespaceCreate } from "./namespace.ts";
+import { resolveNamespace, resolveNamespaceRef, namespaceCreate as domainNamespaceCreate } from "./namespace.ts";
 import type { NamespaceCreateResult } from "./namespace.ts";
 import { domain as domainDomain } from "./domain.ts";
 import type {
@@ -769,13 +769,19 @@ export async function rename(opts: RenameArgs, deps?: CoreDeps): Promise<RenameR
   const redirect: RedirectMode = opts.redirect ?? "30d";
 
   try {
+    // Resolve nsId (a namespace name OR a UUID) to the real namespace UUID before
+    // building the request URL — the backend resolves :nsId by UUID only, so a raw
+    // name would 404. A resolution failure is caught below and returned as
+    // { success: false, error } with the available-namespaces hint.
+    const ns = await resolveNamespaceRef(apiClient, opts.nsId);
+
     if (opts.site !== undefined) {
       // Site rename
-      const result = await renameSite(apiClient, opts.nsId, opts.site, opts.newName, redirect);
+      const result = await renameSite(apiClient, ns.id, opts.site, opts.newName, redirect);
       return { success: true, url: result.url, redirectExpiresAt: result.redirectExpiresAt };
     } else {
       // Namespace rename
-      const result = await renameNamespace(apiClient, opts.nsId, opts.newName, redirect);
+      const result = await renameNamespace(apiClient, ns.id, opts.newName, redirect);
       return { success: true, url: result.url, redirectExpiresAt: result.redirectExpiresAt };
     }
   } catch (err) {

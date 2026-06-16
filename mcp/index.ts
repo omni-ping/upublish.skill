@@ -1490,7 +1490,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
       inputSchema: {
         nsId: z
           .string()
-          .describe("The namespace ID. Use the status or list tool to find your namespace ID."),
+          .describe("The namespace name (e.g. 'ryan') or its UUID. Use the status or list tool to see your namespaces."),
         site: z
           .string()
           .optional()

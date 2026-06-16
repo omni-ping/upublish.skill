@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from "bun:test";
 import { ApiClient } from "./api-client.ts";
-import { resolveNamespace } from "./namespace.ts";
+import { resolveNamespace, resolveNamespaceRef } from "./namespace.ts";
 import type { Namespace } from "./types.ts";
 
 const BASE_URL = "https://api.example.com";
@@ -192,5 +192,73 @@ describe("DW-6.2: resolveNamespace — default resolution", () => {
     );
 
     await expect(resolveNamespace(apiClient)).rejects.toThrow("API error 401");
+  });
+});
+
+// ─── DW-1.1: resolveNamespaceRef — name-or-UUID resolution ──────────────────
+
+describe("DW-1.1: resolveNamespaceRef resolves by name, then by id", () => {
+  const TWO_NAMESPACES = {
+    "/api/ns": {
+      namespaces: [
+        { id: "ns-abc", name: "ryan", domain: "ryan.upubli.sh" },
+        { id: "ns-xyz", name: "team", domain: "team.upubli.sh" },
+      ],
+    },
+  };
+
+  it("test_DW_1_1_resolveNamespaceRef_resolves_by_name", async () => {
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, makeFetch(TWO_NAMESPACES));
+
+    const ns = await resolveNamespaceRef(apiClient, "ryan");
+    expect(ns).toEqual({ id: "ns-abc", name: "ryan", domain: "ryan.upubli.sh" });
+  });
+
+  it("test_DW_1_1_resolveNamespaceRef_resolves_by_id_when_uuid_passed", async () => {
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, makeFetch(TWO_NAMESPACES));
+
+    // Passing the UUID (the historically-documented usage) must still resolve.
+    const ns = await resolveNamespaceRef(apiClient, "ns-xyz");
+    expect(ns).toEqual({ id: "ns-xyz", name: "team", domain: "team.upubli.sh" });
+  });
+
+  it("test_DW_1_1_resolveNamespaceRef_name_match_wins_over_id_match", async () => {
+    // Edge case: a ref that is some namespace's name AND another's id → name wins
+    // (name is tried first). "alias" is ns-2's name and also ns-1's literal id.
+    const apiClient = new ApiClient(
+      BASE_URL,
+      staticTokenProvider,
+      makeFetch({
+        "/api/ns": {
+          namespaces: [
+            { id: "alias", name: "first", domain: "first.upubli.sh" },
+            { id: "ns-2", name: "alias", domain: "alias.upubli.sh" },
+          ],
+        },
+      }),
+    );
+
+    const ns = await resolveNamespaceRef(apiClient, "alias");
+    expect(ns.id).toBe("ns-2"); // matched by name, not by the id "alias"
+  });
+
+  it("test_DW_1_1_resolveNamespaceRef_throws_actionable_when_unknown", async () => {
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, makeFetch(TWO_NAMESPACES));
+
+    await expect(resolveNamespaceRef(apiClient, "nope")).rejects.toThrow(
+      "Namespace 'nope' not found. Available namespaces: ryan, team",
+    );
+  });
+
+  it("test_DW_1_1_resolveNamespaceRef_throws_none_hint_when_no_namespaces", async () => {
+    const apiClient = new ApiClient(
+      BASE_URL,
+      staticTokenProvider,
+      makeFetch({ "/api/ns": { namespaces: [] } }),
+    );
+
+    await expect(resolveNamespaceRef(apiClient, "ryan")).rejects.toThrow(
+      "Namespace 'ryan' not found. Available namespaces: (none)",
+    );
   });
 });

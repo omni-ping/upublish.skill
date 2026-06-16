@@ -25183,9 +25183,20 @@ async function resolveByName(apiClient, name) {
   const { namespaces } = await apiClient.get("/api/ns");
   const found = namespaces.find((ns) => ns.name === name);
   if (!found) {
-    throw new Error(`Namespace '${name}' not found. ` + `Available namespaces: ${namespaces.map((ns) => ns.name).join(", ") || "(none)"}`);
+    throw namespaceNotFound(name, namespaces);
   }
   return found;
+}
+async function resolveNamespaceRef(apiClient, ref) {
+  const { namespaces } = await apiClient.get("/api/ns");
+  const found = namespaces.find((ns) => ns.name === ref) ?? namespaces.find((ns) => ns.id === ref);
+  if (!found) {
+    throw namespaceNotFound(ref, namespaces);
+  }
+  return found;
+}
+function namespaceNotFound(ref, namespaces) {
+  return new Error(`Namespace '${ref}' not found. ` + `Available namespaces: ${namespaces.map((ns) => ns.name).join(", ") || "(none)"}`);
 }
 async function resolveDefault(apiClient) {
   const { space } = await apiClient.get("/api/space");
@@ -25499,11 +25510,12 @@ async function rename(opts, deps) {
   }
   const redirect = opts.redirect ?? "30d";
   try {
+    const ns = await resolveNamespaceRef(apiClient, opts.nsId);
     if (opts.site !== undefined) {
-      const result = await renameSite(apiClient, opts.nsId, opts.site, opts.newName, redirect);
+      const result = await renameSite(apiClient, ns.id, opts.site, opts.newName, redirect);
       return { success: true, url: result.url, redirectExpiresAt: result.redirectExpiresAt };
     } else {
-      const result = await renameNamespace(apiClient, opts.nsId, opts.newName, redirect);
+      const result = await renameNamespace(apiClient, ns.id, opts.newName, redirect);
       return { success: true, url: result.url, redirectExpiresAt: result.redirectExpiresAt };
     }
   } catch (err) {
@@ -26319,7 +26331,7 @@ ${lines.join(`
     title: "Rename Site or Namespace",
     description: "Renames a site (slug) or a namespace on upubli.sh. " + "Provide `site` to rename a site within the namespace; omit `site` to rename the namespace itself. " + "Choose a redirect mode for old URLs: '30d' (default \u2014 safest, keeps old URLs working for 30 days), " + "'permanent' (301 redirect with no expiry), or 'off' (no redirect, old name released immediately). " + "Tier limits apply: Free accounts get one rename per resource lifetime; " + "Pro/Max accounts have a 30-day cooldown between renames of the same resource.",
     inputSchema: {
-      nsId: exports_external.string().describe("The namespace ID. Use the status or list tool to find your namespace ID."),
+      nsId: exports_external.string().describe("The namespace name (e.g. 'ryan') or its UUID. Use the status or list tool to see your namespaces."),
       site: exports_external.string().optional().describe("Slug of the site to rename. When provided, the site is renamed within the namespace. " + "When omitted, the namespace itself is renamed."),
       newName: exports_external.string().describe("New slug for the site (when renaming a site) or new name for the namespace. " + "Must be 3-63 characters: lowercase letters, numbers, and hyphens only, " + "starting and ending with a letter or number."),
       redirect: exports_external.enum(["off", "30d", "permanent"]).optional().describe("Redirect mode for old URLs. Defaults to '30d' (safest). " + "'off' \u2014 no redirect, old name released immediately. " + "'30d' \u2014 301 redirect for 30 days. " + "'permanent' \u2014 permanent 301 redirect with no expiry.")

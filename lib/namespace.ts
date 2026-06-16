@@ -86,13 +86,51 @@ async function resolveByName(
   const found = namespaces.find((ns) => ns.name === name);
 
   if (!found) {
-    throw new Error(
-      `Namespace '${name}' not found. ` +
-      `Available namespaces: ${namespaces.map((ns) => ns.name).join(", ") || "(none)"}`,
-    );
+    throw namespaceNotFound(name, namespaces);
   }
 
   return found;
+}
+
+/**
+ * Resolves a namespace by an ambiguous reference — a namespace **name** or its
+ * **UUID** — from the namespaces list. Used by `rename`, whose `nsId` argument
+ * may be either (the tool schema historically told users to paste a UUID, so
+ * both must work). Name is tried first, then id; an unknown ref throws the same
+ * actionable "not found / Available namespaces: …" error as `resolveByName`.
+ *
+ * @param apiClient - Authenticated API client.
+ * @param ref - A namespace name or its UUID.
+ * @returns The resolved Namespace object (id, name, domain).
+ * @throws Error if no namespace matches the ref by name or id.
+ * @throws Error on API failure (propagated from ApiClient).
+ */
+export async function resolveNamespaceRef(
+  apiClient: ApiClient,
+  ref: string,
+): Promise<Namespace> {
+  const { namespaces } = await apiClient.get<NamespacesResponse>("/api/ns");
+  const found =
+    namespaces.find((ns) => ns.name === ref) ??
+    namespaces.find((ns) => ns.id === ref);
+
+  if (!found) {
+    throw namespaceNotFound(ref, namespaces);
+  }
+
+  return found;
+}
+
+/**
+ * Builds the actionable not-found error shared by `resolveByName` and
+ * `resolveNamespaceRef`, so the message stays byte-identical across both
+ * resolvers. Lists the available namespace names, or "(none)" when empty.
+ */
+function namespaceNotFound(ref: string, namespaces: Namespace[]): Error {
+  return new Error(
+    `Namespace '${ref}' not found. ` +
+    `Available namespaces: ${namespaces.map((ns) => ns.name).join(", ") || "(none)"}`,
+  );
 }
 
 /** Resolves the default namespace from GET /api/space. */
