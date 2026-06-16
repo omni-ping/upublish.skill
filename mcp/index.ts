@@ -277,7 +277,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             "URL-safe identifier for the site. Must be 3-63 characters: " +
             "lowercase letters, numbers, and hyphens only, starting and ending " +
             "with a letter or number. Use '_root' to publish at the " +
-            "namespace/domain root (e.g. vibeandscribe.xyz/).",
+            "address/domain root (e.g. vibeandscribe.xyz/).",
           ),
         title: z
           .string()
@@ -301,7 +301,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name to publish into. When omitted, the default namespace is used.",
+            "Address name to publish into. When omitted, the default address is used.",
           ),
         preview: z
           .boolean()
@@ -490,7 +490,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name to list sites from. When omitted, the default namespace is used.",
+            "Address name to list sites from. When omitted, the default address is used.",
           ),
       },
     },
@@ -506,11 +506,11 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
 
         if (sites.length === 0) {
           return okResponse(
-            `No sites published yet in namespace "${ns.name}" (${ns.domain})${roleMarker}. ` +
+            `No sites published yet in address "${ns.name}" (${ns.domain})${roleMarker}. ` +
             "Use the `publish` tool to deploy your first site.",
           );
         }
-        const header = `Sites in namespace "${ns.name}" (${ns.domain})${roleMarker}`;
+        const header = `Sites in address "${ns.name}" (${ns.domain})${roleMarker}`;
         const lines = sites.map((site) => formatSiteEntry(site));
         return okResponse(`${header}\n\n${lines.join("\n\n")}`);
       } catch (err) {
@@ -537,7 +537,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+            "Address name the site belongs to. When omitted, the default address is used.",
           ),
       },
     },
@@ -570,7 +570,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+            "Address name the site belongs to. When omitted, the default address is used.",
           ),
       },
     },
@@ -622,7 +622,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+            "Address name the site belongs to. When omitted, the default address is used.",
           ),
       },
     },
@@ -674,7 +674,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+            "Address name the site belongs to. When omitted, the default address is used.",
           ),
       },
     },
@@ -729,7 +729,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+            "Address name the site belongs to. When omitted, the default address is used.",
           ),
       },
     },
@@ -780,7 +780,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+            "Address name the site belongs to. When omitted, the default address is used.",
           ),
       },
     },
@@ -819,7 +819,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+            "Address name the site belongs to. When omitted, the default address is used.",
           ),
       },
     },
@@ -877,7 +877,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+            "Address name the site belongs to. When omitted, the default address is used.",
           ),
       },
     },
@@ -937,7 +937,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+            "Address name the site belongs to. When omitted, the default address is used.",
           ),
       },
     },
@@ -1022,9 +1022,9 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
   server.registerTool(
     "members",
     {
-      title: "Namespace Members",
+      title: "Address Members",
       description:
-        "Manages members of a shared namespace on upubli.sh. " +
+        "Manages members of a shared address on upubli.sh. " +
         "Owners and admins can add, remove, and change member roles. " +
         "Any member can list the current member roster.\n\n" +
         "Actions:\n" +
@@ -1058,7 +1058,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name to manage members for. When omitted, the default namespace is used.",
+            "Address name to manage members for. When omitted, the default address is used.",
           ),
       },
     },
@@ -1071,7 +1071,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           const result = await members({ action: "list", namespace: nsStr }, coreDeps);
           if (result.action !== "list") return errResponse(new Error("Unexpected result"));
           if (result.members.length === 0) {
-            return okResponse("No members found. The namespace owner has sole access.");
+            return okResponse("No members found. The address owner has sole access.");
           }
           const lines = result.members.map(
             (m: Member) => `  ${m.username} — ${m.role}`,
@@ -1108,7 +1108,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             coreDeps,
           );
           if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
-          return okResponse(`Removed ${usernameStr} from namespace`);
+          return okResponse(`Removed ${usernameStr} from address`);
         }
 
         // action === "role"
@@ -1154,7 +1154,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+            "Address name the site belongs to. When omitted, the default address is used.",
           ),
       },
     },
@@ -1196,7 +1196,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Namespace name the site belongs to. When omitted, the default namespace is used.",
+            "Address name the site belongs to. When omitted, the default address is used.",
           ),
         outputDir: z
           .string()
@@ -1304,7 +1304,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
       title: "Auth Status",
       description:
         "Checks whether you are currently authenticated with upubli.sh. " +
-        "Returns your username and available namespaces (with domains) if authenticated, " +
+        "Returns your username and available addresses (with domains) if authenticated, " +
         "or a not-authenticated message.",
       inputSchema: {},
     },
@@ -1315,7 +1315,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         const lines = [`Authenticated as: ${result.username}`];
 
         if (result.namespaces.length > 0) {
-          lines.push("", "Namespaces:");
+          lines.push("", "Addresses:");
           for (const ns of result.namespaces) {
             // Show role marker for shared namespaces (admin/user). Owner is the
             // default state — no marker for clean output.
@@ -1337,18 +1337,18 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
   server.registerTool(
     "namespace_create",
     {
-      title: "Create Namespace",
+      title: "Create Address",
       description:
-        "Creates a new namespace (your URL prefix) on a hosted platform domain. " +
+        "Creates a new address (your URL prefix) on a hosted platform domain. " +
         "You can choose between upubli.sh or pinn.sh (both available to all users). " +
-        "Sites publish under a namespace at `name.{domain}/slug/`. " +
-        "Your first namespace is chosen during sign-in onboarding; use this tool " +
-        "to add more. Namespace count is tier-limited — the free plan allows one; " +
+        "Sites publish under an address at `name.{domain}/slug/`. " +
+        "Your first address is chosen during sign-in onboarding; use this tool " +
+        "to add more. Address count is tier-limited — the free plan allows one; " +
         "a tier-limit error includes the upgrade link.",
       inputSchema: {
         name: z
           .string()
-          .describe("The namespace name (3-63 chars, lowercase letters, numbers, hyphens)."),
+          .describe("The address name (3-63 chars, lowercase letters, numbers, hyphens)."),
         domain: z
           .string()
           .optional()
@@ -1363,7 +1363,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           coreDeps,
         );
         return okResponse(
-          `Namespace created.\nID: ${result.namespace_id}\nDomain: ${result.domain}`,
+          `Address created.\nID: ${result.namespace_id}\nDomain: ${result.domain}`,
         );
       } catch (err) {
         return errResponse(err);
@@ -1377,7 +1377,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
       title: "Custom Domain",
       description:
         "Connect, check, list, or remove a custom domain on upubli.sh (pro/max). " +
-        "A custom domain becomes its own namespace — sites then serve at " +
+        "A custom domain becomes its own address — sites then serve at " +
         "`yourname.com/slug/` instead of `you.upubli.sh/slug/`.\n\n" +
         "Actions:\n" +
         "  add    — Connect a domain you own. Enter the ROOT (example.com), not " +
@@ -1442,7 +1442,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           return okResponse(
             `Custom domain "${result.hostname}" is ${state}.` +
             (result.active
-              ? " It's live — publish to it like any namespace."
+              ? " It's live — publish to it like any address."
               : " DNS is still propagating, or the record(s) need a fix. Re-check shortly.") +
             errLine,
           );
@@ -1479,10 +1479,10 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
   server.registerTool(
     "rename",
     {
-      title: "Rename Site or Namespace",
+      title: "Rename Site or Address",
       description:
-        "Renames a site (slug) or a namespace on upubli.sh. " +
-        "Provide `site` to rename a site within the namespace; omit `site` to rename the namespace itself. " +
+        "Renames a site (slug) or an address on upubli.sh. " +
+        "Provide `site` to rename a site within the address; omit `site` to rename the address itself. " +
         "Choose a redirect mode for old URLs: '30d' (default — safest, keeps old URLs working for 30 days), " +
         "'permanent' (301 redirect with no expiry), or 'off' (no redirect, old name released immediately). " +
         "Tier limits apply: Free accounts get one rename per resource lifetime; " +
@@ -1490,18 +1490,18 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
       inputSchema: {
         nsId: z
           .string()
-          .describe("The namespace name (e.g. 'ryan') or its UUID. Use the status or list tool to see your namespaces."),
+          .describe("The address name (e.g. 'ryan') or its UUID. Use the status or list tool to see your addresses."),
         site: z
           .string()
           .optional()
           .describe(
-            "Slug of the site to rename. When provided, the site is renamed within the namespace. " +
-            "When omitted, the namespace itself is renamed.",
+            "Slug of the site to rename. When provided, the site is renamed within the address. " +
+            "When omitted, the address itself is renamed.",
           ),
         newName: z
           .string()
           .describe(
-            "New slug for the site (when renaming a site) or new name for the namespace. " +
+            "New slug for the site (when renaming a site) or new name for the address. " +
             "Must be 3-63 characters: lowercase letters, numbers, and hyphens only, " +
             "starting and ending with a letter or number.",
           ),
@@ -1543,7 +1543,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           return errResponse(new Error(result.error));
         }
 
-        const target = site ? `site '${site as string}'` : "namespace";
+        const target = site ? `site '${site as string}'` : "address";
         const effectiveRedirect = (redirect as string | undefined) ?? "30d";
         const redirectLine =
           result.redirectExpiresAt
@@ -1576,7 +1576,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           "Admin operations on a user account. Requires admin role.\n\n" +
           "Actions:\n" +
           "  lookup   — Look up a user by email address\n" +
-          "  inspect  — Full user context: space, storage, sites, namespaces\n" +
+          "  inspect  — Full user context: space, storage, sites, addresses\n" +
           "  role     — Change a user's platform role (user|admin)\n" +
           "  suspend  — Suspend a user account (reversible)\n" +
           "  ban      — Permanently ban a user and block all their sites (triggers KV reconcile)\n" +
@@ -1748,7 +1748,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         title: "Admin: Platform Stats",
         description:
           "Fetches platform-wide statistics. Requires admin role.\n\n" +
-          "Returns: users by tier, users by status, site count, namespace count, " +
+          "Returns: users by tier, users by status, site count, address count, " +
           "total storage, and blob deduplication ratio.",
         inputSchema: {},
       },
@@ -1766,7 +1766,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             `Users by tier:\n${tierLines}\n\n` +
             `Users by status:\n${statusLines}\n\n` +
             `Sites: ${result.site_count}\n` +
-            `Namespaces: ${result.namespace_count}\n` +
+            `Addresses: ${result.namespace_count}\n` +
             `Total storage: ${formatBytes(result.total_storage_bytes)}\n` +
             `Blob dedup ratio: ${(result.blob_dedup_ratio * 100).toFixed(1)}%`,
           );
@@ -1898,7 +1898,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
               return okResponse("No custom domains registered.");
             }
             const lines = result.map(
-              (d) => `  ${d.hostname} (${d.access_policy}) — ${d.namespace_count} namespace(s) [id: ${d.id}]`,
+              (d) => `  ${d.hostname} (${d.access_policy}) — ${d.namespace_count} address(es) [id: ${d.id}]`,
             );
             return okResponse(`Custom domains (${result.length}):\n${lines.join("\n")}`);
           }
