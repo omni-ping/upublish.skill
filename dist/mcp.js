@@ -25332,6 +25332,21 @@ async function renameNamespace(apiClient, nsId, newName, redirect) {
   };
 }
 
+// lib/display-msg.ts
+var STANDALONE_NAMESPACE = /(?<![\w-])namespaces?(?![\w-])/gi;
+function preserveCase(match) {
+  const plural = match.toLowerCase() === "namespaces";
+  const first = match[0];
+  const upper = first === first.toUpperCase() && first !== first.toLowerCase();
+  if (plural) {
+    return upper ? "Addresses" : "addresses";
+  }
+  return upper ? "Address" : "address";
+}
+function displayMsg(s) {
+  return s.replace(STANDALONE_NAMESPACE, preserveCase);
+}
+
 // lib/core.ts
 var API_BASE_URL = process.env.UPUBLISH_API_URL ?? "https://api.upubli.sh";
 var SITE_BASE_URL = (process.env.UPUBLISH_SITE_URL ?? "https://upubli.sh").replace(/\/$/, "");
@@ -25615,7 +25630,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.16";
+var PACKAGE_VERSION = "0.12.17";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -25655,7 +25670,7 @@ function okResponse(text) {
 }
 function errResponse(err) {
   return {
-    content: [{ type: "text", text: err.message }],
+    content: [{ type: "text", text: displayMsg(err.message) }],
     isError: true
   };
 }
@@ -25705,11 +25720,11 @@ function createServer(coreDeps, opts) {
     description: "Publishes a local directory as a static website to upubli.sh. " + "Hashes files locally, uploads only changed files via presigned R2 URLs, " + "automatically excluding .git, node_modules, .env, .DS_Store, and other non-site files. " + "Add a .upublishignore file to the directory for custom exclusions. " + "The site will be available at a public URL immediately after upload. " + "If a site with the same slug already exists, it will be updated efficiently.",
     inputSchema: {
       directory: exports_external.string().describe("Path to the directory containing the files to publish. " + "Can be absolute or relative to the current working directory."),
-      slug: exports_external.string().describe("URL-safe identifier for the site. Must be 3-63 characters: " + "lowercase letters, numbers, and hyphens only, starting and ending " + "with a letter or number. Use '_root' to publish at the " + "namespace/domain root (e.g. vibeandscribe.xyz/)."),
+      slug: exports_external.string().describe("URL-safe identifier for the site. Must be 3-63 characters: " + "lowercase letters, numbers, and hyphens only, starting and ending " + "with a letter or number. Use '_root' to publish at the " + "address/domain root (e.g. vibeandscribe.xyz/)."),
       title: exports_external.string().optional().describe("Optional human-readable title for the site. Defaults to the slug."),
       visibility: exports_external.enum(["public", "passcode"]).optional().describe("Site visibility mode. 'public' (default) or 'passcode'."),
       passcode: exports_external.string().optional().describe("Passcode for passcode-protected sites. Required when visibility is 'passcode'."),
-      namespace: exports_external.string().optional().describe("Namespace name to publish into. When omitted, the default namespace is used."),
+      namespace: exports_external.string().optional().describe("Address name to publish into. When omitted, the default address is used."),
       preview: exports_external.boolean().optional().describe("When true, publishes as a staging preview instead of going live immediately. " + "The response includes a preview_url where the staging version can be reviewed. " + "Use the promote tool to promote the staging version to live."),
       force: exports_external.boolean().optional().describe("When true, uploads all files regardless of whether they changed. " + "Use this to force a full re-upload when the site is broken or out of sync."),
       analytics_enabled: exports_external.boolean().optional().describe("Per-site analytics. Defaults to on. Set false to publish WITHOUT the " + 'analytics script (e.g. "publish ... with no analytics"). To toggle ' + "analytics on an already-published site without republishing, use the " + "analytics tool instead.")
@@ -25800,7 +25815,7 @@ Use the promote tool to make this preview live.`);
     title: "List Sites",
     description: "Lists all static websites you have published to upubli.sh. " + "Shows each site's name, URL, file count, and total size.",
     inputSchema: {
-      namespace: exports_external.string().optional().describe("Namespace name to list sites from. When omitted, the default namespace is used.")
+      namespace: exports_external.string().optional().describe("Address name to list sites from. When omitted, the default address is used.")
     }
   }, async ({ namespace }) => {
     try {
@@ -25809,9 +25824,9 @@ Use the promote tool to make this preview live.`);
       const ns = result.namespace;
       const roleMarker = ns.role && ns.role !== "owner" ? ` [${ns.role}]` : "";
       if (sites.length === 0) {
-        return okResponse(`No sites published yet in namespace "${ns.name}" (${ns.domain})${roleMarker}. ` + "Use the `publish` tool to deploy your first site.");
+        return okResponse(`No sites published yet in address "${ns.name}" (${ns.domain})${roleMarker}. ` + "Use the `publish` tool to deploy your first site.");
       }
-      const header = `Sites in namespace "${ns.name}" (${ns.domain})${roleMarker}`;
+      const header = `Sites in address "${ns.name}" (${ns.domain})${roleMarker}`;
       const lines = sites.map((site) => formatSiteEntry(site));
       return okResponse(`${header}
 
@@ -25827,7 +25842,7 @@ ${lines.join(`
     description: "Permanently deletes a published site from upubli.sh. " + "This action cannot be undone.",
     inputSchema: {
       slug: exports_external.string().describe("The URL-safe identifier of the site to delete. " + "Use the `list` tool to find available slugs."),
-      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, namespace }) => {
     try {
@@ -25842,7 +25857,7 @@ ${lines.join(`
     description: "Lists all deploy versions of a published site on upubli.sh. " + "Shows each version's number, status, and which one is currently live. " + "Use `versions_delete` to remove an archived version and reclaim storage.",
     inputSchema: {
       slug: exports_external.string().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
-      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, namespace }) => {
     try {
@@ -25866,7 +25881,7 @@ ${lines.join(`
     inputSchema: {
       slug: exports_external.string().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
       versionNumber: exports_external.number().int().positive().describe("The version number to delete (a positive integer). " + "Use `versions_list` to see available version numbers."),
-      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, versionNumber, namespace }) => {
     try {
@@ -25884,7 +25899,7 @@ ${lines.join(`
     inputSchema: {
       slug: exports_external.string().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
       limit: exports_external.union([exports_external.number().int().min(1), exports_external.null()]).optional().describe("Maximum number of non-staging versions to retain (integer \u2265 1). " + "Omit or pass null to clear the limit (unlimited retention). " + "The live version is always preserved regardless of the limit."),
-      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, limit, namespace }) => {
     try {
@@ -25906,7 +25921,7 @@ ${prunedDisplay}`);
     inputSchema: {
       slug: exports_external.string().describe("The URL-safe identifier of the site. Use the `list` tool to find available slugs."),
       enabled: exports_external.boolean().describe("true to enable analytics (inject the script), false to disable it."),
-      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, enabled, namespace }) => {
     try {
@@ -25925,7 +25940,7 @@ No republish was needed \u2014 this took effect immediately.`);
       slug: exports_external.string().describe("The URL-safe identifier of the site to add a passcode to."),
       code: exports_external.string().describe("The passcode string that visitors will use to access the site."),
       label: exports_external.string().describe("Human-readable label for this passcode (e.g. 'Client A', 'Team B'). " + "Used to identify and revoke specific passcodes."),
-      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, code, label, namespace }) => {
     try {
@@ -25942,7 +25957,7 @@ No republish was needed \u2014 this took effect immediately.`);
     description: "Lists all passcodes for a passcode-protected site on upubli.sh. " + "Shows each passcode's ID, label, and creation date.",
     inputSchema: {
       slug: exports_external.string().describe("The URL-safe identifier of the site to list passcodes for."),
-      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, namespace }) => {
     try {
@@ -25972,7 +25987,7 @@ No republish was needed \u2014 this took effect immediately.`);
       slug: exports_external.string().describe("The URL-safe identifier of the site to revoke a passcode from."),
       id: exports_external.string().optional().describe("The passcode ID to revoke. Takes precedence over label."),
       label: exports_external.string().optional().describe("The passcode label to revoke (resolved to ID via list). " + "Used only when id is not provided."),
-      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, id, label, namespace }) => {
     try {
@@ -25998,7 +26013,7 @@ ${result.message}`);
       action: exports_external.enum(["set", "get", "remove", "submissions", "clear"]).describe("The gate operation to perform: " + "'set' to create/update, 'get' to retrieve config, " + "'remove' to delete the gate, 'submissions' to list visitor data, " + "'clear' to delete all submissions."),
       slug: exports_external.string().describe("The URL-safe identifier of the site."),
       fields: exports_external.array(exports_external.enum(["email", "name", "company", "phone", "message"])).optional().describe("Fields to collect from visitors. Required when action is 'set'. " + "Valid values: 'email', 'name', 'company', 'phone', 'message'."),
-      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ action, slug, fields, namespace }) => {
     try {
@@ -26061,8 +26076,8 @@ ${fields2}`;
     }
   });
   server.registerTool("members", {
-    title: "Namespace Members",
-    description: "Manages members of a shared namespace on upubli.sh. " + "Owners and admins can add, remove, and change member roles. " + `Any member can list the current member roster.
+    title: "Address Members",
+    description: "Manages members of a shared address on upubli.sh. " + "Owners and admins can add, remove, and change member roles. " + `Any member can list the current member roster.
 
 ` + `Actions:
 ` + `  list   \u2014 List all members and their roles
@@ -26073,7 +26088,7 @@ ${fields2}`;
       action: exports_external.enum(["list", "add", "remove", "role"]).describe("The member operation to perform: " + "'list' to show all members, 'add' to grant access, " + "'remove' to revoke access, 'role' to change a member's role."),
       username: exports_external.string().optional().describe("The username to add, remove, or change role for. " + "Required for add, remove, and role actions."),
       role: exports_external.enum(["admin", "user"]).optional().describe("The role to assign. Required for add and role actions. " + "'admin' can manage members; 'user' can publish and gate only."),
-      namespace: exports_external.string().optional().describe("Namespace name to manage members for. When omitted, the default namespace is used.")
+      namespace: exports_external.string().optional().describe("Address name to manage members for. When omitted, the default address is used.")
     }
   }, async ({ action, username, role, namespace }) => {
     try {
@@ -26084,7 +26099,7 @@ ${fields2}`;
         if (result2.action !== "list")
           return errResponse(new Error("Unexpected result"));
         if (result2.members.length === 0) {
-          return okResponse("No members found. The namespace owner has sole access.");
+          return okResponse("No members found. The address owner has sole access.");
         }
         const lines = result2.members.map((m) => `  ${m.username} \u2014 ${m.role}`);
         return okResponse(`Members:
@@ -26113,7 +26128,7 @@ ${lines.join(`
         const result2 = await members({ action: "remove", username: usernameStr2, namespace: nsStr }, coreDeps);
         if (result2.action !== "remove")
           return errResponse(new Error("Unexpected result"));
-        return okResponse(`Removed ${usernameStr2} from namespace`);
+        return okResponse(`Removed ${usernameStr2} from address`);
       }
       const usernameStr = username;
       const roleStr = role;
@@ -26136,7 +26151,7 @@ ${lines.join(`
     description: "Promotes a staging preview version of a site to live on upubli.sh. " + "Use this after publishing with preview=true to make the staged version " + "available at the site's public URL. " + "Returns the live URL of the promoted site.",
     inputSchema: {
       slug: exports_external.string().describe("The URL-safe identifier of the site to promote. " + "Use the list tool to find available slugs."),
-      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used.")
+      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, namespace }) => {
     try {
@@ -26152,7 +26167,7 @@ ${lines.join(`
     description: "Generates a QR code for a published site on upubli.sh. " + "Displays a scannable unicode QR in the agent output and writes " + "qr.svg and qr.png files to the specified directory (defaults to cwd). " + "The QR encodes the site's canonical URL + ?ref=qr for analytics tracking. " + "Regenerating overwrites prior output \u2014 the QR is deterministic.",
     inputSchema: {
       slug: exports_external.string().describe("The URL-safe identifier of the site to generate a QR code for. " + "Use the list tool to find available slugs."),
-      namespace: exports_external.string().optional().describe("Namespace name the site belongs to. When omitted, the default namespace is used."),
+      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used."),
       outputDir: exports_external.string().optional().describe("Directory to write qr.svg and qr.png into. " + "Defaults to the current working directory.")
     }
   }, async ({ slug, namespace, outputDir }) => {
@@ -26222,14 +26237,14 @@ ${lines.join(`
   });
   server.registerTool("status", {
     title: "Auth Status",
-    description: "Checks whether you are currently authenticated with upubli.sh. " + "Returns your username and available namespaces (with domains) if authenticated, " + "or a not-authenticated message.",
+    description: "Checks whether you are currently authenticated with upubli.sh. " + "Returns your username and available addresses (with domains) if authenticated, " + "or a not-authenticated message.",
     inputSchema: {}
   }, async () => {
     const result = await status2(coreDeps);
     if (result.authenticated) {
       const lines = [`Authenticated as: ${result.username}`];
       if (result.namespaces.length > 0) {
-        lines.push("", "Namespaces:");
+        lines.push("", "Addresses:");
         for (const ns of result.namespaces) {
           const roleMarker = ns.role && ns.role !== "owner" ? ` [${ns.role}]` : "";
           lines.push(`  ${ns.name} (${ns.domain})${roleMarker}`);
@@ -26242,16 +26257,16 @@ ${lines.join(`
     return okResponse(msg);
   });
   server.registerTool("namespace_create", {
-    title: "Create Namespace",
-    description: "Creates a new namespace (your URL prefix) on a hosted platform domain. " + "You can choose between upubli.sh or pinn.sh (both available to all users). " + "Sites publish under a namespace at `name.{domain}/slug/`. " + "Your first namespace is chosen during sign-in onboarding; use this tool " + "to add more. Namespace count is tier-limited \u2014 the free plan allows one; " + "a tier-limit error includes the upgrade link.",
+    title: "Create Address",
+    description: "Creates a new address (your URL prefix) on a hosted platform domain. " + "You can choose between upubli.sh or pinn.sh (both available to all users). " + "Sites publish under an address at `name.{domain}/slug/`. " + "Your first address is chosen during sign-in onboarding; use this tool " + "to add more. Address count is tier-limited \u2014 the free plan allows one; " + "a tier-limit error includes the upgrade link.",
     inputSchema: {
-      name: exports_external.string().describe("The namespace name (3-63 chars, lowercase letters, numbers, hyphens)."),
+      name: exports_external.string().describe("The address name (3-63 chars, lowercase letters, numbers, hyphens)."),
       domain: exports_external.string().optional().describe("Optional hosted domain (upubli.sh or pinn.sh) or custom domain. Defaults to upubli.sh.")
     }
   }, async (args) => {
     try {
       const result = await namespaceCreate2(args.name, args.domain, coreDeps);
-      return okResponse(`Namespace created.
+      return okResponse(`Address created.
 ID: ${result.namespace_id}
 Domain: ${result.domain}`);
     } catch (err) {
@@ -26260,7 +26275,7 @@ Domain: ${result.domain}`);
   });
   server.registerTool("domain", {
     title: "Custom Domain",
-    description: "Connect, check, list, or remove a custom domain on upubli.sh (pro/max). " + "A custom domain becomes its own namespace \u2014 sites then serve at " + "`yourname.com/slug/` instead of `you.upubli.sh/slug/`.\n\n" + `Actions:
+    description: "Connect, check, list, or remove a custom domain on upubli.sh (pro/max). " + "A custom domain becomes its own address \u2014 sites then serve at " + "`yourname.com/slug/` instead of `you.upubli.sh/slug/`.\n\n" + `Actions:
 ` + "  add    \u2014 Connect a domain you own. Enter the ROOT (example.com), not " + "www.example.com; a subdomain (blog.example.com) works too. Returns the " + `DNS record(s) to add at your registrar \u2014 only the human can create DNS.
 ` + "  status \u2014 Check whether a connected domain is live yet (pending vs active, " + `plus any validation errors like CAA).
 ` + `  list   \u2014 List the account's custom domains.
@@ -26299,7 +26314,7 @@ ${records}
         const state = result2.active ? "ACTIVE" : "PENDING";
         const errLine = result2.validationErrors ? `
 Validation errors: ${result2.validationErrors}` : "";
-        return okResponse(`Custom domain "${result2.hostname}" is ${state}.` + (result2.active ? " It's live \u2014 publish to it like any namespace." : " DNS is still propagating, or the record(s) need a fix. Re-check shortly.") + errLine);
+        return okResponse(`Custom domain "${result2.hostname}" is ${state}.` + (result2.active ? " It's live \u2014 publish to it like any address." : " DNS is still propagating, or the record(s) need a fix. Re-check shortly.") + errLine);
       }
       if (act === "remove") {
         if (!id) {
@@ -26328,12 +26343,12 @@ ${lines.join(`
     }
   });
   server.registerTool("rename", {
-    title: "Rename Site or Namespace",
-    description: "Renames a site (slug) or a namespace on upubli.sh. " + "Provide `site` to rename a site within the namespace; omit `site` to rename the namespace itself. " + "Choose a redirect mode for old URLs: '30d' (default \u2014 safest, keeps old URLs working for 30 days), " + "'permanent' (301 redirect with no expiry), or 'off' (no redirect, old name released immediately). " + "Tier limits apply: Free accounts get one rename per resource lifetime; " + "Pro/Max accounts have a 30-day cooldown between renames of the same resource.",
+    title: "Rename Site or Address",
+    description: "Renames a site (slug) or an address on upubli.sh. " + "Provide `site` to rename a site within the address; omit `site` to rename the address itself. " + "Choose a redirect mode for old URLs: '30d' (default \u2014 safest, keeps old URLs working for 30 days), " + "'permanent' (301 redirect with no expiry), or 'off' (no redirect, old name released immediately). " + "Tier limits apply: Free accounts get one rename per resource lifetime; " + "Pro/Max accounts have a 30-day cooldown between renames of the same resource.",
     inputSchema: {
-      nsId: exports_external.string().describe("The namespace name (e.g. 'ryan') or its UUID. Use the status or list tool to see your namespaces."),
-      site: exports_external.string().optional().describe("Slug of the site to rename. When provided, the site is renamed within the namespace. " + "When omitted, the namespace itself is renamed."),
-      newName: exports_external.string().describe("New slug for the site (when renaming a site) or new name for the namespace. " + "Must be 3-63 characters: lowercase letters, numbers, and hyphens only, " + "starting and ending with a letter or number."),
+      nsId: exports_external.string().describe("The address name (e.g. 'ryan') or its UUID. Use the status or list tool to see your addresses."),
+      site: exports_external.string().optional().describe("Slug of the site to rename. When provided, the site is renamed within the address. " + "When omitted, the address itself is renamed."),
+      newName: exports_external.string().describe("New slug for the site (when renaming a site) or new name for the address. " + "Must be 3-63 characters: lowercase letters, numbers, and hyphens only, " + "starting and ending with a letter or number."),
       redirect: exports_external.enum(["off", "30d", "permanent"]).optional().describe("Redirect mode for old URLs. Defaults to '30d' (safest). " + "'off' \u2014 no redirect, old name released immediately. " + "'30d' \u2014 301 redirect for 30 days. " + "'permanent' \u2014 permanent 301 redirect with no expiry.")
     }
   }, async ({ nsId, site, newName, redirect }) => {
@@ -26355,7 +26370,7 @@ ${lines.join(`
       if (!result.success) {
         return errResponse(new Error(result.error));
       }
-      const target = site ? `site '${site}'` : "namespace";
+      const target = site ? `site '${site}'` : "address";
       const effectiveRedirect = redirect ?? "30d";
       const redirectLine = result.redirectExpiresAt ? `
 Redirect expires: ${result.redirectExpiresAt}` : effectiveRedirect === "off" ? `
@@ -26374,7 +26389,7 @@ Redirect: permanent`;
 
 ` + `Actions:
 ` + `  lookup   \u2014 Look up a user by email address
-` + `  inspect  \u2014 Full user context: space, storage, sites, namespaces
+` + `  inspect  \u2014 Full user context: space, storage, sites, addresses
 ` + `  role     \u2014 Change a user's platform role (user|admin)
 ` + `  suspend  \u2014 Suspend a user account (reversible)
 ` + `  ban      \u2014 Permanently ban a user and block all their sites (triggers KV reconcile)
@@ -26473,7 +26488,7 @@ KV reconcile: written=${result2.reconcile.written} verified=${result2.reconcile.
       title: "Admin: Platform Stats",
       description: `Fetches platform-wide statistics. Requires admin role.
 
-` + "Returns: users by tier, users by status, site count, namespace count, " + "total storage, and blob deduplication ratio.",
+` + "Returns: users by tier, users by status, site count, address count, " + "total storage, and blob deduplication ratio.",
       inputSchema: {}
     }, async () => {
       try {
@@ -26491,7 +26506,7 @@ ${tierLines}
 ${statusLines}
 
 ` + `Sites: ${result.site_count}
-` + `Namespaces: ${result.namespace_count}
+` + `Addresses: ${result.namespace_count}
 ` + `Total storage: ${formatBytes(result.total_storage_bytes)}
 ` + `Blob dedup ratio: ${(result.blob_dedup_ratio * 100).toFixed(1)}%`);
       } catch (err) {
@@ -26566,7 +26581,7 @@ ${statusLines}
           if (result.length === 0) {
             return okResponse("No custom domains registered.");
           }
-          const lines = result.map((d) => `  ${d.hostname} (${d.access_policy}) \u2014 ${d.namespace_count} namespace(s) [id: ${d.id}]`);
+          const lines = result.map((d) => `  ${d.hostname} (${d.access_policy}) \u2014 ${d.namespace_count} address(es) [id: ${d.id}]`);
           return okResponse(`Custom domains (${result.length}):
 ${lines.join(`
 `)}`);
