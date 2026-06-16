@@ -74,7 +74,7 @@ export type { CoreDeps, TokenProvider };
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.12.17";
+export const PACKAGE_VERSION = "0.12.18";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
