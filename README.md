@@ -1,6 +1,6 @@
 # upublish
 
-Publish static sites to [upubli.sh](https://upubli.sh) instantly. One directory becomes a live URL at `username.upubli.sh/slug/`.
+Publish static sites to [upubli.sh](https://upubli.sh) instantly. One directory becomes a live URL at `address.upubli.sh/slug/`.
 
 ## Install
 
@@ -43,7 +43,7 @@ gemini extensions install omni-ping/upublish.skill
 ## What gets installed
 
 - `skills/upublish/` provides the guided workflow and reference documentation.
-- `dist/mcp.js` provides login, publishing, site management, namespaces,
+- `dist/mcp.js` provides login, publishing, site management, addresses,
   passcodes, versions, previews, promotion, and member-management tools.
 - `.claude-plugin/`, `.codex-plugin/`, `.agents/plugins/marketplace.json`,
   `.mcp.json`, `gemini-extension.json`, `plugin.json`, and `mcp_config.json` adapt the same implementation to

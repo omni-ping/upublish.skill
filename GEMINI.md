@@ -1,6 +1,6 @@
 # upublish
 
-Publish static sites to the web instantly. One directory becomes a live URL at `username.upubli.sh/slug/`.
+Publish static sites to the web instantly. One directory becomes a live URL at `address.upubli.sh/slug/`.
 
 ## When to use this extension
 
@@ -24,7 +24,7 @@ Check for `mcp_upublish_publish` in your available tools before proceeding.
 
 **Signup happens on first login.** The sign-in page lets users choose a provider
 (Google, GitHub, Microsoft, Discord, or GitLab). First-time users are detoured through
-a short browser onboarding page (first namespace + terms) before the login completes.
+a short browser onboarding page (first address + terms) before the login completes.
 `mcp_upublish_login` waits while they finish — it is not stuck. Returning users sign in
 directly. Tell the user to complete setup in the browser window.
 
@@ -39,9 +39,9 @@ directly. Tell the user to complete setup in the browser window.
 
 ## Available tools
 
-- `mcp_upublish_login` — opens the sign-in page (choose a provider); first-time users finish a quick browser onboarding (first namespace + terms), returning users sign in directly
+- `mcp_upublish_login` — opens the sign-in page (choose a provider); first-time users finish a quick browser onboarding (first address + terms), returning users sign in directly
 - `mcp_upublish_status` — check authentication state
-- `mcp_upublish_namespace_create` — create an additional namespace (URL prefix); tier-limited, returns the new namespace id + domain
+- `mcp_upublish_namespace_create` — create an additional address (URL prefix); tier-limited, returns the new address id + domain
 - `mcp_upublish_publish` — publish a directory as a live site
 - `mcp_upublish_list` — list all published sites with URLs
 - `mcp_upublish_delete` — delete a published site (permanent, confirm first)
@@ -52,13 +52,13 @@ directly. Tell the user to complete setup in the browser window.
 
 ## Quick reference
 
-**URL format:** `https://{username}.upubli.sh/{slug}/`
+**URL format:** `https://{address}.upubli.sh/{slug}/`
 
 **Visibility modes:**
 - `public` (default) — anyone can view
 - `passcode` — visitors must enter a code to view
 
-**Slug rules:** 3-63 chars, lowercase alphanumeric + hyphens, start/end with letter or number.
+**Slug rules:** 1-255 chars, lowercase alphanumeric + hyphens, start/end with letter or number.
 
 ## Example: publish a project
 

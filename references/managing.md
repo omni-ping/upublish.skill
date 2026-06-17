@@ -23,6 +23,6 @@ There is no "update" tool — republish to the same slug to replace the site ent
 
 ## Checking site status
 
-After publishing, you can verify a site is live by noting the production URL returned by the publish tool. The URL format is always `https://{username}.upubli.sh/{slug}/`.
+After publishing, you can verify a site is live by noting the production URL returned by the publish tool. The URL format is always `https://{address}.upubli.sh/{slug}/`.
 
 If a user asks "is my site working?" — the best answer is to tell them the URL and suggest they visit it. The MCP tools don't have a health-check endpoint.
