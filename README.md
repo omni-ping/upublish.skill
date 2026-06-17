@@ -10,10 +10,14 @@ server. Bun must be installed because the bundled MCP server runs on Bun.
 
 ### Claude Code
 
+Run each command separately:
+
 ```sh
 /plugin marketplace add omni-ping/upublish.skill
 /plugin install upublish@upublish.skill
 ```
+
+Hitting `Permission denied (publickey)`? Update Claude Code, or use the full HTTPS URL `https://github.com/omni-ping/upublish.skill.git` — and run each command separately.
 
 ### Codex
 
@@ -25,7 +29,7 @@ codex plugin add upublish@upublish
 ### Antigravity CLI
 
 ```sh
-agy plugin install omni-ping/upublish.skill
+agy plugin install https://github.com/omni-ping/upublish.skill
 ```
 
 ### Gemini CLI
