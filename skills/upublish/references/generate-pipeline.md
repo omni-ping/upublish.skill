@@ -157,4 +157,4 @@ mcp_upublish_publish(directory: "./my-brag-doc", slug: "project-brag-doc")
 
 Suggest a slug derived from the project name. Default visibility to `public` unless the user says otherwise.
 
-After publishing, share the production URL: `https://{username}.upubli.sh/{slug}/`
+After publishing, share the production URL: `https://{address}.upubli.sh/{slug}/`

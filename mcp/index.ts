@@ -74,7 +74,7 @@ export type { CoreDeps, TokenProvider };
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.12.17";
+export const PACKAGE_VERSION = "0.12.18";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -278,7 +278,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         slug: z
           .string()
           .describe(
-            "URL-safe identifier for the site. Must be 3-63 characters: " +
+            "URL-safe identifier for the site. Must be 1-255 characters: " +
             "lowercase letters, numbers, and hyphens only, starting and ending " +
             "with a letter or number. Use '_root' to publish at the " +
             "address/domain root (e.g. vibeandscribe.xyz/).",
@@ -1505,9 +1505,10 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         newName: z
           .string()
           .describe(
-            "New slug for the site (when renaming a site) or new name for the address. " +
-            "Must be 3-63 characters: lowercase letters, numbers, and hyphens only, " +
-            "starting and ending with a letter or number.",
+            "New name for the resource being renamed. When renaming a site, this is the " +
+            "new slug (1-255 characters). When renaming the address, this is the new address " +
+            "name (follows the address-name rules). In both cases: lowercase letters, numbers, " +
+            "and hyphens only, starting and ending with a letter or number.",
           ),
         redirect: z
           .enum(["off", "30d", "permanent"])

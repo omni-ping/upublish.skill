@@ -36,14 +36,14 @@ Every SSG has its own config key for the base path. This must be set **before bu
 |-----|-----------|-------------------|
 | Next.js | `basePath` + `assetPrefix` | `basePath: '/{slug}'`, `assetPrefix: '/{slug}/'` |
 | Astro | `base` | `base: '/{slug}'` or `base: './'` |
-| Hugo | `baseURL` | `baseURL: 'https://{username}.upubli.sh/{slug}/'` |
+| Hugo | `baseURL` | `baseURL: 'https://{address}.upubli.sh/{slug}/'` |
 | Jekyll | `baseurl` | `baseurl: '/{slug}'` |
 | 11ty | Manual (no built-in) | Use `pathPrefix` filter or global data |
 | Gatsby | `pathPrefix` | `pathPrefix: '/{slug}'` + build with `--prefix-paths` |
 | VitePress | `base` | `base: '/{slug}/'` |
-| Docusaurus | `url` + `baseUrl` | `url: 'https://{username}.upubli.sh'`, `baseUrl: '/{slug}/'` |
+| Docusaurus | `url` + `baseUrl` | `url: 'https://{address}.upubli.sh'`, `baseUrl: '/{slug}/'` |
 | Vite | `base` | `base: './'` |
-| MkDocs | `site_url` | `site_url: 'https://{username}.upubli.sh/{slug}/'` |
+| MkDocs | `site_url` | `site_url: 'https://{address}.upubli.sh/{slug}/'` |
 
 **If the user doesn't control the build config** (they're publishing someone else's pre-built output), scan the HTML for absolute paths and fix them post-build.
 

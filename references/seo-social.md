@@ -23,8 +23,8 @@ These control how the page looks when shared on Slack, Discord, Twitter/X, Linke
 <meta property="og:title" content="Project Name — What It Does">
 <meta property="og:description" content="One compelling sentence.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://username.upubli.sh/slug/">
-<meta property="og:image" content="https://username.upubli.sh/slug/og-image.png">
+<meta property="og:url" content="https://address.upubli.sh/slug/">
+<meta property="og:image" content="https://address.upubli.sh/slug/og-image.png">
 ```
 
 ### og:image requirements
@@ -49,7 +49,7 @@ Twitter uses its own tags, falling back to OG:
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Project Name">
 <meta name="twitter:description" content="One compelling sentence.">
-<meta name="twitter:image" content="https://username.upubli.sh/slug/og-image.png">
+<meta name="twitter:image" content="https://address.upubli.sh/slug/og-image.png">
 ```
 
 `summary_large_image` shows the full-width preview. `summary` shows a small square thumbnail.
@@ -84,7 +84,7 @@ If the user has a logo or icon:
 Sites on upublish are served at a subdirectory path. The canonical URL should reflect this:
 
 ```html
-<link rel="canonical" href="https://username.upubli.sh/slug/">
+<link rel="canonical" href="https://address.upubli.sh/slug/">
 ```
 
 This prevents search engines from treating the same content at different URLs as duplicates. Replace `username` and `slug` with actual values.
@@ -110,7 +110,7 @@ For project pages, a minimal JSON-LD block helps search engines:
   "@type": "SoftwareApplication",
   "name": "Project Name",
   "description": "What it does.",
-  "url": "https://username.upubli.sh/slug/",
+  "url": "https://address.upubli.sh/slug/",
   "applicationCategory": "DeveloperApplication"
 }
 </script>

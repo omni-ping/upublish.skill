@@ -28,7 +28,7 @@ SPAs must be built before publishing. The output directory depends on the bundle
 
 ### 1. Base path configuration
 
-upublish serves sites at `https://{username}.upubli.sh/{slug}/`. Every bundler needs to know this subdirectory path so asset URLs resolve correctly.
+upublish serves sites at `https://{address}.upubli.sh/{slug}/`. Every bundler needs to know this subdirectory path so asset URLs resolve correctly.
 
 **Set the base path before building:**
 

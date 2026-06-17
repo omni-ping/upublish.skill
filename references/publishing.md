@@ -9,7 +9,7 @@ Use the `mcp_upublish_publish` tool:
 | Parameter | Required | Description |
 |---|---|---|
 | `directory` | yes | Path to the directory to publish |
-| `slug` | yes | URL-safe name (1-63 chars, lowercase alphanumeric + hyphens) |
+| `slug` | yes | URL-safe name (1-255 chars, lowercase alphanumeric + hyphens) |
 | `title` | no | Human-readable title (defaults to slug) |
 | `visibility` | no | `public` (default) or `passcode` |
 | `passcode` | no | Required when visibility is `passcode` |
@@ -17,9 +17,9 @@ Use the `mcp_upublish_publish` tool:
 ## What happens
 
 1. Files are hashed locally; only changed files are uploaded (incremental publish)
-2. Changed files are uploaded directly to R2 storage at `{username}/{slug}/`
+2. Changed files are uploaded directly to R2 storage at `{address}/{slug}/`
 3. Site metadata is pushed to Cloudflare KV for edge access control
-4. The site is live within seconds at `https://{username}.upubli.sh/{slug}/`
+4. The site is live within seconds at `https://{address}.upubli.sh/{slug}/`
 
 The tool returns the **production URL** — always share this URL with the user, not a localhost URL.
 
@@ -47,7 +47,7 @@ Publishing to an existing slug **replaces the entire site**. All previous files 
 | Limit | Free tier | Paid tier | What happens |
 |-------|-----------|-----------|-------------|
 | Single file | 10 MB | 1 GB | Files over the plan limit are rejected by the server |
-| Slug length | 1-63 characters | 1-63 characters | Rejected at API level |
+| Slug length | 1-255 characters | 1-255 characters | Rejected at API level |
 
 Upload sessions are valid for 6 hours. If an upload takes longer (e.g. uploading a very large file on a slow connection), start a new publish to get fresh upload URLs.
 

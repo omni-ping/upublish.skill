@@ -594,7 +594,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   // it publishes at the namespace/domain root (e.g. vibeandscribe.xyz/).
   if (slug !== "_root" && !isValidSlug(slug)) {
     throw new Error(
-      "Invalid slug. Must be 3-63 characters: lowercase letters, " +
+      "Invalid slug. Must be 1-255 characters: lowercase letters, " +
         "numbers, and hyphens, starting and ending with a letter or number.",
     );
   }

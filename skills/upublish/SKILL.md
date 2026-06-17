@@ -1,11 +1,11 @@
 ---
 name: upublish
-description: Publish static sites to upubli.sh — the instant web publishing platform. Use when the user wants to publish files to the web, manage published sites, set visibility, or get started with upublish. Triggers on "upublish", "upubli.sh", "publish this site", "make this live", "put this on the web", "share this page", "deploy this", "list my sites", "delete site", "site visibility", "passcode protect", "what sites do I have", "what domains", "my namespaces", "account info".
+description: Publish static sites to upubli.sh — the instant web publishing platform. Use when the user wants to publish files to the web, manage published sites, set visibility, or get started with upublish. Triggers on "upublish", "upubli.sh", "publish this site", "make this live", "put this on the web", "share this page", "deploy this", "list my sites", "delete site", "site visibility", "passcode protect", "what sites do I have", "what domains", "my addresses", "account info".
 ---
 
 # upublish
 
-Publish static sites to the web instantly. One directory becomes a live URL at `username.upubli.sh/slug/`.
+Publish static sites to the web instantly. One directory becomes a live URL at `address.upubli.sh/slug/`.
 
 ## Step 1: Bootstrap
 
@@ -34,15 +34,15 @@ Call the `status` tool to check auth state.
 There is no separate signup step. `login` opens `upubli.sh/login`, where the user
 picks a sign-in provider (Google, GitHub, Microsoft, Discord, or GitLab). The
 **first time** they sign in, they are transparently detoured through a short
-**browser onboarding page** to finish setup — they create their **first namespace**
+**browser onboarding page** to finish setup — they create their **first address**
 and accept the terms. `login` waits while they do this; it is **not stuck**.
 Returning users skip onboarding and are signed in immediately.
 
 Tell the user what to expect so the wait makes sense, e.g.: *"A browser window
-opened — choose a sign-in provider, then finish the quick setup (namespace) there
+opened — choose a sign-in provider, then finish the quick setup (address) there
 and you'll be signed in automatically."* Once onboarding completes, `login` returns
-and `status` shows their username and first namespace. No manual namespace creation
-is needed to get started; use `namespace_create` only to add **more** namespaces later.
+and `status` shows their username and first address. No manual address creation
+is needed to get started; use `namespace_create` only to add **more** addresses later.
 
 ## Step 2: Route to action
 
@@ -55,19 +55,19 @@ Match what the user wants and read the reference file, then follow it.
 | Figure out what type of content this is | `../../references/content-types/taxonomy.md` then the specific content type reference |
 | List, delete, or manage existing sites | `../../references/managing.md` |
 | Control who can access a site (passcode) | `../../references/visibility.md` |
-| Add another namespace (URL prefix) | Call `namespace_create` (free plan allows one; tier-limit errors include the upgrade link) |
+| Add another address (URL prefix) | Call `namespace_create` (free plan allows one; tier-limit errors include the upgrade link) |
 | Optimize site performance or reduce size | `../../references/optimization.md` |
 | Add SEO tags, social previews, or favicon | `../../references/seo-social.md` |
-| Check account info, namespaces, domains, or see what sites they have | Call `status` then `list` (no reference file needed) |
+| Check account info, addresses, domains, or see what sites they have | Call `status` then `list` (no reference file needed) |
 | Fix something that is broken | `../../references/troubleshooting.md` |
 
 ## Available MCP tools
 
 | Tool | Description |
 |---|---|
-| `mcp_upublish_login` | Opens the sign-in page (choose a provider). First-time users finish a quick browser onboarding (first namespace + terms); returning users sign in directly |
-| `mcp_upublish_status` | Check authentication state, shows namespaces and domains |
-| `mcp_upublish_namespace_create` | Create an additional namespace (URL prefix); tier-limited, returns the new namespace id + domain |
+| `mcp_upublish_login` | Opens the sign-in page (choose a provider). First-time users finish a quick browser onboarding (first address + terms); returning users sign in directly |
+| `mcp_upublish_status` | Check authentication state, shows addresses and domains |
+| `mcp_upublish_namespace_create` | Create an additional address (URL prefix); tier-limited, returns the new address id + domain |
 | `mcp_upublish_publish` | Publish a directory as a live site |
 | `mcp_upublish_list` | List all published sites with URLs |
 | `mcp_upublish_delete` | Delete a published site (permanent, confirm first) |
@@ -78,11 +78,11 @@ Match what the user wants and read the reference file, then follow it.
 
 ## Quick reference
 
-**URL format:** `https://{username}.upubli.sh/{slug}/`
+**URL format:** `https://{address}.upubli.sh/{slug}/`
 
 **Visibility modes:** `public` (default), `passcode` (requires a code)
 
-**Slug rules:** 3-63 chars, lowercase alphanumeric + hyphens, start/end with letter or number.
+**Slug rules:** 1-255 chars, lowercase alphanumeric + hyphens, start/end with letter or number.
 
 ## Example
 

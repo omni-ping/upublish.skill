@@ -24854,7 +24854,7 @@ async function publish(opts) {
     throw new Error(`Directory '${directory}' does not exist`);
   }
   if (slug !== "_root" && !isValidSlug(slug)) {
-    throw new Error("Invalid slug. Must be 3-63 characters: lowercase letters, " + "numbers, and hyphens, starting and ending with a letter or number.");
+    throw new Error("Invalid slug. Must be 1-255 characters: lowercase letters, " + "numbers, and hyphens, starting and ending with a letter or number.");
   }
   if (visibility === "passcode" && !passcode) {
     throw new Error("passcode is required when visibility is 'passcode'");
@@ -25630,7 +25630,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.17";
+var PACKAGE_VERSION = "0.12.18";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -25720,7 +25720,7 @@ function createServer(coreDeps, opts) {
     description: "Publishes a local directory as a static website to upubli.sh. " + "Hashes files locally, uploads only changed files via presigned R2 URLs, " + "automatically excluding .git, node_modules, .env, .DS_Store, and other non-site files. " + "Add a .upublishignore file to the directory for custom exclusions. " + "The site will be available at a public URL immediately after upload. " + "If a site with the same slug already exists, it will be updated efficiently.",
     inputSchema: {
       directory: exports_external.string().describe("Path to the directory containing the files to publish. " + "Can be absolute or relative to the current working directory."),
-      slug: exports_external.string().describe("URL-safe identifier for the site. Must be 3-63 characters: " + "lowercase letters, numbers, and hyphens only, starting and ending " + "with a letter or number. Use '_root' to publish at the " + "address/domain root (e.g. vibeandscribe.xyz/)."),
+      slug: exports_external.string().describe("URL-safe identifier for the site. Must be 1-255 characters: " + "lowercase letters, numbers, and hyphens only, starting and ending " + "with a letter or number. Use '_root' to publish at the " + "address/domain root (e.g. vibeandscribe.xyz/)."),
       title: exports_external.string().optional().describe("Optional human-readable title for the site. Defaults to the slug."),
       visibility: exports_external.enum(["public", "passcode"]).optional().describe("Site visibility mode. 'public' (default) or 'passcode'."),
       passcode: exports_external.string().optional().describe("Passcode for passcode-protected sites. Required when visibility is 'passcode'."),
@@ -26348,7 +26348,7 @@ ${lines.join(`
     inputSchema: {
       nsId: exports_external.string().describe("The address name (e.g. 'ryan') or its UUID. Use the status or list tool to see your addresses."),
       site: exports_external.string().optional().describe("Slug of the site to rename. When provided, the site is renamed within the address. " + "When omitted, the address itself is renamed."),
-      newName: exports_external.string().describe("New slug for the site (when renaming a site) or new name for the address. " + "Must be 3-63 characters: lowercase letters, numbers, and hyphens only, " + "starting and ending with a letter or number."),
+      newName: exports_external.string().describe("New name for the resource being renamed. When renaming a site, this is the " + "new slug (1-255 characters). When renaming the address, this is the new address " + "name (follows the address-name rules). In both cases: lowercase letters, numbers, " + "and hyphens only, starting and ending with a letter or number."),
       redirect: exports_external.enum(["off", "30d", "permanent"]).optional().describe("Redirect mode for old URLs. Defaults to '30d' (safest). " + "'off' \u2014 no redirect, old name released immediately. " + "'30d' \u2014 301 redirect for 30 days. " + "'permanent' \u2014 permanent 301 redirect with no expiry.")
     }
   }, async ({ nsId, site, newName, redirect }) => {

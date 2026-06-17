@@ -4,7 +4,7 @@ Run through every item below **before** calling `mcp_upublish_publish`. Fix any 
 
 ## 1. Asset paths are relative
 
-Sites are served at `https://{username}.upubli.sh/{slug}/`. Absolute paths like `/styles.css` resolve to the domain root, not the slug directory, causing 404s.
+Sites are served at `https://{address}.upubli.sh/{slug}/`. Absolute paths like `/styles.css` resolve to the domain root, not the slug directory, causing 404s.
 
 **Check:** Scan all HTML files for `src`, `href`, and inline `url()` references. Flag any path that starts with `/` (but not `//` — those are protocol-relative URLs and are fine).
 
@@ -39,7 +39,7 @@ url(/
 
 ## 3. Entry point exists
 
-**Check:** The directory must contain an `index.html` at the root level. Without it, visitors to `https://{username}.upubli.sh/{slug}/` will get a 404 or directory listing.
+**Check:** The directory must contain an `index.html` at the root level. Without it, visitors to `https://{address}.upubli.sh/{slug}/` will get a 404 or directory listing.
 
 **Fix:** If there's an HTML file with a different name, ask the user if it should be renamed to `index.html`. If there's no HTML file at all, something is wrong — ask the user.
 

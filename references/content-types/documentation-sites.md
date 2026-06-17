@@ -38,7 +38,7 @@ Set the base URL before building. This affects all internal links, asset paths, 
 ```js
 // docusaurus.config.js
 module.exports = {
-  url: 'https://{username}.upubli.sh',
+  url: 'https://{address}.upubli.sh',
   baseUrl: '/{slug}/',
 };
 ```
@@ -54,7 +54,7 @@ export default {
 **MkDocs:**
 ```yaml
 # mkdocs.yml
-site_url: https://{username}.upubli.sh/{slug}/
+site_url: https://{address}.upubli.sh/{slug}/
 ```
 
 ### 2. Client-side search
