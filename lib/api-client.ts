@@ -15,6 +15,25 @@
 import type { FetchFn, TokenProvider, Site } from "./types.ts";
 import { log } from "./log.ts";
 
+/**
+ * Structured API error that preserves the HTTP status and the parsed response
+ * body from a non-2xx response. Extends Error so all existing catch(err: Error)
+ * callers continue to work unchanged. The `rawBodyData` field lets domain-level
+ * enrichment (e.g. namespace.ts's enrichNamespaceError) extract structured
+ * fields (approval_url, price, …) that would otherwise be discarded.
+ */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    /** Parsed JSON body, or null when the body could not be parsed. */
+    public readonly rawBodyData: unknown,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export class ApiClient {
   constructor(
     /** API base URL, e.g. https://api.upubli.sh */
@@ -179,15 +198,16 @@ export class ApiClient {
 
     let errorMessage: string;
     let rawBody = "";
+    let parsedBody: unknown = null;
     try {
       rawBody = await response.text();
-      const body = JSON.parse(rawBody) as { error?: string };
-      errorMessage = body.error ?? response.statusText;
+      parsedBody = JSON.parse(rawBody) as unknown;
+      errorMessage = (parsedBody as { error?: string }).error ?? response.statusText;
     } catch {
       errorMessage = response.statusText;
     }
 
     log(`[api] status=${response.status} body=${rawBody || response.statusText}`);
-    throw new Error(`API error ${response.status}: ${errorMessage}`);
+    throw new ApiError(response.status, parsedBody, `API error ${response.status}: ${errorMessage}`);
   }
 }

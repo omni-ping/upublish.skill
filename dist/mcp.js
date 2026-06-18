@@ -24522,6 +24522,17 @@ async function login(deps) {
 }
 
 // lib/api-client.ts
+class ApiError extends Error {
+  status;
+  rawBodyData;
+  constructor(status, rawBodyData, message) {
+    super(message);
+    this.status = status;
+    this.rawBodyData = rawBodyData;
+    this.name = "ApiError";
+  }
+}
+
 class ApiClient {
   baseUrl;
   tokenProvider;
@@ -24612,15 +24623,16 @@ class ApiClient {
     }
     let errorMessage;
     let rawBody = "";
+    let parsedBody = null;
     try {
       rawBody = await response.text();
-      const body = JSON.parse(rawBody);
-      errorMessage = body.error ?? response.statusText;
+      parsedBody = JSON.parse(rawBody);
+      errorMessage = parsedBody.error ?? response.statusText;
     } catch {
       errorMessage = response.statusText;
     }
     log(`[api] status=${response.status} body=${rawBody || response.statusText}`);
-    throw new Error(`API error ${response.status}: ${errorMessage}`);
+    throw new ApiError(response.status, parsedBody, `API error ${response.status}: ${errorMessage}`);
   }
 }
 
@@ -25173,6 +25185,18 @@ async function adminDomains(apiClient, args) {
 // lib/namespace.ts
 var DEFAULT_NAMESPACE_DOMAIN = "upubli.sh";
 var UPGRADE_URL = "https://upubli.sh/pricing";
+var APPROVAL_URL_FALLBACK = "https://upubli.sh/profile/settings?overage_request=1";
+
+class OverageApprovalError extends Error {
+  approval_url;
+  price;
+  constructor(approval_url, price, message) {
+    super(message);
+    this.approval_url = approval_url;
+    this.price = price;
+    this.name = "OverageApprovalError";
+  }
+}
 async function resolveNamespace(apiClient, namespaceName) {
   if (namespaceName !== undefined) {
     return resolveByName(apiClient, namespaceName);
@@ -25219,12 +25243,25 @@ async function namespaceCreate(apiClient, name, domain = DEFAULT_NAMESPACE_DOMAI
   } catch (err) {
     throw enrichNamespaceError(err);
   }
-  return {
+  const result = {
     namespace_id: response.namespace.id,
     domain: response.namespace.domain
   };
+  if (response.overage?.charged === true) {
+    result.overage = { charged: true, price: response.overage.price };
+  }
+  return result;
 }
 function enrichNamespaceError(err) {
+  if (err instanceof ApiError && err.status === 402) {
+    const body = err.rawBodyData;
+    const code = typeof body?.code === "string" ? body.code : "";
+    if (code === "needs_overage_approval" || /needs_overage_approval/i.test(err.message)) {
+      const approvalUrl = typeof body?.approval_url === "string" && body.approval_url ? body.approval_url : APPROVAL_URL_FALLBACK;
+      const price = typeof body?.price === "number" && isFinite(body.price) ? body.price : 0.2;
+      return new OverageApprovalError(approvalUrl, price, `Needs overage approval: extra addresses cost $${price.toFixed(2)}/mo. Approve at ${approvalUrl}`);
+    }
+  }
   const isTierLimit = /API error 403/.test(err.message) && /limit/i.test(err.message);
   if (isTierLimit) {
     return new Error(`${err.message} Upgrade at ${UPGRADE_URL} to create more namespaces.`);
@@ -25630,7 +25667,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.19";
+var PACKAGE_VERSION = "0.12.20";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -26266,10 +26303,36 @@ ${lines.join(`
   }, async (args) => {
     try {
       const result = await namespaceCreate2(args.name, args.domain, coreDeps);
-      return okResponse(`Address created.
-ID: ${result.namespace_id}
-Domain: ${result.domain}`);
+      const lines = [
+        `Address created.`,
+        `ID: ${result.namespace_id}`,
+        `Domain: ${result.domain}`
+      ];
+      if (result.overage?.charged === true) {
+        const price = typeof result.overage.price === "number" && isFinite(result.overage.price) ? result.overage.price : 0.2;
+        lines.push(``, `+$${price.toFixed(2)}/mo added to your bill for this extra address.`);
+      }
+      return okResponse(lines.join(`
+`));
     } catch (err) {
+      if (err instanceof OverageApprovalError) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: [
+                `Extra address approval required: extra addresses cost $${err.price.toFixed(2)}/mo per address.`,
+                `To authorize this charge, open the approval page:`,
+                `  ${err.approval_url}`,
+                ``,
+                `Once approved, retry this tool \u2014 no extra flag needed.`
+              ].join(`
+`)
+            }
+          ],
+          isError: true
+        };
+      }
       return errResponse(err);
     }
   });

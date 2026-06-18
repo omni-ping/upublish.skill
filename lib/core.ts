@@ -113,7 +113,7 @@ import type {
   AdminResyncReport,
   AdminDomain,
 } from "./admin.ts";
-import { resolveNamespace, resolveNamespaceRef, namespaceCreate as domainNamespaceCreate } from "./namespace.ts";
+import { resolveNamespace, resolveNamespaceRef, namespaceCreate as domainNamespaceCreate, OverageApprovalError } from "./namespace.ts";
 import type { NamespaceCreateResult } from "./namespace.ts";
 import { domain as domainDomain } from "./domain.ts";
 import type {
@@ -147,6 +147,7 @@ export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, Ch
 export type { QrCodeArgs, QrCodeResult };
 export type { Namespace, Site, Visibility, GateConfig, GateSubmission };
 export type { NamespaceCreateResult };
+export { OverageApprovalError };
 export type {
   DomainArgs,
   DomainResult,

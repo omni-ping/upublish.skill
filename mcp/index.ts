@@ -30,6 +30,7 @@ import {
   status,
   logout,
   namespaceCreate,
+  OverageApprovalError,
   domain,
   addPasscode,
   listPasscodes,
@@ -74,7 +75,7 @@ export type { CoreDeps, TokenProvider };
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.12.19";
+export const PACKAGE_VERSION = "0.12.20";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -1366,10 +1367,39 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           args.domain,
           coreDeps,
         );
-        return okResponse(
-          `Address created.\nID: ${result.namespace_id}\nDomain: ${result.domain}`,
-        );
+        const lines = [
+          `Address created.`,
+          `ID: ${result.namespace_id}`,
+          `Domain: ${result.domain}`,
+        ];
+        if (result.overage?.charged === true) {
+          const price = typeof result.overage.price === "number" && isFinite(result.overage.price)
+            ? result.overage.price
+            : 0.2;
+          lines.push(``, `+$${price.toFixed(2)}/mo added to your bill for this extra address.`);
+        }
+        return okResponse(lines.join("\n"));
       } catch (err) {
+        // 402 needs_overage_approval: surface the approval URL and price so the
+        // agent can forward them to the user. Never send accept_overage — that
+        // flag is reserved for explicit human consent on a surface we control.
+        if (err instanceof OverageApprovalError) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: [
+                  `Extra address approval required: extra addresses cost $${err.price.toFixed(2)}/mo per address.`,
+                  `To authorize this charge, open the approval page:`,
+                  `  ${err.approval_url}`,
+                  ``,
+                  `Once approved, retry this tool — no extra flag needed.`,
+                ].join("\n"),
+              },
+            ],
+            isError: true,
+          };
+        }
         return errResponse(err);
       }
     },
