@@ -25679,7 +25679,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.21";
+var PACKAGE_VERSION = "0.12.22";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
