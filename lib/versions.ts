@@ -9,6 +9,7 @@
  */
 
 import type { ApiClient } from "./api-client.ts";
+import { ApiError } from "./api-client.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,12 @@ export interface SiteVersion {
   status: string;
   /** True for the version currently served at the site's public URL. */
   is_live: boolean;
+  /** ISO-8601 timestamp the version was created. Optional — older payloads may omit it. */
+  created_at?: string;
+  /** Number of files in the version. Optional — older payloads may omit it. */
+  file_count?: number;
+  /** Total uncompressed bytes for the version. Optional — older payloads may omit it. */
+  total_size?: number;
 }
 
 /**
@@ -41,6 +48,18 @@ export interface StorageUsage {
 export interface ListVersionsResult {
   /** All versions for the site, newest first (order as returned by the API). */
   versions: SiteVersion[];
+}
+
+/** Result of restoring (rolling back to) a previous version. */
+export interface RestoreVersionResult {
+  /**
+   * The version number that is now live. Echoed from the request: the backend
+   * rollback response carries only `url`, and the caller already knows which
+   * version it asked to restore.
+   */
+  version_number: number;
+  /** The live public URL of the restored site (from the rollback response). */
+  url: string;
 }
 
 /** Result of deleting one archived version. */
@@ -78,6 +97,11 @@ interface DeleteVersionResponse {
   version_number: number;
   freed_bytes: number;
   usage: StorageUsage;
+}
+
+/** Backend rollback response — carries only the live URL. */
+interface RestoreVersionResponse {
+  url: string;
 }
 
 interface SetVersionsLimitResponse {
@@ -150,6 +174,78 @@ export async function deleteVersion(
     freed_bytes: result.freed_bytes,
     usage: result.usage,
   };
+}
+
+// ─── Restore (roll back to a previous version) ────────────────────────────────
+
+/**
+ * Restores a previous version of a site, making it live again.
+ *
+ * Calls the backend rollback route (`POST …/versions/:version/rollback`), which
+ * activates + promotes the target version server-side. The tool name
+ * (`versions_restore`) intentionally differs from the backend route (`…/rollback`).
+ *
+ * The backend response carries only the live `url`; the now-live version number
+ * is echoed from the request so the adapter can confirm what was restored.
+ *
+ * Errors the adapter would otherwise render as a raw `API error N:` string are
+ * converted here (mirroring lib/namespace.ts enrichNamespaceError) into clear,
+ * human-readable messages:
+ *   - 404 → "version N not found, see versions_list"
+ *   - 403 → paid-plan message (rollback gates on max_active_versions on free tier)
+ * All other errors (e.g. a 409 no-op when restoring the already-live version)
+ * pass through verbatim — backend text is already actionable.
+ *
+ * @param apiClient - Authenticated API client.
+ * @param nsId - The namespace ID the site belongs to.
+ * @param slug - The URL-safe identifier of the site.
+ * @param versionNumber - The version number to restore. Must be a positive integer.
+ * @returns The now-live version number (echoed) and the live URL.
+ * @throws Error if slug is empty or versionNumber is not a positive integer.
+ * @throws Error on API failure (enriched for 403/404, otherwise propagated).
+ */
+export async function restoreVersion(
+  apiClient: ApiClient,
+  nsId: string,
+  slug: string,
+  versionNumber: number,
+): Promise<RestoreVersionResult> {
+  if (!slug || slug.trim().length === 0) {
+    throw new Error("slug is required");
+  }
+  if (!Number.isInteger(versionNumber) || versionNumber <= 0) {
+    throw new Error("versionNumber must be a positive integer");
+  }
+
+  try {
+    const result = await apiClient.post<RestoreVersionResponse>(
+      // Backend route is …/rollback; the MCP tool is versions_restore (names differ by design).
+      `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/versions/${encodeURIComponent(String(versionNumber))}/rollback`,
+      {},
+    );
+    return { version_number: versionNumber, url: result.url };
+  } catch (err) {
+    if (err instanceof Error) throw enrichRestoreError(err, versionNumber);
+    throw err;
+  }
+}
+
+/**
+ * Converts a typed ApiError from the rollback route into a clear, human-readable
+ * message for the two cases the user can act on. Other errors pass through
+ * unchanged so already-actionable backend text (e.g. a 409 on the live version)
+ * reaches the user verbatim.
+ */
+function enrichRestoreError(err: Error, versionNumber: number): Error {
+  if (err instanceof ApiError) {
+    if (err.status === 404) {
+      return new Error(`Version ${versionNumber} not found. Use versions_list to see available versions.`);
+    }
+    if (err.status === 403) {
+      return new Error("Restoring a previous version requires a paid plan.");
+    }
+  }
+  return err;
 }
 
 // ─── Set / clear retention limit ──────────────────────────────────────────────

@@ -42,11 +42,13 @@ import type { PromoteResult } from "./promote.ts";
 import {
   listVersions as domainListVersions,
   deleteVersion as domainDeleteVersion,
+  restoreVersion as domainRestoreVersion,
   setVersionsLimit as domainSetVersionsLimit,
 } from "./versions.ts";
 import type {
   ListVersionsResult,
   DeleteVersionResult,
+  RestoreVersionResult,
   SetVersionsLimitResult,
   SiteVersion,
 } from "./versions.ts";
@@ -141,7 +143,7 @@ export type { PublishResult, UploadProgress };
 export { StorageApprovalError };
 export type { DeleteResult };
 export type { PromoteResult };
-export type { ListVersionsResult, DeleteVersionResult, SetVersionsLimitResult, SiteVersion };
+export type { ListVersionsResult, DeleteVersionResult, RestoreVersionResult, SetVersionsLimitResult, SiteVersion };
 export type { SetAnalyticsResult };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
@@ -464,6 +466,30 @@ export async function deleteSiteVersion(
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
   return domainDeleteVersion(apiClient, ns.id, slug, versionNumber);
+}
+
+/**
+ * Restores a previous version of a site, making it live again (rollback).
+ *
+ * Resolves the namespace, then delegates to the rollback route. Returns the
+ * now-live version number and the live URL. A 404 (unknown version) or 403
+ * (paid-plan gate) is converted to a clear message by the domain layer.
+ * Throws "Not authenticated" if no credentials are stored.
+ *
+ * @param slug - The URL-safe identifier of the site.
+ * @param versionNumber - The version number to restore (positive integer).
+ * @param namespaceName - Optional namespace name. Defaults to the user's default namespace.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function restoreSiteVersion(
+  slug: string,
+  versionNumber: number,
+  namespaceName?: string,
+  deps?: CoreDeps,
+): Promise<RestoreVersionResult> {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return domainRestoreVersion(apiClient, ns.id, slug, versionNumber);
 }
 
 /**

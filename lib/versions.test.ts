@@ -9,8 +9,20 @@
  */
 
 import { describe, it, expect } from "bun:test";
-import { listVersions, deleteVersion, setVersionsLimit } from "./versions.ts";
+import { listVersions, deleteVersion, restoreVersion, setVersionsLimit } from "./versions.ts";
 import { ApiClient } from "./api-client.ts";
+
+// Mock fetch that returns a non-2xx status (drives ApiError from parseResponse).
+function mockErrorFetch(
+  status: number,
+  body: unknown,
+): (url: string, init?: RequestInit) => Promise<Response> {
+  return async () =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
+}
 
 const BASE_URL = "https://api.example.com";
 const TOKEN = "test-token";
@@ -249,5 +261,130 @@ describe("DW-3.1: setVersionsLimit — domain function", () => {
     const fetchFn = mockFetch(404, { error: "Site not found" });
     const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
     await expect(setVersionsLimit(apiClient, NS_ID, "ghost", 3)).rejects.toThrow("API error 404");
+  });
+});
+
+// ─── DW-1.1: restoreVersion (rollback) ────────────────────────────────────────
+
+describe("DW-1.1: restoreVersion", () => {
+  it("test_DW_1_1_restore_version_posts_to_rollback_route", async () => {
+    let capturedUrl = "";
+    let capturedMethod = "";
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      capturedUrl = url;
+      capturedMethod = init?.method ?? "";
+      return new Response(JSON.stringify({ url: "https://default.user.upubli.sh/my-site/" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    const result = await restoreVersion(apiClient, NS_ID, "my-site", 2);
+
+    // POSTs to the backend rollback route with the resolved nsId + version.
+    expect(capturedMethod).toBe("POST");
+    expect(capturedUrl).toBe(`${BASE_URL}/api/ns/${NS_ID}/sites/my-site/versions/2/rollback`);
+    // Result echoes the requested version number and carries the live URL.
+    expect(result.version_number).toBe(2);
+    expect(result.url).toBe("https://default.user.upubli.sh/my-site/");
+  });
+
+  it("test_DW_1_1_restore_version_encodes_slug", async () => {
+    let capturedUrl = "";
+    const fetchFn = async (url: string) => {
+      capturedUrl = url;
+      return new Response(JSON.stringify({ url: "https://x/" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    await restoreVersion(apiClient, NS_ID, "my site", 5);
+    expect(capturedUrl).toBe(`${BASE_URL}/api/ns/${NS_ID}/sites/my%20site/versions/5/rollback`);
+  });
+
+  it("test_DW_1_1_restore_version_validates_inputs", async () => {
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, { url: "x" }));
+    await expect(restoreVersion(apiClient, NS_ID, "", 1)).rejects.toThrow("slug is required");
+    await expect(restoreVersion(apiClient, NS_ID, "my-site", 0)).rejects.toThrow(
+      "versionNumber must be a positive integer",
+    );
+    await expect(restoreVersion(apiClient, NS_ID, "my-site", 1.5)).rejects.toThrow(
+      "versionNumber must be a positive integer",
+    );
+  });
+});
+
+// ─── DW-1.3: restoreVersion error enrichment (403 / 404) ──────────────────────
+
+describe("DW-1.3: restoreVersion error enrichment", () => {
+  it("test_DW_1_3_restore_404_renders_version_not_found", async () => {
+    const fetchFn = mockErrorFetch(404, { error: "Version 99 not found" });
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    // Clear, actionable message — not the raw "API error 404:" string.
+    await expect(restoreVersion(apiClient, NS_ID, "my-site", 99)).rejects.toThrow(
+      "Version 99 not found. Use versions_list to see available versions.",
+    );
+    await expect(restoreVersion(apiClient, NS_ID, "my-site", 99)).rejects.not.toThrow(
+      /API error/,
+    );
+  });
+
+  it("test_DW_1_3_restore_403_renders_paid_plan_message", async () => {
+    const fetchFn = mockErrorFetch(403, { error: "Version activation requires a paid plan" });
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    await expect(restoreVersion(apiClient, NS_ID, "my-site", 2)).rejects.toThrow(
+      "Restoring a previous version requires a paid plan.",
+    );
+    await expect(restoreVersion(apiClient, NS_ID, "my-site", 2)).rejects.not.toThrow(
+      /API error/,
+    );
+  });
+
+  it("test_DW_1_3_restore_other_errors_pass_through", async () => {
+    // A 409 (e.g. already-live no-op) must surface the backend message verbatim,
+    // not crash and not get rewritten.
+    const fetchFn = mockErrorFetch(409, { error: "Version is already live" });
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    await expect(restoreVersion(apiClient, NS_ID, "my-site", 1)).rejects.toThrow(
+      "Version is already live",
+    );
+  });
+});
+
+// ─── DW-1.4: listVersions carries created_at / file_count / total_size ─────────
+
+describe("DW-1.4: listVersions maps version metadata", () => {
+  it("test_DW_1_4_list_versions_maps_metadata", async () => {
+    const apiBody = {
+      versions: [
+        {
+          version_number: 2,
+          status: "live",
+          is_live: true,
+          created_at: "2026-06-10T12:00:00.000Z",
+          file_count: 7,
+          total_size: 2048,
+        },
+        {
+          version_number: 1,
+          status: "archived",
+          is_live: false,
+          created_at: "2026-06-01T08:30:00.000Z",
+          file_count: 3,
+          total_size: 1024,
+        },
+      ],
+    };
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, apiBody));
+    const result = await listVersions(apiClient, NS_ID, "my-site");
+
+    expect(result.versions[0].created_at).toBe("2026-06-10T12:00:00.000Z");
+    expect(result.versions[0].file_count).toBe(7);
+    expect(result.versions[0].total_size).toBe(2048);
+    expect(result.versions[1].created_at).toBe("2026-06-01T08:30:00.000Z");
+    expect(result.versions[1].file_count).toBe(3);
+    expect(result.versions[1].total_size).toBe(1024);
   });
 });

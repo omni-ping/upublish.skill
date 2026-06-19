@@ -24,6 +24,7 @@ import {
   deleteOp,
   listSiteVersions,
   deleteSiteVersion,
+  restoreSiteVersion,
   setSiteVersionsLimit,
   analytics,
   login,
@@ -88,10 +89,19 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-/** Formats a single site version as a one-line entry with status + live marker. */
+/**
+ * Formats a single site version as a one-line entry: number, status, live
+ * marker, and — when the backend supplies them — the metadata a user needs to
+ * pick a version to restore (created date, file count, size).
+ */
 function formatVersionEntry(version: SiteVersion): string {
   const liveMarker = version.is_live ? " (LIVE)" : "";
-  return `v${version.version_number} — ${version.status}${liveMarker}`;
+  const meta: string[] = [];
+  if (version.created_at) meta.push(new Date(version.created_at).toLocaleString());
+  if (typeof version.file_count === "number") meta.push(`${version.file_count} files`);
+  if (typeof version.total_size === "number") meta.push(formatBytes(version.total_size));
+  const metaSuffix = meta.length > 0 ? `\n    ${meta.join(" · ")}` : "";
+  return `v${version.version_number} — ${version.status}${liveMarker}${metaSuffix}`;
 }
 
 /**
@@ -687,6 +697,56 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           `Deleted version v${result.version_number} of '${slug as string}'.\n` +
           `Reclaimed: ${formatBytes(result.freed_bytes)}\n` +
           `Usage: ${formatUsage(result.usage)}`,
+        );
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "versions_restore",
+    {
+      title: "Restore Site Version",
+      description:
+        "Rolls a published site on upubli.sh back to a previous version, making " +
+        "that version live again. Use `versions_list` first to see version numbers " +
+        "and their dates/sizes. Returns the now-live version number and live URL. " +
+        "Restoring versions requires a paid plan.",
+      inputSchema: {
+        slug: z
+          .string()
+          .describe(
+            "The URL-safe identifier of the site. " +
+            "Use the `list` tool to find available slugs.",
+          ),
+        version: z
+          .number()
+          .int()
+          .positive()
+          .describe(
+            "The version number to restore (a positive integer). " +
+            "Use `versions_list` to see available version numbers.",
+          ),
+        namespace: z
+          .string()
+          .optional()
+          .describe(
+            "Address name the site belongs to. When omitted, the default address is used.",
+          ),
+      },
+    },
+    async ({ slug, version, namespace }) => {
+      try {
+        const result = await restoreSiteVersion(
+          slug as string,
+          version as number,
+          namespace as string | undefined,
+          coreDeps,
+        );
+        return okResponse(
+          `Restored '${slug as string}' to version v${result.version_number}, now live.\n` +
+          `URL: ${result.url}`,
         );
       } catch (err) {
         return errResponse(err);

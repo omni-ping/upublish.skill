@@ -24994,6 +24994,33 @@ async function deleteVersion(apiClient, nsId, slug, versionNumber) {
     usage: result.usage
   };
 }
+async function restoreVersion(apiClient, nsId, slug, versionNumber) {
+  if (!slug || slug.trim().length === 0) {
+    throw new Error("slug is required");
+  }
+  if (!Number.isInteger(versionNumber) || versionNumber <= 0) {
+    throw new Error("versionNumber must be a positive integer");
+  }
+  try {
+    const result = await apiClient.post(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/versions/${encodeURIComponent(String(versionNumber))}/rollback`, {});
+    return { version_number: versionNumber, url: result.url };
+  } catch (err) {
+    if (err instanceof Error)
+      throw enrichRestoreError(err, versionNumber);
+    throw err;
+  }
+}
+function enrichRestoreError(err, versionNumber) {
+  if (err instanceof ApiError) {
+    if (err.status === 404) {
+      return new Error(`Version ${versionNumber} not found. Use versions_list to see available versions.`);
+    }
+    if (err.status === 403) {
+      return new Error("Restoring a previous version requires a paid plan.");
+    }
+  }
+  return err;
+}
 async function setVersionsLimit(apiClient, nsId, slug, limit) {
   if (!slug || slug.trim().length === 0) {
     throw new Error("slug is required");
@@ -25513,6 +25540,11 @@ async function deleteSiteVersion(slug, versionNumber, namespaceName, deps) {
   const ns = await resolveNamespace(apiClient, namespaceName);
   return deleteVersion(apiClient, ns.id, slug, versionNumber);
 }
+async function restoreSiteVersion(slug, versionNumber, namespaceName, deps) {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, namespaceName);
+  return restoreVersion(apiClient, ns.id, slug, versionNumber);
+}
 async function setSiteVersionsLimit(slug, limit, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
@@ -25734,7 +25766,16 @@ function formatBytes(bytes) {
 }
 function formatVersionEntry(version2) {
   const liveMarker = version2.is_live ? " (LIVE)" : "";
-  return `v${version2.version_number} \u2014 ${version2.status}${liveMarker}`;
+  const meta = [];
+  if (version2.created_at)
+    meta.push(new Date(version2.created_at).toLocaleString());
+  if (typeof version2.file_count === "number")
+    meta.push(`${version2.file_count} files`);
+  if (typeof version2.total_size === "number")
+    meta.push(formatBytes(version2.total_size));
+  const metaSuffix = meta.length > 0 ? `
+    ${meta.join(" \xB7 ")}` : "";
+  return `v${version2.version_number} \u2014 ${version2.status}${liveMarker}${metaSuffix}`;
 }
 function formatUsage(usage) {
   if (typeof usage.used_bytes === "number" && typeof usage.limit_bytes === "number") {
@@ -26009,6 +26050,23 @@ ${lines.join(`
       return okResponse(`Deleted version v${result.version_number} of '${slug}'.
 ` + `Reclaimed: ${formatBytes(result.freed_bytes)}
 ` + `Usage: ${formatUsage(result.usage)}`);
+    } catch (err) {
+      return errResponse(err);
+    }
+  });
+  server.registerTool("versions_restore", {
+    title: "Restore Site Version",
+    description: "Rolls a published site on upubli.sh back to a previous version, making " + "that version live again. Use `versions_list` first to see version numbers " + "and their dates/sizes. Returns the now-live version number and live URL. " + "Restoring versions requires a paid plan.",
+    inputSchema: {
+      slug: exports_external.string().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
+      version: exports_external.number().int().positive().describe("The version number to restore (a positive integer). " + "Use `versions_list` to see available version numbers."),
+      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
+    }
+  }, async ({ slug, version: version2, namespace }) => {
+    try {
+      const result = await restoreSiteVersion(slug, version2, namespace, coreDeps);
+      return okResponse(`Restored '${slug}' to version v${result.version_number}, now live.
+` + `URL: ${result.url}`);
     } catch (err) {
       return errResponse(err);
     }

@@ -256,3 +256,171 @@ describe("DW-4.3: versions_delete output", () => {
     expect(result.isError).not.toBe(true);
   });
 });
+
+// ─── DW-1.2: versions_restore tool ────────────────────────────────────────────
+
+describe("DW-1.2: versions_restore tool", () => {
+  test("test_DW_1_2_versions_restore_tool_registered", () => {
+    const { credFile, deps } = makeDeps();
+    tmpCredFiles.push(credFile);
+    const server = createServer(deps);
+    const tools = getTools(server);
+    expect("versions_restore" in tools).toBe(true);
+  });
+
+  test("test_DW_1_2_versions_restore_renders_version_and_url", async () => {
+    let capturedUrl = "";
+    let capturedMethod = "";
+    const fetchFn = makeMockFetch(async (url, init) => {
+      if (url.includes("/rollback") && init?.method === "POST") {
+        capturedUrl = url;
+        capturedMethod = init?.method ?? "";
+        return new Response(
+          JSON.stringify({ url: "https://default.user.upubli.sh/my-site/" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return null as unknown as Response;
+    });
+
+    const { credFile, deps } = makeDeps(fetchFn);
+    tmpCredFiles.push(credFile);
+
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["versions_restore"].handler({ slug: "my-site", version: 2 });
+
+    expect(result.isError).not.toBe(true);
+    expect(capturedMethod).toBe("POST");
+    expect(capturedUrl).toContain(`/api/ns/${DEFAULT_NS_ID}/sites/my-site/versions/2/rollback`);
+    const text = result.content[0].text;
+    // Success output surfaces the now-live version AND the live URL.
+    expect(text).toContain("v2");
+    expect(text).toContain("https://default.user.upubli.sh/my-site/");
+  });
+
+  test("test_DW_1_2_versions_restore_namespace_omitted_resolves_default", async () => {
+    let capturedUrl = "";
+    const fetchFn = makeMockFetch(async (url, init) => {
+      if (url.includes("/rollback") && init?.method === "POST") {
+        capturedUrl = url;
+        return new Response(
+          JSON.stringify({ url: "https://default.user.upubli.sh/my-site/" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return null as unknown as Response;
+    });
+
+    const { credFile, deps } = makeDeps(fetchFn);
+    tmpCredFiles.push(credFile);
+
+    const server = createServer(deps);
+    const tools = getTools(server);
+    // namespace omitted entirely
+    const result = await tools["versions_restore"].handler({ slug: "my-site", version: 1 });
+
+    expect(result.isError).not.toBe(true);
+    // Resolved to the default namespace (DEFAULT_NS_ID from /api/space).
+    expect(capturedUrl).toContain(`/api/ns/${DEFAULT_NS_ID}/sites/my-site/versions/1/rollback`);
+  });
+});
+
+// ─── DW-1.3: versions_restore error rendering (403 / 404) ─────────────────────
+
+describe("DW-1.3: versions_restore error rendering", () => {
+  test("test_DW_1_3_paid_tier_403_renders_paid_plan_message", async () => {
+    const fetchFn = makeMockFetch(async (url, init) => {
+      if (url.includes("/rollback") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ error: "Version activation requires a paid plan" }),
+          { status: 403, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return null as unknown as Response;
+    });
+
+    const { credFile, deps } = makeDeps(fetchFn);
+    tmpCredFiles.push(credFile);
+
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["versions_restore"].handler({ slug: "my-site", version: 2 });
+
+    expect(result.isError).toBe(true);
+    const text = result.content[0].text;
+    // Clear, human-readable paid-plan message — not a raw "API error 403:" string/stack.
+    expect(text.toLowerCase()).toContain("paid plan");
+    expect(text).not.toContain("API error 403");
+    expect(text).not.toMatch(/at .*\(.*:\d+:\d+\)/); // no stack frames
+  });
+
+  test("test_DW_1_3_unknown_version_404_renders_not_found_message", async () => {
+    const fetchFn = makeMockFetch(async (url, init) => {
+      if (url.includes("/rollback") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ error: "Version 99 not found" }),
+          { status: 404, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return null as unknown as Response;
+    });
+
+    const { credFile, deps } = makeDeps(fetchFn);
+    tmpCredFiles.push(credFile);
+
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["versions_restore"].handler({ slug: "my-site", version: 99 });
+
+    expect(result.isError).toBe(true);
+    const text = result.content[0].text;
+    // "version N not found, see versions_list" — clear message, not a raw error.
+    expect(text).toContain("99");
+    expect(text.toLowerCase()).toContain("not found");
+    expect(text.toLowerCase()).toContain("versions_list");
+    expect(text).not.toContain("API error 404");
+  });
+});
+
+// ─── DW-1.4: versions_list output shows date / size / file count ───────────────
+
+describe("DW-1.4: versions_list shows version metadata", () => {
+  test("test_DW_1_4_versions_list_output_shows_metadata", async () => {
+    const fetchFn = makeMockFetch(async (url, init) => {
+      if (url.includes("/versions") && (init?.method ?? "GET") === "GET") {
+        return new Response(
+          JSON.stringify({
+            versions: [
+              {
+                version_number: 2,
+                status: "live",
+                is_live: true,
+                created_at: "2026-06-10T12:00:00.000Z",
+                file_count: 7,
+                total_size: 2048,
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return null as unknown as Response;
+    });
+
+    const { credFile, deps } = makeDeps(fetchFn);
+    tmpCredFiles.push(credFile);
+
+    const server = createServer(deps);
+    const tools = getTools(server);
+    const result = await tools["versions_list"].handler({ slug: "my-site" });
+
+    expect(result.isError).not.toBe(true);
+    const text = result.content[0].text;
+    // File count and size are visible to the user.
+    expect(text).toContain("7 files");
+    expect(text).toContain("2.0 KB");
+    // A creation date is rendered (year present is enough to confirm the date field surfaced).
+    expect(text).toContain("2026");
+  });
+});
