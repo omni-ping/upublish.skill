@@ -35,16 +35,24 @@ const APPROVAL_URL_FALLBACK = "https://upubli.sh/profile/settings?overage_reques
 /**
  * Thrown when the API returns 402 `needs_overage_approval`. Carries the
  * structured fields from the backend response so the adapter can surface the
- * approval URL and price without reformatting the generic error message.
+ * approval URL and pack pricing without reformatting the generic error message.
  *
- * Both `approval_url` and `price` are defensively defaulted: if the backend
- * body is malformed or missing these fields, the caller still gets a usable
- * error with the fallback URL.
+ * `approval_url` is defensively defaulted to the canonical fallback when the
+ * backend body is malformed or missing it — the caller always receives a usable
+ * approval URL even on a partial/unexpected body.
+ *
+ * `price`, `pack_size`, and `interval` are nullable: when the body omits them,
+ * the adapter renders pack-language copy without hardcoded price literals.
  */
 export class OverageApprovalError extends Error {
   constructor(
     public readonly approval_url: string,
-    public readonly price: number,
+    /** USD price for one pack, or null when absent from the 402 body. */
+    public readonly price: number | null,
+    /** Number of address slots per pack, or null when absent from the 402 body. */
+    public readonly pack_size: number | null,
+    /** Billing interval of the base subscription, or null when unknown/absent. */
+    public readonly interval: "month" | "year" | null,
     message: string,
   ) {
     super(message);
@@ -67,8 +75,13 @@ interface NamespacesResponse {
 /** Backend response shape for POST /api/ns. */
 interface CreateNamespaceResponse {
   namespace: Namespace;
-  /** Present on a consented over-cap create (201 with overage charged). */
-  overage?: { charged: boolean; price: number };
+  /**
+   * Present on a consented over-cap create (201 with overage charged).
+   * `pack_size` is the number of address slots per pack (always 5).
+   * `interval` is the billing interval matching the base subscription.
+   * `price` is the USD cost per pack (1 monthly, 10 annual).
+   */
+  overage?: { charged: boolean; price: number; pack_size: number; interval: "month" | "year" };
 }
 
 /** Result of creating a namespace — the new id and the domain it lives on. */
@@ -78,10 +91,11 @@ export interface NamespaceCreateResult {
   /** The domain the namespace lives under (e.g. "upubli.sh"). */
   domain: string;
   /**
-   * Present when this create charged an overage ($0.20/mo per extra address).
+   * Present when this create charged an address-pack overage. The backend bills
+   * recurring packs of `pack_size` address slots at `price` USD per `interval`.
    * Absent on a normal within-cap create.
    */
-  overage?: { charged: boolean; price: number };
+  overage?: { charged: boolean; price: number; pack_size: number; interval: "month" | "year" };
 }
 
 // ─── Resolution ──────────────────────────────────────────────────────────────
@@ -223,9 +237,14 @@ export async function namespaceCreate(
     namespace_id: response.namespace.id,
     domain: response.namespace.domain,
   };
-  // Thread the overage field through when the backend signals a charged create.
+  // Thread the overage field through when the backend signals a charged pack create.
   if (response.overage?.charged === true) {
-    result.overage = { charged: true, price: response.overage.price };
+    result.overage = {
+      charged: true,
+      price: response.overage.price,
+      pack_size: response.overage.pack_size,
+      interval: response.overage.interval,
+    };
   }
   return result;
 }
@@ -234,9 +253,10 @@ export async function namespaceCreate(
  * Enriches API errors with actionable guidance at the namespace barricade.
  *
  * - 402 `needs_overage_approval`: converts to `OverageApprovalError` carrying
- *   the approval URL and price from the structured body. Defensively defaults
- *   both fields if the backend body is malformed or missing them — the caller
- *   always receives a usable approval URL even on a partial/unexpected body.
+ *   the approval URL, pack price, pack size, and billing interval from the body.
+ *   All fields are defensively narrowed — a malformed or partial body still
+ *   produces a usable error with the canonical fallback URL and pack wording
+ *   (no hardcoded `$0.20` price literal).
  * - 403 tier-limit: appends the upgrade URL (existing behavior, free users).
  * - All other errors: pass through unchanged — backend text is already actionable.
  */
@@ -250,12 +270,23 @@ function enrichNamespaceError(err: Error): Error {
         typeof body?.approval_url === "string" && body.approval_url
           ? body.approval_url
           : APPROVAL_URL_FALLBACK;
+      // All pack fields are nullable — a missing/malformed body must not
+      // produce a hardcoded price literal. The adapter renders pack copy.
       const price =
-        typeof body?.price === "number" && isFinite(body.price) ? body.price : 0.2;
+        typeof body?.price === "number" && isFinite(body.price) ? body.price : null;
+      const pack_size =
+        typeof body?.pack_size === "number" && Number.isInteger(body.pack_size) && body.pack_size > 0
+          ? body.pack_size
+          : null;
+      const rawInterval = body?.interval;
+      const interval: "month" | "year" | null =
+        rawInterval === "month" || rawInterval === "year" ? rawInterval : null;
       return new OverageApprovalError(
         approvalUrl,
         price,
-        `Needs overage approval: extra addresses cost $${price.toFixed(2)}/mo. Approve at ${approvalUrl}`,
+        pack_size,
+        interval,
+        `Address pack approval required. Approve at ${approvalUrl}`,
       );
     }
     // 402 with an unexpected code — fall through to pass-through below.

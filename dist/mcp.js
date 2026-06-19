@@ -25190,10 +25190,14 @@ var APPROVAL_URL_FALLBACK = "https://upubli.sh/profile/settings?overage_request=
 class OverageApprovalError extends Error {
   approval_url;
   price;
-  constructor(approval_url, price, message) {
+  pack_size;
+  interval;
+  constructor(approval_url, price, pack_size, interval, message) {
     super(message);
     this.approval_url = approval_url;
     this.price = price;
+    this.pack_size = pack_size;
+    this.interval = interval;
     this.name = "OverageApprovalError";
   }
 }
@@ -25248,7 +25252,12 @@ async function namespaceCreate(apiClient, name, domain = DEFAULT_NAMESPACE_DOMAI
     domain: response.namespace.domain
   };
   if (response.overage?.charged === true) {
-    result.overage = { charged: true, price: response.overage.price };
+    result.overage = {
+      charged: true,
+      price: response.overage.price,
+      pack_size: response.overage.pack_size,
+      interval: response.overage.interval
+    };
   }
   return result;
 }
@@ -25258,8 +25267,11 @@ function enrichNamespaceError(err) {
     const code = typeof body?.code === "string" ? body.code : "";
     if (code === "needs_overage_approval" || /needs_overage_approval/i.test(err.message)) {
       const approvalUrl = typeof body?.approval_url === "string" && body.approval_url ? body.approval_url : APPROVAL_URL_FALLBACK;
-      const price = typeof body?.price === "number" && isFinite(body.price) ? body.price : 0.2;
-      return new OverageApprovalError(approvalUrl, price, `Needs overage approval: extra addresses cost $${price.toFixed(2)}/mo. Approve at ${approvalUrl}`);
+      const price = typeof body?.price === "number" && isFinite(body.price) ? body.price : null;
+      const pack_size = typeof body?.pack_size === "number" && Number.isInteger(body.pack_size) && body.pack_size > 0 ? body.pack_size : null;
+      const rawInterval = body?.interval;
+      const interval = rawInterval === "month" || rawInterval === "year" ? rawInterval : null;
+      return new OverageApprovalError(approvalUrl, price, pack_size, interval, `Address pack approval required. Approve at ${approvalUrl}`);
     }
   }
   const isTierLimit = /API error 403/.test(err.message) && /limit/i.test(err.message);
@@ -25667,7 +25679,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.20";
+var PACKAGE_VERSION = "0.12.21";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -26309,19 +26321,20 @@ ${lines.join(`
         `Domain: ${result.domain}`
       ];
       if (result.overage?.charged === true) {
-        const price = typeof result.overage.price === "number" && isFinite(result.overage.price) ? result.overage.price : 0.2;
-        lines.push(``, `+$${price.toFixed(2)}/mo added to your bill for this extra address.`);
+        const intervalSuffix = result.overage.interval === "year" ? "/yr" : "/mo";
+        lines.push(``, `+$${result.overage.price.toFixed(2)}${intervalSuffix} added to your bill \u2014 ` + `a pack of ${result.overage.pack_size} address slots.`);
       }
       return okResponse(lines.join(`
 `));
     } catch (err) {
       if (err instanceof OverageApprovalError) {
+        const priceLine = err.price !== null ? `Adding this address requires a pack of ${err.pack_size ?? 5} address slots ` + `at $${err.price.toFixed(2)}${err.interval === "year" ? "/yr" : "/mo"}.` : `Adding this address requires an address pack.`;
         return {
           content: [
             {
               type: "text",
               text: [
-                `Extra address approval required: extra addresses cost $${err.price.toFixed(2)}/mo per address.`,
+                `Address pack approval required. ${priceLine}`,
                 `To authorize this charge, open the approval page:`,
                 `  ${err.approval_url}`,
                 ``,

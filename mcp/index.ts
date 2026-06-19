@@ -75,7 +75,7 @@ export type { CoreDeps, TokenProvider };
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.12.20";
+export const PACKAGE_VERSION = "0.12.21";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -1373,23 +1373,35 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           `Domain: ${result.domain}`,
         ];
         if (result.overage?.charged === true) {
-          const price = typeof result.overage.price === "number" && isFinite(result.overage.price)
-            ? result.overage.price
-            : 0.2;
-          lines.push(``, `+$${price.toFixed(2)}/mo added to your bill for this extra address.`);
+          // Render interval-aware pack copy from server-returned values.
+          // Never hardcode a price — use whatever the backend returned.
+          const intervalSuffix = result.overage.interval === "year" ? "/yr" : "/mo";
+          lines.push(
+            ``,
+            `+$${result.overage.price.toFixed(2)}${intervalSuffix} added to your bill — ` +
+            `a pack of ${result.overage.pack_size} address slots.`,
+          );
         }
         return okResponse(lines.join("\n"));
       } catch (err) {
-        // 402 needs_overage_approval: surface the approval URL and price so the
-        // agent can forward them to the user. Never send accept_overage — that
+        // 402 needs_overage_approval: surface the approval URL and pack price so
+        // the agent can forward them to the user. Never send accept_overage — that
         // flag is reserved for explicit human consent on a surface we control.
         if (err instanceof OverageApprovalError) {
+          // Render interval-aware price copy when the server supplied it.
+          // Omit the price line entirely when the body was malformed/missing it —
+          // never fall back to a hardcoded literal.
+          const priceLine =
+            err.price !== null
+              ? `Adding this address requires a pack of ${err.pack_size ?? 5} address slots ` +
+                `at $${err.price.toFixed(2)}${err.interval === "year" ? "/yr" : "/mo"}.`
+              : `Adding this address requires an address pack.`;
           return {
             content: [
               {
                 type: "text" as const,
                 text: [
-                  `Extra address approval required: extra addresses cost $${err.price.toFixed(2)}/mo per address.`,
+                  `Address pack approval required. ${priceLine}`,
                   `To authorize this charge, open the approval page:`,
                   `  ${err.approval_url}`,
                   ``,
