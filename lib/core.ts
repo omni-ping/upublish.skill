@@ -33,6 +33,7 @@ import { ApiClient } from "./api-client.ts";
 import { listSites } from "./list.ts";
 import { publish as domainPublish } from "./publish.ts";
 import type { PublishResult, UploadProgress } from "./publish.ts";
+import { StorageApprovalError } from "./publish.ts";
 import { deleteSite } from "./delete.ts";
 import { log } from "./log.ts";
 import type { DeleteResult } from "./delete.ts";
@@ -137,6 +138,7 @@ import { displayMsg } from "./display-msg.ts";
 // don't have to reach into lib/auth.ts or other submodules.
 export type { LoginDeps, LoginResult, CallbackServer, TokenResponse };
 export type { PublishResult, UploadProgress };
+export { StorageApprovalError };
 export type { DeleteResult };
 export type { PromoteResult };
 export type { ListVersionsResult, DeleteVersionResult, SetVersionsLimitResult, SiteVersion };

@@ -24654,6 +24654,40 @@ import {
   statSync
 } from "fs";
 import { join as join3, relative } from "path";
+var STORAGE_APPROVAL_URL_FALLBACK = "https://upubli.sh/profile/settings?storage_request=1";
+
+class StorageApprovalError extends Error {
+  approval_url;
+  price;
+  block_gb;
+  blocks_needed;
+  interval;
+  constructor(approval_url, price, block_gb, blocks_needed, interval, message) {
+    super(message);
+    this.approval_url = approval_url;
+    this.price = price;
+    this.block_gb = block_gb;
+    this.blocks_needed = blocks_needed;
+    this.interval = interval;
+    this.name = "StorageApprovalError";
+  }
+}
+function enrichPublishError(err) {
+  if (err instanceof ApiError && err.status === 402) {
+    const body = err.rawBodyData;
+    const code = typeof body?.code === "string" ? body.code : "";
+    if (code === "needs_storage_approval") {
+      const approvalUrl = typeof body?.approval_url === "string" && body.approval_url ? body.approval_url : STORAGE_APPROVAL_URL_FALLBACK;
+      const price = typeof body?.price === "number" && isFinite(body.price) ? body.price : null;
+      const block_gb = typeof body?.block_gb === "number" && Number.isInteger(body.block_gb) && body.block_gb > 0 ? body.block_gb : null;
+      const blocks_needed = typeof body?.blocks_needed === "number" && Number.isInteger(body.blocks_needed) && body.blocks_needed > 0 ? body.blocks_needed : null;
+      const rawInterval = body?.interval;
+      const interval = rawInterval === "month" || rawInterval === "year" ? rawInterval : null;
+      return new StorageApprovalError(approvalUrl, price, block_gb, blocks_needed, interval, `Storage pack approval required. Approve at ${approvalUrl}`);
+    }
+  }
+  return err;
+}
 function isValidSlug(slug) {
   if (slug.length < 3 || slug.length > 63)
     return false;
@@ -24882,15 +24916,20 @@ async function publish(opts) {
   }));
   const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
   log(`[publish] slug=${slug} files=${files.length} totalBytes=${totalBytes}${force ? " FORCE" : ""}`);
-  const manifestResult = await apiClient.manifest(nsId, slug, {
-    files,
-    title: title ?? slug,
-    visibility,
-    passcode: visibility === "passcode" ? passcode : undefined,
-    passcode_label: visibility === "passcode" ? passcodeLabel ?? "default" : undefined,
-    preview,
-    analytics_enabled: analyticsEnabled
-  });
+  let manifestResult;
+  try {
+    manifestResult = await apiClient.manifest(nsId, slug, {
+      files,
+      title: title ?? slug,
+      visibility,
+      passcode: visibility === "passcode" ? passcode : undefined,
+      passcode_label: visibility === "passcode" ? passcodeLabel ?? "default" : undefined,
+      preview,
+      analytics_enabled: analyticsEnabled
+    });
+  } catch (err) {
+    throw enrichPublishError(err);
+  }
   log(`[manifest] version=${manifestResult.version} session_id=${manifestResult.session_id} base_version=${manifestResult.base_version} needed=${manifestResult.needed.length} total=${files.length}`);
   await uploadChangedFiles({
     needed: manifestResult.needed,
@@ -24903,7 +24942,7 @@ async function publish(opts) {
   const skippedFiles = files.map((f) => f.path).filter((p) => !neededPaths.has(p));
   const finalizeResult = await apiClient.finalize(nsId, slug, manifestResult.session_id);
   log(`[finalize] slug=${slug} uploaded=${uploadedFiles.length} skipped=${skippedFiles.length} url=${finalizeResult.url}`);
-  return {
+  const result = {
     url: finalizeResult.url,
     preview_url: finalizeResult.preview_url,
     site: finalizeResult.site,
@@ -24912,6 +24951,10 @@ async function publish(opts) {
     uploadedFiles,
     skippedFiles
   };
+  if (manifestResult.storage_overage?.charged === true) {
+    result.storage_overage = manifestResult.storage_overage;
+  }
+  return result;
 }
 
 // lib/delete.ts
@@ -25839,13 +25882,22 @@ Warning: Included files that may not be site content: ${result.warnings.join(", 
   Add them to .upublishignore in the publish directory to exclude.` : "";
       const incrementalLine = result.uploadedFiles !== undefined && result.skippedFiles !== undefined ? `
 Uploaded: ${result.uploadedFiles.length} file(s), skipped ${result.skippedFiles.length} unchanged file(s)` : "";
+      const storageOverageLine = (() => {
+        const ov = result.storage_overage;
+        if (ov?.charged !== true)
+          return "";
+        const intervalSuffix = ov.interval === "year" ? "/yr" : "/mo";
+        return `
+
++$${ov.price.toFixed(2)}${intervalSuffix} added to your bill \u2014 ` + `${ov.blocks} x ${ov.block_gb}GB storage block${ov.blocks !== 1 ? "s" : ""}.`;
+      })();
       if (result.preview_url) {
         log(`[publish] tool done slug=${site.slug} preview_url=${result.preview_url}`);
         return okResponse(`Preview published!
 ` + `Preview URL: ${result.preview_url}
 ` + `Slug: ${site.slug}
 ` + `Files: ${site.file_count}
-` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + incrementalLine + `
+` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + incrementalLine + storageOverageLine + `
 Use the promote tool to make this preview live.`);
       }
       log(`[publish] tool done slug=${site.slug} url=${result.url}`);
@@ -25853,10 +25905,29 @@ Use the promote tool to make this preview live.`);
 ` + `URL: ${result.url}
 ` + `Slug: ${site.slug}
 ` + `Files: ${site.file_count}
-` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + incrementalLine);
+` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + incrementalLine + storageOverageLine);
     } catch (err) {
       stopHeartbeat();
       log(`[publish] tool error slug=${slug} err=${err.message}`);
+      if (err instanceof StorageApprovalError) {
+        const priceLine = err.price !== null ? `Approving adds a ${err.block_gb ?? 10}GB storage block ` + `at $${err.price.toFixed(2)}${err.interval === "year" ? "/yr" : "/mo"}.` : `Approving adds a storage block to your subscription.`;
+        return {
+          content: [
+            {
+              type: "text",
+              text: [
+                `Storage pack approval required. ${priceLine}`,
+                `To authorize this charge, open the approval page:`,
+                `  ${err.approval_url}`,
+                ``,
+                `Once approved, retry the publish \u2014 no extra flag needed.`
+              ].join(`
+`)
+            }
+          ],
+          isError: true
+        };
+      }
       return errResponse(err);
     }
   });

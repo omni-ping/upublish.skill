@@ -31,6 +31,7 @@ import {
   logout,
   namespaceCreate,
   OverageApprovalError,
+  StorageApprovalError,
   domain,
   addPasscode,
   listPasscodes,
@@ -447,6 +448,18 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             ? `\nUploaded: ${result.uploadedFiles.length} file(s), skipped ${result.skippedFiles.length} unchanged file(s)`
             : "";
 
+        // Surface storage-pack block charge when the manifest response included one.
+        // Render interval-aware copy from server-returned values only — never hardcode.
+        const storageOverageLine = (() => {
+          const ov = result.storage_overage;
+          if (ov?.charged !== true) return "";
+          const intervalSuffix = ov.interval === "year" ? "/yr" : "/mo";
+          return (
+            `\n\n+$${ov.price.toFixed(2)}${intervalSuffix} added to your bill — ` +
+            `${ov.blocks} x ${ov.block_gb}GB storage block${ov.blocks !== 1 ? "s" : ""}.`
+          );
+        })();
+
         if (result.preview_url) {
           log(`[publish] tool done slug=${site.slug} preview_url=${result.preview_url}`);
           return okResponse(
@@ -459,6 +472,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             excludedLine +
             warningLine +
             incrementalLine +
+            storageOverageLine +
             `\nUse the promote tool to make this preview live.`,
           );
         }
@@ -473,11 +487,41 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           visibilityLine +
           excludedLine +
           warningLine +
-          incrementalLine,
+          incrementalLine +
+          storageOverageLine,
         );
       } catch (err) {
         stopHeartbeat();
         log(`[publish] tool error slug=${slug as string} err=${(err as Error).message}`);
+        // 402 needs_storage_approval: surface the approval URL and pack pricing.
+        // Never send accept_overage — that flag is reserved for explicit human
+        // consent on a surface we control. Agents must always forward the approval
+        // URL to the user and wait for them to authorize the charge manually.
+        if (err instanceof StorageApprovalError) {
+          // Render interval-aware price copy when the server supplied it.
+          // Omit the price line entirely when the body was malformed/missing it —
+          // never fall back to a hardcoded literal.
+          const priceLine =
+            err.price !== null
+              ? `Approving adds a ${err.block_gb ?? 10}GB storage block ` +
+                `at $${err.price.toFixed(2)}${err.interval === "year" ? "/yr" : "/mo"}.`
+              : `Approving adds a storage block to your subscription.`;
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: [
+                  `Storage pack approval required. ${priceLine}`,
+                  `To authorize this charge, open the approval page:`,
+                  `  ${err.approval_url}`,
+                  ``,
+                  `Once approved, retry the publish — no extra flag needed.`,
+                ].join("\n"),
+              },
+            ],
+            isError: true,
+          };
+        }
         return errResponse(err);
       }
     },

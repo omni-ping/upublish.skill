@@ -24,8 +24,95 @@ import {
 } from "fs";
 import { join, relative } from "path";
 import type { ApiClient } from "./api-client.ts";
+import { ApiError } from "./api-client.ts";
 import type { FetchFn, Site, Visibility } from "./types.ts";
 import { log } from "./log.ts";
+
+// ─── Storage pack approval error ──────────────────────────────────────────────
+
+/** Fallback approval URL when the 402 body omits it. */
+const STORAGE_APPROVAL_URL_FALLBACK =
+  "https://upubli.sh/profile/settings?storage_request=1";
+
+/**
+ * Thrown when the API returns 402 `needs_storage_approval`. Carries the
+ * structured fields from the backend response so the adapter can surface the
+ * approval URL and pack pricing without reformatting the generic error message.
+ *
+ * `approval_url` is defensively defaulted to the canonical fallback when the
+ * backend body is malformed or missing it — the caller always receives a usable
+ * approval URL even on a partial/unexpected body.
+ *
+ * `price`, `block_gb`, `blocks_needed`, and `interval` are nullable: when the
+ * body omits them, the adapter renders pack-language copy without hardcoded
+ * price literals.
+ */
+export class StorageApprovalError extends Error {
+  constructor(
+    public readonly approval_url: string,
+    /** USD price for one 10GB storage block, or null when absent from the 402 body. */
+    public readonly price: number | null,
+    /** Block size in GB (always 10 per contract), or null when absent. */
+    public readonly block_gb: number | null,
+    /** Number of blocks needed to cover the overage, or null when absent. */
+    public readonly blocks_needed: number | null,
+    /** Billing interval of the base subscription, or null when unknown/absent. */
+    public readonly interval: "month" | "year" | null,
+    message: string,
+  ) {
+    super(message);
+    this.name = "StorageApprovalError";
+  }
+}
+
+/**
+ * Enriches API errors at the publish barricade with storage-pack guidance.
+ *
+ * - 402 `needs_storage_approval`: converts to `StorageApprovalError` carrying
+ *   the approval URL, block price, block size, blocks needed, and billing
+ *   interval from the body. All fields are defensively narrowed — a malformed
+ *   or partial body still produces a usable error with the canonical fallback
+ *   URL and pack wording (no hardcoded price literal).
+ * - All other errors: pass through unchanged — backend text is already
+ *   actionable for the adapter.
+ */
+export function enrichPublishError(err: Error): Error {
+  if (err instanceof ApiError && err.status === 402) {
+    const body = err.rawBodyData as Record<string, unknown> | null;
+    const code = typeof body?.code === "string" ? body.code : "";
+    if (code === "needs_storage_approval") {
+      const approvalUrl =
+        typeof body?.approval_url === "string" && body.approval_url
+          ? body.approval_url
+          : STORAGE_APPROVAL_URL_FALLBACK;
+      // All pack fields are nullable — a missing/malformed body must not
+      // produce a hardcoded price literal. The adapter renders pack copy.
+      const price =
+        typeof body?.price === "number" && isFinite(body.price) ? body.price : null;
+      const block_gb =
+        typeof body?.block_gb === "number" && Number.isInteger(body.block_gb) && body.block_gb > 0
+          ? body.block_gb
+          : null;
+      const blocks_needed =
+        typeof body?.blocks_needed === "number" && Number.isInteger(body.blocks_needed) && body.blocks_needed > 0
+          ? body.blocks_needed
+          : null;
+      const rawInterval = body?.interval;
+      const interval: "month" | "year" | null =
+        rawInterval === "month" || rawInterval === "year" ? rawInterval : null;
+      return new StorageApprovalError(
+        approvalUrl,
+        price,
+        block_gb,
+        blocks_needed,
+        interval,
+        `Storage pack approval required. Approve at ${approvalUrl}`,
+      );
+    }
+    // 402 with an unexpected code — fall through to pass-through below.
+  }
+  return err;
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -122,6 +209,22 @@ export interface PublishResult {
    * These files were unchanged and did not need to be re-uploaded.
    */
   skippedFiles?: string[];
+  /**
+   * Present when this publish charged storage-pack blocks. The backend bills
+   * recurring packs of `block_gb` GB at `price` USD per `interval`.
+   * Absent on a normal within-cap publish.
+   */
+  storage_overage?: {
+    charged: boolean;
+    /** Block size in GB (always 10). */
+    block_gb: number;
+    /** Number of blocks charged to cover the overage. */
+    blocks: number;
+    /** USD price per block for this interval. */
+    price: number;
+    /** Billing interval matching the base subscription. */
+    interval: "month" | "year";
+  };
 }
 
 // ─── Incremental publish types ────────────────────────────────────────────────
@@ -622,17 +725,23 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   log(`[publish] slug=${slug} files=${files.length} totalBytes=${totalBytes}${force ? " FORCE" : ""}`);
 
   // Send manifest — server diffs against previous version and returns presigned URLs.
-  // Errors propagate directly to the caller (no fallback path).
-  const manifestResult = await apiClient.manifest(nsId, slug, {
-    files,
-    title: title ?? slug,
-    visibility,
-    passcode: visibility === "passcode" ? passcode : undefined,
-    passcode_label:
-      visibility === "passcode" ? (passcodeLabel ?? "default") : undefined,
-    preview,
-    analytics_enabled: analyticsEnabled,
-  });
+  // A 402 needs_storage_approval is enriched into a StorageApprovalError so the
+  // adapter can surface the approval URL and pack price without re-parsing the body.
+  let manifestResult: Awaited<ReturnType<typeof apiClient.manifest>>;
+  try {
+    manifestResult = await apiClient.manifest(nsId, slug, {
+      files,
+      title: title ?? slug,
+      visibility,
+      passcode: visibility === "passcode" ? passcode : undefined,
+      passcode_label:
+        visibility === "passcode" ? (passcodeLabel ?? "default") : undefined,
+      preview,
+      analytics_enabled: analyticsEnabled,
+    });
+  } catch (err) {
+    throw enrichPublishError(err as Error);
+  }
 
   log(`[manifest] version=${manifestResult.version} session_id=${manifestResult.session_id} base_version=${manifestResult.base_version} needed=${manifestResult.needed.length} total=${files.length}`);
 
@@ -657,7 +766,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
 
   log(`[finalize] slug=${slug} uploaded=${uploadedFiles.length} skipped=${skippedFiles.length} url=${finalizeResult.url}`);
 
-  return {
+  const result: PublishResult = {
     url: finalizeResult.url,
     preview_url: finalizeResult.preview_url,
     site: finalizeResult.site,
@@ -666,4 +775,11 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     uploadedFiles,
     skippedFiles,
   };
+
+  // Thread storage_overage from the manifest response when present and charged.
+  if (manifestResult.storage_overage?.charged === true) {
+    result.storage_overage = manifestResult.storage_overage;
+  }
+
+  return result;
 }
