@@ -54,6 +54,7 @@ Match what the user wants and read the reference file, then follow it.
 | **Pre-publish validation (REQUIRED before every publish)** | `../../references/pre-publish-checklist.md` |
 | Figure out what type of content this is | `../../references/content-types/taxonomy.md` then the specific content type reference |
 | List, delete, or manage existing sites | `../../references/managing.md` |
+| Roll a site back to a previous version, or manage versions | `../../references/managing.md` |
 | Control who can access a site (passcode) | `../../references/visibility.md` |
 | Add another address (URL prefix) | Call `namespace_create` (free plan allows one; tier-limit errors include the upgrade link) |
 | Optimize site performance or reduce size | `../../references/optimization.md` |
@@ -70,7 +71,11 @@ Match what the user wants and read the reference file, then follow it.
 | `mcp_upublish_namespace_create` | Create an additional address (URL prefix); tier-limited, returns the new address id + domain |
 | `mcp_upublish_publish` | Publish a directory as a live site |
 | `mcp_upublish_list` | List all published sites with URLs |
-| `mcp_upublish_delete` | Delete a published site (permanent, confirm first) |
+| `mcp_upublish_delete` | Delete a published site and all its versions (permanent, confirm first) |
+| `mcp_upublish_versions_list` | List a site's retained versions (number, live status, date, file count, size) |
+| `mcp_upublish_versions_restore` | Roll a site back to a previous version, making it live again (paid plan required) |
+| `mcp_upublish_versions_limit` | Set or clear how many versions are retained per site |
+| `mcp_upublish_versions_delete` | Delete a single archived (non-live) version to reclaim storage |
 | `mcp_upublish_passcode_add` | Add a passcode to a site |
 | `mcp_upublish_passcode_list` | List passcodes for a site |
 | `mcp_upublish_passcode_revoke` | Revoke a passcode from a site |

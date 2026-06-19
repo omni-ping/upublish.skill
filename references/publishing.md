@@ -25,7 +25,9 @@ The tool returns the **production URL** — always share this URL with the user,
 
 ## Republishing
 
-Publishing to an existing slug **replaces the entire site**. All previous files are deleted and replaced with the new ones. There's no merge or diff — it's a full replacement.
+Publishing to an existing slug serves a **new version** of the site: the new upload becomes what visitors see, replacing the previously live files (no merge or diff — each publish is a full snapshot of the directory).
+
+Republishing is **not destructive to history**. Each publish is saved as a retained version, so a republish can be undone — use `versions_list` to see the saved versions (number, date, file count, size) and `versions_restore` to make a previous version live again. Restoring requires a paid plan; how many versions are kept is governed by the per-site retention limit (`versions_limit`). See `references/managing.md` for the version tools.
 
 ## Good slug practices
 
