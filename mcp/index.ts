@@ -41,12 +41,14 @@ import {
   members,
   qrCode,
   rename,
+  upgrade,
   adminUser,
   adminSite,
   adminStats,
   adminStorage,
   adminDomains,
   displayMsg,
+  appendUpgradeHint,
 } from "../lib/core.ts";
 import type {
   CoreDeps,
@@ -249,6 +251,12 @@ export interface CreateServerOpts {
    * value (e.g. 50 ms) to verify heartbeat behavior without real delays.
    */
   heartbeatIntervalMs?: number;
+  /**
+   * Opens a URL in the default browser. Defaults to the `open` package. Tests
+   * inject a stub so the `upgrade` tool's success path can be exercised without
+   * actually launching a browser (and to simulate an open() rejection).
+   */
+  openBrowser?: (url: string) => Promise<void>;
 }
 
 /**
@@ -264,6 +272,7 @@ export interface CreateServerOpts {
  */
 export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpServer {
   const heartbeatIntervalMs = opts?.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
+  const openBrowser = opts?.openBrowser ?? ((url: string) => open(url).then(() => undefined));
   const server = new McpServer({
     name: PACKAGE_NAME,
     version: PACKAGE_VERSION,
@@ -532,7 +541,11 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             isError: true,
           };
         }
-        return errResponse(err);
+        // Free-tier TIER-LIMIT 403 (body has limit+usage, no `code`): append a
+        // one-line hint to run the `upgrade` tool. hard_max / admin / auth 403s
+        // are excluded by the discriminator, so the hint never appears there.
+        const e = err as Error;
+        return errResponse(new Error(appendUpgradeHint(e.message, err)));
       }
     },
   );
@@ -1404,6 +1417,65 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         }
         return errResponse(new Error(lines.join("\n")));
       }
+    },
+  );
+
+  server.registerTool(
+    "upgrade",
+    {
+      title: "Upgrade Plan",
+      description:
+        "Opens the Stripe Checkout page for a paid plan (pro or max) in your browser " +
+        "so the user can enter payment and upgrade their upubli.sh account. " +
+        "Use this when an agent hits a free-tier wall (file-size or storage tier limit) " +
+        "and the user wants more capacity. Card entry is browser-only by design — this " +
+        "tool only opens the right page, it cannot complete payment. The checkout URL is " +
+        "always included in the response so it can be opened manually (e.g. headless envs). " +
+        "Defaults to the pro plan billed monthly.",
+      inputSchema: {
+        plan: z
+          .enum(["pro", "max"])
+          .optional()
+          .describe("Which paid plan to check out. Defaults to 'pro'."),
+        interval: z
+          .enum(["month", "year"])
+          .optional()
+          .describe("Billing interval. Defaults to 'month'."),
+      },
+    },
+    async (args: { plan?: "pro" | "max"; interval?: "month" | "year" }) => {
+      // Mirror the login tool: capture the URL the moment the opener is invoked
+      // so it survives an open() rejection (headless / no DISPLAY) — DW-2.3.
+      let capturedUrl = "";
+
+      const result = await upgrade(
+        async (url: string) => {
+          capturedUrl = url;
+          await openBrowser(url);
+        },
+        { plan: args.plan, interval: args.interval },
+        coreDeps,
+      );
+
+      if (result.ok) {
+        return okResponse(
+          [
+            `Opening the checkout page in your browser to upgrade.`,
+            `Enter your payment details there to complete the upgrade.`,
+            ``,
+            `Checkout URL: ${result.url}`,
+          ].join("\n"),
+        );
+      }
+
+      // Failure: always echo the URL when we have one (browser failed to open
+      // after a successful checkout) so headless users can open it manually.
+      const url = result.url ?? capturedUrl;
+      const lines = [result.error];
+      if (url) {
+        lines.push("", `Checkout URL (open manually if needed): ${url}`);
+      }
+      return errResponse(new Error(lines.join("\n")));
     },
   );
 

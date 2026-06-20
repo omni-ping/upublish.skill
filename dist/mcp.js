@@ -25252,6 +25252,65 @@ async function adminDomains(apiClient, args) {
   }
 }
 
+// lib/upgrade.ts
+var VALID_PLANS = ["pro", "max"];
+var VALID_INTERVALS = ["month", "year"];
+var DEFAULT_PLAN = "pro";
+var DEFAULT_INTERVAL = "month";
+var UPGRADE_HINT = "To lift this limit, run the `upgrade` tool to open the checkout page in your browser.";
+function isValidPlan(v) {
+  return VALID_PLANS.includes(v);
+}
+function isValidInterval(v) {
+  return VALID_INTERVALS.includes(v);
+}
+async function startUpgrade(deps, args = {}) {
+  const plan = args.plan ?? DEFAULT_PLAN;
+  if (!isValidPlan(plan)) {
+    return {
+      ok: false,
+      error: `Invalid plan '${plan}'. Choose one of: ${VALID_PLANS.join(", ")}.`
+    };
+  }
+  const interval = args.interval ?? DEFAULT_INTERVAL;
+  if (!isValidInterval(interval)) {
+    return {
+      ok: false,
+      error: `Invalid interval '${interval}'. Choose one of: ${VALID_INTERVALS.join(", ")}.`
+    };
+  }
+  let url;
+  try {
+    const res = await deps.apiClient.post("/api/billing/checkout", { plan, interval });
+    if (!res || typeof res.url !== "string" || res.url.length === 0) {
+      return { ok: false, error: "Checkout did not return a URL. Please try again." };
+    }
+    url = res.url;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+  try {
+    await deps.openBrowser(url);
+  } catch {
+    return { ok: false, url, error: "Could not open a browser automatically." };
+  }
+  return { ok: true, url };
+}
+function isFreeTierLimit403(err) {
+  if (!(err instanceof ApiError) || err.status !== 403)
+    return false;
+  const body = err.rawBodyData;
+  if (body === null || typeof body !== "object")
+    return false;
+  const b = body;
+  if ("code" in b && b.code !== undefined && b.code !== null)
+    return false;
+  return b.limit !== undefined && b.usage !== undefined;
+}
+function appendUpgradeHint(message, err) {
+  return isFreeTierLimit403(err) ? `${message} ${UPGRADE_HINT}` : message;
+}
+
 // lib/namespace.ts
 var DEFAULT_NAMESPACE_DOMAIN = "upubli.sh";
 var UPGRADE_URL = "https://upubli.sh/pricing";
@@ -25334,8 +25393,8 @@ async function namespaceCreate(apiClient, name, domain = DEFAULT_NAMESPACE_DOMAI
 function enrichNamespaceError(err) {
   if (err instanceof ApiError && err.status === 402) {
     const body = err.rawBodyData;
-    const code = typeof body?.code === "string" ? body.code : "";
-    if (code === "needs_overage_approval" || /needs_overage_approval/i.test(err.message)) {
+    const code2 = typeof body?.code === "string" ? body.code : "";
+    if (code2 === "needs_overage_approval" || /needs_overage_approval/i.test(err.message)) {
       const approvalUrl = typeof body?.approval_url === "string" && body.approval_url ? body.approval_url : APPROVAL_URL_FALLBACK;
       const price = typeof body?.price === "number" && isFinite(body.price) ? body.price : null;
       const pack_size = typeof body?.pack_size === "number" && Number.isInteger(body.pack_size) && body.pack_size > 0 ? body.pack_size : null;
@@ -25344,9 +25403,11 @@ function enrichNamespaceError(err) {
       return new OverageApprovalError(approvalUrl, price, pack_size, interval, `Address pack approval required. Approve at ${approvalUrl}`);
     }
   }
-  const isTierLimit = /API error 403/.test(err.message) && /limit/i.test(err.message);
+  const code = err instanceof ApiError && err.rawBodyData && typeof err.rawBodyData === "object" ? err.rawBodyData.code : undefined;
+  const isHardMax = code === "hard_max";
+  const isTierLimit = !isHardMax && /API error 403/.test(err.message) && /limit/i.test(err.message);
   if (isTierLimit) {
-    return new Error(`${err.message} Upgrade at ${UPGRADE_URL} to create more namespaces.`);
+    return new Error(`${err.message} Upgrade at ${UPGRADE_URL} to create more namespaces. ${UPGRADE_HINT}`);
   }
   return err;
 }
@@ -25689,6 +25750,15 @@ async function domain2(args, deps) {
   const apiClient = await buildApiClient(deps);
   return domain(apiClient, args);
 }
+async function upgrade(openBrowser, args, deps) {
+  let apiClient;
+  try {
+    apiClient = await buildApiClient(deps);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+  return startUpgrade({ apiClient, openBrowser }, args);
+}
 async function login2(loginDeps, coreDeps) {
   const resolvedDeps = {
     ...loginDeps,
@@ -25844,6 +25914,9 @@ async function createCallbackServer() {
 var DEFAULT_HEARTBEAT_INTERVAL_MS = 15000;
 function createServer(coreDeps, opts) {
   const heartbeatIntervalMs = opts?.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
+  const openBrowser = opts?.openBrowser ?? ((url) => open_default(url).then(() => {
+    return;
+  }));
   const server = new McpServer({
     name: PACKAGE_NAME,
     version: PACKAGE_VERSION
@@ -25969,7 +26042,8 @@ Use the promote tool to make this preview live.`);
           isError: true
         };
       }
-      return errResponse(err);
+      const e = err;
+      return errResponse(new Error(appendUpgradeHint(e.message, err)));
     }
   });
   server.registerTool("list", {
@@ -26412,6 +26486,36 @@ ${lines.join(`
       return errResponse(new Error(lines.join(`
 `)));
     }
+  });
+  server.registerTool("upgrade", {
+    title: "Upgrade Plan",
+    description: "Opens the Stripe Checkout page for a paid plan (pro or max) in your browser " + "so the user can enter payment and upgrade their upubli.sh account. " + "Use this when an agent hits a free-tier wall (file-size or storage tier limit) " + "and the user wants more capacity. Card entry is browser-only by design \u2014 this " + "tool only opens the right page, it cannot complete payment. The checkout URL is " + "always included in the response so it can be opened manually (e.g. headless envs). " + "Defaults to the pro plan billed monthly.",
+    inputSchema: {
+      plan: exports_external.enum(["pro", "max"]).optional().describe("Which paid plan to check out. Defaults to 'pro'."),
+      interval: exports_external.enum(["month", "year"]).optional().describe("Billing interval. Defaults to 'month'.")
+    }
+  }, async (args) => {
+    let capturedUrl = "";
+    const result = await upgrade(async (url2) => {
+      capturedUrl = url2;
+      await openBrowser(url2);
+    }, { plan: args.plan, interval: args.interval }, coreDeps);
+    if (result.ok) {
+      return okResponse([
+        `Opening the checkout page in your browser to upgrade.`,
+        `Enter your payment details there to complete the upgrade.`,
+        ``,
+        `Checkout URL: ${result.url}`
+      ].join(`
+`));
+    }
+    const url = result.url ?? capturedUrl;
+    const lines = [result.error];
+    if (url) {
+      lines.push("", `Checkout URL (open manually if needed): ${url}`);
+    }
+    return errResponse(new Error(lines.join(`
+`)));
   });
   server.registerTool("status", {
     title: "Auth Status",

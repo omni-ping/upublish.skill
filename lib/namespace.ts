@@ -12,6 +12,7 @@
 import type { ApiClient } from "./api-client.ts";
 import { ApiError } from "./api-client.ts";
 import type { Namespace } from "./types.ts";
+import { UPGRADE_HINT } from "./upgrade.ts";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -292,10 +293,21 @@ function enrichNamespaceError(err: Error): Error {
     // 402 with an unexpected code — fall through to pass-through below.
   }
 
-  // 403 tier-limit: append the upgrade URL so the agent knows where to go.
-  const isTierLimit = /API error 403/.test(err.message) && /limit/i.test(err.message);
+  // 403 tier-limit: append the upgrade URL AND the `upgrade`-tool hint so the
+  // agent can either point the user at pricing or open checkout directly.
+  // Exclude the 1 TiB `hard_max` ceiling (carries `code: "hard_max"`) — an
+  // upgrade cannot lift it, so neither hint applies there.
+  const code =
+    err instanceof ApiError && err.rawBodyData && typeof err.rawBodyData === "object"
+      ? (err.rawBodyData as Record<string, unknown>).code
+      : undefined;
+  const isHardMax = code === "hard_max";
+  const isTierLimit =
+    !isHardMax && /API error 403/.test(err.message) && /limit/i.test(err.message);
   if (isTierLimit) {
-    return new Error(`${err.message} Upgrade at ${UPGRADE_URL} to create more namespaces.`);
+    return new Error(
+      `${err.message} Upgrade at ${UPGRADE_URL} to create more namespaces. ${UPGRADE_HINT}`,
+    );
   }
 
   return err;

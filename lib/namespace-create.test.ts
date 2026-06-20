@@ -114,3 +114,51 @@ describe("DW-5.3: namespaceCreate error mapping", () => {
     await expect(namespaceCreate(client, "x")).rejects.toThrow(/Space not found/i);
   });
 });
+
+// ─── DW-2.4: namespace_create tier-limit 403 → run-`upgrade` hint ─────────────
+
+describe("DW-2.4: namespaceCreate tier-limit 403 includes the upgrade-tool hint", () => {
+  it("test_DW_2_4_namespace_create_tier_limit_403_adds_upgrade_hint", async () => {
+    const client = clientWith(
+      mockFetch(403, {
+        error: "Root namespace limit reached. Your plan allows 1 root namespace(s).",
+        limit: 1,
+        usage: 1,
+      }),
+    );
+
+    let caught: Error | null = null;
+    try {
+      await namespaceCreate(client, "second-ns");
+    } catch (err) {
+      caught = err as Error;
+    }
+    expect(caught).not.toBeNull();
+    // The hint must tell the agent to run the `upgrade` tool (DW-2.4).
+    expect(caught!.message).toMatch(/run the `upgrade` tool/i);
+  });
+
+  it("test_DW_2_4_namespace_create_hard_max_403_no_hint", async () => {
+    // A hard_max 403 (1 TiB ceiling) carries `code: "hard_max"`; an upgrade
+    // cannot lift it, so neither the pricing line nor the tool hint applies.
+    const client = clientWith(
+      mockFetch(403, {
+        error: "Storage ceiling reached. limit exceeded.",
+        code: "hard_max",
+        limit: 1,
+        usage: 2,
+      }),
+    );
+
+    let caught: Error | null = null;
+    try {
+      await namespaceCreate(client, "second-ns");
+    } catch (err) {
+      caught = err as Error;
+    }
+    expect(caught).not.toBeNull();
+    // Even though the text contains "limit", the hard_max code excludes the hints.
+    expect(caught!.message).not.toMatch(/run the `upgrade` tool/i);
+    expect(caught!.message).not.toMatch(/upubli\.sh\/pricing/i);
+  });
+});

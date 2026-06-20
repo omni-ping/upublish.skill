@@ -131,6 +131,8 @@ import type {
 } from "./domain.ts";
 import { renameSite, renameNamespace } from "./rename.ts";
 import type { RedirectMode } from "./rename.ts";
+import { startUpgrade as domainStartUpgrade, appendUpgradeHint } from "./upgrade.ts";
+import type { UpgradeArgs, UpgradeResult } from "./upgrade.ts";
 import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission, TokenProvider } from "./types.ts";
 import { displayMsg } from "./display-msg.ts";
 
@@ -164,6 +166,8 @@ export type {
 };
 export type { NamespaceRole, TokenProvider } from "./types.ts";
 export type { RedirectMode };
+export type { UpgradeArgs, UpgradeResult };
+export { appendUpgradeHint };
 export { displayMsg };
 export type {
   AdminUserArgs,
@@ -940,6 +944,35 @@ export async function domain(
 ): Promise<DomainResult> {
   const apiClient = await buildApiClient(deps);
   return domainDomain(apiClient, args);
+}
+
+/**
+ * Opens the Stripe Checkout page for a chosen plan in the user's browser.
+ *
+ * Builds the authenticated api client (so "Not authenticated" surfaces exactly
+ * as it does for every other operation), then delegates to the pure
+ * `startUpgrade` orchestrator. The adapter supplies `openBrowser` (the `open`
+ * package). Returns a structured result — never throws for expected failures.
+ *
+ * @param openBrowser - Opens a URL in the default browser (adapter-injected).
+ * @param args - Optional `{ plan, interval }`; defaults to pro/month.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function upgrade(
+  openBrowser: (url: string) => Promise<void>,
+  args?: UpgradeArgs,
+  deps?: CoreDeps,
+): Promise<UpgradeResult> {
+  // Building the client throws "Not authenticated" on the disk path when no
+  // credentials exist. Convert it to a structured error so upgrade() upholds
+  // the no-throw-for-expected-failures contract (matching startUpgrade).
+  let apiClient: ApiClient;
+  try {
+    apiClient = await buildApiClient(deps);
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+  return domainStartUpgrade({ apiClient, openBrowser }, args);
 }
 
 /**
