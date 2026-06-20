@@ -19,7 +19,12 @@ There is no build step for development — Bun runs TypeScript directly. The `di
 ## Architecture
 
 ```
-mcp/index.ts       MCP server adapter — exposes login, status, namespace_create, publish, list, delete, passcode, and logout tools
+mcp/index.ts       MCP server adapter — registers 21 always-on tools plus 5 env-gated admin tools:
+                   • auth/account: login, status, logout, namespace_create, domain, rename
+                   • sites: publish, list, delete, promote, qrcode, analytics
+                   • versions: versions_list, versions_delete, versions_restore, versions_limit
+                   • access: passcode_add, passcode_list, passcode_revoke (now three tools, not one), gate, members
+                   • admin (only when UPUBLISH_ADMIN=1): admin_user, admin_site, admin_stats, admin_storage, admin_domains
 lib/core.ts        Facade — all user-facing operations, wires credentials + ApiClient per call
 lib/auth.ts        Unified OAuth login (PKCE auth-code + token exchange), token refresh, credential read/write (~/.upublish/credentials)
 lib/api-client.ts  Thin HTTP client — Bearer token injection via async TokenProvider
