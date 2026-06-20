@@ -3,7 +3,8 @@
     "upublish": {
       "cwd": ".",
       "command": "bun",
-      "args": ["run", "dist/mcp.js"]
+      "args": ["run", "dist/mcp.js"],
+      "tool_timeout_sec": 21600
     }
   }
 }

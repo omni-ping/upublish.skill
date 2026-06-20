@@ -70,6 +70,11 @@ describe("Codex native plugin packaging", () => {
     expect(upublish.command).toBe("bun");
     const args = upublish.args as string[];
     expect(args.some((a) => a.includes("dist/mcp.js"))).toBe(true);
+    // Codex's per-tool deadline is a HARD wall-clock cap (default 300 s) that
+    // does NOT reset on notifications/progress — its rmcp-client only pauses the
+    // clock for elicitation prompts, never for progress. Multi-GB publishes need
+    // hours, so raise tool_timeout_sec to match the 6 h upload-session TTL.
+    expect(upublish.tool_timeout_sec).toBe(21600);
     // No Claude/Gemini/Antigravity path token may leak into the Codex launch.
     const blob = JSON.stringify(data);
     expect(blob).not.toContain("CLAUDE_PLUGIN_ROOT");
