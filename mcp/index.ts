@@ -417,9 +417,11 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
                       `(${lastProgress.completed}/${lastProgress.total} files) — still uploading…`;
                     sendProgress(lastProgress, hbMsg);
                   } else if (lastHashProgress !== null) {
-                    const hbMsg =
-                      `Hashing ${formatBytes(lastHashProgress.completedBytes)} / ${formatBytes(lastHashProgress.totalBytes)} ` +
-                      `(${lastHashProgress.completed}/${lastHashProgress.total} files) — still hashing…`;
+                    const hashDone = lastHashProgress.completed === lastHashProgress.total;
+                    const hbMsg = hashDone
+                      ? "preparing upload…"
+                      : `Hashing ${formatBytes(lastHashProgress.completedBytes)} / ${formatBytes(lastHashProgress.totalBytes)} ` +
+                        `(${lastHashProgress.completed}/${lastHashProgress.total} files) — still hashing…`;
                     sendProgress(lastHashProgress, hbMsg);
                   }
                 }, heartbeatIntervalMs);
