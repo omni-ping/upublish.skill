@@ -25999,7 +25999,8 @@ function createServer(coreDeps, opts) {
             const hbMsg = `${formatBytes(lastProgress.completedBytes)} / ${formatBytes(lastProgress.totalBytes)} ` + `(${lastProgress.completed}/${lastProgress.total} files) \u2014 still uploading\u2026`;
             sendProgress(lastProgress, hbMsg);
           } else if (lastHashProgress !== null) {
-            const hbMsg = `Hashing ${formatBytes(lastHashProgress.completedBytes)} / ${formatBytes(lastHashProgress.totalBytes)} ` + `(${lastHashProgress.completed}/${lastHashProgress.total} files) \u2014 still hashing\u2026`;
+            const hashDone = lastHashProgress.completed === lastHashProgress.total;
+            const hbMsg = hashDone ? "preparing upload\u2026" : `Hashing ${formatBytes(lastHashProgress.completedBytes)} / ${formatBytes(lastHashProgress.totalBytes)} ` + `(${lastHashProgress.completed}/${lastHashProgress.total} files) \u2014 still hashing\u2026`;
             sendProgress(lastHashProgress, hbMsg);
           }
         }, heartbeatIntervalMs);
