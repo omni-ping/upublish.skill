@@ -8,3 +8,4 @@ dist/
 .npmrc
 .claude/
 .code-foundations/
+scratch.sh

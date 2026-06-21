@@ -73,6 +73,22 @@ The version appears in six places that must stay in sync: `package.json`, `.clau
 bun build mcp/index.ts --target=bun --outfile=dist/mcp.js && chmod +x dist/mcp.js
 ```
 
+## Per-client timeout knobs
+
+All four clients carry (or were investigated for) a per-tool wall-clock timeout ≥6h so large publishes survive. Units differ — a swap is a silent failure, not a runtime error:
+
+| Client | Config file | Field | Value | Units |
+|--------|-------------|-------|-------|-------|
+| Claude Code | `.mcp.json` | `mcpServers.upublish.timeout` | 21600000 | **milliseconds** |
+| Gemini CLI | `gemini-extension.json` | `mcpServers.upublish.timeout` | 21600000 | **milliseconds** |
+| Codex | `codex-mcp.json` | `mcpServers.upublish.tool_timeout_sec` | 21600 | **seconds** |
+| Antigravity | `mcp_config.json` | — | not set | — |
+
+**Antigravity timeout knob — unverified, gap documented (DW-1.4).**
+Investigation (2026-06-20): official Google/Antigravity docs cover MCP auth/connection only — no tool-call timeout or per-tool deadline knob documented. The per-server `timeout` field is reportedly dropped in Antigravity. An `MCP_SERVER_REQUEST_TIMEOUT` env var (ms) appears in practitioner blogs but is unconfirmed in any authoritative source. **No knob is set in `mcp_config.json`.** Residual risk: a long publish on Antigravity may time out at the client's default. Verify against a live Antigravity install before adding any knob.
+
+**No client resets its per-tool timeout on `notifications/progress`.** Progress notifications are cosmetic everywhere; the wall-clock timeout knob is the only thing that keeps a long publish alive. Do not rely on heartbeats for timeout survival.
+
 ## Environment
 
 - `UPUBLISH_API_URL` — overrides the API base URL (defaults to `https://api.upubli.sh`)
