@@ -502,6 +502,7 @@ describe("publish emits byte-based progress notifications", () => {
     );
 
     expect(result.isError).toBeUndefined();
+    // Phase 3: notes now include hashing + upload notifications.
     expect(notes.length).toBeGreaterThanOrEqual(2);
     // Every note is a well-formed progress notification carrying our token.
     for (const n of notes) {
@@ -509,14 +510,18 @@ describe("publish emits byte-based progress notifications", () => {
       expect(n.params.progressToken).toBe("tok-1");
     }
 
-    // First report: nothing uploaded, denominator is BYTES (21), not file count (2).
-    expect(notes[0].params).toMatchObject({ progress: 0, total: 21 });
-    expect(notes[0].params.message).toBe("0 B / 21 B (0/2 files)");
+    // Upload notes are those without a "Hashing" prefix.
+    const uploadNotes = notes.filter((n) => !n.params.message?.startsWith("Hashing"));
+    expect(uploadNotes.length).toBeGreaterThanOrEqual(2);
 
-    // Final report: reaches the byte total, message shows MB-style detail + counts.
-    const last = notes[notes.length - 1];
-    expect(last.params).toMatchObject({ progress: 21, total: 21 });
-    expect(last.params.message).toBe("21 B / 21 B (2/2 files)");
+    // First upload report: nothing uploaded yet, denominator is BYTES (21), not file count (2).
+    expect(uploadNotes[0].params).toMatchObject({ progress: 0, total: 21 });
+    expect(uploadNotes[0].params.message).toBe("0 B / 21 B (0/2 files)");
+
+    // Final upload report: reaches the byte total.
+    const lastUpload = uploadNotes[uploadNotes.length - 1];
+    expect(lastUpload.params).toMatchObject({ progress: 21, total: 21 });
+    expect(lastUpload.params.message).toBe("21 B / 21 B (2/2 files)");
   });
 
   test("test_progress_falls_back_to_file_counts_when_total_bytes_zero", async () => {
@@ -530,7 +535,9 @@ describe("publish emits byte-based progress notifications", () => {
     expect(result.isError).toBeUndefined();
     expect(notes.length).toBeGreaterThanOrEqual(2);
 
-    const last = notes[notes.length - 1];
+    // Phase 3: final note may be an upload or hashing note; get the last upload note.
+    const uploadNotes = notes.filter((n) => !n.params.message?.startsWith("Hashing"));
+    const last = uploadNotes[uploadNotes.length - 1];
     // Fallback engaged: denominator is the file count (2), progress reaches 2.
     expect(last.params).toMatchObject({ progress: 2, total: 2 });
     // No divide-by-zero leaking through as NaN/Infinity.
@@ -538,8 +545,11 @@ describe("publish emits byte-based progress notifications", () => {
     expect(Number.isFinite(last.params.total)).toBe(true);
     // Message still reports the (zero) byte totals honestly.
     expect(last.params.message).toBe("0 B / 0 B (2/2 files)");
-    // Every report used file counts, never bytes.
-    expect(notes.every((n) => n.params.total === 2)).toBe(true);
+    // Every upload note used file counts (totalBytes===0 for empty files).
+    expect(uploadNotes.every((n) => n.params.total === 2)).toBe(true);
+    // Hashing notes for empty files also use file count fallback (totalBytes===0).
+    const hashNotes = notes.filter((n) => n.params.message?.startsWith("Hashing"));
+    expect(hashNotes.every((n) => n.params.total === 2)).toBe(true);
   });
 });
 
@@ -1624,5 +1634,263 @@ describe("DW-6.3: no version bump in package.json or manifests", () => {
     // The version should NOT have been bumped by this phase (CI owns bumping).
     // Assert it still starts with 0.12 (the pre-phase baseline).
     expect(pkg.version.startsWith("0.12")).toBe(true);
+  });
+});
+
+// ─── Phase 3: Adapter wiring — MCP progress for hashing ──────────────────────
+//
+// DW-3.1: hashing emits ≥1 notifications/progress with "Hashing …" message
+// DW-3.2: byte-weighted progress/total, same progressToken as upload
+// DW-3.3: no progressToken → zero notifications; behavior unchanged
+// DW-3.4: heartbeat reused; stopped in finally (no leak)
+// T3.3: totalBytes===0 → file-count fallback in hashing note
+// T3.6: sendNotification rejects → publish still completes
+// T3.7: phase transition → hashing sweep then upload sweep, correct messages
+
+describe("Phase 3: hashing phase MCP progress notifications", () => {
+  const PUBLISHED_URL = "https://user1.upubli.sh/my-site/";
+
+  const json3 = (body: unknown) =>
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  /** Full presigned publish flow; neededPaths is the manifest needed set. */
+  function makeFetch(neededPaths: string[]) {
+    return async (url: string, init?: RequestInit): Promise<Response> => {
+      if (url.includes("/auth/token/refresh")) return json3({ access_token: "t", expires_in: 3600 });
+      if (url.endsWith("/api/space")) return json3({ space: { id: "sp1", default_namespace_id: DEFAULT_NS_ID, tier: "free" } });
+      if (/\/api\/ns$/.test(url)) return json3({ namespaces: [{ id: DEFAULT_NS_ID, name: "default", domain: "x.upubli.sh" }] });
+      if (url.includes("/manifest") && init?.method === "POST") {
+        return json3({
+          needed: neededPaths.map((p) => ({ path: p, upload_url: `https://r2.example.com/${p}` })),
+          version: 1, session_id: "sess-1", base_version: null,
+        });
+      }
+      if (url.includes("r2.example.com") && init?.method === "PUT") return new Response("", { status: 200 });
+      if (url.includes("/finalize") && init?.method === "POST") return json3({ site: SAMPLE_SITE, url: PUBLISHED_URL });
+      return new Response("{}", { status: 200 });
+    };
+  }
+
+  type ProgressNote = {
+    method: string;
+    params: { progressToken: unknown; progress: number; total: number; message?: string };
+  };
+  type ProgressExtra = {
+    _meta: { progressToken: string };
+    sendNotification: (n: ProgressNote) => Promise<void>;
+  };
+  type ProgressHandler = (
+    args: Record<string, unknown>,
+    extra: ProgressExtra,
+  ) => Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }>;
+
+  async function runCapturing(
+    files: Record<string, string>,
+    needed: string[],
+    opts?: { progressToken?: string; rejectNotifications?: boolean },
+  ) {
+    const token = opts?.progressToken ?? "tok-ph3";
+    const { deps } = makeDeps(makeFetch(needed));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-ph3-"));
+    for (const [name, contents] of Object.entries(files)) {
+      fs.writeFileSync(path.join(tmpDir, name), contents);
+    }
+    const notes: ProgressNote[] = [];
+    const extra: ProgressExtra = {
+      _meta: { progressToken: token },
+      sendNotification: (n) => {
+        if (opts?.rejectNotifications) return Promise.reject(new Error("transport closed"));
+        notes.push(n);
+        return Promise.resolve();
+      },
+    };
+    try {
+      const tools = getTools(createServer(deps));
+      const handler = tools["publish"].handler as unknown as ProgressHandler;
+      const result = await handler({ directory: tmpDir, slug: "my-site" }, extra);
+      return { result, notes };
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.unlinkSync(deps.credentialsPath!); } catch { /* ignore */ }
+    }
+  }
+
+  // DW-3.1: at least one notification has the "Hashing …" message prefix.
+  test("test_DW_3_1_hashing_emits_progress_notification_with_correct_message", async () => {
+    const { result, notes } = await runCapturing(
+      { "index.html": "<h1>Hello</h1>", "style.css": "body {}" },
+      ["index.html", "style.css"],
+    );
+
+    expect(result.isError).toBeUndefined();
+
+    const hashNotes = notes.filter((n) => n.params.message?.startsWith("Hashing"));
+    expect(hashNotes.length).toBeGreaterThanOrEqual(1);
+
+    // Every hashing note is a well-formed progress notification.
+    for (const n of hashNotes) {
+      expect(n.method).toBe("notifications/progress");
+      expect(n.params.progressToken).toBe("tok-ph3");
+      // Message format: "Hashing X / Y (n/m files)"
+      expect(n.params.message).toMatch(/^Hashing .+ \/ .+ \(\d+\/\d+ files\)$/);
+    }
+  });
+
+  // DW-3.2: byte-weighted progress/total; same progressToken as upload notes.
+  test("test_DW_3_2_hashing_progress_byte_weighted_same_token", async () => {
+    // index.html=14B, style.css=7B → totalBytes=21 for hashing.
+    const { notes } = await runCapturing(
+      { "index.html": "<h1>Hello</h1>", "style.css": "body {}" },
+      ["index.html", "style.css"],
+    );
+
+    const hashNotes = notes.filter((n) => n.params.message?.startsWith("Hashing"));
+    const uploadNotes = notes.filter((n) => !n.params.message?.startsWith("Hashing"));
+
+    expect(hashNotes.length).toBeGreaterThanOrEqual(1);
+    expect(uploadNotes.length).toBeGreaterThanOrEqual(1);
+
+    // All notes share the same progressToken.
+    for (const n of notes) {
+      expect(n.params.progressToken).toBe("tok-ph3");
+    }
+
+    // Hashing notes are byte-weighted (totalBytes=21, not file count 2).
+    for (const n of hashNotes) {
+      expect(n.params.total).toBe(21);
+    }
+
+    // The final hashing note reaches completedBytes === totalBytes.
+    const lastHash = hashNotes[hashNotes.length - 1];
+    expect(lastHash.params.progress).toBe(21);
+    expect(lastHash.params.total).toBe(21);
+  });
+
+  // T3.3 (DW-3.2 boundary): totalBytes===0 → file-count fallback in hashing note.
+  test("test_DW_3_2_T3_3_totalBytes_zero_uses_file_count_fallback", async () => {
+    // Two empty files: totalBytes=0 for hashing → must use file-count fallback.
+    const { result, notes } = await runCapturing(
+      { "a.html": "", "b.html": "" },
+      ["a.html", "b.html"],
+    );
+
+    expect(result.isError).toBeUndefined();
+
+    const hashNotes = notes.filter((n) => n.params.message?.startsWith("Hashing"));
+    expect(hashNotes.length).toBeGreaterThanOrEqual(1);
+
+    // File-count fallback: total === 2 (not 0).
+    for (const n of hashNotes) {
+      expect(n.params.total).toBe(2);
+      // No NaN/Infinity.
+      expect(Number.isFinite(n.params.progress)).toBe(true);
+      expect(Number.isFinite(n.params.total)).toBe(true);
+    }
+  });
+
+  // DW-3.3: no progressToken → zero notifications (hashing AND upload).
+  test("test_DW_3_3_no_progress_token_zero_notifications", async () => {
+    const { deps } = makeDeps(makeFetch(["index.html"]));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-ph3-noprog-"));
+    fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>hi</h1>");
+    const notes: ProgressNote[] = [];
+    try {
+      const tools = getTools(createServer(deps));
+      // Call without a progressToken — no notifications should fire.
+      const handler = tools["publish"].handler as unknown as (
+        args: Record<string, unknown>,
+        extra: { _meta: Record<string, never>; sendNotification: (n: ProgressNote) => Promise<void> },
+      ) => Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }>;
+      const result = await handler(
+        { directory: tmpDir, slug: "my-site" },
+        {
+          _meta: {},
+          sendNotification: (n) => { notes.push(n); return Promise.resolve(); },
+        },
+      );
+      expect(result.isError).toBeUndefined();
+      // Zero notifications — no hashing, no upload.
+      expect(notes).toHaveLength(0);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.unlinkSync(deps.credentialsPath!); } catch { /* ignore */ }
+    }
+  });
+
+  // DW-3.4: heartbeat stopped in finally — no leak after completion.
+  // Mirrors tests/mcp-heartbeat.test.ts pattern with a short heartbeat interval.
+  test("test_DW_3_4_heartbeat_stopped_in_finally_no_leak", async () => {
+    const HEARTBEAT_MS = 20;
+    const { deps } = makeDeps(makeFetch(["index.html"]));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-ph3-hb-"));
+    fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>hi</h1>");
+    const notes: ProgressNote[] = [];
+    try {
+      const server = createServer(deps, { heartbeatIntervalMs: HEARTBEAT_MS });
+      const tools = getTools(server);
+      const handler = tools["publish"].handler as unknown as ProgressHandler;
+      await handler(
+        { directory: tmpDir, slug: "my-site" },
+        {
+          _meta: { progressToken: "tok-hb" },
+          sendNotification: (n) => { notes.push(n); return Promise.resolve(); },
+        },
+      );
+      // Capture count right after completion.
+      const countAtCompletion = notes.length;
+      // Wait for 2 heartbeat intervals — no new notifications should fire.
+      await new Promise((resolve) => setTimeout(resolve, HEARTBEAT_MS * 2 + 5));
+      // Count must be frozen — timer was stopped in finally.
+      expect(notes.length).toBe(countAtCompletion);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.unlinkSync(deps.credentialsPath!); } catch { /* ignore */ }
+    }
+  });
+
+  // T3.6: sendNotification rejects → publish still completes (best-effort swallow).
+  test("test_T3_6_sendNotification_rejects_publish_still_completes", async () => {
+    const { result } = await runCapturing(
+      { "index.html": "<h1>Hello</h1>" },
+      ["index.html"],
+      { rejectNotifications: true },
+    );
+    // Publish must succeed even though every notification was rejected.
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("Site published successfully");
+  });
+
+  // T3.7: phase transition — hashing sweep then upload sweep, correct messages each.
+  test("test_T3_7_phase_transition_hashing_then_upload_correct_messages", async () => {
+    // One file needed for upload so we see both phases.
+    const { notes } = await runCapturing(
+      { "index.html": "<h1>Hello</h1>" },
+      ["index.html"],
+    );
+
+    const hashNotes = notes.filter((n) => n.params.message?.startsWith("Hashing"));
+    const uploadNotes = notes.filter((n) => !n.params.message?.startsWith("Hashing"));
+
+    // Both phases fired.
+    expect(hashNotes.length).toBeGreaterThanOrEqual(1);
+    expect(uploadNotes.length).toBeGreaterThanOrEqual(1);
+
+    // All hashing notes appear before all upload notes (phase order).
+    const firstHashIdx = notes.indexOf(hashNotes[0]);
+    const firstUploadIdx = notes.indexOf(uploadNotes[0]);
+    expect(firstHashIdx).toBeLessThan(firstUploadIdx);
+
+    // Upload notes do NOT start with "Hashing".
+    for (const n of uploadNotes) {
+      expect(n.params.message).not.toMatch(/^Hashing/);
+    }
+
+    // All notes share the same progressToken (one token, two 0→100 sweeps).
+    for (const n of notes) {
+      expect(n.params.progressToken).toBe("tok-ph3");
+    }
   });
 });

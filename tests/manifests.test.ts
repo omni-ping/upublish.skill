@@ -313,3 +313,81 @@ describe("Antigravity mcp_config.json", () => {
     expect(script).not.toContain("${extensionPath}");
   });
 });
+
+// ─── DW-1.1: Gemini timeout (milliseconds) ───────────────────────────────────
+
+describe("DW-1.1 gemini-extension.json timeout", () => {
+  test("test_DW_1_1_gemini_timeout_ms", () => {
+    const data = readJson("gemini-extension.json") as Record<string, unknown>;
+    const servers = data.mcpServers as Record<string, Record<string, unknown>>;
+    // Gemini `timeout` is in MILLISECONDS (not seconds — see DW-1.5 units guard).
+    // 21600000 ms = 6 h = upload-session TTL, matching the Codex tool_timeout_sec.
+    expect(servers.upublish.timeout).toBe(21600000);
+  });
+});
+
+// ─── DW-1.2: Claude Code .mcp.json timeout (milliseconds) ───────────────────
+
+describe("DW-1.2 .mcp.json timeout", () => {
+  test("test_DW_1_2_mcp_json_timeout_ms", () => {
+    const data = readJson(".mcp.json") as Record<string, unknown>;
+    const servers = data.mcpServers as Record<string, Record<string, unknown>>;
+    // Claude Code `timeout` is in MILLISECONDS (not seconds — see DW-1.5 units guard).
+    // 21600000 ms = 6 h. Claude's default is ~28h so this is a safe explicit cap.
+    expect(servers.upublish.timeout).toBe(21600000);
+  });
+});
+
+// ─── DW-1.3: Codex tool_timeout_sec regression (seconds) ────────────────────
+
+describe("DW-1.3 codex-mcp.json tool_timeout_sec regression", () => {
+  test("test_DW_1_3_codex_timeout_sec_regression", () => {
+    const data = readJson("codex-mcp.json") as Record<string, unknown>;
+    const servers = data.mcpServers as Record<string, Record<string, unknown>>;
+    // Codex `tool_timeout_sec` is in SECONDS (not ms — see DW-1.5 units guard).
+    // 21600 s = 6 h = upload-session TTL. Value set in commit 3a0c258; must not regress.
+    expect(servers.upublish.tool_timeout_sec).toBe(21600);
+  });
+});
+
+// ─── DW-1.4: Antigravity — no unverified knob committed ─────────────────────
+
+describe("DW-1.4 Antigravity no unverified timeout knob", () => {
+  test("test_DW_1_4_antigravity_no_unverified_knob", () => {
+    const data = readJson("mcp_config.json") as Record<string, unknown>;
+    const servers = data.mcpServers as Record<string, Record<string, unknown>>;
+    // Antigravity's per-tool timeout knob is unverified: the per-server `timeout`
+    // field is reportedly dropped, and MCP_SERVER_REQUEST_TIMEOUT env is mentioned
+    // only in practitioner blogs (no official Antigravity/Google source confirms it).
+    // Per the plan constraint "never set an unverified knob", neither is set here.
+    // Residual risk is documented in CLAUDE.md. Verify against a live install first.
+    expect(servers.upublish.timeout).toBeUndefined();
+    expect(servers.upublish.tool_timeout_sec).toBeUndefined();
+  });
+});
+
+// ─── DW-1.5: units guard — dirty test, catches a silent s-vs-ms swap ────────
+
+describe("DW-1.5 timeout units guard", () => {
+  test("test_DW_1_5_units_guard", () => {
+    const gemini = readJson("gemini-extension.json") as Record<string, unknown>;
+    const mcp = readJson(".mcp.json") as Record<string, unknown>;
+    const codex = readJson("codex-mcp.json") as Record<string, unknown>;
+
+    const geminiTimeout = ((gemini.mcpServers as Record<string, Record<string, unknown>>).upublish).timeout as number;
+    const mcpTimeout = ((mcp.mcpServers as Record<string, Record<string, unknown>>).upublish).timeout as number;
+    const codexTimeout = ((codex.mcpServers as Record<string, Record<string, unknown>>).upublish).tool_timeout_sec as number;
+
+    // Gemini and Claude timeouts must be in the ms range (>= 1_000_000) — if someone
+    // accidentally copies the Codex seconds value (21600), this fires loudly.
+    expect(geminiTimeout).toBeGreaterThanOrEqual(1_000_000);
+    expect(geminiTimeout).not.toBe(21600);
+    expect(mcpTimeout).toBeGreaterThanOrEqual(1_000_000);
+    expect(mcpTimeout).not.toBe(21600);
+
+    // Codex timeout must be in the seconds range (< 1_000_000) — if someone
+    // accidentally copies the ms value (21600000), this fires loudly.
+    expect(codexTimeout).toBe(21600);
+    expect(codexTimeout).not.toBe(21600000);
+  });
+});

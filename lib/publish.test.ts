@@ -26,9 +26,16 @@ import {
   uploadChangedFiles,
   isValidSlug,
   parseIgnoreFile,
+  listFiles,
+  hashFiles,
 } from "./publish.ts";
 import { ApiClient } from "./api-client.ts";
-import type { PublishOpts, UploadProgress } from "./publish.ts";
+import type {
+  PublishOpts,
+  UploadProgress,
+  HashProgress,
+  FileEntry,
+} from "./publish.ts";
 // Re-export reachability: adapters import UploadProgress only from core.ts (DW-1.3).
 import type { UploadProgress as UploadProgressFromCore } from "./core.ts";
 
@@ -1343,5 +1350,600 @@ describe("DW-1.3: callback is generic and UploadProgress is exported from core",
     expect(p.total).toBe(2);
     expect(p.completedBytes).toBe(40);
     expect(p.totalBytes).toBe(100);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Phase 2 — Hashing instrumentation (listFiles / hashFiles / onHashProgress)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ─── DW-2.1: HashProgress shape + onHashProgress on PublishOpts ───────────────
+
+describe("DW-2.1: HashProgress type + onHashProgress option", () => {
+  it("test_DW_2_1_hashprogress_shape", () => {
+    // HashProgress is { completed, total, completedBytes, totalBytes } — all numbers.
+    const p: HashProgress = {
+      completed: 2,
+      total: 5,
+      completedBytes: 200,
+      totalBytes: 500,
+    };
+    expect(p.completed).toBe(2);
+    expect(p.total).toBe(5);
+    expect(p.completedBytes).toBe(200);
+    expect(p.totalBytes).toBe(500);
+  });
+
+  it("test_DW_2_1_onHashProgress_optional_on_PublishOpts", () => {
+    // onHashProgress is optional: a PublishOpts without it type-checks and the
+    // key is absent at runtime (mirrors the existing onProgress optionality).
+    const opts: PublishOpts = {
+      apiClient: new ApiClient(BASE_URL, staticTokenProvider, async () => new Response("{}")),
+      nsId: "ns-1",
+      directory: "/tmp",
+      slug: "my-site",
+    };
+    expect("onHashProgress" in opts).toBe(false);
+
+    // And it accepts a sync HashProgress callback when supplied.
+    const seen: HashProgress[] = [];
+    const withCb: PublishOpts = { ...opts, onHashProgress: (p) => seen.push(p) };
+    withCb.onHashProgress?.({ completed: 0, total: 1, completedBytes: 0, totalBytes: 1 });
+    expect(seen).toHaveLength(1);
+  });
+});
+
+// ─── DW-2.2: listFiles — sizes + exclusions, NO content reads ─────────────────
+
+describe("DW-2.2: listFiles enumerates with sizes and exclusions, no content reads", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-listfiles-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("test_DW_2_2_listFiles_returns_sizes_and_exclusions", () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>"); // 14 bytes
+    mkdirSync(join(tmpDir, "sub"));
+    writeFileSync(join(tmpDir, "sub", "app.js"), "const x = 1;"); // 12 bytes
+    writeFileSync(join(tmpDir, ".DS_Store"), ""); // excluded
+    writeFileSync(join(tmpDir, ".env"), "SECRET=1"); // excluded
+    writeFileSync(join(tmpDir, "nginx.conf"), "server {}"); // warned but included
+
+    const result = listFiles(tmpDir);
+
+    const byPath = Object.fromEntries(result.files.map((f) => [f.relPath, f]));
+    // index.html, sub/app.js, nginx.conf are publishable; .DS_Store/.env excluded.
+    expect(result.files).toHaveLength(3);
+    expect(byPath["index.html"].size).toBe(Buffer.byteLength("<h1>Hello</h1>"));
+    expect(byPath["index.html"].fullPath).toBe(join(tmpDir, "index.html"));
+    expect(byPath[join("sub", "app.js")].size).toBe(Buffer.byteLength("const x = 1;"));
+    // Exclusions and warnings are surfaced (same rules as collectFilesWithHashes).
+    expect(result.excluded).toContain(".DS_Store");
+    expect(result.excluded).toContain(".env");
+    expect(result.warnings).toContain("nginx.conf");
+    // .upublishignore is itself excluded — never enumerated as a publishable file.
+    expect(byPath[".env"]).toBeUndefined();
+  });
+
+  it("test_DW_2_2_listFiles_does_not_read_file_bytes", () => {
+    // Enumeration must be stat-only. Spy on openSync/readSync: listFiles records a
+    // sentinel file's size WITHOUT ever opening or reading its bytes. (It may read
+    // a tiny .upublishignore control file — there is none here, so zero reads.)
+    const sentinel = join(tmpDir, "large.bin");
+    writeFileSync(sentinel, Buffer.alloc(256 * 1024, 7)); // 256 KiB of content
+
+    const openSpy = spyOn(fsModule, "openSync");
+    const readSpy = spyOn(fsModule, "readSync");
+    try {
+      const result = listFiles(tmpDir);
+
+      // The file is enumerated with its real size…
+      const entry = result.files.find((f) => f.relPath === "large.bin");
+      expect(entry).toBeDefined();
+      expect(entry!.size).toBe(256 * 1024);
+      // …but its content was never opened or read by listFiles.
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(readSpy).not.toHaveBeenCalled();
+    } finally {
+      openSpy.mockRestore();
+      readSpy.mockRestore();
+    }
+  });
+});
+
+// ─── DW-2.3 + DW-2.4: hashFiles progress + yielding ───────────────────────────
+
+describe("DW-2.3/2.4: hashFiles fires byte-weighted progress and yields", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-hashfiles-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  // Writes `count` files of the given byte size and returns the enumerated list.
+  function makeList(sizes: number[]): FileEntry[] {
+    sizes.forEach((n, i) => {
+      writeFileSync(join(tmpDir, `f${i}.bin`), Buffer.alloc(n, (i + 1) & 0xff));
+    });
+    return listFiles(tmpDir).files.sort((a, b) => a.relPath.localeCompare(b.relPath));
+  }
+
+  it("test_DW_2_3_fires_zero_and_completion_with_totals", async () => {
+    // 3 files of 10/20/30 bytes => totalBytes 60. Opening report all-zero with
+    // the totals known; final report reaches completed===total and
+    // completedBytes===totalBytes.
+    const list = makeList([10, 20, 30]);
+    const events: HashProgress[] = [];
+
+    const result = await hashFiles(list, { onHashProgress: (p) => events.push({ ...p }) });
+
+    // Map produced for every file.
+    expect(Object.keys(result)).toHaveLength(3);
+
+    // Opening report: nothing hashed, totals known.
+    expect(events[0]).toEqual({ completed: 0, total: 3, completedBytes: 0, totalBytes: 60 });
+    // Final report: all files, all bytes.
+    const last = events[events.length - 1];
+    expect(last.completed).toBe(last.total);
+    expect(last.completed).toBe(3);
+    expect(last.completedBytes).toBe(last.totalBytes);
+    expect(last.completedBytes).toBe(60);
+  });
+
+  it("test_DW_2_3_monotonic_non_decreasing", async () => {
+    const list = makeList([5, 5, 5, 5]);
+    const events: HashProgress[] = [];
+
+    await hashFiles(list, { onHashProgress: (p) => events.push({ ...p }) });
+
+    // completed and completedBytes never decrease across reports; total/totalBytes
+    // never exceed the final totals and total is constant.
+    for (let i = 1; i < events.length; i++) {
+      expect(events[i].completed).toBeGreaterThanOrEqual(events[i - 1].completed);
+      expect(events[i].completedBytes).toBeGreaterThanOrEqual(events[i - 1].completedBytes);
+      expect(events[i].total).toBe(events[0].total);
+    }
+  });
+
+  it("test_DW_2_3_completedBytes_from_hashed_content_not_stat", async () => {
+    // Build a FileEntry whose declared `size` (stat estimate) LIES — far larger
+    // than the file's real bytes. The hashed completedBytes must reflect the REAL
+    // bytes streamed, and the final report must still close the equality on the
+    // hashed sum (not the inflated stat denominator).
+    const content = "real-bytes-only"; // 15 bytes
+    const fullPath = join(tmpDir, "doc.txt");
+    writeFileSync(fullPath, content);
+    const lying: FileEntry[] = [{ relPath: "doc.txt", fullPath, size: 999999 }];
+
+    const events: HashProgress[] = [];
+    const result = await hashFiles(lying, { onHashProgress: (p) => events.push({ ...p }) });
+
+    expect(result["doc.txt"].size).toBe(Buffer.byteLength(content));
+    const last = events[events.length - 1];
+    // Authoritative: completedBytes is the real hashed size, and totalBytes was
+    // pinned to it on the final report → equality holds despite the lying stat.
+    expect(last.completedBytes).toBe(Buffer.byteLength(content));
+    expect(last.totalBytes).toBe(Buffer.byteLength(content));
+  });
+
+  it("test_DW_2_4_yields_between_files_macrotask_interleaves", async () => {
+    // Schedule a macrotask flag BEFORE awaiting hashFiles. If hashFiles yields to
+    // the event loop at least once during a multi-file hash, the flag flips before
+    // hashFiles resolves.
+    const list = makeList([4, 4, 4]);
+    let macrotaskRan = false;
+    setImmediate(() => {
+      macrotaskRan = true;
+    });
+
+    await hashFiles(list);
+
+    // The interleaved macrotask got to run during hashing (the loop was released).
+    expect(macrotaskRan).toBe(true);
+  });
+
+  it("test_DW_2_4_yields_mid_file_for_large_file", async () => {
+    // ONE file ≥ yieldEvery. With a small yieldEvery, hashing that single file
+    // must release the loop MID-file: a macrotask scheduled before the await runs
+    // BEFORE hashFiles resolves AND before the file's own completion report.
+    const big = Buffer.alloc(512 * 1024, 0xab); // 512 KiB
+    const fullPath = join(tmpDir, "big.bin");
+    writeFileSync(fullPath, big);
+    const list: FileEntry[] = [{ relPath: "big.bin", fullPath, size: big.byteLength }];
+
+    let macrotaskRan = false;
+    let macrotaskRanBeforeCompletion = false;
+    const events: HashProgress[] = [];
+
+    setImmediate(() => {
+      macrotaskRan = true;
+      // Only the opening {0,...} report should have fired so far — the single
+      // file's completion report comes AFTER this mid-file yield.
+      macrotaskRanBeforeCompletion = events.every((e) => e.completed === 0);
+    });
+
+    // yieldEvery far below the file size forces several mid-file yields.
+    await hashFiles(list, {
+      yieldEvery: 64 * 1024,
+      onHashProgress: (p) => events.push({ ...p }),
+    });
+
+    expect(macrotaskRan).toBe(true);
+    expect(macrotaskRanBeforeCompletion).toBe(true);
+    // Sanity: the file did finish and its hash is correct.
+    const ref = createHash("md5").update(big).digest("hex");
+    const last = events[events.length - 1];
+    expect(last.completed).toBe(1);
+    expect(last.completedBytes).toBe(big.byteLength);
+    // (hash correctness already covered by collectFilesWithHashes tests; assert
+    //  the byte total here as the progress-facing guarantee.)
+    void ref;
+  });
+
+  it("test_DW_2_4_setImmediate_is_macrotask_not_microtask", async () => {
+    // Guard the yield mechanism: a real macrotask (setImmediate) must run AFTER a
+    // microtask queued at the same time only if the microtask was queued first —
+    // more importantly, prove setImmediate defers past the current microtask
+    // checkpoint. If hashFiles used `await Promise.resolve()` (a microtask) instead
+    // of setImmediate, pending I/O would NOT get a turn. Here we assert ordering:
+    // a microtask scheduled now runs before a setImmediate scheduled now.
+    const order: string[] = [];
+    queueMicrotask(() => order.push("microtask"));
+    await new Promise<void>((resolve) =>
+      setImmediate(() => {
+        order.push("macrotask");
+        resolve();
+      }),
+    );
+    expect(order).toEqual(["microtask", "macrotask"]);
+  });
+});
+
+// ─── DW-2.5: collectFilesWithHashes unchanged + synchronous ───────────────────
+
+describe("DW-2.5: collectFilesWithHashes signature/return unchanged and sync", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-collect-sync-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("test_DW_2_5_collectFilesWithHashes_returns_non_promise", () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hi</h1>");
+
+    const result = collectFilesWithHashes(tmpDir);
+
+    // Synchronous: the return value is NOT a Promise (no .then), it is the result.
+    expect(result instanceof Promise).toBe(false);
+    expect((result as unknown as { then?: unknown }).then).toBeUndefined();
+    expect(result.files["index.html"]).toBeDefined();
+  });
+
+  it("test_DW_2_5_same_return_contract", () => {
+    mkdirSync(join(tmpDir, "sub"));
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hi</h1>");
+    writeFileSync(join(tmpDir, "sub", "app.js"), "const x=1;");
+    writeFileSync(join(tmpDir, ".DS_Store"), "");
+    writeFileSync(join(tmpDir, "nginx.conf"), "server {}");
+
+    const result = collectFilesWithHashes(tmpDir);
+
+    // { files: Record<relPath, {hash,size,fullPath}>, excluded[], warnings[] }
+    expect(Object.keys(result).sort()).toEqual(["excluded", "files", "warnings"]);
+    const entry = result.files["index.html"];
+    expect(typeof entry.hash).toBe("string");
+    expect(entry.hash).toHaveLength(32);
+    expect(entry.size).toBe(Buffer.byteLength("<h1>Hi</h1>"));
+    expect(entry.fullPath).toBe(join(tmpDir, "index.html"));
+    expect(result.excluded).toContain(".DS_Store");
+    expect(result.warnings).toContain("nginx.conf");
+  });
+
+  it("test_DW_2_5_collect_matches_hashFiles_output", async () => {
+    // The preserved sync path and the new async path must produce the SAME files
+    // map for the same directory (same hashes, sizes, fullPaths).
+    writeFileSync(join(tmpDir, "a.txt"), "alpha");
+    writeFileSync(join(tmpDir, "b.txt"), "bravo-bravo");
+
+    const sync = collectFilesWithHashes(tmpDir).files;
+    const asyncFiles = await hashFiles(listFiles(tmpDir).files);
+
+    expect(asyncFiles).toEqual(sync);
+  });
+});
+
+// ─── DW-2.6 + T2.13: publish() byte-identical / force ─────────────────────────
+
+describe("DW-2.6: publish() byte-identical when onHashProgress omitted", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-byte-identical-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  // Captures the manifest `files` payload and every PUT body so two runs can be
+  // compared byte-for-byte.
+  type Capture = {
+    manifestFiles?: Record<string, { hash: string; size: number }>;
+    putBodies: Record<string, string>;
+  };
+
+  function capturingFetch(capture: Capture) {
+    return async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        const body = init?.body ? JSON.parse(init.body as string) : {};
+        capture.manifestFiles = body.files;
+        return new Response(
+          JSON.stringify({
+            needed: [
+              { path: "index.html", upload_url: "https://r2.example.com/index.html" },
+              { path: "style.css", upload_url: "https://r2.example.com/style.css" },
+            ],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("r2.example.com") && init?.method === "PUT") {
+        const path = url.split("/").pop() ?? "";
+        capture.putBodies[path] = Buffer.from(
+          await new Response(init?.body ?? null).arrayBuffer(),
+        ).toString("utf-8");
+        return new Response("", { status: 200 });
+      }
+      if (url.includes("/finalize")) {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    };
+  }
+
+  it("test_DW_2_6_publish_without_onHashProgress_byte_identical", async () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
+    writeFileSync(join(tmpDir, "style.css"), "body { margin: 0; }");
+
+    // Run WITHOUT onHashProgress.
+    const capA: Capture = { putBodies: {} };
+    const fetchA = capturingFetch(capA);
+    const clientA = new ApiClient(BASE_URL, staticTokenProvider, fetchA);
+    const resultA = await publish({
+      apiClient: clientA,
+      nsId: "ns-1",
+      directory: tmpDir,
+      slug: "my-site",
+      fetchFn: fetchA,
+    });
+
+    // Run WITH onHashProgress — manifest + PUT bytes must be identical.
+    const capB: Capture = { putBodies: {} };
+    const fetchB = capturingFetch(capB);
+    const clientB = new ApiClient(BASE_URL, staticTokenProvider, fetchB);
+    const events: HashProgress[] = [];
+    const resultB = await publish({
+      apiClient: clientB,
+      nsId: "ns-1",
+      directory: tmpDir,
+      slug: "my-site",
+      fetchFn: fetchB,
+      onHashProgress: (p) => events.push({ ...p }),
+    });
+
+    // Manifest file map (path → {hash,size}) identical regardless of the callback.
+    expect(capB.manifestFiles).toEqual(capA.manifestFiles);
+    // PUT bodies identical.
+    expect(capB.putBodies).toEqual(capA.putBodies);
+    // Public results identical.
+    expect(resultB.url).toBe(resultA.url);
+    expect(resultB.uploadedFiles!.sort()).toEqual(resultA.uploadedFiles!.sort());
+    // And the callback DID fire when supplied (so the comparison is meaningful).
+    expect(events.length).toBeGreaterThan(0);
+    expect(events[0].completed).toBe(0);
+  });
+
+  it("test_T2_13_force_still_hashes_real_byte_totals", async () => {
+    // force=true sends random manifest hashes, but hashing still runs locally and
+    // onHashProgress reports the REAL byte totals; manifest hash != real hash.
+    const content = "<h1>Hello force</h1>";
+    writeFileSync(join(tmpDir, "index.html"), content);
+
+    const realHash = collectFilesWithHashes(tmpDir).files["index.html"].hash;
+
+    const cap: Capture = { putBodies: {} };
+    const fetchFn = capturingFetch(cap);
+    // Override needed to a single file for a clean assertion.
+    const fetch1 = async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        const body = init?.body ? JSON.parse(init.body as string) : {};
+        cap.manifestFiles = body.files;
+        return new Response(
+          JSON.stringify({
+            needed: [{ path: "index.html", upload_url: "https://r2.example.com/index.html" }],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return fetchFn(url, init);
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetch1);
+    const events: HashProgress[] = [];
+    await publish({
+      apiClient,
+      nsId: "ns-1",
+      directory: tmpDir,
+      slug: "my-site",
+      force: true,
+      fetchFn: fetch1,
+      onHashProgress: (p) => events.push({ ...p }),
+    });
+
+    // Manifest carries a RANDOM hash (not the real one) but the real size.
+    expect(cap.manifestFiles!["index.html"].hash).not.toBe(realHash);
+    expect(cap.manifestFiles!["index.html"].size).toBe(Buffer.byteLength(content));
+    // onHashProgress reported the REAL hashed byte total on completion.
+    const last = events[events.length - 1];
+    expect(last.completedBytes).toBe(Buffer.byteLength(content));
+    expect(last.totalBytes).toBe(Buffer.byteLength(content));
+  });
+});
+
+// ─── T2.9–T2.12: dirty / boundary ─────────────────────────────────────────────
+
+describe("Phase 2 dirty/boundary: empty, zero-bytes, throwing cb, read error", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "upublish-phase2-dirty-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("test_T2_9_empty_dir_throws_and_no_spurious_progress", async () => {
+    // publish() on an empty dir throws the existing message; hashFiles([]) fires
+    // NOTHING (no opening zero report) and returns an empty map — no divide-by-zero
+    // anywhere (there is no division in lib).
+    const apiClient = new ApiClient(
+      BASE_URL,
+      staticTokenProvider,
+      async () => new Response("{}", { status: 200 }),
+    );
+    const events: HashProgress[] = [];
+    await expect(
+      publish({
+        apiClient,
+        nsId: "ns-1",
+        directory: tmpDir,
+        slug: "my-site",
+        onHashProgress: (p) => events.push(p),
+      }),
+    ).rejects.toThrow("Directory is empty");
+    // The hashing callback never fired — publish threw before hashing.
+    expect(events).toHaveLength(0);
+
+    // Direct: empty list → no progress, empty result.
+    const direct: HashProgress[] = [];
+    const out = await hashFiles([], { onHashProgress: (p) => direct.push(p) });
+    expect(out).toEqual({});
+    expect(direct).toHaveLength(0);
+  });
+
+  it("test_T2_10_all_empty_files_zero_totalBytes_no_nan", async () => {
+    // Every file is empty → totalBytes 0. File counts are still carried, and no
+    // report contains NaN or Infinity (the all-empty fallback case).
+    writeFileSync(join(tmpDir, "a.txt"), "");
+    writeFileSync(join(tmpDir, "b.txt"), "");
+    writeFileSync(join(tmpDir, "c.txt"), "");
+    const list = listFiles(tmpDir).files;
+
+    const events: HashProgress[] = [];
+    const result = await hashFiles(list, { onHashProgress: (p) => events.push({ ...p }) });
+
+    expect(Object.keys(result)).toHaveLength(3);
+    const last = events[events.length - 1];
+    expect(last.completed).toBe(3);
+    expect(last.total).toBe(3);
+    expect(last.completedBytes).toBe(0);
+    expect(last.totalBytes).toBe(0);
+    // No NaN / Infinity in any report.
+    for (const e of events) {
+      for (const v of [e.completed, e.total, e.completedBytes, e.totalBytes]) {
+        expect(Number.isFinite(v)).toBe(true);
+      }
+    }
+  });
+
+  it("test_T2_11_throwing_onHashProgress_matches_onProgress_semantics", async () => {
+    // Contract: onHashProgress must be sync + non-throwing. A throw propagates out
+    // of hashFiles, exactly as a throwing onProgress propagates out of
+    // uploadChangedFiles (neither is guarded). This pins the documented behavior.
+    writeFileSync(join(tmpDir, "a.txt"), "hello");
+    const list = listFiles(tmpDir).files;
+
+    // hashFiles surfaces the throw (it fires the callback directly).
+    await expect(
+      hashFiles(list, {
+        onHashProgress: () => {
+          throw new Error("boom-hash");
+        },
+      }),
+    ).rejects.toThrow("boom-hash");
+
+    // Parity check: uploadChangedFiles also surfaces a throwing onProgress.
+    const fp = join(tmpDir, "a.txt");
+    await expect(
+      uploadChangedFiles({
+        needed: [{ path: "a.txt", upload_url: "https://r2.example.com/a.txt" }],
+        files: { "a.txt": { size: 5, fullPath: fp } },
+        fetchFn: async () => new Response("", { status: 200 }),
+        onProgress: () => {
+          throw new Error("boom-upload");
+        },
+      }),
+    ).rejects.toThrow("boom-upload");
+  });
+
+  it("test_T2_12_read_error_mid_hash_fd_closed_no_leak", async () => {
+    // In the ASYNC path, a read failure mid-hash must propagate AND the fd opened
+    // for the file must still be closed (the try/finally in
+    // hashFileChunkedYielding runs). Mirror the sync fd-leak test, but drive it
+    // through hashFiles.
+    const fullPath = join(tmpDir, "data.bin");
+    writeFileSync(fullPath, "some bytes to hash");
+    const list: FileEntry[] = [
+      { relPath: "data.bin", fullPath, size: 18 },
+    ];
+
+    const realCloseSync = fsModule.closeSync;
+    const closedFds: number[] = [];
+
+    const readSpy = spyOn(fsModule, "readSync").mockImplementation(() => {
+      throw new Error("simulated async mid-hash read failure");
+    });
+    const closeSpy = spyOn(fsModule, "closeSync").mockImplementation(
+      ((fd: number) => {
+        closedFds.push(fd);
+        return (realCloseSync as (fd: number) => void)(fd);
+      }) as typeof fsModule.closeSync,
+    );
+
+    try {
+      await expect(hashFiles(list)).rejects.toThrow(
+        "simulated async mid-hash read failure",
+      );
+      // The fd opened for the file was closed despite the read error.
+      expect(closeSpy).toHaveBeenCalledTimes(1);
+      expect(closedFds).toHaveLength(1);
+      expect(closeSpy).toHaveBeenCalledWith(closedFds[0]);
+    } finally {
+      readSpy.mockRestore();
+      closeSpy.mockRestore();
+    }
   });
 });

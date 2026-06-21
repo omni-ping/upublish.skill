@@ -24747,47 +24747,54 @@ function matchesIgnore(relPath, name, patterns) {
   return false;
 }
 var HASH_CHUNK_BYTES = 64 * 1024;
-function hashFileChunked(fullPath) {
+var HASH_YIELD_BYTES = 4 * 1024 * 1024;
+var yieldToEventLoop = () => new Promise((resolve) => setImmediate(resolve));
+async function hashFileChunkedYielding(fullPath, yieldEvery, bytesSinceYield) {
   const fd = openSync(fullPath, "r");
   try {
     const md5 = createHash("md5");
     const buffer = Buffer.allocUnsafe(HASH_CHUNK_BYTES);
     let size = 0;
+    let sinceYield = bytesSinceYield;
     let bytesRead;
     while ((bytesRead = readSync(fd, buffer, 0, HASH_CHUNK_BYTES, null)) > 0) {
       md5.update(buffer.subarray(0, bytesRead));
       size += bytesRead;
+      sinceYield += bytesRead;
+      if (sinceYield >= yieldEvery) {
+        await yieldToEventLoop();
+        sinceYield = 0;
+      }
     }
-    return { hash: md5.digest("hex"), size };
+    return { hash: md5.digest("hex"), size, bytesSinceYield: sinceYield };
   } finally {
     closeSync(fd);
   }
 }
-function collectFiles(rootDir, currentDir, state, ignorePatterns) {
+function walkFiles(rootDir, currentDir, result, ignorePatterns) {
   const entries = readdirSync(currentDir, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = join3(currentDir, entry.name);
     const relPath = relative(rootDir, fullPath);
     if (isDefaultExcluded(entry.name, entry.isDirectory())) {
-      state.excluded.push(entry.isDirectory() ? `${relPath}/` : relPath);
+      result.excluded.push(entry.isDirectory() ? `${relPath}/` : relPath);
       continue;
     }
     if (matchesIgnore(relPath, entry.name, ignorePatterns)) {
-      state.excluded.push(entry.isDirectory() ? `${relPath}/` : relPath);
+      result.excluded.push(entry.isDirectory() ? `${relPath}/` : relPath);
       continue;
     }
     if (entry.isDirectory()) {
-      collectFiles(rootDir, fullPath, state, ignorePatterns);
+      walkFiles(rootDir, fullPath, result, ignorePatterns);
     } else if (entry.isFile()) {
       if (isSuspicious(entry.name)) {
-        state.warnings.push(relPath);
+        result.warnings.push(relPath);
       }
-      const { hash, size } = hashFileChunked(fullPath);
-      state.files[relPath] = { hash, size, fullPath };
+      result.files.push({ relPath, fullPath, size: statSync(fullPath).size });
     }
   }
 }
-function collectFilesWithHashes(dirPath) {
+function listFiles(dirPath) {
   let ignorePatterns = [];
   const ignoreFile = join3(dirPath, ".upublishignore");
   try {
@@ -24795,17 +24802,42 @@ function collectFilesWithHashes(dirPath) {
       ignorePatterns = parseIgnoreFile(readFileSync2(ignoreFile, "utf-8"));
     }
   } catch {}
-  const state = {
-    files: {},
-    excluded: [],
-    warnings: []
-  };
-  collectFiles(dirPath, dirPath, state, ignorePatterns);
-  return {
-    files: state.files,
-    excluded: state.excluded,
-    warnings: state.warnings
-  };
+  const result = { files: [], excluded: [], warnings: [] };
+  walkFiles(dirPath, dirPath, result, ignorePatterns);
+  return result;
+}
+async function hashFiles(list, opts) {
+  const files = {};
+  if (list.length === 0)
+    return files;
+  const onHashProgress = opts?.onHashProgress;
+  const yieldEvery = opts?.yieldEvery ?? HASH_YIELD_BYTES;
+  const total = list.length;
+  const statTotalBytes = list.reduce((sum, e) => sum + e.size, 0);
+  let completed = 0;
+  let completedBytes = 0;
+  let bytesSinceYield = 0;
+  onHashProgress?.({ completed: 0, total, completedBytes: 0, totalBytes: statTotalBytes });
+  for (let i = 0;i < total; i++) {
+    const entry = list[i];
+    const hashed = await hashFileChunkedYielding(entry.fullPath, yieldEvery, bytesSinceYield);
+    files[entry.relPath] = { hash: hashed.hash, size: hashed.size, fullPath: entry.fullPath };
+    bytesSinceYield = hashed.bytesSinceYield;
+    completed += 1;
+    completedBytes += hashed.size;
+    const isLast = i === total - 1;
+    onHashProgress?.({
+      completed,
+      total,
+      completedBytes,
+      totalBytes: isLast ? completedBytes : statTotalBytes
+    });
+    if (!isLast && bytesSinceYield > 0) {
+      await yieldToEventLoop();
+      bytesSinceYield = 0;
+    }
+  }
+  return files;
 }
 var UPLOAD_CONCURRENCY = 5;
 var UPLOAD_MAX_RETRIES = 3;
@@ -24886,7 +24918,8 @@ async function publish(opts) {
     force,
     analyticsEnabled,
     fetchFn = fetch,
-    onProgress
+    onProgress,
+    onHashProgress
   } = opts;
   try {
     const stat = statSync(directory);
@@ -24905,11 +24938,12 @@ async function publish(opts) {
   if (visibility === "passcode" && !passcode) {
     throw new Error("passcode is required when visibility is 'passcode'");
   }
-  const collected = collectFilesWithHashes(directory);
-  if (Object.keys(collected.files).length === 0) {
+  const { files: fileList, excluded, warnings } = listFiles(directory);
+  if (fileList.length === 0) {
     throw new Error("Directory is empty \u2014 no files to publish");
   }
-  const files = Object.entries(collected.files).map(([path3, file]) => ({
+  const collectedFiles = await hashFiles(fileList, { onHashProgress });
+  const files = Object.entries(collectedFiles).map(([path3, file]) => ({
     path: path3,
     hash: force ? crypto.randomUUID() : file.hash,
     size: file.size
@@ -24933,7 +24967,7 @@ async function publish(opts) {
   log(`[manifest] version=${manifestResult.version} session_id=${manifestResult.session_id} base_version=${manifestResult.base_version} needed=${manifestResult.needed.length} total=${files.length}`);
   await uploadChangedFiles({
     needed: manifestResult.needed,
-    files: collected.files,
+    files: collectedFiles,
     fetchFn,
     onProgress
   });
@@ -24946,8 +24980,8 @@ async function publish(opts) {
     url: finalizeResult.url,
     preview_url: finalizeResult.preview_url,
     site: finalizeResult.site,
-    warnings: collected.warnings,
-    excluded: collected.excluded,
+    warnings,
+    excluded,
     uploadedFiles,
     skippedFiles
   };
@@ -25578,7 +25612,8 @@ async function publish2(args, deps) {
     force: args.force,
     analyticsEnabled: args.analyticsEnabled,
     fetchFn: deps?.fetchFn,
-    onProgress: args.onProgress
+    onProgress: args.onProgress,
+    onHashProgress: args.onHashProgress
   });
 }
 async function deleteOp(slug, namespaceName, deps) {
@@ -25939,6 +25974,7 @@ function createServer(coreDeps, opts) {
     log(`[publish] tool entry slug=${slug} dir=${directory}`);
     const progressToken = extra?._meta?.progressToken;
     let lastProgress = null;
+    let lastHashProgress = null;
     let heartbeatTimer = null;
     function sendProgress(p, message) {
       const useBytes = p.totalBytes > 0;
@@ -25953,7 +25989,24 @@ function createServer(coreDeps, opts) {
       };
       extra.sendNotification(notification).catch((err) => log(`[publish] progress notification failed: ${err.message}`));
     }
+    const onHashProgress = progressToken !== undefined ? (p) => {
+      lastHashProgress = p;
+      const msg = `Hashing ${formatBytes(p.completedBytes)} / ${formatBytes(p.totalBytes)} (${p.completed}/${p.total} files)`;
+      sendProgress(p, msg);
+      if (heartbeatTimer === null) {
+        heartbeatTimer = setInterval(() => {
+          if (lastProgress !== null) {
+            const hbMsg = `${formatBytes(lastProgress.completedBytes)} / ${formatBytes(lastProgress.totalBytes)} ` + `(${lastProgress.completed}/${lastProgress.total} files) \u2014 still uploading\u2026`;
+            sendProgress(lastProgress, hbMsg);
+          } else if (lastHashProgress !== null) {
+            const hbMsg = `Hashing ${formatBytes(lastHashProgress.completedBytes)} / ${formatBytes(lastHashProgress.totalBytes)} ` + `(${lastHashProgress.completed}/${lastHashProgress.total} files) \u2014 still hashing\u2026`;
+            sendProgress(lastHashProgress, hbMsg);
+          }
+        }, heartbeatIntervalMs);
+      }
+    } : undefined;
     const onProgress = progressToken !== undefined ? (p) => {
+      lastHashProgress = null;
       lastProgress = p;
       const msg = `${formatBytes(p.completedBytes)} / ${formatBytes(p.totalBytes)} (${p.completed}/${p.total} files)`;
       sendProgress(p, msg);
@@ -25983,9 +26036,9 @@ function createServer(coreDeps, opts) {
         preview,
         force,
         analyticsEnabled: analytics_enabled,
-        onProgress
+        onProgress,
+        onHashProgress
       }, coreDeps);
-      stopHeartbeat();
       const site = result.site;
       const visibilityLine = visibility && visibility !== "public" ? `
 Visibility: ${visibility}` : "";
@@ -26021,7 +26074,6 @@ Use the promote tool to make this preview live.`);
 ` + `Files: ${site.file_count}
 ` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + incrementalLine + storageOverageLine);
     } catch (err) {
-      stopHeartbeat();
       log(`[publish] tool error slug=${slug} err=${err.message}`);
       if (err instanceof StorageApprovalError) {
         const priceLine = err.price !== null ? `Approving adds a ${err.block_gb ?? 10}GB storage block ` + `at $${err.price.toFixed(2)}${err.interval === "year" ? "/yr" : "/mo"}.` : `Approving adds a storage block to your subscription.`;
@@ -26044,6 +26096,8 @@ Use the promote tool to make this preview live.`);
       }
       const e = err;
       return errResponse(new Error(appendUpgradeHint(e.message, err)));
+    } finally {
+      stopHeartbeat();
     }
   });
   server.registerTool("list", {

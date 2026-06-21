@@ -58,6 +58,7 @@ import type {
   SetVersionsLimitResult,
   CallbackServer,
   NamespaceCreateResult,
+  HashProgress,
   GateSubmission,
   UploadProgress,
   Member,
@@ -363,13 +364,18 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
       const progressToken = extra?._meta?.progressToken;
 
       // Heartbeat state: tracks the last seen progress snapshot so the interval
-      // can re-emit it with a "still uploading" suffix. Both are null before any
-      // progress fires (i.e., before uploads begin).
+      // can re-emit it with a "still hashing…" / "still uploading…" suffix.
+      // lastHashProgress holds the hashing snapshot; lastProgress the upload one.
+      // Both are null before any progress fires for their respective phase.
       let lastProgress: UploadProgress | null = null;
+      let lastHashProgress: HashProgress | null = null;
       let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
       /** Sends a single best-effort MCP progress notification. Never throws. */
-      function sendProgress(p: UploadProgress, message: string): void {
+      function sendProgress(
+        p: { completed: number; total: number; completedBytes: number; totalBytes: number },
+        message: string,
+      ): void {
         const useBytes = p.totalBytes > 0;
         const notification: ProgressNotification = {
           method: "notifications/progress",
@@ -391,9 +397,42 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           );
       }
 
+      // onHashProgress: wires the hashing phase into MCP notifications/progress.
+      // Mirrors onProgress: byte-weighted with file-count fallback when totalBytes===0.
+      // Starts the single heartbeat timer on the first hashing event so it fires
+      // during any long hash gap too.
+      const onHashProgress =
+        progressToken !== undefined
+          ? (p: HashProgress) => {
+              lastHashProgress = p;
+              const msg = `Hashing ${formatBytes(p.completedBytes)} / ${formatBytes(p.totalBytes)} (${p.completed}/${p.total} files)`;
+              sendProgress(p, msg);
+
+              // Start heartbeat on first hashing event (one timer for both phases).
+              if (heartbeatTimer === null) {
+                heartbeatTimer = setInterval(() => {
+                  if (lastProgress !== null) {
+                    const hbMsg =
+                      `${formatBytes(lastProgress.completedBytes)} / ${formatBytes(lastProgress.totalBytes)} ` +
+                      `(${lastProgress.completed}/${lastProgress.total} files) — still uploading…`;
+                    sendProgress(lastProgress, hbMsg);
+                  } else if (lastHashProgress !== null) {
+                    const hbMsg =
+                      `Hashing ${formatBytes(lastHashProgress.completedBytes)} / ${formatBytes(lastHashProgress.totalBytes)} ` +
+                      `(${lastHashProgress.completed}/${lastHashProgress.total} files) — still hashing…`;
+                    sendProgress(lastHashProgress, hbMsg);
+                  }
+                }, heartbeatIntervalMs);
+              }
+            }
+          : undefined;
+
       const onProgress =
         progressToken !== undefined
           ? (p: UploadProgress) => {
+              // Reset lastHashProgress at the phase transition — the heartbeat
+              // switches to "still uploading…" as soon as the first upload fires.
+              lastHashProgress = null;
               lastProgress = p;
               // Drive the percentage off bytes when we have them — file counts
               // mislead when sizes vary (one big asset vs many tiny files).
@@ -402,9 +441,9 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
               const msg = `${formatBytes(p.completedBytes)} / ${formatBytes(p.totalBytes)} (${p.completed}/${p.total} files)`;
               sendProgress(p, msg);
 
-              // Start heartbeat on first progress event (uploads have begun).
-              // If no file completes within heartbeatIntervalMs, re-emit the last
-              // progress snapshot so clients with idle-timeout logic stay active.
+              // Heartbeat may already be running from the hashing phase.
+              // Start it now only if hashing emitted nothing (no progressToken
+              // at hash time, or hashing was skipped entirely).
               if (heartbeatTimer === null) {
                 heartbeatTimer = setInterval(() => {
                   if (lastProgress !== null) {
@@ -439,10 +478,10 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             force: force as boolean | undefined,
             analyticsEnabled: analytics_enabled as boolean | undefined,
             onProgress,
+            onHashProgress,
           },
           coreDeps,
         );
-        stopHeartbeat();
 
         const site = result.site;
         const visibilityLine =
@@ -510,7 +549,6 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           storageOverageLine,
         );
       } catch (err) {
-        stopHeartbeat();
         log(`[publish] tool error slug=${slug as string} err=${(err as Error).message}`);
         // 402 needs_storage_approval: surface the approval URL and pack pricing.
         // Never send accept_overage — that flag is reserved for explicit human
@@ -546,6 +584,9 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         // are excluded by the discriminator, so the hint never appears there.
         const e = err as Error;
         return errResponse(new Error(appendUpgradeHint(e.message, err)));
+      } finally {
+        // Always stop the heartbeat timer — no leak on success, error, or throw.
+        stopHeartbeat();
       }
     },
   );

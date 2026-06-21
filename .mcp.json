@@ -5,7 +5,8 @@
       "args": [
         "-c",
         "exec bun run \"${CLAUDE_PLUGIN_ROOT}/dist/mcp.js\""
-      ]
+      ],
+      "timeout": 21600000
     }
   }
 }
