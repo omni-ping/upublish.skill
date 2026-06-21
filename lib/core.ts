@@ -32,7 +32,7 @@ import type { LoginDeps, LoginResult, CallbackServer, TokenResponse } from "./au
 import { ApiClient } from "./api-client.ts";
 import { listSites } from "./list.ts";
 import { publish as domainPublish } from "./publish.ts";
-import type { PublishResult, UploadProgress } from "./publish.ts";
+import type { PublishResult, UploadProgress, HashProgress } from "./publish.ts";
 import { StorageApprovalError } from "./publish.ts";
 import { deleteSite } from "./delete.ts";
 import { log } from "./log.ts";
@@ -141,7 +141,7 @@ import { displayMsg } from "./display-msg.ts";
 // Adapters import only from core.ts — re-export types they need so they
 // don't have to reach into lib/auth.ts or other submodules.
 export type { LoginDeps, LoginResult, CallbackServer, TokenResponse };
-export type { PublishResult, UploadProgress };
+export type { PublishResult, UploadProgress, HashProgress };
 export { StorageApprovalError };
 export type { DeleteResult };
 export type { PromoteResult };
@@ -253,6 +253,12 @@ export interface PublishArgs {
    * it is a no-op with identical publish behavior.
    */
   onProgress?: (progress: UploadProgress) => void;
+  /**
+   * Optional synchronous progress callback fired during the hashing phase.
+   * Must be synchronous and non-throwing — adapters wrap any async
+   * notification behind it. Omitting it is a no-op with identical behavior.
+   */
+  onHashProgress?: (progress: HashProgress) => void;
 }
 
 export interface ListResult {
@@ -392,8 +398,9 @@ export async function publish(
     analyticsEnabled: args.analyticsEnabled,
     // Pass fetchFn so presigned R2 uploads use the injected fetch in tests
     fetchFn: deps?.fetchFn,
-    // Thread the progress callback down to the upload loop (adapter supplies it)
+    // Thread progress callbacks down (adapter supplies them)
     onProgress: args.onProgress,
+    onHashProgress: args.onHashProgress,
   });
 }
 
