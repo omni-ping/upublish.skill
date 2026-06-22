@@ -49,6 +49,7 @@ import {
   adminDomains,
   displayMsg,
   appendUpgradeHint,
+  renderFilenameWarning,
 } from "../lib/core.ts";
 import type {
   CoreDeps,
@@ -502,6 +503,10 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
               `\n  Add them to .upublishignore in the publish directory to exclude.`
             : "";
 
+        // Advisory, non-blocking note for URL-fragile (#/?/control) and
+        // spaces/non-ASCII filenames. Empty string when nothing qualifies.
+        const filenameWarningLine = renderFilenameWarning(result.filenameWarnings);
+
         // Show uploaded vs skipped file counts
         const incrementalLine =
           result.uploadedFiles !== undefined && result.skippedFiles !== undefined
@@ -531,6 +536,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             visibilityLine +
             excludedLine +
             warningLine +
+            filenameWarningLine +
             incrementalLine +
             storageOverageLine +
             `\nUse the promote tool to make this preview live.`,
@@ -547,6 +553,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           visibilityLine +
           excludedLine +
           warningLine +
+          filenameWarningLine +
           incrementalLine +
           storageOverageLine,
         );

@@ -257,6 +257,18 @@ export interface PublishResult {
   site: Site;
   /** Suspicious files that were included but may not be site content. */
   warnings: string[];
+  /**
+   * Advisory, non-blocking warnings about filenames whose characters interact
+   * badly with URLs — populated only when at least one file qualifies (absent on
+   * a clean tree). This NEVER blocks a publish and NEVER renames a file.
+   *
+   * - `fragile`: filenames containing `#`, `?`, or a control char (`\x00`–`\x1f`,
+   *   `\x7f`). These are URL delimiters/illegal and may not be reachable by URL.
+   * - `fyi`: filenames containing a space or any non-ASCII codepoint. These serve
+   *   fine (the worker decodes them); the note just flags that simple names are
+   *   safest. A file qualifying as `fragile` is reported ONLY there (no double-count).
+   */
+  filenameWarnings?: FilenameWarnings;
   /** Files/directories that were excluded by default rules or .upublishignore. */
   excluded: string[];
   /**
@@ -425,6 +437,108 @@ function isSuspicious(name: string): boolean {
   if (SUSPICIOUS_NAMES.has(name)) return true;
   if (name.endsWith(".sh")) return true;
   return false;
+}
+
+// ─── Special-character filename classifier (publish-time advisory) ─────────────
+
+/**
+ * Two buckets of filenames whose characters interact badly with URLs. Advisory
+ * only — see {@link classifyFilenames}.
+ */
+export interface FilenameWarnings {
+  /**
+   * Filenames containing `#`, `?`, or a control char (`\x00`–`\x1f` / `\x7f`).
+   * URL delimiters/illegal — may not be reachable by URL at all.
+   */
+  fragile: string[];
+  /**
+   * Filenames containing a space or any non-ASCII codepoint (> 127). These serve
+   * fine now; the note only flags that simple names are safest.
+   */
+  fyi: string[];
+}
+
+/** Max filenames listed per bucket before the message summarizes the remainder. */
+const FILENAME_WARNING_LIST_CAP = 10;
+
+/**
+ * Pure classifier over publishable paths → `{ fragile, fyi }`.
+ *
+ * Looks at each path's BASENAME (segment after the last `/`) so path separators
+ * and directory names are never themselves flagged, but reports the FULL path so
+ * the user can locate the file. `fragile` wins over `fyi` — a name in both sets
+ * is reported once, in `fragile` only (no double-count). Never mutates its input.
+ *
+ * @param paths - Relative manifest paths (filesystem-derived; treated as external input).
+ * @returns The two buckets; either may be empty.
+ */
+export function classifyFilenames(paths: string[]): FilenameWarnings {
+  const fragile: string[] = [];
+  const fyi: string[] = [];
+
+  for (const path of paths) {
+    // Classify by the basename — `/` separators and dir names never qualify.
+    const slash = path.lastIndexOf("/");
+    const name = slash === -1 ? path : path.slice(slash + 1);
+
+    let isFragile = false;
+    let isFyi = false;
+    // Codepoint iteration so astral/multi-byte unicode counts correctly.
+    for (const ch of name) {
+      const cp = ch.codePointAt(0)!;
+      if (ch === "#" || ch === "?" || cp <= 0x1f || cp === 0x7f) {
+        isFragile = true;
+        break; // fragile is the strongest signal — stop scanning this name
+      }
+      if (ch === " " || cp > 0x7f) {
+        isFyi = true;
+        // keep scanning: a later fragile char must still take precedence
+      }
+    }
+
+    // Precedence: fragile wins; a name in both sets is reported once, in fragile.
+    if (isFragile) fragile.push(path);
+    else if (isFyi) fyi.push(path);
+  }
+
+  return { fragile, fyi };
+}
+
+/**
+ * Renders the {@link FilenameWarnings} buckets into the publish output text.
+ * Returns "" when both buckets are empty so callers can concatenate it
+ * unconditionally. Caps each bucket's listed names at
+ * {@link FILENAME_WARNING_LIST_CAP}, summarizing the remainder.
+ *
+ * Wording is deliberately honest: fragile = "may not be reachable by URL";
+ * fyi = "served fine — simple names are safest" (NOT "broken").
+ */
+export function renderFilenameWarning(fw: FilenameWarnings | undefined): string {
+  if (!fw) return "";
+  const fragile = fw.fragile ?? [];
+  const fyi = fw.fyi ?? [];
+  if (fragile.length === 0 && fyi.length === 0) return "";
+
+  // Cap the listed names so a large flagged tree stays readable; summarize the rest.
+  const summarize = (names: string[]): string => {
+    const shown = names.slice(0, FILENAME_WARNING_LIST_CAP).join(", ");
+    const extra = names.length - FILENAME_WARNING_LIST_CAP;
+    return extra > 0 ? `${shown}, …and ${extra} more` : shown;
+  };
+
+  let out = "";
+  if (fragile.length > 0) {
+    out +=
+      `\nWarning: ${fragile.length} file(s) have names that may not be reachable by URL ` +
+      `(they contain '#', '?', or control characters): ${summarize(fragile)}` +
+      `\n  Rename them with simple characters so their links work everywhere.`;
+  }
+  if (fyi.length > 0) {
+    out +=
+      `\nFYI: ${fyi.length} file(s) use spaces or non-ASCII characters: ${summarize(fyi)}` +
+      `\n  These serve fine — simple names are safest.`;
+  }
+  return out;
 }
 
 // ─── .upublishignore ─────────────────────────────────────────────────────────
@@ -1032,6 +1146,15 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   // Thread storage_overage from the manifest response when present and charged.
   if (manifestResult.storage_overage?.charged === true) {
     result.storage_overage = manifestResult.storage_overage;
+  }
+
+  // Advisory, non-blocking filename scan over the exact paths we sent to the
+  // server. Warn-and-continue: this never blocks the publish (it runs only after
+  // a successful finalize) and never renames a file or alters the manifest.
+  // Attached only when something qualifies, so a clean tree omits the field.
+  const filenameWarnings = classifyFilenames(files.map((f) => f.path));
+  if (filenameWarnings.fragile.length > 0 || filenameWarnings.fyi.length > 0) {
+    result.filenameWarnings = filenameWarnings;
   }
 
   return result;
