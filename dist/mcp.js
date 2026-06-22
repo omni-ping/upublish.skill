@@ -24739,6 +24739,57 @@ function isSuspicious(name) {
     return true;
   return false;
 }
+var FILENAME_WARNING_LIST_CAP = 10;
+function classifyFilenames(paths) {
+  const fragile = [];
+  const fyi = [];
+  for (const path3 of paths) {
+    const slash = path3.lastIndexOf("/");
+    const name = slash === -1 ? path3 : path3.slice(slash + 1);
+    let isFragile = false;
+    let isFyi = false;
+    for (const ch of name) {
+      const cp = ch.codePointAt(0);
+      if (ch === "#" || ch === "?" || cp <= 31 || cp === 127) {
+        isFragile = true;
+        break;
+      }
+      if (ch === " " || cp > 127) {
+        isFyi = true;
+      }
+    }
+    if (isFragile)
+      fragile.push(path3);
+    else if (isFyi)
+      fyi.push(path3);
+  }
+  return { fragile, fyi };
+}
+function renderFilenameWarning(fw) {
+  if (!fw)
+    return "";
+  const fragile = fw.fragile ?? [];
+  const fyi = fw.fyi ?? [];
+  if (fragile.length === 0 && fyi.length === 0)
+    return "";
+  const summarize = (names) => {
+    const shown = names.slice(0, FILENAME_WARNING_LIST_CAP).join(", ");
+    const extra = names.length - FILENAME_WARNING_LIST_CAP;
+    return extra > 0 ? `${shown}, \u2026and ${extra} more` : shown;
+  };
+  let out = "";
+  if (fragile.length > 0) {
+    out += `
+Warning: ${fragile.length} file(s) have names that may not be reachable by URL ` + `(they contain '#', '?', or control characters): ${summarize(fragile)}` + `
+  Rename them with simple characters so their links work everywhere.`;
+  }
+  if (fyi.length > 0) {
+    out += `
+FYI: ${fyi.length} file(s) use spaces or non-ASCII characters: ${summarize(fyi)}` + `
+  These serve fine \u2014 simple names are safest.`;
+  }
+  return out;
+}
 function parseIgnoreFile(content) {
   return content.split(`
 `).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
@@ -24995,6 +25046,10 @@ async function publish(opts) {
   };
   if (manifestResult.storage_overage?.charged === true) {
     result.storage_overage = manifestResult.storage_overage;
+  }
+  const filenameWarnings = classifyFilenames(files.map((f) => f.path));
+  if (filenameWarnings.fragile.length > 0 || filenameWarnings.fyi.length > 0) {
+    result.filenameWarnings = filenameWarnings;
   }
   return result;
 }
@@ -25882,7 +25937,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.29";
+var PACKAGE_VERSION = "0.12.30";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -26071,6 +26126,7 @@ Excluded: ${result.excluded.length} file(s) (${result.excluded.join(", ")})` : "
       const warningLine = result.warnings.length > 0 ? `
 Warning: Included files that may not be site content: ${result.warnings.join(", ")}` + `
   Add them to .upublishignore in the publish directory to exclude.` : "";
+      const filenameWarningLine = renderFilenameWarning(result.filenameWarnings);
       const incrementalLine = result.uploadedFiles !== undefined && result.skippedFiles !== undefined ? `
 Uploaded: ${result.uploadedFiles.length} file(s), skipped ${result.skippedFiles.length} unchanged file(s)` : "";
       const storageOverageLine = (() => {
@@ -26088,7 +26144,7 @@ Uploaded: ${result.uploadedFiles.length} file(s), skipped ${result.skippedFiles.
 ` + `Preview URL: ${result.preview_url}
 ` + `Slug: ${site.slug}
 ` + `Files: ${site.file_count}
-` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + incrementalLine + storageOverageLine + `
+` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + filenameWarningLine + incrementalLine + storageOverageLine + `
 Use the promote tool to make this preview live.`);
       }
       log(`[publish] tool done slug=${site.slug} url=${result.url}`);
@@ -26096,7 +26152,7 @@ Use the promote tool to make this preview live.`);
 ` + `URL: ${result.url}
 ` + `Slug: ${site.slug}
 ` + `Files: ${site.file_count}
-` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + incrementalLine + storageOverageLine);
+` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + filenameWarningLine + incrementalLine + storageOverageLine);
     } catch (err) {
       log(`[publish] tool error slug=${slug} err=${err.message}`);
       if (err instanceof StorageApprovalError) {
