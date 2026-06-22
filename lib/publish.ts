@@ -34,6 +34,9 @@ import { log } from "./log.ts";
 const STORAGE_APPROVAL_URL_FALLBACK =
   "https://upubli.sh/profile/settings?storage_request=1";
 
+/** Upgrade URL for analytics-disable tier gate messages. */
+const ANALYTICS_UPGRADE_URL = "https://upubli.sh/pricing";
+
 /**
  * Thrown when the API returns 402 `needs_storage_approval`. Carries the
  * structured fields from the backend response so the adapter can surface the
@@ -73,6 +76,11 @@ export class StorageApprovalError extends Error {
  *   interval from the body. All fields are defensively narrowed — a malformed
  *   or partial body still produces a usable error with the canonical fallback
  *   URL and pack wording (no hardcoded price literal).
+ * - 403 analytics-gate (body.error contains "analytics"): rewrites to a
+ *   friendly upgrade message. The body check disambiguates from a
+ *   suspended-user 403 (different body) — the gate only fires when
+ *   `analyticsEnabled: false` is in the manifest, so ownership 404s are
+ *   separate. A suspended-user 403 body does NOT contain "analytics".
  * - All other errors: pass through unchanged — backend text is already
  *   actionable for the adapter.
  */
@@ -111,6 +119,20 @@ export function enrichPublishError(err: Error): Error {
     }
     // 402 with an unexpected code — fall through to pass-through below.
   }
+
+  // 403 analytics-gate: rewrite to a friendly upgrade message.
+  // Body check disambiguates from suspended-user 403 (different body text).
+  if (err instanceof ApiError && err.status === 403) {
+    const body = err.rawBodyData as Record<string, unknown> | null;
+    const serverMsg = typeof body?.error === "string" ? body.error : "";
+    if (serverMsg.toLowerCase().includes("analytics")) {
+      return new Error(
+        `${serverMsg} Upgrade to a Pro or Max plan at ${ANALYTICS_UPGRADE_URL} to disable analytics.`,
+      );
+    }
+    // 403 with a non-analytics body (e.g. suspended user) — pass through unchanged.
+  }
+
   return err;
 }
 

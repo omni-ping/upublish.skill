@@ -24655,6 +24655,7 @@ import {
 } from "fs";
 import { join as join3, relative } from "path";
 var STORAGE_APPROVAL_URL_FALLBACK = "https://upubli.sh/profile/settings?storage_request=1";
+var ANALYTICS_UPGRADE_URL = "https://upubli.sh/pricing";
 
 class StorageApprovalError extends Error {
   approval_url;
@@ -24684,6 +24685,13 @@ function enrichPublishError(err) {
       const rawInterval = body?.interval;
       const interval = rawInterval === "month" || rawInterval === "year" ? rawInterval : null;
       return new StorageApprovalError(approvalUrl, price, block_gb, blocks_needed, interval, `Storage pack approval required. Approve at ${approvalUrl}`);
+    }
+  }
+  if (err instanceof ApiError && err.status === 403) {
+    const body = err.rawBodyData;
+    const serverMsg = typeof body?.error === "string" ? body.error : "";
+    if (serverMsg.toLowerCase().includes("analytics")) {
+      return new Error(`${serverMsg} Upgrade to a Pro or Max plan at ${ANALYTICS_UPGRADE_URL} to disable analytics.`);
     }
   }
   return err;
@@ -25069,6 +25077,17 @@ async function setVersionsLimit(apiClient, nsId, slug, limit) {
 }
 
 // lib/analytics.ts
+var ANALYTICS_UPGRADE_URL2 = "https://upubli.sh/pricing";
+function enrichAnalyticsError(err, enabled) {
+  if (enabled === false && err instanceof ApiError && err.status === 403) {
+    const body = err.rawBodyData;
+    const serverMsg = typeof body?.error === "string" ? body.error : "";
+    if (serverMsg.toLowerCase().includes("analytics")) {
+      return new Error(`${serverMsg} Upgrade to a Pro or Max plan at ${ANALYTICS_UPGRADE_URL2} to disable analytics.`);
+    }
+  }
+  return err;
+}
 async function setAnalyticsEnabled(apiClient, nsId, slug, enabled) {
   if (!slug || slug.trim().length === 0) {
     throw new Error("slug is required");
@@ -25078,8 +25097,12 @@ async function setAnalyticsEnabled(apiClient, nsId, slug, enabled) {
   if (!site) {
     throw new Error(`Site "${slug}" not found in this namespace.`);
   }
-  const result = await apiClient.patch(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/visibility`, { visibility: site.visibility, analytics_enabled: enabled });
-  return { site: result.site };
+  try {
+    const result = await apiClient.patch(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/visibility`, { visibility: site.visibility, analytics_enabled: enabled });
+    return { site: result.site };
+  } catch (err) {
+    throw enrichAnalyticsError(err, enabled);
+  }
 }
 
 // lib/passcode.ts
