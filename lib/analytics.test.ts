@@ -16,9 +16,9 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { setAnalyticsEnabled } from "./analytics.ts";
-import { publish } from "./publish.ts";
-import { ApiClient } from "./api-client.ts";
+import { setAnalyticsEnabled, enrichAnalyticsError } from "./analytics.ts";
+import { publish, enrichPublishError, StorageApprovalError } from "./publish.ts";
+import { ApiClient, ApiError } from "./api-client.ts";
 
 const BASE_URL = "https://api.example.com";
 const NS_ID = "ns-test";
@@ -169,5 +169,150 @@ describe("publish threads analytics_enabled into the manifest body", () => {
     });
     // Default publish: no analytics_enabled in the body (server defaults ON).
     expect("analytics_enabled" in (captured.body ?? {})).toBe(false);
+  });
+});
+
+// ─── DW-3.1: enrichAnalyticsError — analytics-disable 403 → friendly message ─
+
+describe("enrichAnalyticsError — analytics-disable 403 enrichment", () => {
+  it("test_DW_3_1_disable_403_gives_friendly_upgrade_message", () => {
+    const err = new ApiError(
+      403,
+      { error: "Disabling analytics requires a paid plan" },
+      "API error 403: Disabling analytics requires a paid plan",
+    );
+    const enriched = enrichAnalyticsError(err, false);
+    expect(enriched).toBeInstanceOf(Error);
+    // Must NOT be the raw ApiError string
+    expect(enriched.message).not.toMatch(/^API error 403:/);
+    // Must be friendly and mention upgrade
+    expect(enriched.message).toMatch(/upgrade/i);
+    expect(enriched.message).toMatch(/analytics/i);
+    expect(enriched.message).toMatch(/upubli\.sh\/pricing/);
+    // Preserve the server's own message as the lead
+    expect(enriched.message).toMatch(/Disabling analytics requires a paid plan/);
+  });
+
+  it("test_DW_3_3_enable_true_403_propagates_unchanged", () => {
+    // A 403 on a re-enable attempt is not the analytics gate — pass through.
+    const err = new ApiError(
+      403,
+      { error: "Disabling analytics requires a paid plan" },
+      "API error 403: Disabling analytics requires a paid plan",
+    );
+    const result = enrichAnalyticsError(err, true);
+    // Same object — not rewritten
+    expect(result).toBe(err);
+  });
+
+  it("test_DW_3_3_non_403_propagates_unchanged", () => {
+    const err = new ApiError(500, { error: "internal server error" }, "API error 500: internal server error");
+    const result = enrichAnalyticsError(err, false);
+    expect(result).toBe(err);
+  });
+
+  it("test_DW_3_3_suspended_user_403_propagates_unchanged", () => {
+    // Suspended-user 403 has a different body — must NOT be rewritten as analytics upsell.
+    const err = new ApiError(
+      403,
+      { error: "account_suspended" },
+      "API error 403: account_suspended",
+    );
+    const result = enrichAnalyticsError(err, false);
+    // Must be the original error, not the upsell message
+    expect(result).toBe(err);
+    expect(result.message).not.toMatch(/upgrade/i);
+    expect(result.message).not.toMatch(/upubli\.sh\/pricing/);
+  });
+
+  it("test_non_api_error_propagates_unchanged", () => {
+    // A plain Error (e.g. network failure) is not an ApiError — pass through.
+    const err = new Error("fetch failed");
+    const result = enrichAnalyticsError(err, false);
+    expect(result).toBe(err);
+  });
+});
+
+// ─── DW-3.1 integration: setAnalyticsEnabled 403 surfaces friendly message ───
+
+describe("setAnalyticsEnabled — 403 analytics gate surfaces friendly message", () => {
+  it("test_DW_3_1_setAnalyticsEnabled_disable_403_friendly_throw", async () => {
+    const { fetchFn } = recordingFetch([
+      // GET sites: success
+      { status: 200, body: { sites: [{ id: "s1", slug: "blog", visibility: "public", analytics_enabled: true }] } },
+      // PATCH: 403 analytics gate
+      { status: 403, body: { error: "Disabling analytics requires a paid plan" } },
+    ]);
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    const err = await setAnalyticsEnabled(apiClient, NS_ID, "blog", false).catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).not.toMatch(/^API error 403:/);
+    expect(err.message).toMatch(/upgrade/i);
+    expect(err.message).toMatch(/analytics/i);
+  });
+});
+
+// ─── DW-3.2: enrichPublishError — 403 analytics gate on publish path ─────────
+
+describe("enrichPublishError — 403 analytics gate on publish path", () => {
+  it("test_DW_3_2_publish_analytics_disable_403_friendly_message", () => {
+    const err = new ApiError(
+      403,
+      { error: "Disabling analytics requires a paid plan" },
+      "API error 403: Disabling analytics requires a paid plan",
+    );
+    const enriched = enrichPublishError(err);
+    expect(enriched).toBeInstanceOf(Error);
+    expect(enriched.message).not.toMatch(/^API error 403:/);
+    expect(enriched.message).toMatch(/upgrade/i);
+    expect(enriched.message).toMatch(/analytics/i);
+    expect(enriched.message).toMatch(/upubli\.sh\/pricing/);
+  });
+
+  it("test_DW_3_2_publish_402_overage_still_throws_StorageApprovalError", () => {
+    // The 402 path must be untouched by the 403 changes.
+    const err = new ApiError(
+      402,
+      {
+        code: "needs_storage_approval",
+        approval_url: "https://upubli.sh/profile/settings?storage_request=1",
+        price: 1.0,
+        block_gb: 10,
+        blocks_needed: 1,
+        interval: "month",
+      },
+      "API error 402: needs_storage_approval",
+    );
+    const enriched = enrichPublishError(err);
+    expect(enriched).toBeInstanceOf(StorageApprovalError);
+    const sae = enriched as StorageApprovalError;
+    expect(sae.price).toBe(1.0);
+    expect(sae.block_gb).toBe(10);
+  });
+
+  it("test_DW_3_3_publish_suspended_user_403_propagates_unchanged", () => {
+    // Suspended-user 403 must not be rewritten as analytics upsell.
+    const err = new ApiError(
+      403,
+      { error: "account_suspended" },
+      "API error 403: account_suspended",
+    );
+    const result = enrichPublishError(err);
+    expect(result).toBe(err);
+    expect(result.message).not.toMatch(/analytics/i);
+    expect(result.message).not.toMatch(/upgrade/i);
+  });
+
+  it("test_DW_3_3_publish_non_403_propagates_unchanged", () => {
+    const err = new ApiError(500, { error: "internal" }, "API error 500: internal");
+    const result = enrichPublishError(err);
+    expect(result).toBe(err);
+  });
+
+  it("test_DW_3_3_publish_403_null_body_propagates_unchanged", () => {
+    // 403 with null/missing body (no "analytics" in message) — pass through.
+    const err = new ApiError(403, null, "API error 403: Forbidden");
+    const result = enrichPublishError(err);
+    expect(result).toBe(err);
   });
 });

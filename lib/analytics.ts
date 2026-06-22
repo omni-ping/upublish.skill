@@ -16,7 +16,10 @@
  * lib/core.ts; adapters (mcp/index.ts) import only from core.
  */
 import type { ApiClient } from "./api-client.ts";
+import { ApiError } from "./api-client.ts";
 import type { Site } from "./types.ts";
+
+const ANALYTICS_UPGRADE_URL = "https://upubli.sh/pricing";
 
 export interface SetAnalyticsResult {
   /** The updated site, including the new analytics_enabled value. */
@@ -43,6 +46,50 @@ interface VisibilityPatchResponse {
  * @throws Error if the site does not exist in the namespace.
  * @throws Error on API failure (propagated from ApiClient).
  */
+/**
+ * Enriches a PATCH error at the analytics-settings barricade.
+ *
+ * - 403 when disabling (enabled=false) AND the body identifies the paid-plan
+ *   analytics gate (body.error contains "analytics"): rewrites to a friendly
+ *   upgrade message. The body check disambiguates from a suspended-user 403
+ *   (different body) and from any non-disable call (re-enable never trips the gate).
+ * - All other errors: pass through unchanged — never swallow, never mislabel.
+ *
+ * @param err     - The error thrown by the API call.
+ * @param enabled - The value that was attempted (false = disable attempt).
+ */
+export function enrichAnalyticsError(err: Error, enabled: boolean): Error {
+  if (
+    enabled === false &&
+    err instanceof ApiError &&
+    err.status === 403
+  ) {
+    const body = err.rawBodyData as Record<string, unknown> | null;
+    const serverMsg = typeof body?.error === "string" ? body.error : "";
+    // Only rewrite when the body identifies the analytics gate.
+    // A suspended-user 403 has a different error body and will NOT match here.
+    if (serverMsg.toLowerCase().includes("analytics")) {
+      return new Error(
+        `${serverMsg} Upgrade to a Pro or Max plan at ${ANALYTICS_UPGRADE_URL} to disable analytics.`,
+      );
+    }
+  }
+  return err;
+}
+
+/**
+ * Enables or disables analytics for an existing site without republishing.
+ *
+ * @param apiClient - Authenticated API client.
+ * @param nsId      - Namespace ID the site belongs to.
+ * @param slug      - Site slug.
+ * @param enabled   - true ⇒ analytics ON, false ⇒ analytics OFF.
+ * @returns The updated site.
+ * @throws Error if slug is empty.
+ * @throws Error if the site does not exist in the namespace.
+ * @throws Error on API failure (propagated from ApiClient).
+ * @throws Error with friendly upgrade message when disabling against a free-tier account (403).
+ */
 export async function setAnalyticsEnabled(
   apiClient: ApiClient,
   nsId: string,
@@ -61,10 +108,13 @@ export async function setAnalyticsEnabled(
     throw new Error(`Site "${slug}" not found in this namespace.`);
   }
 
-  const result = await apiClient.patch<VisibilityPatchResponse>(
-    `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/visibility`,
-    { visibility: site.visibility, analytics_enabled: enabled },
-  );
-
-  return { site: result.site };
+  try {
+    const result = await apiClient.patch<VisibilityPatchResponse>(
+      `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/visibility`,
+      { visibility: site.visibility, analytics_enabled: enabled },
+    );
+    return { site: result.site };
+  } catch (err) {
+    throw enrichAnalyticsError(err as Error, enabled);
+  }
 }
