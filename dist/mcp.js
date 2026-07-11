@@ -24697,9 +24697,9 @@ function enrichPublishError(err) {
   return err;
 }
 function isValidSlug(slug) {
-  if (slug.length < 3 || slug.length > 63)
+  if (slug.length < 1 || slug.length > 255)
     return false;
-  return /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug) || /^[a-z0-9]{3}$/.test(slug);
+  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(slug);
 }
 var EXCLUDED_DIRS = new Set([".git", "node_modules", ".svn", ".hg"]);
 var EXCLUDED_FILES = new Set([".DS_Store", "Thumbs.db", ".upublishignore"]);
@@ -24969,6 +24969,7 @@ async function publish(opts) {
     nsId,
     directory,
     slug,
+    pathPrefix,
     title,
     visibility,
     passcode,
@@ -25018,7 +25019,8 @@ async function publish(opts) {
       passcode: visibility === "passcode" ? passcode : undefined,
       passcode_label: visibility === "passcode" ? passcodeLabel ?? "default" : undefined,
       preview,
-      analytics_enabled: analyticsEnabled
+      analytics_enabled: analyticsEnabled,
+      path_prefix: pathPrefix
     });
   } catch (err) {
     throw enrichPublishError(err);
@@ -25609,8 +25611,15 @@ function mapDomainError(err) {
 }
 
 // lib/rename.ts
-async function renameSite(apiClient, nsId, oldSlug, newSlug, redirect) {
-  const result = await apiClient.post(`/api/ns/${encodeURIComponent(nsId)}/sites/${encodeURIComponent(oldSlug)}/rename`, { new_slug: newSlug, redirect });
+async function renameSite(apiClient, nsId, oldSlug, newSlug, redirect, pathPrefix) {
+  const body = {
+    new_slug: newSlug,
+    redirect
+  };
+  if (pathPrefix !== undefined) {
+    body.path_prefix = pathPrefix;
+  }
+  const result = await apiClient.post(`/api/ns/${encodeURIComponent(nsId)}/sites/${encodeURIComponent(oldSlug)}/rename`, body);
   return {
     url: result.url,
     redirectExpiresAt: result.redirect_expires_at
@@ -25682,6 +25691,7 @@ async function publish2(args, deps) {
     nsId: ns.id,
     directory: args.directory,
     slug: args.slug,
+    pathPrefix: args.pathPrefix,
     title: args.title,
     visibility: args.visibility,
     passcode: args.passcode,
@@ -25825,7 +25835,7 @@ async function rename(opts, deps) {
   try {
     const ns = await resolveNamespaceRef(apiClient, opts.nsId);
     if (opts.site !== undefined) {
-      const result = await renameSite(apiClient, ns.id, opts.site, opts.newName, redirect);
+      const result = await renameSite(apiClient, ns.id, opts.site, opts.newName, redirect, opts.pathPrefix);
       return { success: true, url: result.url, redirectExpiresAt: result.redirectExpiresAt };
     } else {
       const result = await renameNamespace(apiClient, ns.id, opts.newName, redirect);
@@ -25937,7 +25947,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.30";
+var PACKAGE_VERSION = "0.12.31";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -26040,6 +26050,7 @@ function createServer(coreDeps, opts) {
     inputSchema: {
       directory: exports_external.string().describe("Path to the directory containing the files to publish. " + "Can be absolute or relative to the current working directory."),
       slug: exports_external.string().describe("URL-safe identifier for the site. Must be 1-255 characters: " + "lowercase letters, numbers, and hyphens only, starting and ending " + "with a letter or number. Use '_root' to publish at the " + "address/domain root (e.g. vibeandscribe.xyz/)."),
+      path_prefix: exports_external.string().optional().describe("Optional nested path prefix so the site publishes at " + "'{path_prefix}/{slug}' instead of the address root, e.g. " + "'2026/q3/code-report'. Multiple slash-separated segments are " + "allowed (lowercase letters, numbers, and hyphens per segment). " + "Omit for a normal top-level site. The server rejects a prefix " + "that collides with another site's address."),
       title: exports_external.string().optional().describe("Optional human-readable title for the site. Defaults to the slug."),
       visibility: exports_external.enum(["public", "passcode"]).optional().describe("Site visibility mode. 'public' (default) or 'passcode'."),
       passcode: exports_external.string().optional().describe("Passcode for passcode-protected sites. Required when visibility is 'passcode'."),
@@ -26048,7 +26059,7 @@ function createServer(coreDeps, opts) {
       force: exports_external.boolean().optional().describe("When true, uploads all files regardless of whether they changed. " + "Use this to force a full re-upload when the site is broken or out of sync."),
       analytics_enabled: exports_external.boolean().optional().describe("Per-site analytics. Defaults to on. Set false to publish WITHOUT the " + 'analytics script (e.g. "publish ... with no analytics"). To toggle ' + "analytics on an already-published site without republishing, use the " + "analytics tool instead.")
     }
-  }, async ({ directory, slug, title, visibility, passcode, namespace, preview, force, analytics_enabled }, extra) => {
+  }, async ({ directory, slug, path_prefix, title, visibility, passcode, namespace, preview, force, analytics_enabled }, extra) => {
     log(`[publish] tool entry slug=${slug} dir=${directory}`);
     const progressToken = extra?._meta?.progressToken;
     let lastProgress = null;
@@ -26108,6 +26119,7 @@ function createServer(coreDeps, opts) {
       const result = await publish2({
         directory,
         slug,
+        pathPrefix: path_prefix,
         title,
         visibility,
         passcode,
@@ -26792,9 +26804,10 @@ ${lines.join(`
       nsId: exports_external.string().describe("The address name (e.g. 'ryan') or its UUID. Use the status or list tool to see your addresses."),
       site: exports_external.string().optional().describe("Slug of the site to rename. When provided, the site is renamed within the address. " + "When omitted, the address itself is renamed."),
       newName: exports_external.string().describe("New name for the resource being renamed. When renaming a site, this is the " + "new slug (1-255 characters). When renaming the address, this is the new address " + "name (follows the address-name rules). In both cases: lowercase letters, numbers, " + "and hyphens only, starting and ending with a letter or number."),
+      path_prefix: exports_external.string().nullable().optional().describe("SITE renames only \u2014 set, change, or clear the site's nested path " + "prefix so it publishes at '{path_prefix}/{slug}' (e.g. " + "'2026/q3/code-report'). Omit to leave the current prefix " + "unchanged; pass an empty string or null to CLEAR the prefix " + "(move the site to the address root). Multiple slash-separated " + "segments are allowed. The server rejects a prefix that collides " + "with another site's address. Ignored when renaming an address."),
       redirect: exports_external.enum(["off", "30d", "permanent"]).optional().describe("Redirect mode for old URLs. Defaults to '30d' (safest). " + "'off' \u2014 no redirect, old name released immediately. " + "'30d' \u2014 301 redirect for 30 days. " + "'permanent' \u2014 permanent 301 redirect with no expiry.")
     }
-  }, async ({ nsId, site, newName, redirect }) => {
+  }, async ({ nsId, site, newName, path_prefix, redirect }) => {
     try {
       const nsIdStr = nsId;
       const newNameStr = newName;
@@ -26808,6 +26821,7 @@ ${lines.join(`
         nsId: nsIdStr,
         site,
         newName: newNameStr,
+        pathPrefix: path_prefix,
         redirect
       }, coreDeps);
       if (!result.success) {
