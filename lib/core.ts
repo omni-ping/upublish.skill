@@ -218,6 +218,14 @@ export interface PublishArgs {
   directory: string;
   /** URL-safe slug for the site. */
   slug: string;
+  /**
+   * Optional multi-segment path prefix — the site publishes at
+   * `{pathPrefix}/{slug}` instead of the namespace root. Omitting this
+   * field leaves publish behavior byte-identical to before nested-path
+   * publishing existed. Threaded straight through to the manifest request;
+   * validated server-side (400/422/409 on malformed/reserved/shadowing).
+   */
+  pathPrefix?: string | null;
   /** Optional human-readable title. Defaults to slug. */
   title?: string;
   /** Site visibility mode. */
@@ -286,6 +294,16 @@ export interface RenameArgs {
   site?: string;
   /** New slug (site rename) or new namespace name (namespace rename). */
   newName: string;
+  /**
+   * Optional path prefix change — SITE renames only (ignored for a namespace
+   * rename). Three-way semantics mirroring the backend:
+   *   - omitted (`undefined`) — leave the site's current prefix unchanged; the
+   *     rename request body is byte-identical to before nested-path publishing.
+   *   - `null` or `""` — clear the prefix (move the site to the address root).
+   *   - a string (e.g. "2026/q3/code-report") — set/change the prefix.
+   * Validated server-side (400/422/409 on malformed/reserved/shadowing).
+   */
+  pathPrefix?: string | null;
   /**
    * Redirect mode for old URLs. Defaults to '30d' when not specified.
    * - 'off'       — no redirect, old name immediately released
@@ -389,6 +407,7 @@ export async function publish(
     nsId: ns.id,
     directory: args.directory,
     slug: args.slug,
+    pathPrefix: args.pathPrefix,
     title: args.title,
     visibility: args.visibility,
     passcode: args.passcode,
@@ -818,8 +837,10 @@ export async function rename(opts: RenameArgs, deps?: CoreDeps): Promise<RenameR
     const ns = await resolveNamespaceRef(apiClient, opts.nsId);
 
     if (opts.site !== undefined) {
-      // Site rename
-      const result = await renameSite(apiClient, ns.id, opts.site, opts.newName, redirect);
+      // Site rename. opts.pathPrefix is passed straight through: undefined ⇒
+      // renameSite omits the field (byte-identical body); null/"" ⇒ clear;
+      // string ⇒ set. Only site renames carry a prefix (namespace renames don't).
+      const result = await renameSite(apiClient, ns.id, opts.site, opts.newName, redirect, opts.pathPrefix);
       return { success: true, url: result.url, redirectExpiresAt: result.redirectExpiresAt };
     } else {
       // Namespace rename

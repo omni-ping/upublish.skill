@@ -142,6 +142,15 @@ export class ApiClient {
       passcode_label?: string;
       preview?: boolean;
       analytics_enabled?: boolean;
+      /**
+       * Optional multi-segment path prefix — the site publishes at
+       * `{path_prefix}/{slug}` instead of the namespace root. Omit for
+       * today's unprefixed behavior; the server treats "" the same as
+       * omitted (no prefix). Validated server-side (400/422/409 on
+       * malformed/reserved/shadowing) — this client does not replicate
+       * those rules (see lib/publish.ts's isValidSlug fix note).
+       */
+      path_prefix?: string | null;
     },
   ): Promise<{
     needed: Array<{ path: string; upload_url: string }>;

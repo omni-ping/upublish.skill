@@ -183,6 +183,170 @@ describe("DW-6.1: core.rename() site happy path", () => {
   });
 });
 
+// ─── DW-5.4 (nested-path-publishing): rename carries path_prefix ──────────────
+//
+// The backend rename endpoint distinguishes three cases:
+//   - path_prefix ABSENT   → keep the site's current prefix (unchanged).
+//   - path_prefix null/""   → CLEAR the prefix (move to the address root).
+//   - path_prefix "a/b/c"   → SET/CHANGE the prefix.
+// The skill must preserve that distinction end-to-end so a plain rename never
+// accidentally clears a prefix and a caller can deliberately clear one.
+
+describe("DW-5.4: core.rename() threads path_prefix to the rename body", () => {
+  it("test_DW_5_4_rename_sets_path_prefix", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    let capturedBody: Record<string, unknown> | undefined;
+
+    const fetchFn = makeMockFetch((_, init) => {
+      capturedBody = JSON.parse(init?.body as string ?? "{}");
+      return new Response(
+        JSON.stringify({
+          slug: "new-slug",
+          path_prefix: "2026/q3/code-report",
+          url: "https://user.upubli.sh/2026/q3/code-report/new-slug/",
+          redirect_expires_at: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    const result = await rename(
+      { nsId: NS_ID, site: "old-slug", newName: "new-slug", pathPrefix: "2026/q3/code-report" },
+      deps,
+    );
+
+    // Multi-segment prefix forwarded unmangled (rides in the JSON body).
+    expect(capturedBody?.path_prefix).toBe("2026/q3/code-report");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.url).toBe("https://user.upubli.sh/2026/q3/code-report/new-slug/");
+    }
+  });
+
+  it("test_DW_5_4_rename_clears_prefix_with_empty_string", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    let capturedBody: Record<string, unknown> | undefined;
+    let hadPrefixKey = false;
+
+    const fetchFn = makeMockFetch((_, init) => {
+      capturedBody = JSON.parse(init?.body as string ?? "{}");
+      hadPrefixKey = Object.prototype.hasOwnProperty.call(capturedBody, "path_prefix");
+      return new Response(
+        JSON.stringify({
+          slug: "new-slug",
+          path_prefix: null,
+          url: "https://user.upubli.sh/new-slug/",
+          redirect_expires_at: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    // "" is the explicit CLEAR signal — the field IS sent (as "") so the
+    // server clears the prefix, distinct from omitting it (which would keep).
+    await rename(
+      { nsId: NS_ID, site: "old-slug", newName: "new-slug", pathPrefix: "" },
+      deps,
+    );
+
+    expect(hadPrefixKey).toBe(true);
+    expect(capturedBody?.path_prefix).toBe("");
+  });
+
+  it("test_DW_5_4_rename_clears_prefix_with_null", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    let capturedBody: Record<string, unknown> | undefined;
+    let hadPrefixKey = false;
+
+    const fetchFn = makeMockFetch((_, init) => {
+      capturedBody = JSON.parse(init?.body as string ?? "{}");
+      hadPrefixKey = Object.prototype.hasOwnProperty.call(capturedBody, "path_prefix");
+      return new Response(
+        JSON.stringify({
+          slug: "new-slug",
+          path_prefix: null,
+          url: "https://user.upubli.sh/new-slug/",
+          redirect_expires_at: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    // null is the other explicit CLEAR signal — forwarded as null, not stripped.
+    await rename(
+      { nsId: NS_ID, site: "old-slug", newName: "new-slug", pathPrefix: null },
+      deps,
+    );
+
+    expect(hadPrefixKey).toBe(true);
+    expect(capturedBody?.path_prefix).toBeNull();
+  });
+
+  it("test_DW_5_4_rename_without_path_prefix_is_byte_identical", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    let capturedBody: Record<string, unknown> | undefined;
+
+    const fetchFn = makeMockFetch((_, init) => {
+      capturedBody = JSON.parse(init?.body as string ?? "{}");
+      return new Response(
+        JSON.stringify({ slug: "new-slug", url: "https://user.upubli.sh/new-slug/", redirect_expires_at: null }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    // pathPrefix omitted — body must be EXACTLY { new_slug, redirect }, no
+    // path_prefix key at all (byte-identical to a pre-feature rename).
+    await rename({ nsId: NS_ID, site: "old-slug", newName: "new-slug" }, deps);
+
+    expect(capturedBody).toEqual({ new_slug: "new-slug", redirect: "30d" });
+    expect(
+      Object.prototype.hasOwnProperty.call(capturedBody, "path_prefix"),
+    ).toBe(false);
+  });
+
+  it("test_DW_5_4_rename_shadow_409_surfaced_as_structured_error", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const fetchFn = makeMockFetch(() =>
+      new Response(
+        JSON.stringify({
+          code: "address_shadowed",
+          error:
+            'The address "code-report/new-slug" conflicts with the existing site at "code-report" — one address may not be a path-prefix of another.',
+          conflicting_address: "code-report",
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      )
+    );
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+    // rename() never throws for expected failures — it returns a structured
+    // { success: false, error } that the MCP handler renders via errResponse.
+    const result = await rename(
+      { nsId: NS_ID, site: "old-slug", newName: "new-slug", pathPrefix: "code-report" },
+      deps,
+    );
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("conflicts with the existing site");
+    }
+  });
+});
+
 // ─── DW-6.1: Core happy path — namespace rename ──────────────────────────────
 
 describe("DW-6.1: core.rename() namespace happy path", () => {

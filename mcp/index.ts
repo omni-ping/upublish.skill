@@ -306,6 +306,17 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             "with a letter or number. Use '_root' to publish at the " +
             "address/domain root (e.g. vibeandscribe.xyz/).",
           ),
+        path_prefix: z
+          .string()
+          .optional()
+          .describe(
+            "Optional nested path prefix so the site publishes at " +
+            "'{path_prefix}/{slug}' instead of the address root, e.g. " +
+            "'2026/q3/code-report'. Multiple slash-separated segments are " +
+            "allowed (lowercase letters, numbers, and hyphens per segment). " +
+            "Omit for a normal top-level site. The server rejects a prefix " +
+            "that collides with another site's address.",
+          ),
         title: z
           .string()
           .optional()
@@ -356,7 +367,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           ),
       },
     },
-    async ({ directory, slug, title, visibility, passcode, namespace, preview, force, analytics_enabled }, extra) => {
+    async ({ directory, slug, path_prefix, title, visibility, passcode, namespace, preview, force, analytics_enabled }, extra) => {
       log(`[publish] tool entry slug=${slug as string} dir=${directory as string}`);
 
       // Only emit MCP progress when the client supplied a progressToken in _meta.
@@ -473,6 +484,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           {
             directory: directory as string,
             slug: slug as string,
+            pathPrefix: path_prefix as string | undefined,
             title: title as string | undefined,
             visibility: visibility as "public" | "passcode" | undefined,
             passcode: passcode as string | undefined,
@@ -1778,6 +1790,19 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             "name (follows the address-name rules). In both cases: lowercase letters, numbers, " +
             "and hyphens only, starting and ending with a letter or number.",
           ),
+        path_prefix: z
+          .string()
+          .nullable()
+          .optional()
+          .describe(
+            "SITE renames only — set, change, or clear the site's nested path " +
+            "prefix so it publishes at '{path_prefix}/{slug}' (e.g. " +
+            "'2026/q3/code-report'). Omit to leave the current prefix " +
+            "unchanged; pass an empty string or null to CLEAR the prefix " +
+            "(move the site to the address root). Multiple slash-separated " +
+            "segments are allowed. The server rejects a prefix that collides " +
+            "with another site's address. Ignored when renaming an address.",
+          ),
         redirect: z
           .enum(["off", "30d", "permanent"])
           .optional()
@@ -1789,7 +1814,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           ),
       },
     },
-    async ({ nsId, site, newName, redirect }) => {
+    async ({ nsId, site, newName, path_prefix, redirect }) => {
       try {
         const nsIdStr = nsId as string;
         const newNameStr = newName as string | undefined;
@@ -1807,6 +1832,10 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             nsId: nsIdStr,
             site: site as string | undefined,
             newName: newNameStr,
+            // undefined ⇒ omit (keep prefix); null/"" ⇒ clear; string ⇒ set.
+            // The distinction is preserved end-to-end so a client can clear a
+            // prefix without accidentally clearing it on every unrelated rename.
+            pathPrefix: path_prefix as string | null | undefined,
             redirect: redirect as "off" | "30d" | "permanent" | undefined,
           },
           coreDeps,

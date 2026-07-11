@@ -337,6 +337,95 @@ describe("DW-1.1/1.4/1.6: core.publish()", () => {
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  // Nested-path-publishing DW-5.1: PublishArgs.pathPrefix must thread through
+  // core.publish() -> lib/publish.ts's publish() -> ApiClient.manifest()'s
+  // request body, and be entirely absent from the body when omitted.
+  it("test_DW_5_1_publish_threads_path_prefix_to_manifest_body", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const tmpDir = path.join(os.tmpdir(), `core-publish-prefix-${Date.now()}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
+    tmpFiles.push(path.join(tmpDir, "index.html"));
+
+    const publishResponse = {
+      site: {
+        id: "uuid-1", user_id: "u1", slug: "gpt-5-6-sol", title: "Test Site",
+        created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+        file_count: 1, total_size: 100, visibility: "public" as const, passcode_hash: null,
+      },
+      url: "https://test-site.upubli.sh/code-report/gpt-5-6-sol/",
+    };
+
+    let capturedManifestBody: Record<string, unknown> | null = null;
+    const baseFetch = mockFetchForPublish(publishResponse);
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        capturedManifestBody = init?.body
+          ? (JSON.parse(init.body as string) as Record<string, unknown>)
+          : null;
+      }
+      return baseFetch(url, init);
+    };
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+
+    const result = await publish(
+      { directory: tmpDir, slug: "gpt-5-6-sol", pathPrefix: "code-report" },
+      deps,
+    );
+
+    expect(result.url).toBe("https://test-site.upubli.sh/code-report/gpt-5-6-sol/");
+    expect((capturedManifestBody as unknown as { path_prefix: string }).path_prefix).toBe(
+      "code-report",
+    );
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("test_DW_5_1_publish_omits_path_prefix_when_not_supplied", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const tmpDir = path.join(os.tmpdir(), `core-publish-noprefix-${Date.now()}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
+    tmpFiles.push(path.join(tmpDir, "index.html"));
+
+    const publishResponse = {
+      site: {
+        id: "uuid-1", user_id: "u1", slug: "test-site", title: "Test Site",
+        created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+        file_count: 1, total_size: 100, visibility: "public" as const, passcode_hash: null,
+      },
+      url: "https://test-site.upubli.sh",
+    };
+
+    let capturedManifestBody: Record<string, unknown> | null = null;
+    const baseFetch = mockFetchForPublish(publishResponse);
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        capturedManifestBody = init?.body
+          ? (JSON.parse(init.body as string) as Record<string, unknown>)
+          : null;
+      }
+      return baseFetch(url, init);
+    };
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+
+    // pathPrefix intentionally omitted from PublishArgs.
+    const result = await publish({ directory: tmpDir, slug: "test-site" }, deps);
+    expect(result.url).toBe("https://test-site.upubli.sh");
+    expect(capturedManifestBody).not.toBeNull();
+    expect(
+      Object.prototype.hasOwnProperty.call(capturedManifestBody, "path_prefix"),
+    ).toBe(false);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });
 
 // ─── DW-1.1 + DW-1.4 + DW-1.6: core.deleteOp() ─────────────────────────────

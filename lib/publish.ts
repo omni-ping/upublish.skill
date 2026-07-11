@@ -196,6 +196,18 @@ export interface PublishOpts {
   directory: string;
   /** URL-safe identifier for the site. */
   slug: string;
+  /**
+   * Optional multi-segment path prefix — the site publishes at
+   * `{pathPrefix}/{slug}` (e.g. "2026/q3/code-report") instead of the
+   * namespace root. OMITTING this field entirely produces a manifest
+   * request body byte-identical to a pre-nested-path-publishing publish
+   * (no `path_prefix` key at all). Explicit `null`/`""` also resolves to
+   * "no prefix" server-side but DOES add the key to the request body.
+   * Validated server-side (malformed → 400, reserved segment → 422,
+   * shadows an existing site's address → 409); this client does not
+   * replicate those rules — see {@link isValidSlug}'s doc comment for why.
+   */
+  pathPrefix?: string | null;
   /** Optional human-readable title (defaults to slug). */
   title?: string;
   /** Site visibility mode. */
@@ -393,12 +405,19 @@ interface PublishResponse {
 
 // ─── Validation ──────────────────────────────────────────────────────────────
 
-/** Returns true if the slug matches the upubli.sh slug rules. */
+/**
+ * Returns true if the slug matches the upubli.sh slug rules.
+ *
+ * Mirrors the server's `isValidSlug` exactly (1-255 chars, lowercase
+ * alphanumerics and hyphens, must start/end with an alphanumeric — a
+ * single-character slug is valid via the regex's optional middle group).
+ * Bounds and pattern MUST stay byte-identical to the server: a narrower
+ * client rule silently rejects addresses the server would accept (the bug
+ * this function used to have — 3-63 chars against the server's 1-255).
+ */
 export function isValidSlug(slug: string): boolean {
-  if (slug.length < 3 || slug.length > 63) return false;
-  return (
-    /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug) || /^[a-z0-9]{3}$/.test(slug)
-  );
+  if (slug.length < 1 || slug.length > 255) return false;
+  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(slug);
 }
 
 // ─── File Exclusion ──────────────────────────────────────────────────────────
@@ -1032,6 +1051,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     nsId,
     directory,
     slug,
+    pathPrefix,
     title,
     visibility,
     passcode,
@@ -1105,6 +1125,10 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
         visibility === "passcode" ? (passcodeLabel ?? "default") : undefined,
       preview,
       analytics_enabled: analyticsEnabled,
+      // Omitted (undefined) when the caller doesn't pass pathPrefix — JSON.stringify
+      // drops undefined properties, so the request body stays byte-identical to a
+      // pre-nested-path-publishing publish. See PublishOpts.pathPrefix's doc comment.
+      path_prefix: pathPrefix,
     });
   } catch (err) {
     throw enrichPublishError(err as Error);

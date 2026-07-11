@@ -31,13 +31,28 @@ interface NsRenameResponse {
 export type RedirectMode = "off" | "30d" | "permanent";
 
 /**
- * Renames a site (slug) within a namespace.
+ * Renames a site (slug) within a namespace, optionally also setting, changing,
+ * or clearing its path prefix (the site's address is `{path_prefix}/{slug}`).
+ *
+ * The `pathPrefix` argument mirrors the backend rename endpoint's three-way
+ * semantics EXACTLY:
+ *   - `undefined` — the `path_prefix` field is OMITTED from the request body,
+ *     so the body is byte-identical to a pre-nested-path-publishing rename and
+ *     the server keeps the site's current prefix unchanged.
+ *   - `null` or `""` — the field is sent as `null`/`""`, which the server reads
+ *     as an explicit "clear the prefix" (publish the site at the address root).
+ *   - a non-empty string — sets/changes the prefix to that (possibly
+ *     multi-segment) value.
+ * The prefix's content rules (charset, depth, reserved segments, shadow) are
+ * validated server-side (400/422/409); this client does not replicate them —
+ * the structured error propagates via ApiError, matching the publish path.
  *
  * @param apiClient  - Authenticated API client.
  * @param nsId       - Namespace ID.
  * @param oldSlug    - Current site slug.
  * @param newSlug    - New site slug.
  * @param redirect   - Redirect mode for the old URL.
+ * @param pathPrefix - See three-way semantics above. Omit to leave unchanged.
  * @returns RenameSuccess with the new URL and redirect expiry.
  * @throws Error on API failure (propagated from ApiClient).
  */
@@ -47,10 +62,23 @@ export async function renameSite(
   oldSlug: string,
   newSlug: string,
   redirect: RedirectMode,
+  pathPrefix?: string | null,
 ): Promise<RenameSuccess> {
+  const body: { new_slug: string; redirect: RedirectMode; path_prefix?: string | null } = {
+    new_slug: newSlug,
+    redirect,
+  };
+  // Only attach path_prefix when the caller expressed an intent (set/clear).
+  // Leaving it off keeps the request body byte-identical to today — the server
+  // then preserves the stored prefix. null/"" are DELIBERATELY forwarded as the
+  // explicit "clear" signal (not stripped), which the server distinguishes from
+  // an absent field.
+  if (pathPrefix !== undefined) {
+    body.path_prefix = pathPrefix;
+  }
   const result = await apiClient.post<SiteRenameResponse>(
     `/api/ns/${encodeURIComponent(nsId)}/sites/${encodeURIComponent(oldSlug)}/rename`,
-    { new_slug: newSlug, redirect },
+    body,
   );
   return {
     url: result.url,

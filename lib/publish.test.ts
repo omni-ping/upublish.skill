@@ -76,17 +76,24 @@ describe("parseIgnoreFile", () => {
 
 // ─── isValidSlug unit tests ─────────────────────────────────────────────────
 
+// DW-5.2 (nested-path-publishing Phase 5): isValidSlug must match the
+// server's exact rule — 1-255 chars, ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ — so the
+// client never rejects an address the server would accept. The prior client
+// rule (3-63 chars) was a divergence bug; these cases assert the fix.
 describe("isValidSlug", () => {
-  it("accepts valid slugs", () => {
+  it("accepts valid slugs, including single- and two-character ones", () => {
     expect(isValidSlug("abc")).toBe(true);
     expect(isValidSlug("my-site")).toBe(true);
     expect(isValidSlug("my-awesome-portfolio-2026")).toBe(true);
     expect(isValidSlug("a1b")).toBe(true);
+    // test_DW_5_2_single_and_two_char_slugs_accepted — server allows 1-255,
+    // the old 3-char-minimum client rule falsely rejected these.
+    expect(isValidSlug("a")).toBe(true);
+    expect(isValidSlug("ab")).toBe(true);
   });
 
-  it("rejects too-short slugs", () => {
-    expect(isValidSlug("ab")).toBe(false);
-    expect(isValidSlug("a")).toBe(false);
+  it("rejects only the empty slug", () => {
+    // test_DW_5_2_empty_slug_rejected
     expect(isValidSlug("")).toBe(false);
   });
 
@@ -99,8 +106,13 @@ describe("isValidSlug", () => {
     expect(isValidSlug("bad-")).toBe(false);
   });
 
-  it("rejects too-long slugs", () => {
-    expect(isValidSlug("a".repeat(64))).toBe(false);
+  it("accepts slugs up to 255 chars and rejects over 255", () => {
+    // test_DW_5_2_length_bound_is_255_not_63 — the old rule falsely rejected
+    // a 64-254 char slug the server accepts; the new rule must accept up to
+    // (and including) 255 and reject 256+.
+    expect(isValidSlug("a".repeat(64))).toBe(true);
+    expect(isValidSlug("a".repeat(255))).toBe(true);
+    expect(isValidSlug("a".repeat(256))).toBe(false);
   });
 
   it("rejects _root (format rules only — publish() handles the bypass)", () => {
@@ -573,6 +585,64 @@ describe("DW-5.2: ApiClient.manifest()", () => {
     });
   });
 
+  it("test_DW_5_1_manifest_forwards_path_prefix", async () => {
+    let capturedBody: unknown = null;
+
+    const fetchFn = async (_url: string, init?: RequestInit) => {
+      capturedBody = init?.body ? JSON.parse(init.body as string) : null;
+      return new Response(
+        JSON.stringify({
+          needed: [],
+          version: 1,
+          session_id: "sess-1",
+          base_version: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    };
+
+    const client = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    // Multi-segment prefix passed through unmangled — no '/'-splitting or
+    // URL-encoding bug (the field rides in the JSON body, not the URL path).
+    await client.manifest("ns-1", "code-report", {
+      files: [],
+      path_prefix: "2026/q3/code-report",
+    });
+
+    expect((capturedBody as { path_prefix: string }).path_prefix).toBe(
+      "2026/q3/code-report",
+    );
+  });
+
+  it("test_DW_5_1_manifest_omits_path_prefix_key_when_not_supplied", async () => {
+    let capturedBody: Record<string, unknown> | null = null;
+
+    const fetchFn = async (_url: string, init?: RequestInit) => {
+      capturedBody = init?.body
+        ? (JSON.parse(init.body as string) as Record<string, unknown>)
+        : null;
+      return new Response(
+        JSON.stringify({
+          needed: [],
+          version: 1,
+          session_id: "sess-1",
+          base_version: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    };
+
+    const client = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    // No path_prefix field at all — byte-identical to a pre-nested-path-
+    // publishing manifest call (DW-5.1's "without it, unchanged" edge case).
+    await client.manifest("ns-1", "my-site", { files: [] });
+
+    expect(capturedBody).not.toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(capturedBody, "path_prefix")).toBe(
+      false,
+    );
+  });
+
   it("test_DW_5_2_manifest_throws_on_api_error", async () => {
     const fetchFn = async () =>
       new Response(JSON.stringify({ error: "Tier limit exceeded" }), {
@@ -914,6 +984,192 @@ describe("DW-3.1/5.5: publish() uses presigned-URL flow", () => {
     ).rejects.toThrow("Network timeout");
   });
 
+  it("test_DW_5_1_publish_with_path_prefix_returns_nested_url", async () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
+
+    const NESTED_URL = "https://testuser.upubli.sh/code-report/gpt-5-6-sol/";
+    let capturedManifestBody: Record<string, unknown> | null = null;
+
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (url.includes("/manifest")) {
+        capturedManifestBody = init?.body
+          ? (JSON.parse(init.body as string) as Record<string, unknown>)
+          : null;
+        return new Response(
+          JSON.stringify({
+            needed: [
+              { path: "index.html", upload_url: "https://r2.example.com/presigned" },
+            ],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("r2.example.com") && method === "PUT") {
+        return new Response("", { status: 200 });
+      }
+      if (url.includes("/finalize")) {
+        // The server resolves the nested address from the manifest session
+        // and returns it in the finalize response's url field.
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: NESTED_URL }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    const result = await publish({
+      apiClient,
+      nsId: "ns-1",
+      directory: tmpDir,
+      slug: "gpt-5-6-sol",
+      pathPrefix: "code-report",
+      fetchFn,
+    });
+
+    expect(result.url).toBe(NESTED_URL);
+    expect((capturedManifestBody as unknown as { path_prefix: string }).path_prefix).toBe(
+      "code-report",
+    );
+  });
+
+  it("test_DW_5_1_publish_without_path_prefix_is_byte_identical", async () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
+
+    let capturedManifestBody: Record<string, unknown> | null = null;
+
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (url.includes("/manifest")) {
+        capturedManifestBody = init?.body
+          ? (JSON.parse(init.body as string) as Record<string, unknown>)
+          : null;
+        return new Response(
+          JSON.stringify({
+            needed: [
+              { path: "index.html", upload_url: "https://r2.example.com/presigned" },
+            ],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("r2.example.com") && method === "PUT") {
+        return new Response("", { status: 200 });
+      }
+      if (url.includes("/finalize")) {
+        return new Response(
+          JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    const result = await publish({
+      apiClient,
+      nsId: "ns-1",
+      directory: tmpDir,
+      slug: "my-site",
+      // pathPrefix intentionally omitted — DW-5.1's "without it, unchanged"
+      // edge case: no path_prefix key in the wire body, unchanged URL.
+      fetchFn,
+    });
+
+    expect(result.url).toBe(SAMPLE_URL);
+    expect(capturedManifestBody).not.toBeNull();
+    expect(
+      Object.prototype.hasOwnProperty.call(capturedManifestBody, "path_prefix"),
+    ).toBe(false);
+  });
+
+  it("test_DW_5_3_path_prefix_shadow_rejection_propagates_as_structured_error", async () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
+
+    // Server's 409 shadow-collision rejection (structured JSON body, per the
+    // backend's parsePathPrefixField/findShadowingSite contract).
+    const fetchFn = async (url: string) => {
+      if (url.includes("/manifest")) {
+        return new Response(
+          JSON.stringify({
+            error:
+              "This address conflicts with an existing site's path prefix.",
+          }),
+          { status: 409, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+
+    // publish() must reject with a well-formed Error carrying the server's
+    // message — never let a raw/unhandled exception escape. This is the
+    // exact contract mcp/index.ts's publish tool handler's existing
+    // try/catch → errResponse() relies on (DW-5.3): a rejected Promise with
+    // an Error.message is turned into a structured { isError: true } tool
+    // result, not a thrown exception that crashes the tool call. That
+    // conversion is pre-existing, untouched code (mcp/index.ts:560-599) —
+    // this proves the new path_prefix field flows through the same
+    // ApiError → Error propagation path a 403 already does above.
+    let caught: unknown;
+    try {
+      await publish({
+        apiClient,
+        nsId: "ns-1",
+        directory: tmpDir,
+        slug: "gpt-5-6-sol",
+        pathPrefix: "code-report",
+        fetchFn,
+      });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toContain(
+      "This address conflicts with an existing site's path prefix.",
+    );
+  });
+
+  it("test_DW_5_3_path_prefix_reserved_segment_rejection_propagates_as_structured_error", async () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
+
+    // Server's 422 content-filter rejection for a reserved/disallowed segment.
+    const fetchFn = async (url: string) => {
+      if (url.includes("/manifest")) {
+        return new Response(
+          JSON.stringify({
+            error: "This path prefix is not allowed. Please choose a different one.",
+          }),
+          { status: 422, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+
+    await expect(
+      publish({
+        apiClient,
+        nsId: "ns-1",
+        directory: tmpDir,
+        slug: "my-site",
+        pathPrefix: "__reserved",
+        fetchFn,
+      }),
+    ).rejects.toThrow("This path prefix is not allowed");
+  });
+
   it("test_DW_5_8_progress_reports_uploaded_files", async () => {
     writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
     writeFileSync(join(tmpDir, "style.css"), "body {}");
@@ -1037,8 +1293,11 @@ describe("DW-3.1/5.5: publish() uses presigned-URL flow", () => {
       async () => new Response("{}", { status: 200 }),
     );
 
+    // "ab" is a VALID slug under the corrected 1-255 rule (DW-5.2) — use an
+    // uppercase slug, which is invalid under both the old and new rule, so
+    // this test still exercises publish()'s slug-format barricade.
     await expect(
-      publish({ apiClient, nsId: "ns-1", directory: tmpDir, slug: "ab" }),
+      publish({ apiClient, nsId: "ns-1", directory: tmpDir, slug: "AB" }),
     ).rejects.toThrow("Invalid slug");
   });
 
