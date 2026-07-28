@@ -1375,6 +1375,60 @@ describe("DW-3.1/5.5: publish() uses presigned-URL flow", () => {
     expect(result.url).toBe(rootUrl);
     expect(result.site.slug).toBe("_root");
   });
+
+  // root-title-route-cleanup Phase 2, dirty case beyond the DW floor: a caller
+  // that invokes publish() directly (bypassing lib/core.ts's namespace
+  // resolution) and supplies no namespaceName. Documents the fallback stated in
+  // PublishOpts.namespaceName's docblock — it must not throw, and must not
+  // silently invent a different behavior than the pre-fix default.
+  it("falls back to the literal slug when namespaceName is unavailable for _root", async () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
+
+    const rootSite = { ...SAMPLE_SITE, slug: "_root" };
+    const rootUrl = "https://testuser.upubli.sh/";
+    let capturedBody: Record<string, unknown> | null = null;
+
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        capturedBody = init?.body
+          ? (JSON.parse(init.body as string) as Record<string, unknown>)
+          : null;
+        return new Response(
+          JSON.stringify({
+            needed: [{ path: "index.html", upload_url: "https://r2.example.com/1" }],
+            version: 1,
+            session_id: "sess-1",
+            base_version: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("r2.example.com") && init?.method === "PUT") {
+        return new Response("", { status: 200 });
+      }
+      if (url.includes("/finalize")) {
+        return new Response(
+          JSON.stringify({ site: rootSite, url: rootUrl }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    };
+
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
+    // No title, no namespaceName — the low-level fallback case.
+    const result = await publish({
+      apiClient,
+      nsId: "ns-1",
+      directory: tmpDir,
+      slug: "_root",
+      fetchFn,
+    });
+
+    expect(result.url).toBe(rootUrl);
+    expect(capturedBody).not.toBeNull();
+    expect((capturedBody as unknown as { title: string }).title).toBe("_root");
+  });
 });
 
 // ─── DW-3.2: No incremental field in PublishArgs ─────────────────────────────

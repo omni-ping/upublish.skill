@@ -226,7 +226,12 @@ export interface PublishArgs {
    * validated server-side (400/422/409 on malformed/reserved/shadowing).
    */
   pathPrefix?: string | null;
-  /** Optional human-readable title. Defaults to slug. */
+  /**
+   * Optional human-readable title. When omitted, a normal slug defaults to
+   * the slug itself; the reserved `_root` slug (address root) defaults to
+   * the resolved namespace's name instead of the literal slug `"_root"` —
+   * see `lib/publish.ts`'s `resolveDefaultTitle`.
+   */
   title?: string;
   /** Site visibility mode. */
   visibility?: Visibility;
@@ -409,6 +414,7 @@ export async function publish(
     slug: args.slug,
     pathPrefix: args.pathPrefix,
     title: args.title,
+    namespaceName: ns.name,
     visibility: args.visibility,
     passcode: args.passcode,
     passcodeLabel: args.passcodeLabel,

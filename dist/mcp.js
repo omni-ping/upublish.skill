@@ -24963,6 +24963,11 @@ async function uploadOneFile(item, files, fetchFn) {
     }
   }
 }
+function resolveDefaultTitle(slug, namespaceName) {
+  if (slug !== "_root")
+    return slug;
+  return namespaceName ?? slug;
+}
 async function publish(opts) {
   const {
     apiClient,
@@ -24971,6 +24976,7 @@ async function publish(opts) {
     slug,
     pathPrefix,
     title,
+    namespaceName,
     visibility,
     passcode,
     passcodeLabel,
@@ -25014,7 +25020,7 @@ async function publish(opts) {
   try {
     manifestResult = await apiClient.manifest(nsId, slug, {
       files,
-      title: title ?? slug,
+      title: title ?? resolveDefaultTitle(slug, namespaceName),
       visibility,
       passcode: visibility === "passcode" ? passcode : undefined,
       passcode_label: visibility === "passcode" ? passcodeLabel ?? "default" : undefined,
@@ -25693,6 +25699,7 @@ async function publish2(args, deps) {
     slug: args.slug,
     pathPrefix: args.pathPrefix,
     title: args.title,
+    namespaceName: ns.name,
     visibility: args.visibility,
     passcode: args.passcode,
     passcodeLabel: args.passcodeLabel,
@@ -25947,7 +25954,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.31";
+var PACKAGE_VERSION = "0.12.32";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -26051,7 +26058,7 @@ function createServer(coreDeps, opts) {
       directory: exports_external.string().describe("Path to the directory containing the files to publish. " + "Can be absolute or relative to the current working directory."),
       slug: exports_external.string().describe("URL-safe identifier for the site. Must be 1-255 characters: " + "lowercase letters, numbers, and hyphens only, starting and ending " + "with a letter or number. Use '_root' to publish at the " + "address/domain root (e.g. vibeandscribe.xyz/)."),
       path_prefix: exports_external.string().optional().describe("Optional nested path prefix so the site publishes at " + "'{path_prefix}/{slug}' instead of the address root, e.g. " + "'2026/q3/code-report'. Multiple slash-separated segments are " + "allowed (lowercase letters, numbers, and hyphens per segment). " + "Omit for a normal top-level site. The server rejects a prefix " + "that collides with another site's address."),
-      title: exports_external.string().optional().describe("Optional human-readable title for the site. Defaults to the slug."),
+      title: exports_external.string().optional().describe("Optional human-readable title for the site. Defaults to the slug " + "\u2014 or, for the '_root' slug (address root), the address's name."),
       visibility: exports_external.enum(["public", "passcode"]).optional().describe("Site visibility mode. 'public' (default) or 'passcode'."),
       passcode: exports_external.string().optional().describe("Passcode for passcode-protected sites. Required when visibility is 'passcode'."),
       namespace: exports_external.string().optional().describe("Address name to publish into. When omitted, the default address is used."),

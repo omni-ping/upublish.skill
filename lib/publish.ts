@@ -208,8 +208,27 @@ export interface PublishOpts {
    * replicate those rules — see {@link isValidSlug}'s doc comment for why.
    */
   pathPrefix?: string | null;
-  /** Optional human-readable title (defaults to slug). */
+  /**
+   * Optional human-readable title. When omitted, the manifest request still
+   * carries a title — see {@link resolveDefaultTitle}: a normal slug sends
+   * the slug itself; `_root` sends `namespaceName` instead of the literal
+   * slug `"_root"`, so a home-page publish never stores that sentinel as its
+   * title, even against a backend that has not deployed the corresponding
+   * server-side fix (which otherwise defaults an absent title to `?? slug`).
+   */
   title?: string;
+  /**
+   * The resolved namespace's display name. Needed only so a `_root` publish
+   * with no explicit `title` can send that name instead of the literal slug
+   * `"_root"` (see {@link resolveDefaultTitle}) — normal-slug publishes never
+   * consult it. `lib/core.ts`'s `publish()`, the only production caller of
+   * this function, always supplies it: it resolves the full `Namespace`
+   * record before calling here, and `Namespace.name` is a required string.
+   * Optional here only so callers that invoke this module's `publish()`
+   * directly (as some tests do, bypassing `core.ts`'s resolution) don't have
+   * to supply a namespace they may not have looked up.
+   */
+  namespaceName?: string;
   /** Site visibility mode. */
   visibility?: Visibility;
   /** Passcode for passcode-protected sites. */
@@ -1035,6 +1054,27 @@ async function uploadOneFile(
 // ─── Publish ─────────────────────────────────────────────────────────────────
 
 /**
+ * Resolves the title to send on the manifest request when the caller
+ * supplied none.
+ *
+ * - Any slug other than `_root` → the slug itself, unchanged (mirrors the
+ *   pre-fix behavior for the general case — non-`_root` publishes never
+ *   leak into the `_root` branch).
+ * - `_root` → `namespaceName`, so a home-page publish carries a real name
+ *   instead of the raw sentinel `"_root"` — independent of whether the
+ *   backend has deployed its own fix (an absent title there still resolves
+ *   through `?? slug`, which would otherwise store `"_root"` literally).
+ * - `_root` with `namespaceName` unavailable → falls back to `slug` (the
+ *   pre-fix behavior). Documented, not silent: this branch is reachable only
+ *   by a caller that invokes `publish()` directly without going through
+ *   `lib/core.ts`'s namespace resolution — see {@link PublishOpts.namespaceName}.
+ */
+function resolveDefaultTitle(slug: string, namespaceName?: string): string {
+  if (slug !== "_root") return slug;
+  return namespaceName ?? slug;
+}
+
+/**
  * Publishes a directory via presigned-URL flow: hash files, diff against server
  * manifest, upload only changed files via presigned R2 URLs, then finalize.
  *
@@ -1053,6 +1093,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     slug,
     pathPrefix,
     title,
+    namespaceName,
     visibility,
     passcode,
     passcodeLabel,
@@ -1118,7 +1159,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   try {
     manifestResult = await apiClient.manifest(nsId, slug, {
       files,
-      title: title ?? slug,
+      title: title ?? resolveDefaultTitle(slug, namespaceName),
       visibility,
       passcode: visibility === "passcode" ? passcode : undefined,
       passcode_label:

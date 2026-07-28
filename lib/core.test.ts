@@ -428,6 +428,144 @@ describe("DW-1.1/1.4/1.6: core.publish()", () => {
   });
 });
 
+// ─── root-title-route-cleanup Phase 2, DW-2.1/2.2/2.3: _root title resolution ──
+//
+// core.publish() resolves the full Namespace record (id + name) before calling
+// lib/publish.ts's publish(); these tests prove ns.name actually reaches the
+// manifest request body it sends. mockFetchForPublish() resolves the default
+// namespace's name to "default" (see its /api/ns mock above).
+
+describe("root-title Phase 2: core.publish() threads namespace name for _root", () => {
+  it("test_DW_2_1_root_publish_without_title_sends_namespace_name", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const tmpDir = path.join(os.tmpdir(), `core-publish-root-notitle-${Date.now()}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
+    tmpFiles.push(path.join(tmpDir, "index.html"));
+
+    const publishResponse = {
+      site: {
+        id: "uuid-1", user_id: "u1", slug: "_root", title: "default",
+        created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+        file_count: 1, total_size: 100, visibility: "public" as const, passcode_hash: null,
+      },
+      url: "https://testuser.upubli.sh/",
+    };
+
+    let capturedManifestBody: Record<string, unknown> | null = null;
+    const baseFetch = mockFetchForPublish(publishResponse);
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        capturedManifestBody = init?.body
+          ? (JSON.parse(init.body as string) as Record<string, unknown>)
+          : null;
+      }
+      return baseFetch(url, init);
+    };
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+
+    // No title supplied — mockFetchForPublish resolves the default namespace's
+    // name to "default" via its /api/ns mock.
+    const result = await publish({ directory: tmpDir, slug: "_root" }, deps);
+
+    expect(result.url).toBe("https://testuser.upubli.sh/");
+    expect(capturedManifestBody).not.toBeNull();
+    expect((capturedManifestBody as unknown as { title: string }).title).toBe("default");
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("test_DW_2_2_root_publish_with_title_sends_title_unchanged", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const tmpDir = path.join(os.tmpdir(), `core-publish-root-title-${Date.now()}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
+    tmpFiles.push(path.join(tmpDir, "index.html"));
+
+    const publishResponse = {
+      site: {
+        id: "uuid-1", user_id: "u1", slug: "_root", title: "My Custom Title",
+        created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+        file_count: 1, total_size: 100, visibility: "public" as const, passcode_hash: null,
+      },
+      url: "https://testuser.upubli.sh/",
+    };
+
+    let capturedManifestBody: Record<string, unknown> | null = null;
+    const baseFetch = mockFetchForPublish(publishResponse);
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        capturedManifestBody = init?.body
+          ? (JSON.parse(init.body as string) as Record<string, unknown>)
+          : null;
+      }
+      return baseFetch(url, init);
+    };
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+
+    const result = await publish(
+      { directory: tmpDir, slug: "_root", title: "My Custom Title" },
+      deps,
+    );
+
+    expect(result.url).toBe("https://testuser.upubli.sh/");
+    expect(capturedManifestBody).not.toBeNull();
+    expect((capturedManifestBody as unknown as { title: string }).title).toBe(
+      "My Custom Title",
+    );
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("test_DW_2_3_normal_slug_publish_without_title_sends_slug", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+
+    const tmpDir = path.join(os.tmpdir(), `core-publish-normal-notitle-${Date.now()}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
+    tmpFiles.push(path.join(tmpDir, "index.html"));
+
+    const publishResponse = {
+      site: {
+        id: "uuid-1", user_id: "u1", slug: "my-blog", title: "my-blog",
+        created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+        file_count: 1, total_size: 100, visibility: "public" as const, passcode_hash: null,
+      },
+      url: "https://testuser.upubli.sh/my-blog/",
+    };
+
+    let capturedManifestBody: Record<string, unknown> | null = null;
+    const baseFetch = mockFetchForPublish(publishResponse);
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      if (url.includes("/manifest")) {
+        capturedManifestBody = init?.body
+          ? (JSON.parse(init.body as string) as Record<string, unknown>)
+          : null;
+      }
+      return baseFetch(url, init);
+    };
+
+    const deps: CoreDeps = { credentialsPath: credFile, fetchFn };
+
+    // Non-_root slug, no title — must still send the slug, not the namespace
+    // name. Mirrors DW-1.5's non-leakage assertion on the backend side.
+    const result = await publish({ directory: tmpDir, slug: "my-blog" }, deps);
+
+    expect(result.url).toBe("https://testuser.upubli.sh/my-blog/");
+    expect(capturedManifestBody).not.toBeNull();
+    expect((capturedManifestBody as unknown as { title: string }).title).toBe("my-blog");
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
 // ─── DW-1.1 + DW-1.4 + DW-1.6: core.deleteOp() ─────────────────────────────
 
 describe("DW-1.1/1.4/1.6: core.deleteOp()", () => {
