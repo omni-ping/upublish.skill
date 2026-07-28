@@ -211,24 +211,45 @@ export interface PublishOpts {
   /**
    * Optional human-readable title. When omitted, the manifest request still
    * carries a title — see {@link resolveDefaultTitle}: a normal slug sends
-   * the slug itself; `_root` sends `namespaceName` instead of the literal
-   * slug `"_root"`, so a home-page publish never stores that sentinel as its
-   * title, even against a backend that has not deployed the corresponding
+   * the slug itself; `_root` preserves `existingTitle` when it is meaningful,
+   * else sends `namespaceName` — never the literal slug `"_root"`, so a
+   * home-page publish neither invents a bad title nor clobbers a good one,
+   * even against a backend that has not deployed the corresponding
    * server-side fix (which otherwise defaults an absent title to `?? slug`).
    */
   title?: string;
   /**
-   * The resolved namespace's display name. Needed only so a `_root` publish
-   * with no explicit `title` can send that name instead of the literal slug
-   * `"_root"` (see {@link resolveDefaultTitle}) — normal-slug publishes never
-   * consult it. `lib/core.ts`'s `publish()`, the only production caller of
-   * this function, always supplies it: it resolves the full `Namespace`
-   * record before calling here, and `Namespace.name` is a required string.
-   * Optional here only so callers that invoke this module's `publish()`
-   * directly (as some tests do, bypassing `core.ts`'s resolution) don't have
-   * to supply a namespace they may not have looked up.
+   * The resolved namespace's display name. Consulted only for a `_root`
+   * publish with no explicit `title` and no usable `existingTitle` (see
+   * {@link resolveDefaultTitle}) — normal-slug publishes never consult it.
+   * `lib/core.ts`'s `publish()`, the only production caller of this
+   * function, always supplies it: it resolves the full `Namespace` record
+   * before calling here, and `Namespace.name` is a required string. Optional
+   * here only so callers that invoke this module's `publish()` directly (as
+   * some tests do, bypassing `core.ts`'s resolution) don't have to supply a
+   * namespace they may not have looked up.
    */
   namespaceName?: string;
+  /**
+   * The `_root` site's currently-stored title, when known. Threaded through
+   * so a `_root` publish with no explicit `title` preserves a title the user
+   * set by hand instead of resetting it to `namespaceName` on every publish
+   * (see {@link resolveDefaultTitle}) — normal-slug publishes never consult
+   * it, and it is ignored entirely when an explicit `title` is given.
+   *
+   * - `undefined` — the caller didn't look it up (an ordinary non-`_root`
+   *   publish never needs to; `lib/core.ts`'s `publish()` also skips the
+   *   lookup whenever an explicit `title` is given, since it would be
+   *   discarded anyway).
+   * - `null` — the caller looked it up and found nothing usable: no existing
+   *   `_root` site, or the lookup itself failed (network error, non-2xx) and
+   *   degraded gracefully rather than failing the publish. Treated
+   *   identically to a blank/sentinel title — {@link resolveDefaultTitle}
+   *   falls back to `namespaceName`.
+   * - a string — the stored title, passed through verbatim; {@link
+   *   resolveDefaultTitle} decides whether it's meaningful enough to keep.
+   */
+  existingTitle?: string | null;
   /** Site visibility mode. */
   visibility?: Visibility;
   /** Passcode for passcode-protected sites. */
@@ -1055,22 +1076,43 @@ async function uploadOneFile(
 
 /**
  * Resolves the title to send on the manifest request when the caller
- * supplied none.
+ * supplied none. Mirrors the backend's `resolveSiteTitle` rule (Phase 1) so
+ * a skill publish composes correctly with it regardless of whether that
+ * backend fix has deployed: explicit title always wins upstream, so this
+ * function must decide the *right* title itself rather than defer.
  *
  * - Any slug other than `_root` → the slug itself, unchanged (mirrors the
  *   pre-fix behavior for the general case — non-`_root` publishes never
  *   leak into the `_root` branch).
- * - `_root` → `namespaceName`, so a home-page publish carries a real name
- *   instead of the raw sentinel `"_root"` — independent of whether the
- *   backend has deployed its own fix (an absent title there still resolves
- *   through `?? slug`, which would otherwise store `"_root"` literally).
- * - `_root` with `namespaceName` unavailable → falls back to `slug` (the
+ * - `_root` with a meaningful `existingTitle` (non-blank after trimming, and
+ *   not the literal sentinel `"_root"`) → that title, preserved byte-for-byte
+ *   (the original, un-trimmed string — trimming is only used to decide
+ *   whether it's meaningful). This is what stops a user's hand-set `_root`
+ *   title from being reset to the namespace name on every re-publish: since
+ *   an explicit title always wins on the backend, sending it back verbatim
+ *   here reproduces the backend's own preservation behavior even against a
+ *   backend that hasn't deployed it.
+ * - `_root` with no usable `existingTitle` (`undefined`, `null`, blank, or
+ *   exactly `"_root"` after trimming) → `namespaceName`, so a home-page
+ *   publish carries a real name instead of the raw sentinel `"_root"` —
+ *   independent of whether the backend has deployed its own fix (an absent
+ *   title there still resolves through `?? slug`, which would otherwise
+ *   store `"_root"` literally).
+ * - `_root` with `namespaceName` also unavailable → falls back to `slug` (the
  *   pre-fix behavior). Documented, not silent: this branch is reachable only
  *   by a caller that invokes `publish()` directly without going through
  *   `lib/core.ts`'s namespace resolution — see {@link PublishOpts.namespaceName}.
  */
-function resolveDefaultTitle(slug: string, namespaceName?: string): string {
+function resolveDefaultTitle(
+  slug: string,
+  namespaceName?: string,
+  existingTitle?: string | null,
+): string {
   if (slug !== "_root") return slug;
+  if (existingTitle != null) {
+    const trimmed = existingTitle.trim();
+    if (trimmed !== "" && trimmed !== "_root") return existingTitle;
+  }
   return namespaceName ?? slug;
 }
 
@@ -1094,6 +1136,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     pathPrefix,
     title,
     namespaceName,
+    existingTitle,
     visibility,
     passcode,
     passcodeLabel,
@@ -1159,7 +1202,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   try {
     manifestResult = await apiClient.manifest(nsId, slug, {
       files,
-      title: title ?? resolveDefaultTitle(slug, namespaceName),
+      title: title ?? resolveDefaultTitle(slug, namespaceName, existingTitle),
       visibility,
       passcode: visibility === "passcode" ? passcode : undefined,
       passcode_label:
