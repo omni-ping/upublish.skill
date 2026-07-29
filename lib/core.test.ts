@@ -36,7 +36,7 @@ import {
   revokePasscode,
   gate,
 } from "./core.ts";
-import type { CoreDeps, StatusResult } from "./core.ts";
+import type { CoreDeps, GateConfig, StatusResult } from "./core.ts";
 import type { LoginDeps } from "./auth.ts";
 import type { Namespace } from "./types.ts";
 
@@ -915,9 +915,16 @@ describe("DW-5.7: core.revokePasscode()", () => {
 
 // ─── DW-4.2: core.gate() dispatch ────────────────────────────────────────────
 
-const GATE_CONFIG = {
+// Typed as GateConfig so this fixture cannot drift from the shape the API
+// actually returns: the server sends `fields` as {type, required} objects
+// (never bare strings), and a mock that claims otherwise stays green through a
+// regression — which is exactly how the gate `set` contract bug shipped.
+const GATE_CONFIG: GateConfig = {
   slug: "my-site",
-  fields: ["email", "name"],
+  fields: [
+    { type: "email", required: true },
+    { type: "name", required: true },
+  ],
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
 };
@@ -969,7 +976,10 @@ describe("DW-4.2/4.4: core.gate() action=set", () => {
     const result = await gate({ action: "set", slug: "my-site", fields: ["email", "name"] }, deps);
     expect(result.action).toBe("set");
     if (result.action === "set") {
-      expect(result.gate.fields).toEqual(["email", "name"]);
+      expect(result.gate.fields).toEqual([
+        { type: "email", required: true },
+        { type: "name", required: true },
+      ]);
     }
   });
 

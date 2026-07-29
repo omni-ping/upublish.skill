@@ -71,6 +71,7 @@ import {
   removeGate as domainRemoveGate,
   getSubmissions as domainGetSubmissions,
   clearSubmissions as domainClearSubmissions,
+  formatGateFields,
 } from "./gate.ts";
 import type {
   GetGateResult,
@@ -133,7 +134,7 @@ import { renameSite, renameNamespace } from "./rename.ts";
 import type { RedirectMode } from "./rename.ts";
 import { startUpgrade as domainStartUpgrade, appendUpgradeHint } from "./upgrade.ts";
 import type { UpgradeArgs, UpgradeResult } from "./upgrade.ts";
-import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission, TokenProvider } from "./types.ts";
+import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateFieldType, GateSubmission, TokenProvider } from "./types.ts";
 import { displayMsg } from "./display-msg.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
@@ -149,9 +150,10 @@ export type { ListVersionsResult, DeleteVersionResult, RestoreVersionResult, Set
 export type { SetAnalyticsResult };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
+export { formatGateFields };
 export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, ChangeMemberRoleResult };
 export type { QrCodeArgs, QrCodeResult };
-export type { Namespace, Site, Visibility, GateConfig, GateSubmission };
+export type { Namespace, Site, Visibility, GateConfig, GateFieldType, GateSubmission };
 export type { NamespaceCreateResult };
 export { OverageApprovalError };
 export type {
@@ -655,10 +657,14 @@ export async function revokePasscode(
 /**
  * Discriminated union of arguments for the gate() dispatch function.
  * The `action` field determines which domain operation is invoked.
+ *
+ * `set` takes field *types*; setGate turns each into the `{ type, required }`
+ * object the API requires. The union is closed to the four types the backend
+ * accepts, so an unsupported type fails to compile instead of 400ing at runtime.
  */
 export type GateArgs =
   | { action: "get"; slug: string; namespace?: string }
-  | { action: "set"; slug: string; fields: string[]; namespace?: string }
+  | { action: "set"; slug: string; fields: GateFieldType[]; namespace?: string }
   | { action: "remove"; slug: string; namespace?: string }
   | { action: "submissions"; slug: string; namespace?: string }
   | { action: "clear"; slug: string; namespace?: string };
