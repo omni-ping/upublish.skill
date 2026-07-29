@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.12.32] — 2026-07-28
+
+### Fixed
+
+- `gate set` now works. Every call had previously failed with `400 each field must be
+  an object` — the tool sent a list of field-type strings while the API requires
+  `{type, required}` objects — so there was no working way to configure a form gate
+  from an AI client. Fields are now sent as objects, each marked required.
+- `gate get` and `gate set` now print a gate's fields as readable text
+  (`email, name, company (optional)`) instead of `[object Object]`.
+
+### Removed
+
+- The `message` gate field type. The API never accepted it — the server's valid set is
+  exactly `email`, `name`, `company`, `phone` — so asking for it returned a 400. The
+  tool now offers only the four types the server will take.
+
 ## [0.12.10] — 2026-06-14
 
 ### Added
