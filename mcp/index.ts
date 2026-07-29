@@ -83,7 +83,7 @@ export type { CoreDeps, TokenProvider };
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.12.31";
+export const PACKAGE_VERSION = "0.12.33";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -323,7 +323,9 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Optional human-readable title for the site. Defaults to the slug.",
+            "Optional human-readable title for the site. Defaults to the slug " +
+            "— or, for the '_root' slug (address root), the site's existing " +
+            "title if it already has a meaningful one, else the address's name.",
           ),
         visibility: z
           .enum(["public", "passcode"])

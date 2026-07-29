@@ -228,7 +228,13 @@ export interface PublishArgs {
    * validated server-side (400/422/409 on malformed/reserved/shadowing).
    */
   pathPrefix?: string | null;
-  /** Optional human-readable title. Defaults to slug. */
+  /**
+   * Optional human-readable title. When omitted, a normal slug defaults to
+   * the slug itself; the reserved `_root` slug (address root) preserves the
+   * site's existing stored title when there is a meaningful one to keep,
+   * otherwise defaults to the resolved namespace's name instead of the
+   * literal slug `"_root"` — see `lib/publish.ts`'s `resolveDefaultTitle`.
+   */
   title?: string;
   /** Site visibility mode. */
   visibility?: Visibility;
@@ -387,6 +393,36 @@ export async function list(namespaceName?: string, deps?: CoreDeps): Promise<Lis
 }
 
 /**
+ * Looks up the `_root` site's currently-stored title within a namespace, so
+ * `publish()` can thread it into `resolveDefaultTitle()` (see
+ * `lib/publish.ts`) and preserve a user's hand-set `_root` title instead of
+ * resetting it to the namespace name on every re-publish.
+ *
+ * There is no single-site GET endpoint — the backend only exposes the
+ * namespace-scoped list (`GET /api/ns/:nsId/sites`), so this reuses
+ * `listSites()` (already used by `list()` above) rather than adding a new
+ * API surface, and finds the `_root` entry within it.
+ *
+ * Never throws: a lookup failure (network error, non-2xx, malformed
+ * response) degrades to `null`, same as "no existing `_root` site found".
+ * `resolveDefaultTitle()` treats `null` as "nothing usable to preserve" and
+ * falls back to the namespace name — strictly better than the pre-fix
+ * behavior (which stored the literal `"_root"`) and never worse than simply
+ * not knowing. A failed lookup must never fail the publish itself.
+ */
+async function lookupExistingRootTitle(
+  apiClient: ApiClient,
+  nsId: string,
+): Promise<string | null> {
+  try {
+    const { sites } = await listSites(apiClient, nsId);
+    return sites.find((s) => s.slug === "_root")?.title ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Publishes a directory to upubli.sh via the presigned-URL flow:
  * hashes files, diffs against server manifest, uploads only changed files
  * via presigned R2 URLs, then finalizes.
@@ -402,6 +438,15 @@ export async function publish(
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, args.namespace);
 
+  // Scoped lookup: only a _root publish with no explicit title needs the
+  // existing title (an explicit title always wins and would discard it
+  // anyway; a non-_root publish never consults it) — so ordinary publishes
+  // never pay for the extra request.
+  const existingTitle =
+    args.slug === "_root" && args.title === undefined
+      ? await lookupExistingRootTitle(apiClient, ns.id)
+      : undefined;
+
   log(`[publish] slug=${args.slug} dir=${args.directory} namespace=${ns.name}`);
 
   return domainPublish({
@@ -411,6 +456,8 @@ export async function publish(
     slug: args.slug,
     pathPrefix: args.pathPrefix,
     title: args.title,
+    namespaceName: ns.name,
+    existingTitle,
     visibility: args.visibility,
     passcode: args.passcode,
     passcodeLabel: args.passcodeLabel,
