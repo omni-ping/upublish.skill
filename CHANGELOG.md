@@ -1,9 +1,12 @@
 # Changelog
 
-## [0.12.34] — 2026-07-28
+## [0.12.33] — 2026-10-10
 
 ### Fixed
 
+- Publishing to a namespace's root (`_root`) without `--title` now sends the namespace name
+  as the title instead of the literal slug, and preserves an existing hand-set root title
+  on re-publish instead of resetting it.
 - `gate set` now works. Every call had previously failed with `400 each field must be
   an object` — the tool sent a list of field-type strings while the API requires
   `{type, required}` objects — so there was no working way to configure a form gate
