@@ -19,35 +19,24 @@ var __toESM = (mod, isNodeMode, target) => {
       return cached;
   }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
-  const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
-  for (let key of __getOwnPropNames(mod))
-    if (!__hasOwnProp.call(to, key))
-      __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
-        enumerable: true
-      });
+  const to = isNodeMode || !mod || !mod.__esModule || !__hasOwnProp.call(mod, "default") ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
+  if (mod && typeof mod === "object" || typeof mod === "function") {
+    for (let key of __getOwnPropNames(mod))
+      if (!__hasOwnProp.call(to, key))
+        __defProp(to, key, {
+          get: __accessProp.bind(mod, key),
+          enumerable: true
+        });
+  }
   if (canCache)
     cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
-var __returnValue = (v) => v;
-function __exportSetter(name, newValue) {
-  this[name] = __returnValue.bind(null, newValue);
-}
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, {
-      get: all[name],
-      enumerable: true,
-      configurable: true,
-      set: __exportSetter.bind(all, name)
-    });
-};
 var __require = import.meta.require;
 
 // node_modules/ajv/dist/compile/codegen/code.js
-var require_code = __commonJS((exports) => {
+var require_code = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.regexpCode = exports.getEsmExportName = exports.getProperty = exports.safeStringify = exports.stringify = exports.strConcat = exports.addCodeArg = exports.str = exports._ = exports.nil = exports._Code = exports.Name = exports.IDENTIFIER = exports._CodeOrName = undefined;
 
@@ -201,7 +190,7 @@ var require_code = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/codegen/scope.js
-var require_scope = __commonJS((exports) => {
+var require_scope = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ValueScope = exports.ValueScopeName = exports.Scope = exports.varKinds = exports.UsedValueState = undefined;
   var code_1 = require_code();
@@ -213,9 +202,9 @@ var require_scope = __commonJS((exports) => {
     }
   }
   var UsedValueState;
-  (function(UsedValueState2) {
-    UsedValueState2[UsedValueState2["Started"] = 0] = "Started";
-    UsedValueState2[UsedValueState2["Completed"] = 1] = "Completed";
+  (function(UsedValueState) {
+    UsedValueState[UsedValueState["Started"] = 0] = "Started";
+    UsedValueState[UsedValueState["Completed"] = 1] = "Completed";
   })(UsedValueState || (exports.UsedValueState = UsedValueState = {}));
   exports.varKinds = {
     const: new code_1.Name("const"),
@@ -347,7 +336,7 @@ var require_scope = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/codegen/index.js
-var require_codegen = __commonJS((exports) => {
+var require_codegen = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.or = exports.and = exports.not = exports.CodeGen = exports.operators = exports.varKinds = exports.ValueScopeName = exports.ValueScope = exports.Scope = exports.Name = exports.regexpCode = exports.stringify = exports.getProperty = exports.nil = exports.strConcat = exports.str = exports._ = undefined;
   var code_1 = require_code();
@@ -492,9 +481,9 @@ var require_codegen = __commonJS((exports) => {
   }
 
   class Throw extends Node {
-    constructor(error2) {
+    constructor(error) {
       super();
-      this.error = error2;
+      this.error = error;
     }
     render({ _n }) {
       return `throw ${this.error};` + _n;
@@ -745,9 +734,9 @@ var require_codegen = __commonJS((exports) => {
   }
 
   class Catch extends BlockNode {
-    constructor(error2) {
+    constructor(error) {
       super();
-      this.error = error2;
+      this.error = error;
     }
     render(opts) {
       return `catch(${this.error})` + super.render(opts);
@@ -915,9 +904,9 @@ var require_codegen = __commonJS((exports) => {
       this._blockNode(node);
       this.code(tryBody);
       if (catchCode) {
-        const error2 = this.name("e");
-        this._currNode = node.catch = new Catch(error2);
-        catchCode(error2);
+        const error = this.name("e");
+        this._currNode = node.catch = new Catch(error);
+        catchCode(error);
       }
       if (finallyCode) {
         this._currNode = node.finally = new Finally;
@@ -925,8 +914,8 @@ var require_codegen = __commonJS((exports) => {
       }
       return this._endBlockNode(Catch, Finally);
     }
-    throw(error2) {
-      return this._leafNode(new Throw(error2));
+    throw(error) {
+      return this._leafNode(new Throw(error));
     }
     block(body, nodeCount) {
       this._blockStarts.push(this._nodes.length);
@@ -1057,7 +1046,7 @@ var require_codegen = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/util.js
-var require_util = __commonJS((exports) => {
+var require_util = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.checkStrictMode = exports.getErrorPath = exports.Type = exports.useFunc = exports.setEvaluated = exports.evaluatedPropsToName = exports.mergeEvaluated = exports.eachItem = exports.unescapeJsonPointer = exports.escapeJsonPointer = exports.escapeFragment = exports.unescapeFragment = exports.schemaRefOrVal = exports.schemaHasRulesButRef = exports.schemaHasRules = exports.checkUnknownRules = exports.alwaysValidSchema = exports.toHash = undefined;
   var codegen_1 = require_codegen();
@@ -1146,9 +1135,9 @@ var require_util = __commonJS((exports) => {
     }
   }
   exports.eachItem = eachItem;
-  function makeMergeEvaluated({ mergeNames, mergeToName, mergeValues: mergeValues3, resultToName }) {
+  function makeMergeEvaluated({ mergeNames, mergeToName, mergeValues, resultToName }) {
     return (gen, from, to, toName) => {
-      const res = to === undefined ? from : to instanceof codegen_1.Name ? (from instanceof codegen_1.Name ? mergeNames(gen, from, to) : mergeToName(gen, from, to), to) : from instanceof codegen_1.Name ? (mergeToName(gen, to, from), from) : mergeValues3(from, to);
+      const res = to === undefined ? from : to instanceof codegen_1.Name ? (from instanceof codegen_1.Name ? mergeNames(gen, from, to) : mergeToName(gen, from, to), to) : from instanceof codegen_1.Name ? (mergeToName(gen, to, from), from) : mergeValues(from, to);
       return toName === codegen_1.Name && !(res instanceof codegen_1.Name) ? resultToName(gen, res) : res;
     };
   }
@@ -1197,9 +1186,9 @@ var require_util = __commonJS((exports) => {
   }
   exports.useFunc = useFunc;
   var Type;
-  (function(Type2) {
-    Type2[Type2["Num"] = 0] = "Num";
-    Type2[Type2["Str"] = 1] = "Str";
+  (function(Type) {
+    Type[Type["Num"] = 0] = "Num";
+    Type[Type["Str"] = 1] = "Str";
   })(Type || (exports.Type = Type = {}));
   function getErrorPath(dataProp, dataPropType, jsPropertySyntax) {
     if (dataProp instanceof codegen_1.Name) {
@@ -1221,7 +1210,7 @@ var require_util = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/names.js
-var require_names = __commonJS((exports) => {
+var require_names = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var names = {
@@ -1246,7 +1235,7 @@ var require_names = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/errors.js
-var require_errors = __commonJS((exports) => {
+var require_errors = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.extendErrors = exports.resetErrorsCount = exports.reportExtraError = exports.reportError = exports.keyword$DataError = exports.keywordError = undefined;
   var codegen_1 = require_codegen();
@@ -1258,10 +1247,10 @@ var require_errors = __commonJS((exports) => {
   exports.keyword$DataError = {
     message: ({ keyword, schemaType }) => schemaType ? (0, codegen_1.str)`"${keyword}" keyword must be ${schemaType} ($data)` : (0, codegen_1.str)`"${keyword}" keyword is invalid ($data)`
   };
-  function reportError(cxt, error2 = exports.keywordError, errorPaths, overrideAllErrors) {
+  function reportError(cxt, error = exports.keywordError, errorPaths, overrideAllErrors) {
     const { it } = cxt;
     const { gen, compositeRule, allErrors } = it;
-    const errObj = errorObjectCode(cxt, error2, errorPaths);
+    const errObj = errorObjectCode(cxt, error, errorPaths);
     if (overrideAllErrors !== null && overrideAllErrors !== undefined ? overrideAllErrors : compositeRule || allErrors) {
       addError(gen, errObj);
     } else {
@@ -1269,10 +1258,10 @@ var require_errors = __commonJS((exports) => {
     }
   }
   exports.reportError = reportError;
-  function reportExtraError(cxt, error2 = exports.keywordError, errorPaths) {
+  function reportExtraError(cxt, error = exports.keywordError, errorPaths) {
     const { it } = cxt;
     const { gen, compositeRule, allErrors } = it;
-    const errObj = errorObjectCode(cxt, error2, errorPaths);
+    const errObj = errorObjectCode(cxt, error, errorPaths);
     addError(gen, errObj);
     if (!(compositeRule || allErrors)) {
       returnErrors(it, names_1.default.vErrors);
@@ -1322,19 +1311,19 @@ var require_errors = __commonJS((exports) => {
     schema: new codegen_1.Name("schema"),
     parentSchema: new codegen_1.Name("parentSchema")
   };
-  function errorObjectCode(cxt, error2, errorPaths) {
+  function errorObjectCode(cxt, error, errorPaths) {
     const { createErrors } = cxt.it;
     if (createErrors === false)
       return (0, codegen_1._)`{}`;
-    return errorObject(cxt, error2, errorPaths);
+    return errorObject(cxt, error, errorPaths);
   }
-  function errorObject(cxt, error2, errorPaths = {}) {
+  function errorObject(cxt, error, errorPaths = {}) {
     const { gen, it } = cxt;
     const keyValues = [
       errorInstancePath(it, errorPaths),
       errorSchemaPath(cxt, errorPaths)
     ];
-    extraErrorProps(cxt, error2, keyValues);
+    extraErrorProps(cxt, error, keyValues);
     return gen.object(...keyValues);
   }
   function errorInstancePath({ errorPath }, { instancePath }) {
@@ -1364,7 +1353,7 @@ var require_errors = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/boolSchema.js
-var require_boolSchema = __commonJS((exports) => {
+var require_boolSchema = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.boolOrEmptySchema = exports.topBoolOrEmptySchema = undefined;
   var errors_1 = require_errors();
@@ -1412,7 +1401,7 @@ var require_boolSchema = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/rules.js
-var require_rules = __commonJS((exports) => {
+var require_rules = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getRules = exports.isJSONType = undefined;
   var _jsonTypes = ["string", "number", "integer", "boolean", "null", "object", "array"];
@@ -1440,7 +1429,7 @@ var require_rules = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/applicability.js
-var require_applicability = __commonJS((exports) => {
+var require_applicability = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.shouldUseRule = exports.shouldUseGroup = exports.schemaHasRulesForType = undefined;
   function schemaHasRulesForType({ schema, self }, type) {
@@ -1460,7 +1449,7 @@ var require_applicability = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/dataType.js
-var require_dataType = __commonJS((exports) => {
+var require_dataType = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.reportTypeError = exports.checkDataTypes = exports.checkDataType = exports.coerceAndCheckDataType = exports.getJSONTypes = exports.getSchemaTypes = exports.DataType = undefined;
   var rules_1 = require_rules();
@@ -1469,42 +1458,42 @@ var require_dataType = __commonJS((exports) => {
   var codegen_1 = require_codegen();
   var util_1 = require_util();
   var DataType;
-  (function(DataType2) {
-    DataType2[DataType2["Correct"] = 0] = "Correct";
-    DataType2[DataType2["Wrong"] = 1] = "Wrong";
+  (function(DataType) {
+    DataType[DataType["Correct"] = 0] = "Correct";
+    DataType[DataType["Wrong"] = 1] = "Wrong";
   })(DataType || (exports.DataType = DataType = {}));
   function getSchemaTypes(schema) {
-    const types2 = getJSONTypes(schema.type);
-    const hasNull = types2.includes("null");
+    const types = getJSONTypes(schema.type);
+    const hasNull = types.includes("null");
     if (hasNull) {
       if (schema.nullable === false)
         throw new Error("type: null contradicts nullable: false");
     } else {
-      if (!types2.length && schema.nullable !== undefined) {
+      if (!types.length && schema.nullable !== undefined) {
         throw new Error('"nullable" cannot be used without "type"');
       }
       if (schema.nullable === true)
-        types2.push("null");
+        types.push("null");
     }
-    return types2;
+    return types;
   }
   exports.getSchemaTypes = getSchemaTypes;
   function getJSONTypes(ts) {
-    const types2 = Array.isArray(ts) ? ts : ts ? [ts] : [];
-    if (types2.every(rules_1.isJSONType))
-      return types2;
-    throw new Error("type must be JSONType or JSONType[]: " + types2.join(","));
+    const types = Array.isArray(ts) ? ts : ts ? [ts] : [];
+    if (types.every(rules_1.isJSONType))
+      return types;
+    throw new Error("type must be JSONType or JSONType[]: " + types.join(","));
   }
   exports.getJSONTypes = getJSONTypes;
-  function coerceAndCheckDataType(it, types2) {
+  function coerceAndCheckDataType(it, types) {
     const { gen, data, opts } = it;
-    const coerceTo = coerceToTypes(types2, opts.coerceTypes);
-    const checkTypes = types2.length > 0 && !(coerceTo.length === 0 && types2.length === 1 && (0, applicability_1.schemaHasRulesForType)(it, types2[0]));
+    const coerceTo = coerceToTypes(types, opts.coerceTypes);
+    const checkTypes = types.length > 0 && !(coerceTo.length === 0 && types.length === 1 && (0, applicability_1.schemaHasRulesForType)(it, types[0]));
     if (checkTypes) {
-      const wrongType = checkDataTypes(types2, data, opts.strictNumbers, DataType.Wrong);
+      const wrongType = checkDataTypes(types, data, opts.strictNumbers, DataType.Wrong);
       gen.if(wrongType, () => {
         if (coerceTo.length)
-          coerceData(it, types2, coerceTo);
+          coerceData(it, types, coerceTo);
         else
           reportTypeError(it);
       });
@@ -1513,15 +1502,15 @@ var require_dataType = __commonJS((exports) => {
   }
   exports.coerceAndCheckDataType = coerceAndCheckDataType;
   var COERCIBLE = new Set(["string", "number", "integer", "boolean", "null"]);
-  function coerceToTypes(types2, coerceTypes) {
-    return coerceTypes ? types2.filter((t) => COERCIBLE.has(t) || coerceTypes === "array" && t === "array") : [];
+  function coerceToTypes(types, coerceTypes) {
+    return coerceTypes ? types.filter((t) => COERCIBLE.has(t) || coerceTypes === "array" && t === "array") : [];
   }
-  function coerceData(it, types2, coerceTo) {
+  function coerceData(it, types, coerceTo) {
     const { gen, data, opts } = it;
     const dataType = gen.let("dataType", (0, codegen_1._)`typeof ${data}`);
     const coerced = gen.let("coerced", (0, codegen_1._)`undefined`);
     if (opts.coerceTypes === "array") {
-      gen.if((0, codegen_1._)`${dataType} == 'object' && Array.isArray(${data}) && ${data}.length == 1`, () => gen.assign(data, (0, codegen_1._)`${data}[0]`).assign(dataType, (0, codegen_1._)`typeof ${data}`).if(checkDataTypes(types2, data, opts.strictNumbers), () => gen.assign(coerced, data)));
+      gen.if((0, codegen_1._)`${dataType} == 'object' && Array.isArray(${data}) && ${data}.length == 1`, () => gen.assign(data, (0, codegen_1._)`${data}[0]`).assign(dataType, (0, codegen_1._)`typeof ${data}`).if(checkDataTypes(types, data, opts.strictNumbers), () => gen.assign(coerced, data)));
     }
     gen.if((0, codegen_1._)`${coerced} !== undefined`);
     for (const t of coerceTo) {
@@ -1597,19 +1586,19 @@ var require_dataType = __commonJS((exports) => {
       return checkDataType(dataTypes[0], data, strictNums, correct);
     }
     let cond;
-    const types2 = (0, util_1.toHash)(dataTypes);
-    if (types2.array && types2.object) {
+    const types = (0, util_1.toHash)(dataTypes);
+    if (types.array && types.object) {
       const notObj = (0, codegen_1._)`typeof ${data} != "object"`;
-      cond = types2.null ? notObj : (0, codegen_1._)`!${data} || ${notObj}`;
-      delete types2.null;
-      delete types2.array;
-      delete types2.object;
+      cond = types.null ? notObj : (0, codegen_1._)`!${data} || ${notObj}`;
+      delete types.null;
+      delete types.array;
+      delete types.object;
     } else {
       cond = codegen_1.nil;
     }
-    if (types2.number)
-      delete types2.integer;
-    for (const t in types2)
+    if (types.number)
+      delete types.integer;
+    for (const t in types)
       cond = (0, codegen_1.and)(cond, checkDataType(t, data, strictNums, correct));
     return cond;
   }
@@ -1641,7 +1630,7 @@ var require_dataType = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/defaults.js
-var require_defaults = __commonJS((exports) => {
+var require_defaults = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.assignDefaults = undefined;
   var codegen_1 = require_codegen();
@@ -1675,7 +1664,7 @@ var require_defaults = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/code.js
-var require_code2 = __commonJS((exports) => {
+var require_code2 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateUnion = exports.validateArray = exports.usePattern = exports.callValidateCode = exports.schemaProperties = exports.allSchemaProperties = exports.noPropertyInData = exports.propertyInData = exports.isOwnProperty = exports.hasPropFunc = exports.reportMissingProp = exports.checkMissingProp = exports.checkReportMissingProp = undefined;
   var codegen_1 = require_codegen();
@@ -1804,7 +1793,7 @@ var require_code2 = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/keyword.js
-var require_keyword = __commonJS((exports) => {
+var require_keyword = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateKeywordUsage = exports.validSchemaType = exports.funcKeywordCode = exports.macroKeywordCode = undefined;
   var codegen_1 = require_codegen();
@@ -1866,9 +1855,9 @@ var require_keyword = __commonJS((exports) => {
       const passSchema = !(("compile" in def) && !$data || def.schema === false);
       gen.assign(valid, (0, codegen_1._)`${_await}${(0, code_1.callValidateCode)(cxt, validateRef, passCxt, passSchema)}`, def.modifying);
     }
-    function reportErrs(errors4) {
-      var _a2;
-      gen.if((0, codegen_1.not)((_a2 = def.valid) !== null && _a2 !== undefined ? _a2 : valid), errors4);
+    function reportErrs(errors) {
+      var _a;
+      gen.if((0, codegen_1.not)((_a = def.valid) !== null && _a !== undefined ? _a : valid), errors);
     }
   }
   exports.funcKeywordCode = funcKeywordCode;
@@ -1919,7 +1908,7 @@ var require_keyword = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/subschema.js
-var require_subschema = __commonJS((exports) => {
+var require_subschema = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.extendSubschemaMode = exports.extendSubschemaData = exports.getSubschema = undefined;
   var codegen_1 = require_codegen();
@@ -1999,7 +1988,7 @@ var require_subschema = __commonJS((exports) => {
 });
 
 // node_modules/fast-deep-equal/index.js
-var require_fast_deep_equal = __commonJS((exports, module) => {
+var require_fast_deep_equal = __commonJS(function(exports, module) {
   module.exports = function equal(a, b) {
     if (a === b)
       return true;
@@ -2041,7 +2030,7 @@ var require_fast_deep_equal = __commonJS((exports, module) => {
 });
 
 // node_modules/json-schema-traverse/index.js
-var require_json_schema_traverse = __commonJS((exports, module) => {
+var require_json_schema_traverse = __commonJS(function(exports, module) {
   var traverse = module.exports = function(schema, opts, cb) {
     if (typeof opts == "function") {
       cb = opts;
@@ -2124,7 +2113,7 @@ var require_json_schema_traverse = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/compile/resolve.js
-var require_resolve = __commonJS((exports) => {
+var require_resolve = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getSchemaRefs = exports.resolveUrl = exports.normalizeId = exports._getFullPath = exports.getFullPath = exports.inlineRef = undefined;
   var util_1 = require_util();
@@ -2277,7 +2266,7 @@ var require_resolve = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/index.js
-var require_validate = __commonJS((exports) => {
+var require_validate = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getData = exports.KeywordCxt = exports.validateFunctionCode = undefined;
   var boolSchema_1 = require_boolSchema();
@@ -2397,9 +2386,9 @@ var require_validate = __commonJS((exports) => {
   function typeAndKeywords(it, errsCount) {
     if (it.opts.jtd)
       return schemaKeywords(it, [], false, errsCount);
-    const types2 = (0, dataType_1.getSchemaTypes)(it.schema);
-    const checkedTypes = (0, dataType_1.coerceAndCheckDataType)(it, types2);
-    schemaKeywords(it, types2, !checkedTypes, errsCount);
+    const types = (0, dataType_1.getSchemaTypes)(it.schema);
+    const checkedTypes = (0, dataType_1.coerceAndCheckDataType)(it, types);
+    schemaKeywords(it, types, !checkedTypes, errsCount);
   }
   function checkRefsAndKeywords(it) {
     const { schema, errSchemaPath, opts, self } = it;
@@ -2449,7 +2438,7 @@ var require_validate = __commonJS((exports) => {
     if (items instanceof codegen_1.Name)
       gen.assign((0, codegen_1._)`${evaluated}.items`, items);
   }
-  function schemaKeywords(it, types2, typeErrors, errsCount) {
+  function schemaKeywords(it, types, typeErrors, errsCount) {
     const { gen, schema, data, allErrors, opts, self } = it;
     const { RULES } = self;
     if (schema.$ref && (opts.ignoreKeywordsWithRef || !(0, util_1.schemaHasRulesButRef)(schema, RULES))) {
@@ -2457,7 +2446,7 @@ var require_validate = __commonJS((exports) => {
       return;
     }
     if (!opts.jtd)
-      checkStrictTypes(it, types2);
+      checkStrictTypes(it, types);
     gen.block(() => {
       for (const group of RULES.rules)
         groupKeywords(group);
@@ -2469,7 +2458,7 @@ var require_validate = __commonJS((exports) => {
       if (group.type) {
         gen.if((0, dataType_2.checkDataType)(group.type, data, opts.strictNumbers));
         iterateKeywords(it, group);
-        if (types2.length === 1 && types2[0] === group.type && typeErrors) {
+        if (types.length === 1 && types[0] === group.type && typeErrors) {
           gen.else();
           (0, dataType_2.reportTypeError)(it);
         }
@@ -2493,27 +2482,27 @@ var require_validate = __commonJS((exports) => {
       }
     });
   }
-  function checkStrictTypes(it, types2) {
+  function checkStrictTypes(it, types) {
     if (it.schemaEnv.meta || !it.opts.strictTypes)
       return;
-    checkContextTypes(it, types2);
+    checkContextTypes(it, types);
     if (!it.opts.allowUnionTypes)
-      checkMultipleTypes(it, types2);
+      checkMultipleTypes(it, types);
     checkKeywordTypes(it, it.dataTypes);
   }
-  function checkContextTypes(it, types2) {
-    if (!types2.length)
+  function checkContextTypes(it, types) {
+    if (!types.length)
       return;
     if (!it.dataTypes.length) {
-      it.dataTypes = types2;
+      it.dataTypes = types;
       return;
     }
-    types2.forEach((t) => {
+    types.forEach((t) => {
       if (!includesType(it.dataTypes, t)) {
         strictTypesError(it, `type "${t}" not allowed by context "${it.dataTypes.join(",")}"`);
       }
     });
-    narrowSchemaTypes(it, types2);
+    narrowSchemaTypes(it, types);
   }
   function checkMultipleTypes(it, ts) {
     if (ts.length > 1 && !(ts.length === 2 && ts.includes("null"))) {
@@ -2782,13 +2771,13 @@ var require_validate = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/runtime/validation_error.js
-var require_validation_error = __commonJS((exports) => {
+var require_validation_error = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
 
   class ValidationError extends Error {
-    constructor(errors4) {
+    constructor(errors) {
       super("validation failed");
-      this.errors = errors4;
+      this.errors = errors;
       this.ajv = this.validation = true;
     }
   }
@@ -2796,7 +2785,7 @@ var require_validation_error = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/ref_error.js
-var require_ref_error = __commonJS((exports) => {
+var require_ref_error = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var resolve_1 = require_resolve();
 
@@ -2811,7 +2800,7 @@ var require_ref_error = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/index.js
-var require_compile = __commonJS((exports) => {
+var require_compile = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.resolveSchema = exports.getCompilingSchema = exports.resolveRef = exports.compileSchema = exports.SchemaEnv = undefined;
   var codegen_1 = require_codegen();
@@ -3032,7 +3021,7 @@ var require_compile = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/refs/data.json
-var require_data = __commonJS((exports, module) => {
+var require_data = __commonJS(function(exports, module) {
   module.exports = {
     $id: "https://raw.githubusercontent.com/ajv-validator/ajv/master/lib/refs/data.json#",
     description: "Meta-schema for $data reference (JSON AnySchema extension proposal)",
@@ -3049,7 +3038,7 @@ var require_data = __commonJS((exports, module) => {
 });
 
 // node_modules/fast-uri/lib/utils.js
-var require_utils = __commonJS((exports, module) => {
+var require_utils = __commonJS(function(exports, module) {
   var isUUID = RegExp.prototype.test.bind(/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu);
   var isIPv4 = RegExp.prototype.test.bind(/^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)$/u);
   var isHexPair = RegExp.prototype.test.bind(/^[\da-f]{2}$/iu);
@@ -3152,13 +3141,13 @@ var require_utils = __commonJS((exports, module) => {
     if (findToken(host, ":") < 2) {
       return { host, isIPV6: false };
     }
-    const ipv62 = getIPV6(host);
-    if (!ipv62.error) {
-      let newHost = ipv62.address;
-      let escapedHost = ipv62.address;
-      if (ipv62.zone) {
-        newHost += "%" + ipv62.zone;
-        escapedHost += "%25" + ipv62.zone;
+    const ipv6 = getIPV6(host);
+    if (!ipv6.error) {
+      let newHost = ipv6.address;
+      let escapedHost = ipv6.address;
+      if (ipv6.zone) {
+        newHost += "%" + ipv6.zone;
+        escapedHost += "%25" + ipv6.zone;
       }
       return { host: newHost, isIPV6: true, escapedHost };
     } else {
@@ -3360,7 +3349,7 @@ var require_utils = __commonJS((exports, module) => {
 });
 
 // node_modules/fast-uri/lib/schemes.js
-var require_schemes = __commonJS((exports, module) => {
+var require_schemes = __commonJS(function(exports, module) {
   var { isUUID } = require_utils();
   var URN_REG = /([\da-z][\d\-a-z]{0,31}):((?:[\w!$'()*+,\-.:;=@]|%[\da-f]{2})+)/iu;
   var supportedSchemeNames = [
@@ -3534,28 +3523,28 @@ var require_schemes = __commonJS((exports, module) => {
 });
 
 // node_modules/fast-uri/index.js
-var require_fast_uri = __commonJS((exports, module) => {
+var require_fast_uri = __commonJS(function(exports, module) {
   var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, escapePreservingEscapes, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = require_utils();
   var { SCHEMES, getSchemeHandler } = require_schemes();
   function normalize(uri, options) {
     if (typeof uri === "string") {
       uri = normalizeString(uri, options);
     } else if (typeof uri === "object") {
-      uri = parse6(serialize(uri, options), options);
+      uri = parse(serialize(uri, options), options);
     }
     return uri;
   }
   function resolve(baseURI, relativeURI, options) {
     const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
-    const resolved = resolveComponent(parse6(baseURI, schemelessOptions), parse6(relativeURI, schemelessOptions), schemelessOptions, true);
+    const resolved = resolveComponent(parse(baseURI, schemelessOptions), parse(relativeURI, schemelessOptions), schemelessOptions, true);
     schemelessOptions.skipEscape = true;
     return serialize(resolved, schemelessOptions);
   }
   function resolveComponent(base, relative, options, skipNormalization) {
     const target = {};
     if (!skipNormalization) {
-      base = parse6(serialize(base, options), options);
-      relative = parse6(serialize(relative, options), options);
+      base = parse(serialize(base, options), options);
+      relative = parse(serialize(relative, options), options);
     }
     options = options || {};
     if (!options.tolerant && relative.scheme) {
@@ -3779,7 +3768,7 @@ var require_fast_uri = __commonJS((exports, module) => {
     }
     return { parsed, malformedAuthorityOrPort };
   }
-  function parse6(uri, opts) {
+  function parse(uri, opts) {
     return parseWithStatus(uri, opts).parsed;
   }
   function normalizeString(uri, opts) {
@@ -3808,7 +3797,7 @@ var require_fast_uri = __commonJS((exports, module) => {
     resolveComponent,
     equal,
     serialize,
-    parse: parse6
+    parse
   };
   module.exports = fastUri;
   module.exports.default = fastUri;
@@ -3816,7 +3805,7 @@ var require_fast_uri = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/runtime/uri.js
-var require_uri = __commonJS((exports) => {
+var require_uri = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var uri = require_fast_uri();
   uri.code = 'require("ajv/dist/runtime/uri").default';
@@ -3824,7 +3813,7 @@ var require_uri = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/core.js
-var require_core = __commonJS((exports) => {
+var require_core = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.CodeGen = exports.Name = exports.nil = exports.stringify = exports.str = exports._ = exports.KeywordCxt = undefined;
   var validate_1 = require_validate();
@@ -4198,10 +4187,10 @@ var require_core = __commonJS((exports) => {
       this.formats[name] = format;
       return this;
     }
-    errorsText(errors4 = this.errors, { separator = ", ", dataVar = "data" } = {}) {
-      if (!errors4 || errors4.length === 0)
+    errorsText(errors = this.errors, { separator = ", ", dataVar = "data" } = {}) {
+      if (!errors || errors.length === 0)
         return "No errors";
-      return errors4.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text, msg) => text + separator + msg);
+      return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text, msg) => text + separator + msg);
     }
     $dataMetaSchema(metaSchema, keywordsJsonPointers) {
       const rules = this.RULES.all;
@@ -4223,15 +4212,15 @@ var require_core = __commonJS((exports) => {
       }
       return metaSchema;
     }
-    _removeAllSchemas(schemas4, regex) {
-      for (const keyRef in schemas4) {
-        const sch = schemas4[keyRef];
+    _removeAllSchemas(schemas, regex) {
+      for (const keyRef in schemas) {
+        const sch = schemas[keyRef];
         if (!regex || regex.test(keyRef)) {
           if (typeof sch == "string") {
-            delete schemas4[keyRef];
+            delete schemas[keyRef];
           } else if (sch && !sch.meta) {
             this._cache.delete(sch.schema);
-            delete schemas4[keyRef];
+            delete schemas[keyRef];
           }
         }
       }
@@ -4417,7 +4406,7 @@ var require_core = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/core/id.js
-var require_id = __commonJS((exports) => {
+var require_id = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var def = {
     keyword: "id",
@@ -4429,7 +4418,7 @@ var require_id = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/core/ref.js
-var require_ref = __commonJS((exports) => {
+var require_ref = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.callRef = exports.getValidate = undefined;
   var ref_error_1 = require_ref_error();
@@ -4548,11 +4537,11 @@ var require_ref = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/core/index.js
-var require_core2 = __commonJS((exports) => {
+var require_core2 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var id_1 = require_id();
   var ref_1 = require_ref();
-  var core2 = [
+  var core = [
     "$schema",
     "$id",
     "$defs",
@@ -4562,11 +4551,11 @@ var require_core2 = __commonJS((exports) => {
     id_1.default,
     ref_1.default
   ];
-  exports.default = core2;
+  exports.default = core;
 });
 
 // node_modules/ajv/dist/vocabularies/validation/limitNumber.js
-var require_limitNumber = __commonJS((exports) => {
+var require_limitNumber = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var ops = codegen_1.operators;
@@ -4576,7 +4565,7 @@ var require_limitNumber = __commonJS((exports) => {
     exclusiveMaximum: { okStr: "<", ok: ops.LT, fail: ops.GTE },
     exclusiveMinimum: { okStr: ">", ok: ops.GT, fail: ops.LTE }
   };
-  var error2 = {
+  var error = {
     message: ({ keyword, schemaCode }) => (0, codegen_1.str)`must be ${KWDs[keyword].okStr} ${schemaCode}`,
     params: ({ keyword, schemaCode }) => (0, codegen_1._)`{comparison: ${KWDs[keyword].okStr}, limit: ${schemaCode}}`
   };
@@ -4585,7 +4574,7 @@ var require_limitNumber = __commonJS((exports) => {
     type: "number",
     schemaType: "number",
     $data: true,
-    error: error2,
+    error,
     code(cxt) {
       const { keyword, data, schemaCode } = cxt;
       cxt.fail$data((0, codegen_1._)`${data} ${KWDs[keyword].fail} ${schemaCode} || isNaN(${data})`);
@@ -4595,10 +4584,10 @@ var require_limitNumber = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/multipleOf.js
-var require_multipleOf = __commonJS((exports) => {
+var require_multipleOf = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
-  var error2 = {
+  var error = {
     message: ({ schemaCode }) => (0, codegen_1.str)`must be multiple of ${schemaCode}`,
     params: ({ schemaCode }) => (0, codegen_1._)`{multipleOf: ${schemaCode}}`
   };
@@ -4607,7 +4596,7 @@ var require_multipleOf = __commonJS((exports) => {
     type: "number",
     schemaType: "number",
     $data: true,
-    error: error2,
+    error,
     code(cxt) {
       const { gen, data, schemaCode, it } = cxt;
       const prec = it.opts.multipleOfPrecision;
@@ -4620,7 +4609,7 @@ var require_multipleOf = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/runtime/ucs2length.js
-var require_ucs2length = __commonJS((exports) => {
+var require_ucs2length = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   function ucs2length(str) {
     const len = str.length;
@@ -4643,12 +4632,12 @@ var require_ucs2length = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/limitLength.js
-var require_limitLength = __commonJS((exports) => {
+var require_limitLength = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
   var ucs2length_1 = require_ucs2length();
-  var error2 = {
+  var error = {
     message({ keyword, schemaCode }) {
       const comp = keyword === "maxLength" ? "more" : "fewer";
       return (0, codegen_1.str)`must NOT have ${comp} than ${schemaCode} characters`;
@@ -4660,7 +4649,7 @@ var require_limitLength = __commonJS((exports) => {
     type: "string",
     schemaType: "number",
     $data: true,
-    error: error2,
+    error,
     code(cxt) {
       const { keyword, data, schemaCode, it } = cxt;
       const op = keyword === "maxLength" ? codegen_1.operators.GT : codegen_1.operators.LT;
@@ -4672,12 +4661,12 @@ var require_limitLength = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/pattern.js
-var require_pattern = __commonJS((exports) => {
+var require_pattern = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
   var util_1 = require_util();
   var codegen_1 = require_codegen();
-  var error2 = {
+  var error = {
     message: ({ schemaCode }) => (0, codegen_1.str)`must match pattern "${schemaCode}"`,
     params: ({ schemaCode }) => (0, codegen_1._)`{pattern: ${schemaCode}}`
   };
@@ -4686,7 +4675,7 @@ var require_pattern = __commonJS((exports) => {
     type: "string",
     schemaType: "string",
     $data: true,
-    error: error2,
+    error,
     code(cxt) {
       const { gen, data, $data, schema, schemaCode, it } = cxt;
       const u = it.opts.unicodeRegExp ? "u" : "";
@@ -4706,10 +4695,10 @@ var require_pattern = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/limitProperties.js
-var require_limitProperties = __commonJS((exports) => {
+var require_limitProperties = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
-  var error2 = {
+  var error = {
     message({ keyword, schemaCode }) {
       const comp = keyword === "maxProperties" ? "more" : "fewer";
       return (0, codegen_1.str)`must NOT have ${comp} than ${schemaCode} properties`;
@@ -4721,7 +4710,7 @@ var require_limitProperties = __commonJS((exports) => {
     type: "object",
     schemaType: "number",
     $data: true,
-    error: error2,
+    error,
     code(cxt) {
       const { keyword, data, schemaCode } = cxt;
       const op = keyword === "maxProperties" ? codegen_1.operators.GT : codegen_1.operators.LT;
@@ -4732,12 +4721,12 @@ var require_limitProperties = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/required.js
-var require_required = __commonJS((exports) => {
+var require_required = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
   var codegen_1 = require_codegen();
   var util_1 = require_util();
-  var error2 = {
+  var error = {
     message: ({ params: { missingProperty } }) => (0, codegen_1.str)`must have required property '${missingProperty}'`,
     params: ({ params: { missingProperty } }) => (0, codegen_1._)`{missingProperty: ${missingProperty}}`
   };
@@ -4746,7 +4735,7 @@ var require_required = __commonJS((exports) => {
     type: "object",
     schemaType: "array",
     $data: true,
-    error: error2,
+    error,
     code(cxt) {
       const { gen, schema, schemaCode, data, $data, it } = cxt;
       const { opts } = it;
@@ -4811,10 +4800,10 @@ var require_required = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/limitItems.js
-var require_limitItems = __commonJS((exports) => {
+var require_limitItems = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
-  var error2 = {
+  var error = {
     message({ keyword, schemaCode }) {
       const comp = keyword === "maxItems" ? "more" : "fewer";
       return (0, codegen_1.str)`must NOT have ${comp} than ${schemaCode} items`;
@@ -4826,7 +4815,7 @@ var require_limitItems = __commonJS((exports) => {
     type: "array",
     schemaType: "number",
     $data: true,
-    error: error2,
+    error,
     code(cxt) {
       const { keyword, data, schemaCode } = cxt;
       const op = keyword === "maxItems" ? codegen_1.operators.GT : codegen_1.operators.LT;
@@ -4837,7 +4826,7 @@ var require_limitItems = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/runtime/equal.js
-var require_equal = __commonJS((exports) => {
+var require_equal = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var equal = require_fast_deep_equal();
   equal.code = 'require("ajv/dist/runtime/equal").default';
@@ -4845,13 +4834,13 @@ var require_equal = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/uniqueItems.js
-var require_uniqueItems = __commonJS((exports) => {
+var require_uniqueItems = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dataType_1 = require_dataType();
   var codegen_1 = require_codegen();
   var util_1 = require_util();
   var equal_1 = require_equal();
-  var error2 = {
+  var error = {
     message: ({ params: { i, j } }) => (0, codegen_1.str)`must NOT have duplicate items (items ## ${j} and ${i} are identical)`,
     params: ({ params: { i, j } }) => (0, codegen_1._)`{i: ${i}, j: ${j}}`
   };
@@ -4860,7 +4849,7 @@ var require_uniqueItems = __commonJS((exports) => {
     type: "array",
     schemaType: "boolean",
     $data: true,
-    error: error2,
+    error,
     code(cxt) {
       const { gen, data, $data, schema, parentSchema, schemaCode, it } = cxt;
       if (!$data && !schema)
@@ -4909,19 +4898,19 @@ var require_uniqueItems = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/const.js
-var require_const = __commonJS((exports) => {
+var require_const = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
   var equal_1 = require_equal();
-  var error2 = {
+  var error = {
     message: "must be equal to constant",
     params: ({ schemaCode }) => (0, codegen_1._)`{allowedValue: ${schemaCode}}`
   };
   var def = {
     keyword: "const",
     $data: true,
-    error: error2,
+    error,
     code(cxt) {
       const { gen, data, $data, schemaCode, schema } = cxt;
       if ($data || schema && typeof schema == "object") {
@@ -4935,12 +4924,12 @@ var require_const = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/enum.js
-var require_enum = __commonJS((exports) => {
+var require_enum = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
   var equal_1 = require_equal();
-  var error2 = {
+  var error = {
     message: "must be equal to one of the allowed values",
     params: ({ schemaCode }) => (0, codegen_1._)`{allowedValues: ${schemaCode}}`
   };
@@ -4948,7 +4937,7 @@ var require_enum = __commonJS((exports) => {
     keyword: "enum",
     schemaType: "array",
     $data: true,
-    error: error2,
+    error,
     code(cxt) {
       const { gen, data, $data, schema, schemaCode, it } = cxt;
       if (!$data && schema.length === 0)
@@ -4981,7 +4970,7 @@ var require_enum = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/index.js
-var require_validation = __commonJS((exports) => {
+var require_validation = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var limitNumber_1 = require_limitNumber();
   var multipleOf_1 = require_multipleOf();
@@ -5011,12 +5000,12 @@ var require_validation = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/additionalItems.js
-var require_additionalItems = __commonJS((exports) => {
+var require_additionalItems = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateAdditionalItems = undefined;
   var codegen_1 = require_codegen();
   var util_1 = require_util();
-  var error2 = {
+  var error = {
     message: ({ params: { len } }) => (0, codegen_1.str)`must NOT have more than ${len} items`,
     params: ({ params: { len } }) => (0, codegen_1._)`{limit: ${len}}`
   };
@@ -5025,7 +5014,7 @@ var require_additionalItems = __commonJS((exports) => {
     type: "array",
     schemaType: ["boolean", "object"],
     before: "uniqueItems",
-    error: error2,
+    error,
     code(cxt) {
       const { parentSchema, it } = cxt;
       const { items } = parentSchema;
@@ -5061,7 +5050,7 @@ var require_additionalItems = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/items.js
-var require_items = __commonJS((exports) => {
+var require_items = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateTuple = undefined;
   var codegen_1 = require_codegen();
@@ -5115,7 +5104,7 @@ var require_items = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/prefixItems.js
-var require_prefixItems = __commonJS((exports) => {
+var require_prefixItems = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var items_1 = require_items();
   var def = {
@@ -5129,13 +5118,13 @@ var require_prefixItems = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/items2020.js
-var require_items2020 = __commonJS((exports) => {
+var require_items2020 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
   var code_1 = require_code2();
   var additionalItems_1 = require_additionalItems();
-  var error2 = {
+  var error = {
     message: ({ params: { len } }) => (0, codegen_1.str)`must NOT have more than ${len} items`,
     params: ({ params: { len } }) => (0, codegen_1._)`{limit: ${len}}`
   };
@@ -5144,7 +5133,7 @@ var require_items2020 = __commonJS((exports) => {
     type: "array",
     schemaType: ["object", "boolean"],
     before: "uniqueItems",
-    error: error2,
+    error,
     code(cxt) {
       const { schema, parentSchema, it } = cxt;
       const { prefixItems } = parentSchema;
@@ -5161,11 +5150,11 @@ var require_items2020 = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/contains.js
-var require_contains = __commonJS((exports) => {
+var require_contains = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
-  var error2 = {
+  var error = {
     message: ({ params: { min, max } }) => max === undefined ? (0, codegen_1.str)`must contain at least ${min} valid item(s)` : (0, codegen_1.str)`must contain at least ${min} and no more than ${max} valid item(s)`,
     params: ({ params: { min, max } }) => max === undefined ? (0, codegen_1._)`{minContains: ${min}}` : (0, codegen_1._)`{minContains: ${min}, maxContains: ${max}}`
   };
@@ -5175,7 +5164,7 @@ var require_contains = __commonJS((exports) => {
     schemaType: ["object", "boolean"],
     before: "uniqueItems",
     trackErrors: true,
-    error: error2,
+    error,
     code(cxt) {
       const { gen, schema, parentSchema, data, it } = cxt;
       let min;
@@ -5252,7 +5241,7 @@ var require_contains = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/dependencies.js
-var require_dependencies = __commonJS((exports) => {
+var require_dependencies = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateSchemaDeps = exports.validatePropertyDeps = exports.error = undefined;
   var codegen_1 = require_codegen();
@@ -5337,11 +5326,11 @@ var require_dependencies = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/propertyNames.js
-var require_propertyNames = __commonJS((exports) => {
+var require_propertyNames = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
-  var error2 = {
+  var error = {
     message: "property name must be valid",
     params: ({ params }) => (0, codegen_1._)`{propertyName: ${params.propertyName}}`
   };
@@ -5349,7 +5338,7 @@ var require_propertyNames = __commonJS((exports) => {
     keyword: "propertyNames",
     type: "object",
     schemaType: ["object", "boolean"],
-    error: error2,
+    error,
     code(cxt) {
       const { gen, schema, data, it } = cxt;
       if ((0, util_1.alwaysValidSchema)(it, schema))
@@ -5377,13 +5366,13 @@ var require_propertyNames = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js
-var require_additionalProperties = __commonJS((exports) => {
+var require_additionalProperties = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
   var codegen_1 = require_codegen();
   var names_1 = require_names();
   var util_1 = require_util();
-  var error2 = {
+  var error = {
     message: "must NOT have additional properties",
     params: ({ params }) => (0, codegen_1._)`{additionalProperty: ${params.additionalProperty}}`
   };
@@ -5393,7 +5382,7 @@ var require_additionalProperties = __commonJS((exports) => {
     schemaType: ["boolean", "object"],
     allowUndefined: true,
     trackErrors: true,
-    error: error2,
+    error,
     code(cxt) {
       const { gen, schema, parentSchema, data, errsCount, it } = cxt;
       if (!errsCount)
@@ -5459,13 +5448,13 @@ var require_additionalProperties = __commonJS((exports) => {
           }
         }
       }
-      function applyAdditionalSchema(key, valid, errors4) {
+      function applyAdditionalSchema(key, valid, errors) {
         const subschema = {
           keyword: "additionalProperties",
           dataProp: key,
           dataPropType: util_1.Type.Str
         };
-        if (errors4 === false) {
+        if (errors === false) {
           Object.assign(subschema, {
             compositeRule: true,
             createErrors: false,
@@ -5480,7 +5469,7 @@ var require_additionalProperties = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/properties.js
-var require_properties = __commonJS((exports) => {
+var require_properties = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var validate_1 = require_validate();
   var code_1 = require_code2();
@@ -5535,7 +5524,7 @@ var require_properties = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/patternProperties.js
-var require_patternProperties = __commonJS((exports) => {
+var require_patternProperties = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
   var codegen_1 = require_codegen();
@@ -5606,7 +5595,7 @@ var require_patternProperties = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/not.js
-var require_not = __commonJS((exports) => {
+var require_not = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var util_1 = require_util();
   var def = {
@@ -5634,7 +5623,7 @@ var require_not = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/anyOf.js
-var require_anyOf = __commonJS((exports) => {
+var require_anyOf = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
   var def = {
@@ -5648,11 +5637,11 @@ var require_anyOf = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/oneOf.js
-var require_oneOf = __commonJS((exports) => {
+var require_oneOf = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
-  var error2 = {
+  var error = {
     message: "must match exactly one schema in oneOf",
     params: ({ params }) => (0, codegen_1._)`{passingSchemas: ${params.passing}}`
   };
@@ -5660,7 +5649,7 @@ var require_oneOf = __commonJS((exports) => {
     keyword: "oneOf",
     schemaType: "array",
     trackErrors: true,
-    error: error2,
+    error,
     code(cxt) {
       const { gen, schema, parentSchema, it } = cxt;
       if (!Array.isArray(schema))
@@ -5703,7 +5692,7 @@ var require_oneOf = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/allOf.js
-var require_allOf = __commonJS((exports) => {
+var require_allOf = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var util_1 = require_util();
   var def = {
@@ -5727,11 +5716,11 @@ var require_allOf = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/if.js
-var require_if = __commonJS((exports) => {
+var require_if = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
-  var error2 = {
+  var error = {
     message: ({ params }) => (0, codegen_1.str)`must match "${params.ifClause}" schema`,
     params: ({ params }) => (0, codegen_1._)`{failingKeyword: ${params.ifClause}}`
   };
@@ -5739,7 +5728,7 @@ var require_if = __commonJS((exports) => {
     keyword: "if",
     schemaType: ["object", "boolean"],
     trackErrors: true,
-    error: error2,
+    error,
     code(cxt) {
       const { gen, parentSchema, it } = cxt;
       if (parentSchema.then === undefined && parentSchema.else === undefined) {
@@ -5793,7 +5782,7 @@ var require_if = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/thenElse.js
-var require_thenElse = __commonJS((exports) => {
+var require_thenElse = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var util_1 = require_util();
   var def = {
@@ -5808,7 +5797,7 @@ var require_thenElse = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/index.js
-var require_applicator = __commonJS((exports) => {
+var require_applicator = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var additionalItems_1 = require_additionalItems();
   var prefixItems_1 = require_prefixItems();
@@ -5851,10 +5840,10 @@ var require_applicator = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/format/format.js
-var require_format = __commonJS((exports) => {
+var require_format = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
-  var error2 = {
+  var error = {
     message: ({ schemaCode }) => (0, codegen_1.str)`must match format "${schemaCode}"`,
     params: ({ schemaCode }) => (0, codegen_1._)`{format: ${schemaCode}}`
   };
@@ -5863,7 +5852,7 @@ var require_format = __commonJS((exports) => {
     type: ["number", "string"],
     schemaType: "string",
     $data: true,
-    error: error2,
+    error,
     code(cxt, ruleType) {
       const { gen, data, $data, schema, schemaCode, it } = cxt;
       const { opts, errSchemaPath, schemaEnv, self } = it;
@@ -5938,7 +5927,7 @@ var require_format = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/format/index.js
-var require_format2 = __commonJS((exports) => {
+var require_format2 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var format_1 = require_format();
   var format = [format_1.default];
@@ -5946,7 +5935,7 @@ var require_format2 = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/metadata.js
-var require_metadata = __commonJS((exports) => {
+var require_metadata = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.contentVocabulary = exports.metadataVocabulary = undefined;
   exports.metadataVocabulary = [
@@ -5966,7 +5955,7 @@ var require_metadata = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/draft7.js
-var require_draft7 = __commonJS((exports) => {
+var require_draft7 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var core_1 = require_core2();
   var validation_1 = require_validation();
@@ -5985,25 +5974,25 @@ var require_draft7 = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/discriminator/types.js
-var require_types = __commonJS((exports) => {
+var require_types = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.DiscrError = undefined;
   var DiscrError;
-  (function(DiscrError2) {
-    DiscrError2["Tag"] = "tag";
-    DiscrError2["Mapping"] = "mapping";
+  (function(DiscrError) {
+    DiscrError["Tag"] = "tag";
+    DiscrError["Mapping"] = "mapping";
   })(DiscrError || (exports.DiscrError = DiscrError = {}));
 });
 
 // node_modules/ajv/dist/vocabularies/discriminator/index.js
-var require_discriminator = __commonJS((exports) => {
+var require_discriminator = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var types_1 = require_types();
   var compile_1 = require_compile();
   var ref_error_1 = require_ref_error();
   var util_1 = require_util();
-  var error2 = {
+  var error = {
     message: ({ params: { discrError, tagName } }) => discrError === types_1.DiscrError.Tag ? `tag "${tagName}" must be string` : `value of tag "${tagName}" must be in oneOf`,
     params: ({ params: { discrError, tag, tagName } }) => (0, codegen_1._)`{error: ${discrError}, tag: ${tagName}, tagValue: ${tag}}`
   };
@@ -6011,7 +6000,7 @@ var require_discriminator = __commonJS((exports) => {
     keyword: "discriminator",
     type: "object",
     schemaType: "object",
-    error: error2,
+    error,
     code(cxt) {
       const { gen, data, schema, parentSchema, it } = cxt;
       const { oneOf } = parentSchema;
@@ -6071,8 +6060,8 @@ var require_discriminator = __commonJS((exports) => {
         if (!tagRequired)
           throw new Error(`discriminator: "${tagName}" must be required`);
         return oneOfMapping;
-        function hasRequired({ required: required2 }) {
-          return Array.isArray(required2) && required2.includes(tagName);
+        function hasRequired({ required }) {
+          return Array.isArray(required) && required.includes(tagName);
         }
         function addMappings(sch, i) {
           if (sch.const) {
@@ -6098,7 +6087,7 @@ var require_discriminator = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/refs/json-schema-draft-07.json
-var require_json_schema_draft_07 = __commonJS((exports, module) => {
+var require_json_schema_draft_07 = __commonJS(function(exports, module) {
   module.exports = {
     $schema: "http://json-schema.org/draft-07/schema#",
     $id: "http://json-schema.org/draft-07/schema#",
@@ -6253,7 +6242,7 @@ var require_json_schema_draft_07 = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/ajv.js
-var require_ajv = __commonJS((exports, module) => {
+var require_ajv = __commonJS(function(exports, module) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MissingRefError = exports.ValidationError = exports.CodeGen = exports.Name = exports.nil = exports.stringify = exports.str = exports._ = exports.KeywordCxt = exports.Ajv = undefined;
   var core_1 = require_core();
@@ -6321,14 +6310,14 @@ var require_ajv = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv-formats/dist/formats.js
-var require_formats = __commonJS((exports) => {
+var require_formats = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.formatNames = exports.fastFormats = exports.fullFormats = undefined;
   function fmtDef(validate, compare) {
     return { validate, compare };
   }
   exports.fullFormats = {
-    date: fmtDef(date4, compareDate),
+    date: fmtDef(date, compareDate),
     time: fmtDef(getTime(true), compareTime),
     "date-time": fmtDef(getDateTime(true), compareDateTime),
     "iso-time": fmtDef(getTime(), compareIsoTime),
@@ -6372,7 +6361,7 @@ var require_formats = __commonJS((exports) => {
   }
   var DATE = /^(\d\d\d\d)-(\d\d)-(\d\d)$/;
   var DAYS = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  function date4(str) {
+  function date(str) {
     const matches = DATE.exec(str);
     if (!matches)
       return false;
@@ -6392,7 +6381,7 @@ var require_formats = __commonJS((exports) => {
   }
   var TIME = /^(\d\d):(\d\d):(\d\d(?:\.\d+)?)(z|([+-])(\d\d)(?::?(\d\d))?)?$/i;
   function getTime(strictTimeZone) {
-    return function time3(str) {
+    return function time(str) {
       const matches = TIME.exec(str);
       if (!matches)
         return false;
@@ -6438,10 +6427,10 @@ var require_formats = __commonJS((exports) => {
   }
   var DATE_TIME_SEPARATOR = /t|\s/i;
   function getDateTime(strictTimeZone) {
-    const time3 = getTime(strictTimeZone);
+    const time = getTime(strictTimeZone);
     return function date_time(str) {
       const dateTime = str.split(DATE_TIME_SEPARATOR);
-      return dateTime.length === 2 && date4(dateTime[0]) && time3(dateTime[1]);
+      return dateTime.length === 2 && date(dateTime[0]) && time(dateTime[1]);
     };
   }
   function compareDateTime(dt1, dt2) {
@@ -6498,7 +6487,7 @@ var require_formats = __commonJS((exports) => {
 });
 
 // node_modules/ajv-formats/dist/limit.js
-var require_limit = __commonJS((exports) => {
+var require_limit = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.formatLimitDefinition = undefined;
   var ajv_1 = require_ajv();
@@ -6510,7 +6499,7 @@ var require_limit = __commonJS((exports) => {
     formatExclusiveMaximum: { okStr: "<", ok: ops.LT, fail: ops.GTE },
     formatExclusiveMinimum: { okStr: ">", ok: ops.GT, fail: ops.LTE }
   };
-  var error2 = {
+  var error = {
     message: ({ keyword, schemaCode }) => (0, codegen_1.str)`should be ${KWDs[keyword].okStr} ${schemaCode}`,
     params: ({ keyword, schemaCode }) => (0, codegen_1._)`{comparison: ${KWDs[keyword].okStr}, limit: ${schemaCode}}`
   };
@@ -6519,7 +6508,7 @@ var require_limit = __commonJS((exports) => {
     type: "string",
     schemaType: "string",
     $data: true,
-    error: error2,
+    error,
     code(cxt) {
       const { gen, data, schemaCode, keyword, it } = cxt;
       const { opts, self } = it;
@@ -6567,7 +6556,7 @@ var require_limit = __commonJS((exports) => {
 });
 
 // node_modules/ajv-formats/dist/index.js
-var require_dist = __commonJS((exports, module) => {
+var require_dist = __commonJS(function(exports, module) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var formats_1 = require_formats();
   var limit_1 = require_limit();
@@ -6606,14 +6595,14 @@ var require_dist = __commonJS((exports, module) => {
 });
 
 // node_modules/qrcode/lib/can-promise.js
-var require_can_promise = __commonJS((exports, module) => {
+var require_can_promise = __commonJS(function(exports, module) {
   module.exports = function() {
     return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
   };
 });
 
 // node_modules/qrcode/lib/core/utils.js
-var require_utils2 = __commonJS((exports) => {
+var require_utils2 = __commonJS(function(exports) {
   var toSJISFunction;
   var CODEWORDS_COUNT = [
     0,
@@ -6658,15 +6647,15 @@ var require_utils2 = __commonJS((exports) => {
     3532,
     3706
   ];
-  exports.getSymbolSize = function getSymbolSize(version2) {
-    if (!version2)
+  exports.getSymbolSize = function getSymbolSize(version) {
+    if (!version)
       throw new Error('"version" cannot be null or undefined');
-    if (version2 < 1 || version2 > 40)
+    if (version < 1 || version > 40)
       throw new Error('"version" should be in range from 1 to 40');
-    return version2 * 4 + 17;
+    return version * 4 + 17;
   };
-  exports.getSymbolTotalCodewords = function getSymbolTotalCodewords(version2) {
-    return CODEWORDS_COUNT[version2];
+  exports.getSymbolTotalCodewords = function getSymbolTotalCodewords(version) {
+    return CODEWORDS_COUNT[version];
   };
   exports.getBCHDigit = function(data) {
     let digit = 0;
@@ -6691,16 +6680,16 @@ var require_utils2 = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/core/error-correction-level.js
-var require_error_correction_level = __commonJS((exports) => {
+var require_error_correction_level = __commonJS(function(exports) {
   exports.L = { bit: 1 };
   exports.M = { bit: 0 };
   exports.Q = { bit: 3 };
   exports.H = { bit: 2 };
-  function fromString(string4) {
-    if (typeof string4 !== "string") {
+  function fromString(string) {
+    if (typeof string !== "string") {
       throw new Error("Param is not a string");
     }
-    const lcStr = string4.toLowerCase();
+    const lcStr = string.toLowerCase();
     switch (lcStr) {
       case "l":
       case "low":
@@ -6715,10 +6704,10 @@ var require_error_correction_level = __commonJS((exports) => {
       case "high":
         return exports.H;
       default:
-        throw new Error("Unknown EC Level: " + string4);
+        throw new Error("Unknown EC Level: " + string);
     }
   }
-  exports.isValid = function isValid2(level) {
+  exports.isValid = function isValid(level) {
     return level && typeof level.bit !== "undefined" && level.bit >= 0 && level.bit < 4;
   };
   exports.from = function from(value, defaultValue) {
@@ -6734,7 +6723,7 @@ var require_error_correction_level = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/core/bit-buffer.js
-var require_bit_buffer = __commonJS((exports, module) => {
+var require_bit_buffer = __commonJS(function(exports, module) {
   function BitBuffer() {
     this.buffer = [];
     this.length = 0;
@@ -6767,7 +6756,7 @@ var require_bit_buffer = __commonJS((exports, module) => {
 });
 
 // node_modules/qrcode/lib/core/bit-matrix.js
-var require_bit_matrix = __commonJS((exports, module) => {
+var require_bit_matrix = __commonJS(function(exports, module) {
   function BitMatrix(size) {
     if (!size || size < 1) {
       throw new Error("BitMatrix size must be defined and greater than 0");
@@ -6795,13 +6784,13 @@ var require_bit_matrix = __commonJS((exports, module) => {
 });
 
 // node_modules/qrcode/lib/core/alignment-pattern.js
-var require_alignment_pattern = __commonJS((exports) => {
+var require_alignment_pattern = __commonJS(function(exports) {
   var getSymbolSize = require_utils2().getSymbolSize;
-  exports.getRowColCoords = function getRowColCoords(version2) {
-    if (version2 === 1)
+  exports.getRowColCoords = function getRowColCoords(version) {
+    if (version === 1)
       return [];
-    const posCount = Math.floor(version2 / 7) + 2;
-    const size = getSymbolSize(version2);
+    const posCount = Math.floor(version / 7) + 2;
+    const size = getSymbolSize(version);
     const intervals = size === 145 ? 26 : Math.ceil((size - 13) / (2 * posCount - 2)) * 2;
     const positions = [size - 7];
     for (let i = 1;i < posCount - 1; i++) {
@@ -6810,9 +6799,9 @@ var require_alignment_pattern = __commonJS((exports) => {
     positions.push(6);
     return positions.reverse();
   };
-  exports.getPositions = function getPositions(version2) {
+  exports.getPositions = function getPositions(version) {
     const coords = [];
-    const pos = exports.getRowColCoords(version2);
+    const pos = exports.getRowColCoords(version);
     const posLength = pos.length;
     for (let i = 0;i < posLength; i++) {
       for (let j = 0;j < posLength; j++) {
@@ -6827,11 +6816,11 @@ var require_alignment_pattern = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/core/finder-pattern.js
-var require_finder_pattern = __commonJS((exports) => {
+var require_finder_pattern = __commonJS(function(exports) {
   var getSymbolSize = require_utils2().getSymbolSize;
   var FINDER_PATTERN_SIZE = 7;
-  exports.getPositions = function getPositions(version2) {
-    const size = getSymbolSize(version2);
+  exports.getPositions = function getPositions(version) {
+    const size = getSymbolSize(version);
     return [
       [0, 0],
       [size - FINDER_PATTERN_SIZE, 0],
@@ -6841,7 +6830,7 @@ var require_finder_pattern = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/core/mask-pattern.js
-var require_mask_pattern = __commonJS((exports) => {
+var require_mask_pattern = __commonJS(function(exports) {
   exports.Patterns = {
     PATTERN000: 0,
     PATTERN001: 1,
@@ -6858,7 +6847,7 @@ var require_mask_pattern = __commonJS((exports) => {
     N3: 40,
     N4: 10
   };
-  exports.isValid = function isValid2(mask) {
+  exports.isValid = function isValid(mask) {
     return mask != null && mask !== "" && !isNaN(mask) && mask >= 0 && mask <= 7;
   };
   exports.from = function from(value) {
@@ -6990,7 +6979,7 @@ var require_mask_pattern = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/core/error-correction-code.js
-var require_error_correction_code = __commonJS((exports) => {
+var require_error_correction_code = __commonJS(function(exports) {
   var ECLevel = require_error_correction_level();
   var EC_BLOCKS_TABLE = [
     1,
@@ -7316,30 +7305,30 @@ var require_error_correction_code = __commonJS((exports) => {
     2040,
     2430
   ];
-  exports.getBlocksCount = function getBlocksCount(version2, errorCorrectionLevel) {
+  exports.getBlocksCount = function getBlocksCount(version, errorCorrectionLevel) {
     switch (errorCorrectionLevel) {
       case ECLevel.L:
-        return EC_BLOCKS_TABLE[(version2 - 1) * 4 + 0];
+        return EC_BLOCKS_TABLE[(version - 1) * 4 + 0];
       case ECLevel.M:
-        return EC_BLOCKS_TABLE[(version2 - 1) * 4 + 1];
+        return EC_BLOCKS_TABLE[(version - 1) * 4 + 1];
       case ECLevel.Q:
-        return EC_BLOCKS_TABLE[(version2 - 1) * 4 + 2];
+        return EC_BLOCKS_TABLE[(version - 1) * 4 + 2];
       case ECLevel.H:
-        return EC_BLOCKS_TABLE[(version2 - 1) * 4 + 3];
+        return EC_BLOCKS_TABLE[(version - 1) * 4 + 3];
       default:
         return;
     }
   };
-  exports.getTotalCodewordsCount = function getTotalCodewordsCount(version2, errorCorrectionLevel) {
+  exports.getTotalCodewordsCount = function getTotalCodewordsCount(version, errorCorrectionLevel) {
     switch (errorCorrectionLevel) {
       case ECLevel.L:
-        return EC_CODEWORDS_TABLE[(version2 - 1) * 4 + 0];
+        return EC_CODEWORDS_TABLE[(version - 1) * 4 + 0];
       case ECLevel.M:
-        return EC_CODEWORDS_TABLE[(version2 - 1) * 4 + 1];
+        return EC_CODEWORDS_TABLE[(version - 1) * 4 + 1];
       case ECLevel.Q:
-        return EC_CODEWORDS_TABLE[(version2 - 1) * 4 + 2];
+        return EC_CODEWORDS_TABLE[(version - 1) * 4 + 2];
       case ECLevel.H:
-        return EC_CODEWORDS_TABLE[(version2 - 1) * 4 + 3];
+        return EC_CODEWORDS_TABLE[(version - 1) * 4 + 3];
       default:
         return;
     }
@@ -7347,7 +7336,7 @@ var require_error_correction_code = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/core/galois-field.js
-var require_galois_field = __commonJS((exports) => {
+var require_galois_field = __commonJS(function(exports) {
   var EXP_TABLE = new Uint8Array(512);
   var LOG_TABLE = new Uint8Array(256);
   (function initTables() {
@@ -7364,7 +7353,7 @@ var require_galois_field = __commonJS((exports) => {
       EXP_TABLE[i] = EXP_TABLE[i - 255];
     }
   })();
-  exports.log = function log2(n) {
+  exports.log = function log(n) {
     if (n < 1)
       throw new Error("log(" + n + ")");
     return LOG_TABLE[n];
@@ -7380,9 +7369,9 @@ var require_galois_field = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/core/polynomial.js
-var require_polynomial = __commonJS((exports) => {
+var require_polynomial = __commonJS(function(exports) {
   var GF = require_galois_field();
-  exports.mul = function mul(p1, p2) {
+  exports.mul = function mul2(p1, p2) {
     const coeff = new Uint8Array(p1.length + p2.length - 1);
     for (let i = 0;i < p1.length; i++) {
       for (let j = 0;j < p2.length; j++) {
@@ -7415,7 +7404,7 @@ var require_polynomial = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/core/reed-solomon-encoder.js
-var require_reed_solomon_encoder = __commonJS((exports, module) => {
+var require_reed_solomon_encoder = __commonJS(function(exports, module) {
   var Polynomial = require_polynomial();
   function ReedSolomonEncoder(degree) {
     this.genPoly = undefined;
@@ -7446,14 +7435,14 @@ var require_reed_solomon_encoder = __commonJS((exports, module) => {
 });
 
 // node_modules/qrcode/lib/core/version-check.js
-var require_version_check = __commonJS((exports) => {
-  exports.isValid = function isValid2(version2) {
-    return !isNaN(version2) && version2 >= 1 && version2 <= 40;
+var require_version_check = __commonJS(function(exports) {
+  exports.isValid = function isValid(version) {
+    return !isNaN(version) && version >= 1 && version <= 40;
   };
 });
 
 // node_modules/qrcode/lib/core/regex.js
-var require_regex = __commonJS((exports) => {
+var require_regex = __commonJS(function(exports) {
   var numeric = "[0-9]+";
   var alphanumeric = "[A-Z $%*+\\-./:]+";
   var kanji = "(?:[u3000-u303F]|[u3040-u309F]|[u30A0-u30FF]|" + "[uFF00-uFFEF]|[u4E00-u9FAF]|[u2605-u2606]|[u2190-u2195]|u203B|" + "[u2010u2015u2018u2019u2025u2026u201Cu201Du2225u2260]|" + "[u0391-u0451]|[u00A7u00A8u00B1u00B4u00D7u00F7])+";
@@ -7480,7 +7469,7 @@ var require_regex = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/core/mode.js
-var require_mode = __commonJS((exports) => {
+var require_mode = __commonJS(function(exports) {
   var VersionCheck = require_version_check();
   var Regex = require_regex();
   exports.NUMERIC = {
@@ -7506,15 +7495,15 @@ var require_mode = __commonJS((exports) => {
   exports.MIXED = {
     bit: -1
   };
-  exports.getCharCountIndicator = function getCharCountIndicator(mode, version2) {
+  exports.getCharCountIndicator = function getCharCountIndicator(mode, version) {
     if (!mode.ccBits)
       throw new Error("Invalid mode: " + mode);
-    if (!VersionCheck.isValid(version2)) {
-      throw new Error("Invalid version: " + version2);
+    if (!VersionCheck.isValid(version)) {
+      throw new Error("Invalid version: " + version);
     }
-    if (version2 >= 1 && version2 < 10)
+    if (version >= 1 && version < 10)
       return mode.ccBits[0];
-    else if (version2 < 27)
+    else if (version < 27)
       return mode.ccBits[1];
     return mode.ccBits[2];
   };
@@ -7533,14 +7522,14 @@ var require_mode = __commonJS((exports) => {
       return mode.id;
     throw new Error("Invalid mode");
   };
-  exports.isValid = function isValid2(mode) {
+  exports.isValid = function isValid(mode) {
     return mode && mode.bit && mode.ccBits;
   };
-  function fromString(string4) {
-    if (typeof string4 !== "string") {
+  function fromString(string) {
+    if (typeof string !== "string") {
       throw new Error("Param is not a string");
     }
-    const lcStr = string4.toLowerCase();
+    const lcStr = string.toLowerCase();
     switch (lcStr) {
       case "numeric":
         return exports.NUMERIC;
@@ -7551,7 +7540,7 @@ var require_mode = __commonJS((exports) => {
       case "byte":
         return exports.BYTE;
       default:
-        throw new Error("Unknown mode: " + string4);
+        throw new Error("Unknown mode: " + string);
     }
   }
   exports.from = function from(value, defaultValue) {
@@ -7567,7 +7556,7 @@ var require_mode = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/core/version.js
-var require_version = __commonJS((exports) => {
+var require_version = __commonJS(function(exports) {
   var Utils = require_utils2();
   var ECCode = require_error_correction_code();
   var ECLevel = require_error_correction_level();
@@ -7583,13 +7572,13 @@ var require_version = __commonJS((exports) => {
     }
     return;
   }
-  function getReservedBitsCount(mode, version2) {
-    return Mode.getCharCountIndicator(mode, version2) + 4;
+  function getReservedBitsCount(mode, version) {
+    return Mode.getCharCountIndicator(mode, version) + 4;
   }
-  function getTotalBitsFromDataArray(segments, version2) {
+  function getTotalBitsFromDataArray(segments, version) {
     let totalBits = 0;
     segments.forEach(function(data) {
-      const reservedBits = getReservedBitsCount(data.mode, version2);
+      const reservedBits = getReservedBitsCount(data.mode, version);
       totalBits += reservedBits + data.getBitsLength();
     });
     return totalBits;
@@ -7609,18 +7598,18 @@ var require_version = __commonJS((exports) => {
     }
     return defaultValue;
   };
-  exports.getCapacity = function getCapacity(version2, errorCorrectionLevel, mode) {
-    if (!VersionCheck.isValid(version2)) {
+  exports.getCapacity = function getCapacity(version, errorCorrectionLevel, mode) {
+    if (!VersionCheck.isValid(version)) {
       throw new Error("Invalid QR Code version");
     }
     if (typeof mode === "undefined")
       mode = Mode.BYTE;
-    const totalCodewords = Utils.getSymbolTotalCodewords(version2);
-    const ecTotalCodewords = ECCode.getTotalCodewordsCount(version2, errorCorrectionLevel);
+    const totalCodewords = Utils.getSymbolTotalCodewords(version);
+    const ecTotalCodewords = ECCode.getTotalCodewordsCount(version, errorCorrectionLevel);
     const dataTotalCodewordsBits = (totalCodewords - ecTotalCodewords) * 8;
     if (mode === Mode.MIXED)
       return dataTotalCodewordsBits;
-    const usableBits = dataTotalCodewordsBits - getReservedBitsCount(mode, version2);
+    const usableBits = dataTotalCodewordsBits - getReservedBitsCount(mode, version);
     switch (mode) {
       case Mode.NUMERIC:
         return Math.floor(usableBits / 10 * 3);
@@ -7649,20 +7638,20 @@ var require_version = __commonJS((exports) => {
     }
     return getBestVersionForDataLength(seg.mode, seg.getLength(), ecl);
   };
-  exports.getEncodedBits = function getEncodedBits(version2) {
-    if (!VersionCheck.isValid(version2) || version2 < 7) {
+  exports.getEncodedBits = function getEncodedBits(version) {
+    if (!VersionCheck.isValid(version) || version < 7) {
       throw new Error("Invalid QR Code version");
     }
-    let d = version2 << 12;
+    let d = version << 12;
     while (Utils.getBCHDigit(d) - G18_BCH >= 0) {
       d ^= G18 << Utils.getBCHDigit(d) - G18_BCH;
     }
-    return version2 << 12 | d;
+    return version << 12 | d;
   };
 });
 
 // node_modules/qrcode/lib/core/format-info.js
-var require_format_info = __commonJS((exports) => {
+var require_format_info = __commonJS(function(exports) {
   var Utils = require_utils2();
   var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
   var G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
@@ -7678,7 +7667,7 @@ var require_format_info = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/core/numeric-data.js
-var require_numeric_data = __commonJS((exports, module) => {
+var require_numeric_data = __commonJS(function(exports, module) {
   var Mode = require_mode();
   function NumericData(data) {
     this.mode = Mode.NUMERIC;
@@ -7711,7 +7700,7 @@ var require_numeric_data = __commonJS((exports, module) => {
 });
 
 // node_modules/qrcode/lib/core/alphanumeric-data.js
-var require_alphanumeric_data = __commonJS((exports, module) => {
+var require_alphanumeric_data = __commonJS(function(exports, module) {
   var Mode = require_mode();
   var ALPHA_NUM_CHARS = [
     "0",
@@ -7788,7 +7777,7 @@ var require_alphanumeric_data = __commonJS((exports, module) => {
 });
 
 // node_modules/qrcode/lib/core/byte-data.js
-var require_byte_data = __commonJS((exports, module) => {
+var require_byte_data = __commonJS(function(exports, module) {
   var Mode = require_mode();
   function ByteData(data) {
     this.mode = Mode.BYTE;
@@ -7816,7 +7805,7 @@ var require_byte_data = __commonJS((exports, module) => {
 });
 
 // node_modules/qrcode/lib/core/kanji-data.js
-var require_kanji_data = __commonJS((exports, module) => {
+var require_kanji_data = __commonJS(function(exports, module) {
   var Mode = require_mode();
   var Utils = require_utils2();
   function KanjiData(data) {
@@ -7852,17 +7841,17 @@ var require_kanji_data = __commonJS((exports, module) => {
 });
 
 // node_modules/dijkstrajs/dijkstra.js
-var require_dijkstra = __commonJS((exports, module) => {
+var require_dijkstra = __commonJS(function(exports, module) {
   var dijkstra = {
     single_source_shortest_paths: function(graph, s, d) {
       var predecessors = {};
       var costs = {};
       costs[s] = 0;
-      var open2 = dijkstra.PriorityQueue.make();
-      open2.push(s, 0);
+      var open = dijkstra.PriorityQueue.make();
+      open.push(s, 0);
       var closest, u, v, cost_of_s_to_u, adjacent_nodes, cost_of_e, cost_of_s_to_u_plus_cost_of_e, cost_of_s_to_v, first_visit;
-      while (!open2.empty()) {
-        closest = open2.pop();
+      while (!open.empty()) {
+        closest = open.pop();
         u = closest.value;
         cost_of_s_to_u = closest.cost;
         adjacent_nodes = graph[u] || {};
@@ -7874,7 +7863,7 @@ var require_dijkstra = __commonJS((exports, module) => {
             first_visit = typeof costs[v] === "undefined";
             if (first_visit || cost_of_s_to_v > cost_of_s_to_u_plus_cost_of_e) {
               costs[v] = cost_of_s_to_u_plus_cost_of_e;
-              open2.push(v, cost_of_s_to_u_plus_cost_of_e);
+              open.push(v, cost_of_s_to_u_plus_cost_of_e);
               predecessors[v] = u;
             }
           }
@@ -7937,7 +7926,7 @@ var require_dijkstra = __commonJS((exports, module) => {
 });
 
 // node_modules/qrcode/lib/core/segments.js
-var require_segments = __commonJS((exports) => {
+var require_segments = __commonJS(function(exports) {
   var Mode = require_mode();
   var NumericData = require_numeric_data();
   var AlphanumericData = require_alphanumeric_data();
@@ -8040,7 +8029,7 @@ var require_segments = __commonJS((exports) => {
     }
     return nodes;
   }
-  function buildGraph(nodes, version2) {
+  function buildGraph(nodes, version) {
     const table = {};
     const graph = { start: {} };
     let prevNodeIds = ["start"];
@@ -8061,7 +8050,7 @@ var require_segments = __commonJS((exports) => {
           } else {
             if (table[prevNodeId])
               table[prevNodeId].lastCount = node.length;
-            graph[prevNodeId][key] = getSegmentBitsLength(node.length, node.mode) + 4 + Mode.getCharCountIndicator(node.mode, version2);
+            graph[prevNodeId][key] = getSegmentBitsLength(node.length, node.mode) + 4 + Mode.getCharCountIndicator(node.mode, version);
           }
         }
       }
@@ -8094,8 +8083,8 @@ var require_segments = __commonJS((exports) => {
         return new ByteData(data);
     }
   }
-  exports.fromArray = function fromArray(array3) {
-    return array3.reduce(function(acc, seg) {
+  exports.fromArray = function fromArray(array) {
+    return array.reduce(function(acc, seg) {
       if (typeof seg === "string") {
         acc.push(buildSingleSegment(seg, null));
       } else if (seg.data) {
@@ -8104,14 +8093,14 @@ var require_segments = __commonJS((exports) => {
       return acc;
     }, []);
   };
-  exports.fromString = function fromString(data, version2) {
+  exports.fromString = function fromString(data, version) {
     const segs = getSegmentsFromString(data, Utils.isKanjiModeEnabled());
     const nodes = buildNodes(segs);
-    const graph = buildGraph(nodes, version2);
-    const path3 = dijkstra.find_path(graph.map, "start", "end");
+    const graph = buildGraph(nodes, version);
+    const path = dijkstra.find_path(graph.map, "start", "end");
     const optimizedSegs = [];
-    for (let i = 1;i < path3.length - 1; i++) {
-      optimizedSegs.push(graph.table[path3[i]].node);
+    for (let i = 1;i < path.length - 1; i++) {
+      optimizedSegs.push(graph.table[path[i]].node);
     }
     return exports.fromArray(mergeSegments(optimizedSegs));
   };
@@ -8121,7 +8110,7 @@ var require_segments = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/core/qrcode.js
-var require_qrcode = __commonJS((exports) => {
+var require_qrcode = __commonJS(function(exports) {
   var Utils = require_utils2();
   var ECLevel = require_error_correction_level();
   var BitBuffer = require_bit_buffer();
@@ -8135,9 +8124,9 @@ var require_qrcode = __commonJS((exports) => {
   var FormatInfo = require_format_info();
   var Mode = require_mode();
   var Segments = require_segments();
-  function setupFinderPattern(matrix, version2) {
+  function setupFinderPattern(matrix, version) {
     const size = matrix.size;
-    const pos = FinderPattern.getPositions(version2);
+    const pos = FinderPattern.getPositions(version);
     for (let i = 0;i < pos.length; i++) {
       const row = pos[i][0];
       const col = pos[i][1];
@@ -8164,8 +8153,8 @@ var require_qrcode = __commonJS((exports) => {
       matrix.set(6, r, value, true);
     }
   }
-  function setupAlignmentPattern(matrix, version2) {
-    const pos = AlignmentPattern.getPositions(version2);
+  function setupAlignmentPattern(matrix, version) {
+    const pos = AlignmentPattern.getPositions(version);
     for (let i = 0;i < pos.length; i++) {
       const row = pos[i][0];
       const col = pos[i][1];
@@ -8180,9 +8169,9 @@ var require_qrcode = __commonJS((exports) => {
       }
     }
   }
-  function setupVersionInfo(matrix, version2) {
+  function setupVersionInfo(matrix, version) {
     const size = matrix.size;
-    const bits = Version.getEncodedBits(version2);
+    const bits = Version.getEncodedBits(version);
     let row, col, mod;
     for (let i = 0;i < 18; i++) {
       row = Math.floor(i / 3);
@@ -8248,15 +8237,15 @@ var require_qrcode = __commonJS((exports) => {
       }
     }
   }
-  function createData(version2, errorCorrectionLevel, segments) {
+  function createData(version, errorCorrectionLevel, segments) {
     const buffer = new BitBuffer;
     segments.forEach(function(data) {
       buffer.put(data.mode.bit, 4);
-      buffer.put(data.getLength(), Mode.getCharCountIndicator(data.mode, version2));
+      buffer.put(data.getLength(), Mode.getCharCountIndicator(data.mode, version));
       data.write(buffer);
     });
-    const totalCodewords = Utils.getSymbolTotalCodewords(version2);
-    const ecTotalCodewords = ECCode.getTotalCodewordsCount(version2, errorCorrectionLevel);
+    const totalCodewords = Utils.getSymbolTotalCodewords(version);
+    const ecTotalCodewords = ECCode.getTotalCodewordsCount(version, errorCorrectionLevel);
     const dataTotalCodewordsBits = (totalCodewords - ecTotalCodewords) * 8;
     if (buffer.getLengthInBits() + 4 <= dataTotalCodewordsBits) {
       buffer.put(0, 4);
@@ -8268,13 +8257,13 @@ var require_qrcode = __commonJS((exports) => {
     for (let i = 0;i < remainingByte; i++) {
       buffer.put(i % 2 ? 17 : 236, 8);
     }
-    return createCodewords(buffer, version2, errorCorrectionLevel);
+    return createCodewords(buffer, version, errorCorrectionLevel);
   }
-  function createCodewords(bitBuffer, version2, errorCorrectionLevel) {
-    const totalCodewords = Utils.getSymbolTotalCodewords(version2);
-    const ecTotalCodewords = ECCode.getTotalCodewordsCount(version2, errorCorrectionLevel);
+  function createCodewords(bitBuffer, version, errorCorrectionLevel) {
+    const totalCodewords = Utils.getSymbolTotalCodewords(version);
+    const ecTotalCodewords = ECCode.getTotalCodewordsCount(version, errorCorrectionLevel);
     const dataTotalCodewords = totalCodewords - ecTotalCodewords;
-    const ecTotalBlocks = ECCode.getBlocksCount(version2, errorCorrectionLevel);
+    const ecTotalBlocks = ECCode.getBlocksCount(version, errorCorrectionLevel);
     const blocksInGroup2 = totalCodewords % ecTotalBlocks;
     const blocksInGroup1 = ecTotalBlocks - blocksInGroup2;
     const totalCodewordsInGroup1 = Math.floor(totalCodewords / ecTotalBlocks);
@@ -8311,12 +8300,12 @@ var require_qrcode = __commonJS((exports) => {
     }
     return data;
   }
-  function createSymbol(data, version2, errorCorrectionLevel, maskPattern) {
+  function createSymbol(data, version, errorCorrectionLevel, maskPattern) {
     let segments;
     if (Array.isArray(data)) {
       segments = Segments.fromArray(data);
     } else if (typeof data === "string") {
-      let estimatedVersion = version2;
+      let estimatedVersion = version;
       if (!estimatedVersion) {
         const rawSegments = Segments.rawSplit(data);
         estimatedVersion = Version.getBestVersionForData(rawSegments, errorCorrectionLevel);
@@ -8329,23 +8318,23 @@ var require_qrcode = __commonJS((exports) => {
     if (!bestVersion) {
       throw new Error("The amount of data is too big to be stored in a QR Code");
     }
-    if (!version2) {
-      version2 = bestVersion;
-    } else if (version2 < bestVersion) {
+    if (!version) {
+      version = bestVersion;
+    } else if (version < bestVersion) {
       throw new Error(`
 ` + `The chosen QR Code version cannot contain this amount of data.
 ` + "Minimum version required to store current data is: " + bestVersion + `.
 `);
     }
-    const dataBits = createData(version2, errorCorrectionLevel, segments);
-    const moduleCount = Utils.getSymbolSize(version2);
+    const dataBits = createData(version, errorCorrectionLevel, segments);
+    const moduleCount = Utils.getSymbolSize(version);
     const modules = new BitMatrix(moduleCount);
-    setupFinderPattern(modules, version2);
+    setupFinderPattern(modules, version);
     setupTimingPattern(modules);
-    setupAlignmentPattern(modules, version2);
+    setupAlignmentPattern(modules, version);
     setupFormatInfo(modules, errorCorrectionLevel, 0);
-    if (version2 >= 7) {
-      setupVersionInfo(modules, version2);
+    if (version >= 7) {
+      setupVersionInfo(modules, version);
     }
     setupData(modules, dataBits);
     if (isNaN(maskPattern)) {
@@ -8355,7 +8344,7 @@ var require_qrcode = __commonJS((exports) => {
     setupFormatInfo(modules, errorCorrectionLevel, maskPattern);
     return {
       modules,
-      version: version2,
+      version,
       errorCorrectionLevel,
       maskPattern,
       segments
@@ -8366,23 +8355,23 @@ var require_qrcode = __commonJS((exports) => {
       throw new Error("No input text");
     }
     let errorCorrectionLevel = ECLevel.M;
-    let version2;
+    let version;
     let mask;
     if (typeof options !== "undefined") {
       errorCorrectionLevel = ECLevel.from(options.errorCorrectionLevel, ECLevel.M);
-      version2 = Version.from(options.version);
+      version = Version.from(options.version);
       mask = MaskPattern.from(options.maskPattern);
       if (options.toSJISFunc) {
         Utils.setToSJISFunction(options.toSJISFunc);
       }
     }
-    return createSymbol(data, version2, errorCorrectionLevel, mask);
+    return createSymbol(data, version, errorCorrectionLevel, mask);
   };
 });
 
 // node_modules/pngjs/lib/chunkstream.js
-var require_chunkstream = __commonJS((exports, module) => {
-  var util3 = __require("util");
+var require_chunkstream = __commonJS(function(exports, module) {
+  var util = __require("util");
   var Stream = __require("stream");
   var ChunkStream = module.exports = function() {
     Stream.call(this);
@@ -8393,7 +8382,7 @@ var require_chunkstream = __commonJS((exports, module) => {
     this._encoding = "utf8";
     this.writable = true;
   };
-  util3.inherits(ChunkStream, Stream);
+  util.inherits(ChunkStream, Stream);
   ChunkStream.prototype.read = function(length, callback) {
     this._reads.push({
       length: Math.abs(length),
@@ -8513,7 +8502,7 @@ var require_chunkstream = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/interlace.js
-var require_interlace = __commonJS((exports) => {
+var require_interlace = __commonJS(function(exports) {
   var imagePasses = [
     {
       x: [0],
@@ -8586,7 +8575,7 @@ var require_interlace = __commonJS((exports) => {
 });
 
 // node_modules/pngjs/lib/paeth-predictor.js
-var require_paeth_predictor = __commonJS((exports, module) => {
+var require_paeth_predictor = __commonJS(function(exports, module) {
   module.exports = function paethPredictor(left, above, upLeft) {
     let paeth = left + above - upLeft;
     let pLeft = Math.abs(paeth - left);
@@ -8603,7 +8592,7 @@ var require_paeth_predictor = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/filter-parse.js
-var require_filter_parse = __commonJS((exports, module) => {
+var require_filter_parse = __commonJS(function(exports, module) {
   var interlaceUtils = require_interlace();
   var paethPredictor = require_paeth_predictor();
   function getByteWidth(width, bpp, depth) {
@@ -8738,8 +8727,8 @@ var require_filter_parse = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/filter-parse-async.js
-var require_filter_parse_async = __commonJS((exports, module) => {
-  var util3 = __require("util");
+var require_filter_parse_async = __commonJS(function(exports, module) {
+  var util = __require("util");
   var ChunkStream = require_chunkstream();
   var Filter = require_filter_parse();
   var FilterAsync = module.exports = function(bitmapInfo) {
@@ -8757,11 +8746,11 @@ var require_filter_parse_async = __commonJS((exports, module) => {
     });
     this._filter.start();
   };
-  util3.inherits(FilterAsync, ChunkStream);
+  util.inherits(FilterAsync, ChunkStream);
 });
 
 // node_modules/pngjs/lib/constants.js
-var require_constants = __commonJS((exports, module) => {
+var require_constants = __commonJS(function(exports, module) {
   module.exports = {
     PNG_SIGNATURE: [137, 80, 78, 71, 13, 10, 26, 10],
     TYPE_IHDR: 1229472850,
@@ -8788,7 +8777,7 @@ var require_constants = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/crc.js
-var require_crc = __commonJS((exports, module) => {
+var require_crc = __commonJS(function(exports, module) {
   var crcTable = [];
   (function() {
     for (let i = 0;i < 256; i++) {
@@ -8825,7 +8814,7 @@ var require_crc = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/parser.js
-var require_parser = __commonJS((exports, module) => {
+var require_parser = __commonJS(function(exports, module) {
   var constants = require_constants();
   var CrcCalculator = require_crc();
   var Parser = module.exports = function(options, dependencies) {
@@ -9042,7 +9031,7 @@ var require_parser = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/bitmapper.js
-var require_bitmapper = __commonJS((exports) => {
+var require_bitmapper = __commonJS(function(exports) {
   var interlaceUtils = require_interlace();
   var pixelBppMapper = [
     function() {},
@@ -9253,7 +9242,7 @@ var require_bitmapper = __commonJS((exports) => {
 });
 
 // node_modules/pngjs/lib/format-normaliser.js
-var require_format_normaliser = __commonJS((exports, module) => {
+var require_format_normaliser = __commonJS(function(exports, module) {
   function dePalette(indata, outdata, width, height, palette) {
     let pxPos = 0;
     for (let y = 0;y < height; y++) {
@@ -9329,8 +9318,8 @@ var require_format_normaliser = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/parser-async.js
-var require_parser_async = __commonJS((exports, module) => {
-  var util3 = __require("util");
+var require_parser_async = __commonJS(function(exports, module) {
+  var util = __require("util");
   var zlib = __require("zlib");
   var ChunkStream = require_chunkstream();
   var FilterAsync = require_filter_parse_async();
@@ -9355,7 +9344,7 @@ var require_parser_async = __commonJS((exports, module) => {
     this.writable = true;
     this._parser.start();
   };
-  util3.inherits(ParserAsync, ChunkStream);
+  util.inherits(ParserAsync, ChunkStream);
   ParserAsync.prototype._handleError = function(err) {
     this.emit("error", err);
     this.writable = false;
@@ -9451,7 +9440,7 @@ var require_parser_async = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/bitpacker.js
-var require_bitpacker = __commonJS((exports, module) => {
+var require_bitpacker = __commonJS(function(exports, module) {
   var constants = require_constants();
   module.exports = function(dataIn, width, height, options) {
     let outHasAlpha = [constants.COLORTYPE_COLOR_ALPHA, constants.COLORTYPE_ALPHA].indexOf(options.colorType) !== -1;
@@ -9580,7 +9569,7 @@ var require_bitpacker = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/filter-pack.js
-var require_filter_pack = __commonJS((exports, module) => {
+var require_filter_pack = __commonJS(function(exports, module) {
   var paethPredictor = require_paeth_predictor();
   function filterNone(pxData, pxPos, byteWidth, rawData, rawPos) {
     for (let x = 0;x < byteWidth; x++) {
@@ -9719,7 +9708,7 @@ var require_filter_pack = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/packer.js
-var require_packer = __commonJS((exports, module) => {
+var require_packer = __commonJS(function(exports, module) {
   var constants = require_constants();
   var CrcStream = require_crc();
   var bitPacker = require_bitpacker();
@@ -9807,8 +9796,8 @@ var require_packer = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/packer-async.js
-var require_packer_async = __commonJS((exports, module) => {
-  var util3 = __require("util");
+var require_packer_async = __commonJS(function(exports, module) {
+  var util = __require("util");
   var Stream = __require("stream");
   var constants = require_constants();
   var Packer = require_packer();
@@ -9819,7 +9808,7 @@ var require_packer_async = __commonJS((exports, module) => {
     this._deflate = this._packer.createDeflate();
     this.readable = true;
   };
-  util3.inherits(PackerAsync, Stream);
+  util.inherits(PackerAsync, Stream);
   PackerAsync.prototype.pack = function(data, width, height, gamma) {
     this.emit("data", Buffer.from(constants.PNG_SIGNATURE));
     this.emit("data", this._packer.packIHDR(width, height));
@@ -9840,10 +9829,10 @@ var require_packer_async = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/sync-inflate.js
-var require_sync_inflate = __commonJS((exports, module) => {
-  var assert2 = __require("assert").ok;
+var require_sync_inflate = __commonJS(function(exports, module) {
+  var assert = __require("assert").ok;
   var zlib = __require("zlib");
-  var util3 = __require("util");
+  var util = __require("util");
   var kMaxLength = __require("buffer").kMaxLength;
   function Inflate(opts) {
     if (!(this instanceof Inflate)) {
@@ -9883,16 +9872,16 @@ var require_sync_inflate = __commonJS((exports, module) => {
     let inOff = 0;
     let buffers = [];
     let nread = 0;
-    let error2;
+    let error;
     this.on("error", function(err) {
-      error2 = err;
+      error = err;
     });
     function handleChunk(availInAfter, availOutAfter) {
       if (self._hadError) {
         return;
       }
       let have = availOutBefore - availOutAfter;
-      assert2(have >= 0, "have should not go down");
+      assert(have >= 0, "have should not go down");
       if (have > 0) {
         let out = self._buffer.slice(self._offset, self._offset + have);
         self._offset += have;
@@ -9918,14 +9907,14 @@ var require_sync_inflate = __commonJS((exports, module) => {
       }
       return false;
     }
-    assert2(this._handle, "zlib binding closed");
+    assert(this._handle, "zlib binding closed");
     let res;
     do {
       res = this._handle.writeSync(flushFlag, chunk, inOff, availInBefore, this._buffer, this._offset, availOutBefore);
       res = res || this._writeState;
     } while (!this._hadError && handleChunk(res[0], res[1]));
     if (this._hadError) {
-      throw error2;
+      throw error;
     }
     if (nread >= kMaxLength) {
       _close(this);
@@ -9935,7 +9924,7 @@ var require_sync_inflate = __commonJS((exports, module) => {
     _close(this);
     return buf;
   };
-  util3.inherits(Inflate, zlib.Inflate);
+  util.inherits(Inflate, zlib.Inflate);
   function zlibBufferSync(engine, buffer) {
     if (typeof buffer === "string") {
       buffer = Buffer.from(buffer);
@@ -9959,7 +9948,7 @@ var require_sync_inflate = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/sync-reader.js
-var require_sync_reader = __commonJS((exports, module) => {
+var require_sync_reader = __commonJS(function(exports, module) {
   var SyncReader = module.exports = function(buffer) {
     this._buffer = buffer;
     this._reads = [];
@@ -9993,7 +9982,7 @@ var require_sync_reader = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/filter-parse-sync.js
-var require_filter_parse_sync = __commonJS((exports) => {
+var require_filter_parse_sync = __commonJS(function(exports) {
   var SyncReader = require_sync_reader();
   var Filter = require_filter_parse();
   exports.process = function(inBuffer, bitmapInfo) {
@@ -10013,7 +10002,7 @@ var require_filter_parse_sync = __commonJS((exports) => {
 });
 
 // node_modules/pngjs/lib/parser-sync.js
-var require_parser_sync = __commonJS((exports, module) => {
+var require_parser_sync = __commonJS(function(exports, module) {
   var hasSyncZlib = true;
   var zlib = __require("zlib");
   var inflateSync = require_sync_inflate();
@@ -10051,8 +10040,8 @@ var require_parser_sync = __commonJS((exports, module) => {
       gamma = _gamma_;
     }
     let inflateDataList = [];
-    function handleInflateData(inflatedData2) {
-      inflateDataList.push(inflatedData2);
+    function handleInflateData(inflatedData) {
+      inflateDataList.push(inflatedData);
     }
     let reader = new SyncReader(buffer);
     let parser = new Parser(options, {
@@ -10099,7 +10088,7 @@ var require_parser_sync = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/packer-sync.js
-var require_packer_sync = __commonJS((exports, module) => {
+var require_packer_sync = __commonJS(function(exports, module) {
   var hasSyncZlib = true;
   var zlib = __require("zlib");
   if (!zlib.deflateSync) {
@@ -10132,11 +10121,11 @@ var require_packer_sync = __commonJS((exports, module) => {
 });
 
 // node_modules/pngjs/lib/png-sync.js
-var require_png_sync = __commonJS((exports) => {
-  var parse6 = require_parser_sync();
+var require_png_sync = __commonJS(function(exports) {
+  var parse = require_parser_sync();
   var pack = require_packer_sync();
   exports.read = function(buffer, options) {
-    return parse6(buffer, options || {});
+    return parse(buffer, options || {});
   };
   exports.write = function(png, options) {
     return pack(png, options);
@@ -10144,8 +10133,8 @@ var require_png_sync = __commonJS((exports) => {
 });
 
 // node_modules/pngjs/lib/png.js
-var require_png = __commonJS((exports) => {
-  var util3 = __require("util");
+var require_png = __commonJS(function(exports) {
+  var util = __require("util");
   var Stream = __require("stream");
   var Parser = require_parser_async();
   var Packer = require_packer_async();
@@ -10176,7 +10165,7 @@ var require_png = __commonJS((exports) => {
     this._parser.on("close", this._handleClose.bind(this));
     this._packer.on("error", this.emit.bind(this, "error"));
   };
-  util3.inherits(PNG, Stream);
+  util.inherits(PNG, Stream);
   PNG.sync = PNGSync;
   PNG.prototype.pack = function() {
     if (!this.data || !this.data.length) {
@@ -10268,7 +10257,7 @@ var require_png = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/renderer/utils.js
-var require_utils3 = __commonJS((exports) => {
+var require_utils3 = __commonJS(function(exports) {
   function hex2rgba(hex) {
     if (typeof hex === "number") {
       hex = hex.toString();
@@ -10349,8 +10338,8 @@ var require_utils3 = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/renderer/png.js
-var require_png2 = __commonJS((exports) => {
-  var fs7 = __require("fs");
+var require_png2 = __commonJS(function(exports) {
+  var fs = __require("fs");
   var PNG = require_png().PNG;
   var Utils = require_utils3();
   exports.render = function render(qrData, options) {
@@ -10392,7 +10381,7 @@ var require_png2 = __commonJS((exports) => {
     });
     png.pack();
   };
-  exports.renderToFile = function renderToFile(path3, qrData, options, cb) {
+  exports.renderToFile = function renderToFile(path, qrData, options, cb) {
     if (typeof cb === "undefined") {
       cb = options;
       options = undefined;
@@ -10404,7 +10393,7 @@ var require_png2 = __commonJS((exports) => {
       called = true;
       cb.apply(null, args);
     };
-    const stream = fs7.createWriteStream(path3);
+    const stream = fs.createWriteStream(path);
     stream.on("error", done);
     stream.on("close", done);
     exports.renderToFileStream(stream, qrData, options);
@@ -10416,7 +10405,7 @@ var require_png2 = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/renderer/utf8.js
-var require_utf8 = __commonJS((exports) => {
+var require_utf8 = __commonJS(function(exports) {
   var Utils = require_utils3();
   var BLOCK_CHAR = {
     WW: " ",
@@ -10469,19 +10458,19 @@ var require_utf8 = __commonJS((exports) => {
     }
     return output;
   };
-  exports.renderToFile = function renderToFile(path3, qrData, options, cb) {
+  exports.renderToFile = function renderToFile(path, qrData, options, cb) {
     if (typeof cb === "undefined") {
       cb = options;
       options = undefined;
     }
-    const fs7 = __require("fs");
+    const fs = __require("fs");
     const utf8 = exports.render(qrData, options);
-    fs7.writeFile(path3, utf8, cb);
+    fs.writeFile(path, utf8, cb);
   };
 });
 
 // node_modules/qrcode/lib/renderer/terminal/terminal.js
-var require_terminal = __commonJS((exports) => {
+var require_terminal = __commonJS(function(exports) {
   exports.render = function(qrData, options, cb) {
     const size = qrData.modules.size;
     const data = qrData.modules.data;
@@ -10510,7 +10499,7 @@ var require_terminal = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/renderer/terminal/terminal-small.js
-var require_terminal_small = __commonJS((exports) => {
+var require_terminal_small = __commonJS(function(exports) {
   var backgroundWhite = "\x1B[47m";
   var backgroundBlack = "\x1B[40m";
   var foregroundWhite = "\x1B[37m";
@@ -10518,15 +10507,15 @@ var require_terminal_small = __commonJS((exports) => {
   var reset = "\x1B[0m";
   var lineSetupNormal = backgroundWhite + foregroundBlack;
   var lineSetupInverse = backgroundBlack + foregroundWhite;
-  var createPalette = function(lineSetup, foregroundWhite2, foregroundBlack2) {
+  var createPalette = function(lineSetup, foregroundWhite, foregroundBlack) {
     return {
       "00": reset + " " + lineSetup,
-      "01": reset + foregroundWhite2 + "\u2584" + lineSetup,
-      "02": reset + foregroundBlack2 + "\u2584" + lineSetup,
-      10: reset + foregroundWhite2 + "\u2580" + lineSetup,
+      "01": reset + foregroundWhite + "\u2584" + lineSetup,
+      "02": reset + foregroundBlack + "\u2584" + lineSetup,
+      10: reset + foregroundWhite + "\u2580" + lineSetup,
       11: " ",
       12: "\u2584",
-      20: reset + foregroundBlack2 + "\u2580" + lineSetup,
+      20: reset + foregroundBlack + "\u2580" + lineSetup,
       21: "\u2580",
       22: "\u2588"
     };
@@ -10569,7 +10558,7 @@ var require_terminal_small = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/renderer/terminal.js
-var require_terminal2 = __commonJS((exports) => {
+var require_terminal2 = __commonJS(function(exports) {
   var big = require_terminal();
   var small = require_terminal_small();
   exports.render = function(qrData, options, cb) {
@@ -10581,7 +10570,7 @@ var require_terminal2 = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/renderer/svg-tag.js
-var require_svg_tag = __commonJS((exports) => {
+var require_svg_tag = __commonJS(function(exports) {
   var Utils = require_utils3();
   function getColorAttrib(color, attrib) {
     const alpha = color.a / 255;
@@ -10595,7 +10584,7 @@ var require_svg_tag = __commonJS((exports) => {
     return str;
   }
   function qrToPath(data, size, margin) {
-    let path3 = "";
+    let path = "";
     let moveBy = 0;
     let newRow = false;
     let lineLength = 0;
@@ -10607,19 +10596,19 @@ var require_svg_tag = __commonJS((exports) => {
       if (data[i]) {
         lineLength++;
         if (!(i > 0 && col > 0 && data[i - 1])) {
-          path3 += newRow ? svgCmd("M", col + margin, 0.5 + row + margin) : svgCmd("m", moveBy, 0);
+          path += newRow ? svgCmd("M", col + margin, 0.5 + row + margin) : svgCmd("m", moveBy, 0);
           moveBy = 0;
           newRow = false;
         }
         if (!(col + 1 < size && data[i + 1])) {
-          path3 += svgCmd("h", lineLength);
+          path += svgCmd("h", lineLength);
           lineLength = 0;
         }
       } else {
         moveBy++;
       }
     }
-    return path3;
+    return path;
   }
   exports.render = function render(qrData, options, cb) {
     const opts = Utils.getOptions(options);
@@ -10627,10 +10616,10 @@ var require_svg_tag = __commonJS((exports) => {
     const data = qrData.modules.data;
     const qrcodesize = size + opts.margin * 2;
     const bg = !opts.color.light.a ? "" : "<path " + getColorAttrib(opts.color.light, "fill") + ' d="M0 0h' + qrcodesize + "v" + qrcodesize + 'H0z"/>';
-    const path3 = "<path " + getColorAttrib(opts.color.dark, "stroke") + ' d="' + qrToPath(data, size, opts.margin) + '"/>';
+    const path = "<path " + getColorAttrib(opts.color.dark, "stroke") + ' d="' + qrToPath(data, size, opts.margin) + '"/>';
     const viewBox = 'viewBox="' + "0 0 " + qrcodesize + " " + qrcodesize + '"';
     const width = !opts.width ? "" : 'width="' + opts.width + '" height="' + opts.width + '" ';
-    const svgTag = '<svg xmlns="http://www.w3.org/2000/svg" ' + width + viewBox + ' shape-rendering="crispEdges">' + bg + path3 + `</svg>
+    const svgTag = '<svg xmlns="http://www.w3.org/2000/svg" ' + width + viewBox + ' shape-rendering="crispEdges">' + bg + path + `</svg>
 `;
     if (typeof cb === "function") {
       cb(null, svgTag);
@@ -10640,23 +10629,23 @@ var require_svg_tag = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/renderer/svg.js
-var require_svg = __commonJS((exports) => {
+var require_svg = __commonJS(function(exports) {
   var svgTagRenderer = require_svg_tag();
   exports.render = svgTagRenderer.render;
-  exports.renderToFile = function renderToFile(path3, qrData, options, cb) {
+  exports.renderToFile = function renderToFile(path, qrData, options, cb) {
     if (typeof cb === "undefined") {
       cb = options;
       options = undefined;
     }
-    const fs7 = __require("fs");
+    const fs = __require("fs");
     const svgTag = exports.render(qrData, options);
     const xmlStr = '<?xml version="1.0" encoding="utf-8"?>' + '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">' + svgTag;
-    fs7.writeFile(path3, xmlStr, cb);
+    fs.writeFile(path, xmlStr, cb);
   };
 });
 
 // node_modules/qrcode/lib/renderer/canvas.js
-var require_canvas = __commonJS((exports) => {
+var require_canvas = __commonJS(function(exports) {
   var Utils = require_utils3();
   function clearCanvas(ctx, canvas, size) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -10709,7 +10698,7 @@ var require_canvas = __commonJS((exports) => {
 });
 
 // node_modules/qrcode/lib/browser.js
-var require_browser = __commonJS((exports) => {
+var require_browser = __commonJS(function(exports) {
   var canPromise = require_can_promise();
   var QRCode = require_qrcode();
   var CanvasRenderer = require_canvas();
@@ -10776,267 +10765,37 @@ var require_browser = __commonJS((exports) => {
   });
 });
 
-// node_modules/qrcode/lib/server.js
-var require_server = __commonJS((exports) => {
-  var canPromise = require_can_promise();
-  var QRCode = require_qrcode();
-  var PngRenderer = require_png2();
-  var Utf8Renderer = require_utf8();
-  var TerminalRenderer = require_terminal2();
-  var SvgRenderer = require_svg();
-  function checkParams(text, opts, cb) {
-    if (typeof text === "undefined") {
-      throw new Error("String required as first argument");
-    }
-    if (typeof cb === "undefined") {
-      cb = opts;
-      opts = {};
-    }
-    if (typeof cb !== "function") {
-      if (!canPromise()) {
-        throw new Error("Callback required as last argument");
-      } else {
-        opts = cb || {};
-        cb = null;
-      }
-    }
-    return {
-      opts,
-      cb
-    };
-  }
-  function getTypeFromFilename(path3) {
-    return path3.slice((path3.lastIndexOf(".") - 1 >>> 0) + 2).toLowerCase();
-  }
-  function getRendererFromType(type) {
-    switch (type) {
-      case "svg":
-        return SvgRenderer;
-      case "txt":
-      case "utf8":
-        return Utf8Renderer;
-      case "png":
-      case "image/png":
-      default:
-        return PngRenderer;
-    }
-  }
-  function getStringRendererFromType(type) {
-    switch (type) {
-      case "svg":
-        return SvgRenderer;
-      case "terminal":
-        return TerminalRenderer;
-      case "utf8":
-      default:
-        return Utf8Renderer;
-    }
-  }
-  function render(renderFunc, text, params) {
-    if (!params.cb) {
-      return new Promise(function(resolve, reject) {
-        try {
-          const data = QRCode.create(text, params.opts);
-          return renderFunc(data, params.opts, function(err, data2) {
-            return err ? reject(err) : resolve(data2);
-          });
-        } catch (e) {
-          reject(e);
-        }
-      });
-    }
-    try {
-      const data = QRCode.create(text, params.opts);
-      return renderFunc(data, params.opts, params.cb);
-    } catch (e) {
-      params.cb(e);
-    }
-  }
-  exports.create = QRCode.create;
-  exports.toCanvas = require_browser().toCanvas;
-  exports.toString = function toString(text, opts, cb) {
-    const params = checkParams(text, opts, cb);
-    const type = params.opts ? params.opts.type : undefined;
-    const renderer = getStringRendererFromType(type);
-    return render(renderer.render, text, params);
-  };
-  exports.toDataURL = function toDataURL(text, opts, cb) {
-    const params = checkParams(text, opts, cb);
-    const renderer = getRendererFromType(params.opts.type);
-    return render(renderer.renderToDataURL, text, params);
-  };
-  exports.toBuffer = function toBuffer(text, opts, cb) {
-    const params = checkParams(text, opts, cb);
-    const renderer = getRendererFromType(params.opts.type);
-    return render(renderer.renderToBuffer, text, params);
-  };
-  exports.toFile = function toFile(path3, text, opts, cb) {
-    if (typeof path3 !== "string" || !(typeof text === "string" || typeof text === "object")) {
-      throw new Error("Invalid argument");
-    }
-    if (arguments.length < 3 && !canPromise()) {
-      throw new Error("Too few arguments provided");
-    }
-    const params = checkParams(text, opts, cb);
-    const type = params.opts.type || getTypeFromFilename(path3);
-    const renderer = getRendererFromType(type);
-    const renderToFile = renderer.renderToFile.bind(null, path3);
-    return render(renderToFile, text, params);
-  };
-  exports.toFileStream = function toFileStream(stream, text, opts) {
-    if (arguments.length < 2) {
-      throw new Error("Too few arguments provided");
-    }
-    const params = checkParams(text, opts, stream.emit.bind(stream, "error"));
-    const renderer = getRendererFromType("png");
-    const renderToFileStream = renderer.renderToFileStream.bind(null, stream);
-    render(renderToFileStream, text, params);
-  };
-});
-
-// node_modules/zod/v3/external.js
-var exports_external = {};
-__export(exports_external, {
-  void: () => voidType,
-  util: () => util,
-  unknown: () => unknownType,
-  union: () => unionType,
-  undefined: () => undefinedType,
-  tuple: () => tupleType,
-  transformer: () => effectsType,
-  symbol: () => symbolType,
-  string: () => stringType,
-  strictObject: () => strictObjectType,
-  setErrorMap: () => setErrorMap,
-  set: () => setType,
-  record: () => recordType,
-  quotelessJson: () => quotelessJson,
-  promise: () => promiseType,
-  preprocess: () => preprocessType,
-  pipeline: () => pipelineType,
-  ostring: () => ostring,
-  optional: () => optionalType,
-  onumber: () => onumber,
-  oboolean: () => oboolean,
-  objectUtil: () => objectUtil,
-  object: () => objectType,
-  number: () => numberType,
-  nullable: () => nullableType,
-  null: () => nullType,
-  never: () => neverType,
-  nativeEnum: () => nativeEnumType,
-  nan: () => nanType,
-  map: () => mapType,
-  makeIssue: () => makeIssue,
-  literal: () => literalType,
-  lazy: () => lazyType,
-  late: () => late,
-  isValid: () => isValid,
-  isDirty: () => isDirty,
-  isAsync: () => isAsync,
-  isAborted: () => isAborted,
-  intersection: () => intersectionType,
-  instanceof: () => instanceOfType,
-  getParsedType: () => getParsedType,
-  getErrorMap: () => getErrorMap,
-  function: () => functionType,
-  enum: () => enumType,
-  effect: () => effectsType,
-  discriminatedUnion: () => discriminatedUnionType,
-  defaultErrorMap: () => en_default,
-  datetimeRegex: () => datetimeRegex,
-  date: () => dateType,
-  custom: () => custom,
-  coerce: () => coerce,
-  boolean: () => booleanType,
-  bigint: () => bigIntType,
-  array: () => arrayType,
-  any: () => anyType,
-  addIssueToContext: () => addIssueToContext,
-  ZodVoid: () => ZodVoid,
-  ZodUnknown: () => ZodUnknown,
-  ZodUnion: () => ZodUnion,
-  ZodUndefined: () => ZodUndefined,
-  ZodType: () => ZodType,
-  ZodTuple: () => ZodTuple,
-  ZodTransformer: () => ZodEffects,
-  ZodSymbol: () => ZodSymbol,
-  ZodString: () => ZodString,
-  ZodSet: () => ZodSet,
-  ZodSchema: () => ZodType,
-  ZodRecord: () => ZodRecord,
-  ZodReadonly: () => ZodReadonly,
-  ZodPromise: () => ZodPromise,
-  ZodPipeline: () => ZodPipeline,
-  ZodParsedType: () => ZodParsedType,
-  ZodOptional: () => ZodOptional,
-  ZodObject: () => ZodObject,
-  ZodNumber: () => ZodNumber,
-  ZodNullable: () => ZodNullable,
-  ZodNull: () => ZodNull,
-  ZodNever: () => ZodNever,
-  ZodNativeEnum: () => ZodNativeEnum,
-  ZodNaN: () => ZodNaN,
-  ZodMap: () => ZodMap,
-  ZodLiteral: () => ZodLiteral,
-  ZodLazy: () => ZodLazy,
-  ZodIssueCode: () => ZodIssueCode,
-  ZodIntersection: () => ZodIntersection,
-  ZodFunction: () => ZodFunction,
-  ZodFirstPartyTypeKind: () => ZodFirstPartyTypeKind,
-  ZodError: () => ZodError,
-  ZodEnum: () => ZodEnum,
-  ZodEffects: () => ZodEffects,
-  ZodDiscriminatedUnion: () => ZodDiscriminatedUnion,
-  ZodDefault: () => ZodDefault,
-  ZodDate: () => ZodDate,
-  ZodCatch: () => ZodCatch,
-  ZodBranded: () => ZodBranded,
-  ZodBoolean: () => ZodBoolean,
-  ZodBigInt: () => ZodBigInt,
-  ZodArray: () => ZodArray,
-  ZodAny: () => ZodAny,
-  Schema: () => ZodType,
-  ParseStatus: () => ParseStatus,
-  OK: () => OK,
-  NEVER: () => NEVER,
-  INVALID: () => INVALID,
-  EMPTY_PATH: () => EMPTY_PATH,
-  DIRTY: () => DIRTY,
-  BRAND: () => BRAND
-});
-
 // node_modules/zod/v3/helpers/util.js
 var util;
-(function(util2) {
-  util2.assertEqual = (_) => {};
+(function(util) {
+  util.assertEqual = (_) => {};
   function assertIs(_arg) {}
-  util2.assertIs = assertIs;
+  util.assertIs = assertIs;
   function assertNever(_x) {
     throw new Error;
   }
-  util2.assertNever = assertNever;
-  util2.arrayToEnum = (items) => {
+  util.assertNever = assertNever;
+  util.arrayToEnum = (items) => {
     const obj = {};
     for (const item of items) {
       obj[item] = item;
     }
     return obj;
   };
-  util2.getValidEnumValues = (obj) => {
-    const validKeys = util2.objectKeys(obj).filter((k) => typeof obj[obj[k]] !== "number");
+  util.getValidEnumValues = (obj) => {
+    const validKeys = util.objectKeys(obj).filter((k) => typeof obj[obj[k]] !== "number");
     const filtered = {};
     for (const k of validKeys) {
       filtered[k] = obj[k];
     }
-    return util2.objectValues(filtered);
+    return util.objectValues(filtered);
   };
-  util2.objectValues = (obj) => {
-    return util2.objectKeys(obj).map(function(e) {
+  util.objectValues = (obj) => {
+    return util.objectKeys(obj).map(function(e) {
       return obj[e];
     });
   };
-  util2.objectKeys = typeof Object.keys === "function" ? (obj) => Object.keys(obj) : (object) => {
+  util.objectKeys = typeof Object.keys === "function" ? (obj) => Object.keys(obj) : (object) => {
     const keys = [];
     for (const key in object) {
       if (Object.prototype.hasOwnProperty.call(object, key)) {
@@ -11045,19 +10804,19 @@ var util;
     }
     return keys;
   };
-  util2.find = (arr, checker) => {
+  util.find = (arr, checker) => {
     for (const item of arr) {
       if (checker(item))
         return item;
     }
     return;
   };
-  util2.isInteger = typeof Number.isInteger === "function" ? (val) => Number.isInteger(val) : (val) => typeof val === "number" && Number.isFinite(val) && Math.floor(val) === val;
+  util.isInteger = typeof Number.isInteger === "function" ? (val) => Number.isInteger(val) : (val) => typeof val === "number" && Number.isFinite(val) && Math.floor(val) === val;
   function joinValues(array, separator = " | ") {
     return array.map((val) => typeof val === "string" ? `'${val}'` : val).join(separator);
   }
-  util2.joinValues = joinValues;
-  util2.jsonStringifyReplacer = (_, value) => {
+  util.joinValues = joinValues;
+  util.jsonStringifyReplacer = (_, value) => {
     if (typeof value === "bigint") {
       return value.toString();
     }
@@ -11065,8 +10824,8 @@ var util;
   };
 })(util || (util = {}));
 var objectUtil;
-(function(objectUtil2) {
-  objectUtil2.mergeShapes = (first, second) => {
+(function(objectUtil) {
+  objectUtil.mergeShapes = (first, second) => {
     return {
       ...first,
       ...second
@@ -11156,11 +10915,6 @@ var ZodIssueCode = util.arrayToEnum([
   "not_multiple_of",
   "not_finite"
 ]);
-var quotelessJson = (obj) => {
-  const json = JSON.stringify(obj, null, 2);
-  return json.replace(/"([^"]+)":/g, "$1:");
-};
-
 class ZodError extends Error {
   get errors() {
     return this.issues;
@@ -11361,12 +11115,10 @@ var en_default = errorMap;
 
 // node_modules/zod/v3/errors.js
 var overrideErrorMap = en_default;
-function setErrorMap(map) {
-  overrideErrorMap = map;
-}
 function getErrorMap() {
   return overrideErrorMap;
 }
+
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
   const { data, path, errorMaps, issueData } = params;
@@ -11393,7 +11145,6 @@ var makeIssue = (params) => {
     message: errorMessage
   };
 };
-var EMPTY_PATH = [];
 function addIssueToContext(ctx, issueData) {
   const overrideMap = getErrorMap();
   const issue = makeIssue({
@@ -11473,11 +11224,12 @@ var isAborted = (x) => x.status === "aborted";
 var isDirty = (x) => x.status === "dirty";
 var isValid = (x) => x.status === "valid";
 var isAsync = (x) => typeof Promise !== "undefined" && x instanceof Promise;
+
 // node_modules/zod/v3/helpers/errorUtil.js
 var errorUtil;
-(function(errorUtil2) {
-  errorUtil2.errToObj = (message) => typeof message === "string" ? { message } : message || {};
-  errorUtil2.toString = (message) => typeof message === "string" ? message : message?.message;
+(function(errorUtil) {
+  errorUtil.errToObj = (message) => typeof message === "string" ? { message } : message || {};
+  errorUtil.toString = (message) => typeof message === "string" ? message : message?.message;
 })(errorUtil || (errorUtil = {}));
 
 // node_modules/zod/v3/types.js
@@ -11522,12 +11274,12 @@ var handleResult = (ctx, result) => {
 function processCreateParams(params) {
   if (!params)
     return {};
-  const { errorMap: errorMap2, invalid_type_error, required_error, description } = params;
-  if (errorMap2 && (invalid_type_error || required_error)) {
+  const { errorMap, invalid_type_error, required_error, description } = params;
+  if (errorMap && (invalid_type_error || required_error)) {
     throw new Error(`Can't use "invalid_type_error" or "required_error" in conjunction with custom error map.`);
   }
-  if (errorMap2)
-    return { errorMap: errorMap2, description };
+  if (errorMap)
+    return { errorMap, description };
   const customMap = (iss, ctx) => {
     const { message } = params;
     if (iss.code === "invalid_enum_value") {
@@ -11914,11 +11666,11 @@ class ZodString extends ZodType {
     }
     const parsedType = this._getType(input);
     if (parsedType !== ZodParsedType.string) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
+      const ctx = this._getOrReturnCtx(input);
+      addIssueToContext(ctx, {
         code: ZodIssueCode.invalid_type,
         expected: ZodParsedType.string,
-        received: ctx2.parsedType
+        received: ctx.parsedType
       });
       return INVALID;
     }
@@ -12472,11 +12224,11 @@ class ZodNumber extends ZodType {
     }
     const parsedType = this._getType(input);
     if (parsedType !== ZodParsedType.number) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
+      const ctx = this._getOrReturnCtx(input);
+      addIssueToContext(ctx, {
         code: ZodIssueCode.invalid_type,
         expected: ZodParsedType.number,
-        received: ctx2.parsedType
+        received: ctx.parsedType
       });
       return INVALID;
     }
@@ -12898,17 +12650,17 @@ class ZodDate extends ZodType {
     }
     const parsedType = this._getType(input);
     if (parsedType !== ZodParsedType.date) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
+      const ctx = this._getOrReturnCtx(input);
+      addIssueToContext(ctx, {
         code: ZodIssueCode.invalid_type,
         expected: ZodParsedType.date,
-        received: ctx2.parsedType
+        received: ctx.parsedType
       });
       return INVALID;
     }
     if (Number.isNaN(input.data.getTime())) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
+      const ctx = this._getOrReturnCtx(input);
+      addIssueToContext(ctx, {
         code: ZodIssueCode.invalid_date
       });
       return INVALID;
@@ -13196,8 +12948,8 @@ class ZodArray extends ZodType {
     if (ctx.common.async) {
       return Promise.all([...ctx.data].map((item, i) => {
         return def.type._parseAsync(new ParseInputLazyPath(ctx, item, ctx.path, i));
-      })).then((result2) => {
-        return ParseStatus.mergeArray(status, result2);
+      })).then((result) => {
+        return ParseStatus.mergeArray(status, result);
       });
     }
     const result = [...ctx.data].map((item, i) => {
@@ -13285,11 +13037,11 @@ class ZodObject extends ZodType {
   _parse(input) {
     const parsedType = this._getType(input);
     if (parsedType !== ZodParsedType.object) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
+      const ctx = this._getOrReturnCtx(input);
+      addIssueToContext(ctx, {
         code: ZodIssueCode.invalid_type,
         expected: ZodParsedType.object,
-        received: ctx2.parsedType
+        received: ctx.parsedType
       });
       return INVALID;
     }
@@ -13593,7 +13345,7 @@ class ZodUnion extends ZodType {
         ctx.common.issues.push(...dirty.ctx.common.issues);
         return dirty.result;
       }
-      const unionErrors = issues.map((issues2) => new ZodError(issues2));
+      const unionErrors = issues.map((issues) => new ZodError(issues));
       addIssueToContext(ctx, {
         code: ZodIssueCode.invalid_union,
         unionErrors
@@ -14033,9 +13785,9 @@ class ZodSet extends ZodType {
       }
     }
     const valueType = this._def.valueType;
-    function finalizeSet(elements2) {
+    function finalizeSet(elements) {
       const parsedSet = new Set;
-      for (const element of elements2) {
+      for (const element of elements) {
         if (element.status === "aborted")
           return INVALID;
         if (element.status === "dirty")
@@ -14046,7 +13798,7 @@ class ZodSet extends ZodType {
     }
     const elements = [...ctx.data.values()].map((item, i) => valueType._parse(new ParseInputLazyPath(ctx, item, ctx.path, i)));
     if (ctx.common.async) {
-      return Promise.all(elements).then((elements2) => finalizeSet(elements2));
+      return Promise.all(elements).then((elements) => finalizeSet(elements));
     } else {
       return finalizeSet(elements);
     }
@@ -14399,11 +14151,11 @@ class ZodEffects extends ZodType {
     if (effect.type === "preprocess") {
       const processed = effect.transform(ctx.data, checkCtx);
       if (ctx.common.async) {
-        return Promise.resolve(processed).then(async (processed2) => {
+        return Promise.resolve(processed).then(async (processed) => {
           if (status.value === "aborted")
             return INVALID;
           const result = await this._def.schema._parseAsync({
-            data: processed2,
+            data: processed,
             path: ctx.path,
             parent: ctx
           });
@@ -14595,10 +14347,10 @@ class ZodCatch extends ZodType {
       }
     });
     if (isAsync(result)) {
-      return result.then((result2) => {
+      return result.then((result) => {
         return {
           status: "valid",
-          value: result2.status === "valid" ? result2.value : this._def.catchValue({
+          value: result.status === "valid" ? result.value : this._def.catchValue({
             get error() {
               return new ZodError(newCtx.common.issues);
             },
@@ -14747,78 +14499,48 @@ ZodReadonly.create = (type, params) => {
     ...processCreateParams(params)
   });
 };
-function cleanParams(params, data) {
-  const p = typeof params === "function" ? params(data) : typeof params === "string" ? { message: params } : params;
-  const p2 = typeof p === "string" ? { message: p } : p;
-  return p2;
-}
-function custom(check, _params = {}, fatal) {
-  if (check)
-    return ZodAny.create().superRefine((data, ctx) => {
-      const r = check(data);
-      if (r instanceof Promise) {
-        return r.then((r2) => {
-          if (!r2) {
-            const params = cleanParams(_params, data);
-            const _fatal = params.fatal ?? fatal ?? true;
-            ctx.addIssue({ code: "custom", ...params, fatal: _fatal });
-          }
-        });
-      }
-      if (!r) {
-        const params = cleanParams(_params, data);
-        const _fatal = params.fatal ?? fatal ?? true;
-        ctx.addIssue({ code: "custom", ...params, fatal: _fatal });
-      }
-      return;
-    });
-  return ZodAny.create();
-}
 var late = {
   object: ZodObject.lazycreate
 };
 var ZodFirstPartyTypeKind;
-(function(ZodFirstPartyTypeKind2) {
-  ZodFirstPartyTypeKind2["ZodString"] = "ZodString";
-  ZodFirstPartyTypeKind2["ZodNumber"] = "ZodNumber";
-  ZodFirstPartyTypeKind2["ZodNaN"] = "ZodNaN";
-  ZodFirstPartyTypeKind2["ZodBigInt"] = "ZodBigInt";
-  ZodFirstPartyTypeKind2["ZodBoolean"] = "ZodBoolean";
-  ZodFirstPartyTypeKind2["ZodDate"] = "ZodDate";
-  ZodFirstPartyTypeKind2["ZodSymbol"] = "ZodSymbol";
-  ZodFirstPartyTypeKind2["ZodUndefined"] = "ZodUndefined";
-  ZodFirstPartyTypeKind2["ZodNull"] = "ZodNull";
-  ZodFirstPartyTypeKind2["ZodAny"] = "ZodAny";
-  ZodFirstPartyTypeKind2["ZodUnknown"] = "ZodUnknown";
-  ZodFirstPartyTypeKind2["ZodNever"] = "ZodNever";
-  ZodFirstPartyTypeKind2["ZodVoid"] = "ZodVoid";
-  ZodFirstPartyTypeKind2["ZodArray"] = "ZodArray";
-  ZodFirstPartyTypeKind2["ZodObject"] = "ZodObject";
-  ZodFirstPartyTypeKind2["ZodUnion"] = "ZodUnion";
-  ZodFirstPartyTypeKind2["ZodDiscriminatedUnion"] = "ZodDiscriminatedUnion";
-  ZodFirstPartyTypeKind2["ZodIntersection"] = "ZodIntersection";
-  ZodFirstPartyTypeKind2["ZodTuple"] = "ZodTuple";
-  ZodFirstPartyTypeKind2["ZodRecord"] = "ZodRecord";
-  ZodFirstPartyTypeKind2["ZodMap"] = "ZodMap";
-  ZodFirstPartyTypeKind2["ZodSet"] = "ZodSet";
-  ZodFirstPartyTypeKind2["ZodFunction"] = "ZodFunction";
-  ZodFirstPartyTypeKind2["ZodLazy"] = "ZodLazy";
-  ZodFirstPartyTypeKind2["ZodLiteral"] = "ZodLiteral";
-  ZodFirstPartyTypeKind2["ZodEnum"] = "ZodEnum";
-  ZodFirstPartyTypeKind2["ZodEffects"] = "ZodEffects";
-  ZodFirstPartyTypeKind2["ZodNativeEnum"] = "ZodNativeEnum";
-  ZodFirstPartyTypeKind2["ZodOptional"] = "ZodOptional";
-  ZodFirstPartyTypeKind2["ZodNullable"] = "ZodNullable";
-  ZodFirstPartyTypeKind2["ZodDefault"] = "ZodDefault";
-  ZodFirstPartyTypeKind2["ZodCatch"] = "ZodCatch";
-  ZodFirstPartyTypeKind2["ZodPromise"] = "ZodPromise";
-  ZodFirstPartyTypeKind2["ZodBranded"] = "ZodBranded";
-  ZodFirstPartyTypeKind2["ZodPipeline"] = "ZodPipeline";
-  ZodFirstPartyTypeKind2["ZodReadonly"] = "ZodReadonly";
+(function(ZodFirstPartyTypeKind) {
+  ZodFirstPartyTypeKind["ZodString"] = "ZodString";
+  ZodFirstPartyTypeKind["ZodNumber"] = "ZodNumber";
+  ZodFirstPartyTypeKind["ZodNaN"] = "ZodNaN";
+  ZodFirstPartyTypeKind["ZodBigInt"] = "ZodBigInt";
+  ZodFirstPartyTypeKind["ZodBoolean"] = "ZodBoolean";
+  ZodFirstPartyTypeKind["ZodDate"] = "ZodDate";
+  ZodFirstPartyTypeKind["ZodSymbol"] = "ZodSymbol";
+  ZodFirstPartyTypeKind["ZodUndefined"] = "ZodUndefined";
+  ZodFirstPartyTypeKind["ZodNull"] = "ZodNull";
+  ZodFirstPartyTypeKind["ZodAny"] = "ZodAny";
+  ZodFirstPartyTypeKind["ZodUnknown"] = "ZodUnknown";
+  ZodFirstPartyTypeKind["ZodNever"] = "ZodNever";
+  ZodFirstPartyTypeKind["ZodVoid"] = "ZodVoid";
+  ZodFirstPartyTypeKind["ZodArray"] = "ZodArray";
+  ZodFirstPartyTypeKind["ZodObject"] = "ZodObject";
+  ZodFirstPartyTypeKind["ZodUnion"] = "ZodUnion";
+  ZodFirstPartyTypeKind["ZodDiscriminatedUnion"] = "ZodDiscriminatedUnion";
+  ZodFirstPartyTypeKind["ZodIntersection"] = "ZodIntersection";
+  ZodFirstPartyTypeKind["ZodTuple"] = "ZodTuple";
+  ZodFirstPartyTypeKind["ZodRecord"] = "ZodRecord";
+  ZodFirstPartyTypeKind["ZodMap"] = "ZodMap";
+  ZodFirstPartyTypeKind["ZodSet"] = "ZodSet";
+  ZodFirstPartyTypeKind["ZodFunction"] = "ZodFunction";
+  ZodFirstPartyTypeKind["ZodLazy"] = "ZodLazy";
+  ZodFirstPartyTypeKind["ZodLiteral"] = "ZodLiteral";
+  ZodFirstPartyTypeKind["ZodEnum"] = "ZodEnum";
+  ZodFirstPartyTypeKind["ZodEffects"] = "ZodEffects";
+  ZodFirstPartyTypeKind["ZodNativeEnum"] = "ZodNativeEnum";
+  ZodFirstPartyTypeKind["ZodOptional"] = "ZodOptional";
+  ZodFirstPartyTypeKind["ZodNullable"] = "ZodNullable";
+  ZodFirstPartyTypeKind["ZodDefault"] = "ZodDefault";
+  ZodFirstPartyTypeKind["ZodCatch"] = "ZodCatch";
+  ZodFirstPartyTypeKind["ZodPromise"] = "ZodPromise";
+  ZodFirstPartyTypeKind["ZodBranded"] = "ZodBranded";
+  ZodFirstPartyTypeKind["ZodPipeline"] = "ZodPipeline";
+  ZodFirstPartyTypeKind["ZodReadonly"] = "ZodReadonly";
 })(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
-var instanceOfType = (cls, params = {
-  message: `Input not instance of ${cls.name}`
-}) => custom((data) => data instanceof cls, params);
 var stringType = ZodString.create;
 var numberType = ZodNumber.create;
 var nanType = ZodNaN.create;
@@ -14853,22 +14575,9 @@ var optionalType = ZodOptional.create;
 var nullableType = ZodNullable.create;
 var preprocessType = ZodEffects.createWithPreprocess;
 var pipelineType = ZodPipeline.create;
-var ostring = () => stringType().optional();
-var onumber = () => numberType().optional();
-var oboolean = () => booleanType().optional();
-var coerce = {
-  string: (arg) => ZodString.create({ ...arg, coerce: true }),
-  number: (arg) => ZodNumber.create({ ...arg, coerce: true }),
-  boolean: (arg) => ZodBoolean.create({
-    ...arg,
-    coerce: true
-  }),
-  bigint: (arg) => ZodBigInt.create({ ...arg, coerce: true }),
-  date: (arg) => ZodDate.create({ ...arg, coerce: true })
-};
-var NEVER = INVALID;
+
 // node_modules/zod/v4/core/core.js
-var NEVER2 = Object.freeze({
+var NEVER = Object.freeze({
   status: "aborted"
 });
 function $constructor(name, initializer, params) {
@@ -14928,69 +14637,6 @@ function config(newConfig) {
   return globalConfig;
 }
 // node_modules/zod/v4/core/util.js
-var exports_util = {};
-__export(exports_util, {
-  unwrapMessage: () => unwrapMessage,
-  stringifyPrimitive: () => stringifyPrimitive,
-  required: () => required,
-  randomString: () => randomString,
-  propertyKeyTypes: () => propertyKeyTypes,
-  promiseAllObject: () => promiseAllObject,
-  primitiveTypes: () => primitiveTypes,
-  prefixIssues: () => prefixIssues,
-  pick: () => pick,
-  partial: () => partial,
-  optionalKeys: () => optionalKeys,
-  omit: () => omit,
-  numKeys: () => numKeys,
-  nullish: () => nullish,
-  normalizeParams: () => normalizeParams,
-  merge: () => merge,
-  jsonStringifyReplacer: () => jsonStringifyReplacer,
-  joinValues: () => joinValues,
-  issue: () => issue,
-  isPlainObject: () => isPlainObject,
-  isObject: () => isObject,
-  getSizableOrigin: () => getSizableOrigin,
-  getParsedType: () => getParsedType2,
-  getLengthableOrigin: () => getLengthableOrigin,
-  getEnumValues: () => getEnumValues,
-  getElementAtPath: () => getElementAtPath,
-  floatSafeRemainder: () => floatSafeRemainder2,
-  finalizeIssue: () => finalizeIssue,
-  extend: () => extend,
-  escapeRegex: () => escapeRegex,
-  esc: () => esc,
-  defineLazy: () => defineLazy,
-  createTransparentProxy: () => createTransparentProxy,
-  clone: () => clone,
-  cleanRegex: () => cleanRegex,
-  cleanEnum: () => cleanEnum,
-  captureStackTrace: () => captureStackTrace,
-  cached: () => cached,
-  assignProp: () => assignProp,
-  assertNotEqual: () => assertNotEqual,
-  assertNever: () => assertNever,
-  assertIs: () => assertIs,
-  assertEqual: () => assertEqual,
-  assert: () => assert,
-  allowsEval: () => allowsEval,
-  aborted: () => aborted,
-  NUMBER_FORMAT_RANGES: () => NUMBER_FORMAT_RANGES,
-  Class: () => Class,
-  BIGINT_FORMAT_RANGES: () => BIGINT_FORMAT_RANGES
-});
-function assertEqual(val) {
-  return val;
-}
-function assertNotEqual(val) {
-  return val;
-}
-function assertIs(_arg) {}
-function assertNever(_x) {
-  throw new Error;
-}
-function assert(_) {}
 function getEnumValues(entries) {
   const numericValues = Object.values(entries).filter((v) => typeof v === "number");
   const values = Object.entries(entries).filter(([k, _]) => numericValues.indexOf(+k) === -1).map(([_, v]) => v);
@@ -15060,30 +14706,6 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path) {
-  if (!path)
-    return obj;
-  return path.reduce((acc, key) => acc?.[key], obj);
-}
-function promiseAllObject(promisesObj) {
-  const keys = Object.keys(promisesObj);
-  const promises = keys.map((key) => promisesObj[key]);
-  return Promise.all(promises).then((results) => {
-    const resolvedObj = {};
-    for (let i = 0;i < keys.length; i++) {
-      resolvedObj[keys[i]] = results[i];
-    }
-    return resolvedObj;
-  });
-}
-function randomString(length = 10) {
-  const chars = "abcdefghijklmnopqrstuvwxyz";
-  let str = "";
-  for (let i = 0;i < length; i++) {
-    str += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return str;
-}
 function esc(str) {
   return JSON.stringify(str);
 }
@@ -15117,59 +14739,6 @@ function isPlainObject(o) {
   }
   return true;
 }
-function numKeys(data) {
-  let keyCount = 0;
-  for (const key in data) {
-    if (Object.prototype.hasOwnProperty.call(data, key)) {
-      keyCount++;
-    }
-  }
-  return keyCount;
-}
-var getParsedType2 = (data) => {
-  const t = typeof data;
-  switch (t) {
-    case "undefined":
-      return "undefined";
-    case "string":
-      return "string";
-    case "number":
-      return Number.isNaN(data) ? "nan" : "number";
-    case "boolean":
-      return "boolean";
-    case "function":
-      return "function";
-    case "bigint":
-      return "bigint";
-    case "symbol":
-      return "symbol";
-    case "object":
-      if (Array.isArray(data)) {
-        return "array";
-      }
-      if (data === null) {
-        return "null";
-      }
-      if (data.then && typeof data.then === "function" && data.catch && typeof data.catch === "function") {
-        return "promise";
-      }
-      if (typeof Map !== "undefined" && data instanceof Map) {
-        return "map";
-      }
-      if (typeof Set !== "undefined" && data instanceof Set) {
-        return "set";
-      }
-      if (typeof Date !== "undefined" && data instanceof Date) {
-        return "date";
-      }
-      if (typeof File !== "undefined" && data instanceof File) {
-        return "file";
-      }
-      return "object";
-    default:
-      throw new Error(`Unknown data type: ${t}`);
-  }
-};
 var propertyKeyTypes = new Set(["string", "number", "symbol"]);
 var primitiveTypes = new Set(["string", "number", "bigint", "boolean", "symbol", "undefined"]);
 function escapeRegex(str) {
@@ -15197,39 +14766,6 @@ function normalizeParams(_params) {
     return { ...params, error: () => params.error };
   return params;
 }
-function createTransparentProxy(getter) {
-  let target;
-  return new Proxy({}, {
-    get(_, prop, receiver) {
-      target ?? (target = getter());
-      return Reflect.get(target, prop, receiver);
-    },
-    set(_, prop, value, receiver) {
-      target ?? (target = getter());
-      return Reflect.set(target, prop, value, receiver);
-    },
-    has(_, prop) {
-      target ?? (target = getter());
-      return Reflect.has(target, prop);
-    },
-    deleteProperty(_, prop) {
-      target ?? (target = getter());
-      return Reflect.deleteProperty(target, prop);
-    },
-    ownKeys(_) {
-      target ?? (target = getter());
-      return Reflect.ownKeys(target);
-    },
-    getOwnPropertyDescriptor(_, prop) {
-      target ?? (target = getter());
-      return Reflect.getOwnPropertyDescriptor(target, prop);
-    },
-    defineProperty(_, prop, descriptor) {
-      target ?? (target = getter());
-      return Reflect.defineProperty(target, prop, descriptor);
-    }
-  });
-}
 function stringifyPrimitive(value) {
   if (typeof value === "bigint")
     return value.toString() + "n";
@@ -15248,10 +14784,6 @@ var NUMBER_FORMAT_RANGES = {
   uint32: [0, 4294967295],
   float32: [-340282346638528860000000000000000000000, 340282346638528860000000000000000000000],
   float64: [-Number.MAX_VALUE, Number.MAX_VALUE]
-};
-var BIGINT_FORMAT_RANGES = {
-  int64: [/* @__PURE__ */ BigInt("-9223372036854775808"), /* @__PURE__ */ BigInt("9223372036854775807")],
-  uint64: [/* @__PURE__ */ BigInt(0), /* @__PURE__ */ BigInt("18446744073709551615")]
 };
 function pick(schema, mask) {
   const newShape = {};
@@ -15390,10 +14922,10 @@ function prefixIssues(path, issues) {
 function unwrapMessage(message) {
   return typeof message === "string" ? message : message?.message;
 }
-function finalizeIssue(iss, ctx, config2) {
+function finalizeIssue(iss, ctx, config) {
   const full = { ...iss, path: iss.path ?? [] };
   if (!iss.message) {
-    const message = unwrapMessage(iss.inst?._zod.def?.error?.(iss)) ?? unwrapMessage(ctx?.error?.(iss)) ?? unwrapMessage(config2.customError?.(iss)) ?? unwrapMessage(config2.localeError?.(iss)) ?? "Invalid input";
+    const message = unwrapMessage(iss.inst?._zod.def?.error?.(iss)) ?? unwrapMessage(ctx?.error?.(iss)) ?? unwrapMessage(config.customError?.(iss)) ?? unwrapMessage(config.localeError?.(iss)) ?? "Invalid input";
     full.message = message;
   }
   delete full.inst;
@@ -15402,15 +14934,6 @@ function finalizeIssue(iss, ctx, config2) {
     delete full.input;
   }
   return full;
-}
-function getSizableOrigin(input) {
-  if (input instanceof Set)
-    return "set";
-  if (input instanceof Map)
-    return "map";
-  if (input instanceof File)
-    return "file";
-  return "unknown";
 }
 function getLengthableOrigin(input) {
   if (Array.isArray(input))
@@ -15430,15 +14953,6 @@ function issue(...args) {
     };
   }
   return { ...iss };
-}
-function cleanEnum(obj) {
-  return Object.entries(obj).filter(([k, _]) => {
-    return Number.isNaN(Number.parseInt(k, 10));
-  }).map((el) => el[1]);
-}
-
-class Class {
-  constructor(..._args) {}
 }
 
 // node_modules/zod/v4/core/errors.js
@@ -15465,7 +14979,7 @@ var initializer = (inst, def) => {
 };
 var $ZodError = $constructor("$ZodError", initializer);
 var $ZodRealError = $constructor("$ZodError", initializer, { Parent: Error });
-function flattenError(error, mapper = (issue2) => issue2.message) {
+function flattenError(error, mapper = (issue) => issue.message) {
   const fieldErrors = {};
   const formErrors = [];
   for (const sub of error.issues) {
@@ -15479,31 +14993,31 @@ function flattenError(error, mapper = (issue2) => issue2.message) {
   return { formErrors, fieldErrors };
 }
 function formatError(error, _mapper) {
-  const mapper = _mapper || function(issue2) {
-    return issue2.message;
+  const mapper = _mapper || function(issue) {
+    return issue.message;
   };
   const fieldErrors = { _errors: [] };
-  const processError = (error2) => {
-    for (const issue2 of error2.issues) {
-      if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }));
-      } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues });
-      } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues });
-      } else if (issue2.path.length === 0) {
-        fieldErrors._errors.push(mapper(issue2));
+  const processError = (error) => {
+    for (const issue of error.issues) {
+      if (issue.code === "invalid_union" && issue.errors.length) {
+        issue.errors.map((issues) => processError({ issues }));
+      } else if (issue.code === "invalid_key") {
+        processError({ issues: issue.issues });
+      } else if (issue.code === "invalid_element") {
+        processError({ issues: issue.issues });
+      } else if (issue.path.length === 0) {
+        fieldErrors._errors.push(mapper(issue));
       } else {
         let curr = fieldErrors;
         let i = 0;
-        while (i < issue2.path.length) {
-          const el = issue2.path[i];
-          const terminal = i === issue2.path.length - 1;
+        while (i < issue.path.length) {
+          const el = issue.path[i];
+          const terminal = i === issue.path.length - 1;
           if (!terminal) {
             curr[el] = curr[el] || { _errors: [] };
           } else {
             curr[el] = curr[el] || { _errors: [] };
-            curr[el]._errors.push(mapper(issue2));
+            curr[el]._errors.push(mapper(issue));
           }
           curr = curr[el];
           i++;
@@ -15604,14 +15118,14 @@ function time(args) {
   return new RegExp(`^${timeSource(args)}$`);
 }
 function datetime(args) {
-  const time2 = timeSource({ precision: args.precision });
+  const time = timeSource({ precision: args.precision });
   const opts = ["Z"];
   if (args.local)
     opts.push("");
   if (args.offset)
     opts.push(`([+-]\\d{2}:\\d{2})`);
-  const timeRegex2 = `${time2}(?:${opts.join("|")})`;
-  return new RegExp(`^${dateSource}T(?:${timeRegex2})$`);
+  const timeRegex = `${time}(?:${opts.join("|")})`;
+  return new RegExp(`^${dateSource}T(?:${timeRegex})$`);
 }
 var string = (params) => {
   const regex = params ? `[\\s\\S]{${params?.minimum ?? 0},${params?.maximum ?? ""}}` : `[\\s\\S]*`;
@@ -15639,8 +15153,8 @@ var numericOriginMap = {
 var $ZodCheckLessThan = /* @__PURE__ */ $constructor("$ZodCheckLessThan", (inst, def) => {
   $ZodCheck.init(inst, def);
   const origin = numericOriginMap[typeof def.value];
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     const curr = (def.inclusive ? bag.maximum : bag.exclusiveMaximum) ?? Number.POSITIVE_INFINITY;
     if (def.value < curr) {
       if (def.inclusive)
@@ -15667,8 +15181,8 @@ var $ZodCheckLessThan = /* @__PURE__ */ $constructor("$ZodCheckLessThan", (inst,
 var $ZodCheckGreaterThan = /* @__PURE__ */ $constructor("$ZodCheckGreaterThan", (inst, def) => {
   $ZodCheck.init(inst, def);
   const origin = numericOriginMap[typeof def.value];
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     const curr = (def.inclusive ? bag.minimum : bag.exclusiveMinimum) ?? Number.NEGATIVE_INFINITY;
     if (def.value > curr) {
       if (def.inclusive)
@@ -15694,9 +15208,9 @@ var $ZodCheckGreaterThan = /* @__PURE__ */ $constructor("$ZodCheckGreaterThan", 
 });
 var $ZodCheckMultipleOf = /* @__PURE__ */ $constructor("$ZodCheckMultipleOf", (inst, def) => {
   $ZodCheck.init(inst, def);
-  inst._zod.onattach.push((inst2) => {
+  inst._zod.onattach.push((inst) => {
     var _a;
-    (_a = inst2._zod.bag).multipleOf ?? (_a.multipleOf = def.value);
+    (_a = inst._zod.bag).multipleOf ?? (_a.multipleOf = def.value);
   });
   inst._zod.check = (payload) => {
     if (typeof payload.value !== typeof def.value)
@@ -15720,8 +15234,8 @@ var $ZodCheckNumberFormat = /* @__PURE__ */ $constructor("$ZodCheckNumberFormat"
   const isInt = def.format?.includes("int");
   const origin = isInt ? "int" : "number";
   const [minimum, maximum] = NUMBER_FORMAT_RANGES[def.format];
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.format = def.format;
     bag.minimum = minimum;
     bag.maximum = maximum;
@@ -15795,10 +15309,10 @@ var $ZodCheckMaxLength = /* @__PURE__ */ $constructor("$ZodCheckMaxLength", (ins
     const val = payload.value;
     return !nullish(val) && val.length !== undefined;
   });
-  inst._zod.onattach.push((inst2) => {
-    const curr = inst2._zod.bag.maximum ?? Number.POSITIVE_INFINITY;
+  inst._zod.onattach.push((inst) => {
+    const curr = inst._zod.bag.maximum ?? Number.POSITIVE_INFINITY;
     if (def.maximum < curr)
-      inst2._zod.bag.maximum = def.maximum;
+      inst._zod.bag.maximum = def.maximum;
   });
   inst._zod.check = (payload) => {
     const input = payload.value;
@@ -15824,10 +15338,10 @@ var $ZodCheckMinLength = /* @__PURE__ */ $constructor("$ZodCheckMinLength", (ins
     const val = payload.value;
     return !nullish(val) && val.length !== undefined;
   });
-  inst._zod.onattach.push((inst2) => {
-    const curr = inst2._zod.bag.minimum ?? Number.NEGATIVE_INFINITY;
+  inst._zod.onattach.push((inst) => {
+    const curr = inst._zod.bag.minimum ?? Number.NEGATIVE_INFINITY;
     if (def.minimum > curr)
-      inst2._zod.bag.minimum = def.minimum;
+      inst._zod.bag.minimum = def.minimum;
   });
   inst._zod.check = (payload) => {
     const input = payload.value;
@@ -15853,8 +15367,8 @@ var $ZodCheckLengthEquals = /* @__PURE__ */ $constructor("$ZodCheckLengthEquals"
     const val = payload.value;
     return !nullish(val) && val.length !== undefined;
   });
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.minimum = def.length;
     bag.maximum = def.length;
     bag.length = def.length;
@@ -15880,8 +15394,8 @@ var $ZodCheckLengthEquals = /* @__PURE__ */ $constructor("$ZodCheckLengthEquals"
 var $ZodCheckStringFormat = /* @__PURE__ */ $constructor("$ZodCheckStringFormat", (inst, def) => {
   var _a, _b;
   $ZodCheck.init(inst, def);
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.format = def.format;
     if (def.pattern) {
       bag.patterns ?? (bag.patterns = new Set);
@@ -15936,8 +15450,8 @@ var $ZodCheckIncludes = /* @__PURE__ */ $constructor("$ZodCheckIncludes", (inst,
   const escapedRegex = escapeRegex(def.includes);
   const pattern = new RegExp(typeof def.position === "number" ? `^.{${def.position}}${escapedRegex}` : escapedRegex);
   def.pattern = pattern;
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.patterns ?? (bag.patterns = new Set);
     bag.patterns.add(pattern);
   });
@@ -15959,8 +15473,8 @@ var $ZodCheckStartsWith = /* @__PURE__ */ $constructor("$ZodCheckStartsWith", (i
   $ZodCheck.init(inst, def);
   const pattern = new RegExp(`^${escapeRegex(def.prefix)}.*`);
   def.pattern ?? (def.pattern = pattern);
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.patterns ?? (bag.patterns = new Set);
     bag.patterns.add(pattern);
   });
@@ -15982,8 +15496,8 @@ var $ZodCheckEndsWith = /* @__PURE__ */ $constructor("$ZodCheckEndsWith", (inst,
   $ZodCheck.init(inst, def);
   const pattern = new RegExp(`.*${escapeRegex(def.suffix)}$`);
   def.pattern ?? (def.pattern = pattern);
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.patterns ?? (bag.patterns = new Set);
     bag.patterns.add(pattern);
   });
@@ -16075,15 +15589,15 @@ var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
       inst._zod.run = inst._zod.parse;
     });
   } else {
-    const runChecks = (payload, checks2, ctx) => {
-      let isAborted2 = aborted(payload);
+    const runChecks = (payload, checks, ctx) => {
+      let isAborted = aborted(payload);
       let asyncResult;
-      for (const ch of checks2) {
+      for (const ch of checks) {
         if (ch._zod.def.when) {
           const shouldRun = ch._zod.def.when(payload);
           if (!shouldRun)
             continue;
-        } else if (isAborted2) {
+        } else if (isAborted) {
           continue;
         }
         const currLen = payload.issues.length;
@@ -16097,15 +15611,15 @@ var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
             const nextLen = payload.issues.length;
             if (nextLen === currLen)
               return;
-            if (!isAborted2)
-              isAborted2 = aborted(payload, currLen);
+            if (!isAborted)
+              isAborted = aborted(payload, currLen);
           });
         } else {
           const nextLen = payload.issues.length;
           if (nextLen === currLen)
             continue;
-          if (!isAborted2)
-            isAborted2 = aborted(payload, currLen);
+          if (!isAborted)
+            isAborted = aborted(payload, currLen);
         }
       }
       if (asyncResult) {
@@ -16120,7 +15634,7 @@ var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
       if (result instanceof Promise) {
         if (ctx.async === false)
           throw new $ZodAsyncError;
-        return result.then((result2) => runChecks(result2, checks, ctx));
+        return result.then((result) => runChecks(result, checks, ctx));
       }
       return runChecks(result, checks, ctx);
     };
@@ -16145,7 +15659,7 @@ var $ZodString = /* @__PURE__ */ $constructor("$ZodString", (inst, def) => {
     if (def.coerce)
       try {
         payload.value = String(payload.value);
-      } catch (_2) {}
+      } catch (_) {}
     if (typeof payload.value === "string")
       return payload;
     payload.issues.push({
@@ -16288,16 +15802,16 @@ var $ZodISODuration = /* @__PURE__ */ $constructor("$ZodISODuration", (inst, def
 var $ZodIPv4 = /* @__PURE__ */ $constructor("$ZodIPv4", (inst, def) => {
   def.pattern ?? (def.pattern = ipv4);
   $ZodStringFormat.init(inst, def);
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.format = `ipv4`;
   });
 });
 var $ZodIPv6 = /* @__PURE__ */ $constructor("$ZodIPv6", (inst, def) => {
   def.pattern ?? (def.pattern = ipv6);
   $ZodStringFormat.init(inst, def);
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.format = `ipv6`;
   });
   inst._zod.check = (payload) => {
@@ -16358,8 +15872,8 @@ function isValidBase64(data) {
 var $ZodBase64 = /* @__PURE__ */ $constructor("$ZodBase64", (inst, def) => {
   def.pattern ?? (def.pattern = base64);
   $ZodStringFormat.init(inst, def);
-  inst._zod.onattach.push((inst2) => {
-    inst2._zod.bag.contentEncoding = "base64";
+  inst._zod.onattach.push((inst) => {
+    inst._zod.bag.contentEncoding = "base64";
   });
   inst._zod.check = (payload) => {
     if (isValidBase64(payload.value))
@@ -16376,15 +15890,15 @@ var $ZodBase64 = /* @__PURE__ */ $constructor("$ZodBase64", (inst, def) => {
 function isValidBase64URL(data) {
   if (!base64url.test(data))
     return false;
-  const base642 = data.replace(/[-_]/g, (c) => c === "-" ? "+" : "/");
-  const padded = base642.padEnd(Math.ceil(base642.length / 4) * 4, "=");
+  const base64 = data.replace(/[-_]/g, (c) => c === "-" ? "+" : "/");
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
   return isValidBase64(padded);
 }
 var $ZodBase64URL = /* @__PURE__ */ $constructor("$ZodBase64URL", (inst, def) => {
   def.pattern ?? (def.pattern = base64url);
   $ZodStringFormat.init(inst, def);
-  inst._zod.onattach.push((inst2) => {
-    inst2._zod.bag.contentEncoding = "base64url";
+  inst._zod.onattach.push((inst) => {
+    inst._zod.bag.contentEncoding = "base64url";
   });
   inst._zod.check = (payload) => {
     if (isValidBase64URL(payload.value))
@@ -16544,7 +16058,7 @@ var $ZodArray = /* @__PURE__ */ $constructor("$ZodArray", (inst, def) => {
         issues: []
       }, ctx);
       if (result instanceof Promise) {
-        proms.push(result.then((result2) => handleArrayResult(result2, payload, i)));
+        proms.push(result.then((result) => handleArrayResult(result, payload, i)));
       } else {
         handleArrayResult(result, payload, i);
       }
@@ -16697,7 +16211,7 @@ var $ZodObject = /* @__PURE__ */ $constructor("$ZodObject", (inst, def) => {
         const r = el._zod.run({ value: input[key], issues: [] }, ctx);
         const isOptional = el._zod.optin === "optional" && el._zod.optout === "optional";
         if (r instanceof Promise) {
-          proms.push(r.then((r2) => isOptional ? handleOptionalObjectResult(r2, payload, key, input) : handleObjectResult(r2, payload, key)));
+          proms.push(r.then((r) => isOptional ? handleOptionalObjectResult(r, payload, key, input) : handleObjectResult(r, payload, key)));
         } else if (isOptional) {
           handleOptionalObjectResult(r, payload, key, input);
         } else {
@@ -16721,7 +16235,7 @@ var $ZodObject = /* @__PURE__ */ $constructor("$ZodObject", (inst, def) => {
       }
       const r = _catchall.run({ value: input[key], issues: [] }, ctx);
       if (r instanceof Promise) {
-        proms.push(r.then((r2) => handleObjectResult(r2, payload, key)));
+        proms.push(r.then((r) => handleObjectResult(r, payload, key)));
       } else {
         handleObjectResult(r, payload, key);
       }
@@ -16792,8 +16306,8 @@ var $ZodUnion = /* @__PURE__ */ $constructor("$ZodUnion", (inst, def) => {
     }
     if (!async)
       return handleUnionResults(results, payload, inst, ctx);
-    return Promise.all(results).then((results2) => {
-      return handleUnionResults(results2, payload, inst, ctx);
+    return Promise.all(results).then((results) => {
+      return handleUnionResults(results, payload, inst, ctx);
     });
   };
 });
@@ -16869,8 +16383,8 @@ var $ZodIntersection = /* @__PURE__ */ $constructor("$ZodIntersection", (inst, d
     const right = def.right._zod.run({ value: input, issues: [] }, ctx);
     const async = left instanceof Promise || right instanceof Promise;
     if (async) {
-      return Promise.all([left, right]).then(([left2, right2]) => {
-        return handleIntersectionResults(payload, left2, right2);
+      return Promise.all([left, right]).then(([left, right]) => {
+        return handleIntersectionResults(payload, left, right);
       });
     }
     return handleIntersectionResults(payload, left, right);
@@ -16957,11 +16471,11 @@ var $ZodRecord = /* @__PURE__ */ $constructor("$ZodRecord", (inst, def) => {
         if (typeof key === "string" || typeof key === "number" || typeof key === "symbol") {
           const result = def.valueType._zod.run({ value: input[key], issues: [] }, ctx);
           if (result instanceof Promise) {
-            proms.push(result.then((result2) => {
-              if (result2.issues.length) {
-                payload.issues.push(...prefixIssues(key, result2.issues));
+            proms.push(result.then((result) => {
+              if (result.issues.length) {
+                payload.issues.push(...prefixIssues(key, result.issues));
               }
-              payload.value[key] = result2.value;
+              payload.value[key] = result.value;
             }));
           } else {
             if (result.issues.length) {
@@ -17009,11 +16523,11 @@ var $ZodRecord = /* @__PURE__ */ $constructor("$ZodRecord", (inst, def) => {
         }
         const result = def.valueType._zod.run({ value: input[key], issues: [] }, ctx);
         if (result instanceof Promise) {
-          proms.push(result.then((result2) => {
-            if (result2.issues.length) {
-              payload.issues.push(...prefixIssues(key, result2.issues));
+          proms.push(result.then((result) => {
+            if (result.issues.length) {
+              payload.issues.push(...prefixIssues(key, result.issues));
             }
-            payload.value[keyResult.value] = result2.value;
+            payload.value[keyResult.value] = result.value;
           }));
         } else {
           if (result.issues.length) {
@@ -17072,8 +16586,8 @@ var $ZodTransform = /* @__PURE__ */ $constructor("$ZodTransform", (inst, def) =>
     const _out = def.transform(payload.value, payload);
     if (_ctx.async) {
       const output = _out instanceof Promise ? _out : Promise.resolve(_out);
-      return output.then((output2) => {
-        payload.value = output2;
+      return output.then((output) => {
+        payload.value = output;
         return payload;
       });
     }
@@ -17133,7 +16647,7 @@ var $ZodDefault = /* @__PURE__ */ $constructor("$ZodDefault", (inst, def) => {
     }
     const result = def.innerType._zod.run(payload, ctx);
     if (result instanceof Promise) {
-      return result.then((result2) => handleDefaultResult(result2, def));
+      return result.then((result) => handleDefaultResult(result, def));
     }
     return handleDefaultResult(result, def);
   };
@@ -17164,7 +16678,7 @@ var $ZodNonOptional = /* @__PURE__ */ $constructor("$ZodNonOptional", (inst, def
   inst._zod.parse = (payload, ctx) => {
     const result = def.innerType._zod.run(payload, ctx);
     if (result instanceof Promise) {
-      return result.then((result2) => handleNonOptionalResult(result2, inst));
+      return result.then((result) => handleNonOptionalResult(result, inst));
     }
     return handleNonOptionalResult(result, inst);
   };
@@ -17188,13 +16702,13 @@ var $ZodCatch = /* @__PURE__ */ $constructor("$ZodCatch", (inst, def) => {
   inst._zod.parse = (payload, ctx) => {
     const result = def.innerType._zod.run(payload, ctx);
     if (result instanceof Promise) {
-      return result.then((result2) => {
-        payload.value = result2.value;
-        if (result2.issues.length) {
+      return result.then((result) => {
+        payload.value = result.value;
+        if (result.issues.length) {
           payload.value = def.catchValue({
             ...payload,
             error: {
-              issues: result2.issues.map((iss) => finalizeIssue(iss, ctx, config()))
+              issues: result.issues.map((iss) => finalizeIssue(iss, ctx, config()))
             },
             input: payload.value
           });
@@ -17225,7 +16739,7 @@ var $ZodPipe = /* @__PURE__ */ $constructor("$ZodPipe", (inst, def) => {
   inst._zod.parse = (payload, ctx) => {
     const left = def.in._zod.run(payload, ctx);
     if (left instanceof Promise) {
-      return left.then((left2) => handlePipeResult(left2, def, ctx));
+      return left.then((left) => handlePipeResult(left, def, ctx));
     }
     return handlePipeResult(left, def, ctx);
   };
@@ -17264,7 +16778,7 @@ var $ZodCustom = /* @__PURE__ */ $constructor("$ZodCustom", (inst, def) => {
     const input = payload.value;
     const r = def.fn(input);
     if (r instanceof Promise) {
-      return r.then((r2) => handleRefineResult(r2, payload, input, inst));
+      return r.then((r) => handleRefineResult(r, payload, input, inst));
     }
     handleRefineResult(r, payload, input, inst);
     return;
@@ -17345,31 +16859,31 @@ var error = () => {
     jwt: "JWT",
     template_literal: "input"
   };
-  return (issue2) => {
-    switch (issue2.code) {
+  return (issue) => {
+    switch (issue.code) {
       case "invalid_type":
-        return `Invalid input: expected ${issue2.expected}, received ${parsedType(issue2.input)}`;
+        return `Invalid input: expected ${issue.expected}, received ${parsedType(issue.input)}`;
       case "invalid_value":
-        if (issue2.values.length === 1)
-          return `Invalid input: expected ${stringifyPrimitive(issue2.values[0])}`;
-        return `Invalid option: expected one of ${joinValues(issue2.values, "|")}`;
+        if (issue.values.length === 1)
+          return `Invalid input: expected ${stringifyPrimitive(issue.values[0])}`;
+        return `Invalid option: expected one of ${joinValues(issue.values, "|")}`;
       case "too_big": {
-        const adj = issue2.inclusive ? "<=" : "<";
-        const sizing = getSizing(issue2.origin);
+        const adj = issue.inclusive ? "<=" : "<";
+        const sizing = getSizing(issue.origin);
         if (sizing)
-          return `Too big: expected ${issue2.origin ?? "value"} to have ${adj}${issue2.maximum.toString()} ${sizing.unit ?? "elements"}`;
-        return `Too big: expected ${issue2.origin ?? "value"} to be ${adj}${issue2.maximum.toString()}`;
+          return `Too big: expected ${issue.origin ?? "value"} to have ${adj}${issue.maximum.toString()} ${sizing.unit ?? "elements"}`;
+        return `Too big: expected ${issue.origin ?? "value"} to be ${adj}${issue.maximum.toString()}`;
       }
       case "too_small": {
-        const adj = issue2.inclusive ? ">=" : ">";
-        const sizing = getSizing(issue2.origin);
+        const adj = issue.inclusive ? ">=" : ">";
+        const sizing = getSizing(issue.origin);
         if (sizing) {
-          return `Too small: expected ${issue2.origin} to have ${adj}${issue2.minimum.toString()} ${sizing.unit}`;
+          return `Too small: expected ${issue.origin} to have ${adj}${issue.minimum.toString()} ${sizing.unit}`;
         }
-        return `Too small: expected ${issue2.origin} to be ${adj}${issue2.minimum.toString()}`;
+        return `Too small: expected ${issue.origin} to be ${adj}${issue.minimum.toString()}`;
       }
       case "invalid_format": {
-        const _issue = issue2;
+        const _issue = issue;
         if (_issue.format === "starts_with") {
           return `Invalid string: must start with "${_issue.prefix}"`;
         }
@@ -17379,18 +16893,18 @@ var error = () => {
           return `Invalid string: must include "${_issue.includes}"`;
         if (_issue.format === "regex")
           return `Invalid string: must match pattern ${_issue.pattern}`;
-        return `Invalid ${Nouns[_issue.format] ?? issue2.format}`;
+        return `Invalid ${Nouns[_issue.format] ?? issue.format}`;
       }
       case "not_multiple_of":
-        return `Invalid number: must be a multiple of ${issue2.divisor}`;
+        return `Invalid number: must be a multiple of ${issue.divisor}`;
       case "unrecognized_keys":
-        return `Unrecognized key${issue2.keys.length > 1 ? "s" : ""}: ${joinValues(issue2.keys, ", ")}`;
+        return `Unrecognized key${issue.keys.length > 1 ? "s" : ""}: ${joinValues(issue.keys, ", ")}`;
       case "invalid_key":
-        return `Invalid key in ${issue2.origin}`;
+        return `Invalid key in ${issue.origin}`;
       case "invalid_union":
         return "Invalid input";
       case "invalid_element":
-        return `Invalid value in ${issue2.origin}`;
+        return `Invalid value in ${issue.origin}`;
       default:
         return `Invalid input`;
     }
@@ -17452,14 +16966,14 @@ function registry() {
 }
 var globalRegistry = /* @__PURE__ */ registry();
 // node_modules/zod/v4/core/api.js
-function _string(Class2, params) {
-  return new Class2({
+function _string(Class, params) {
+  return new Class({
     type: "string",
     ...normalizeParams(params)
   });
 }
-function _email(Class2, params) {
-  return new Class2({
+function _email(Class, params) {
+  return new Class({
     type: "string",
     format: "email",
     check: "string_format",
@@ -17467,8 +16981,8 @@ function _email(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _guid(Class2, params) {
-  return new Class2({
+function _guid(Class, params) {
+  return new Class({
     type: "string",
     format: "guid",
     check: "string_format",
@@ -17476,8 +16990,8 @@ function _guid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _uuid(Class2, params) {
-  return new Class2({
+function _uuid(Class, params) {
+  return new Class({
     type: "string",
     format: "uuid",
     check: "string_format",
@@ -17485,8 +16999,8 @@ function _uuid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _uuidv4(Class2, params) {
-  return new Class2({
+function _uuidv4(Class, params) {
+  return new Class({
     type: "string",
     format: "uuid",
     check: "string_format",
@@ -17495,8 +17009,8 @@ function _uuidv4(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _uuidv6(Class2, params) {
-  return new Class2({
+function _uuidv6(Class, params) {
+  return new Class({
     type: "string",
     format: "uuid",
     check: "string_format",
@@ -17505,8 +17019,8 @@ function _uuidv6(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _uuidv7(Class2, params) {
-  return new Class2({
+function _uuidv7(Class, params) {
+  return new Class({
     type: "string",
     format: "uuid",
     check: "string_format",
@@ -17515,8 +17029,8 @@ function _uuidv7(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _url(Class2, params) {
-  return new Class2({
+function _url(Class, params) {
+  return new Class({
     type: "string",
     format: "url",
     check: "string_format",
@@ -17524,8 +17038,8 @@ function _url(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _emoji2(Class2, params) {
-  return new Class2({
+function _emoji2(Class, params) {
+  return new Class({
     type: "string",
     format: "emoji",
     check: "string_format",
@@ -17533,8 +17047,8 @@ function _emoji2(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _nanoid(Class2, params) {
-  return new Class2({
+function _nanoid(Class, params) {
+  return new Class({
     type: "string",
     format: "nanoid",
     check: "string_format",
@@ -17542,8 +17056,8 @@ function _nanoid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _cuid(Class2, params) {
-  return new Class2({
+function _cuid(Class, params) {
+  return new Class({
     type: "string",
     format: "cuid",
     check: "string_format",
@@ -17551,8 +17065,8 @@ function _cuid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _cuid2(Class2, params) {
-  return new Class2({
+function _cuid2(Class, params) {
+  return new Class({
     type: "string",
     format: "cuid2",
     check: "string_format",
@@ -17560,8 +17074,8 @@ function _cuid2(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _ulid(Class2, params) {
-  return new Class2({
+function _ulid(Class, params) {
+  return new Class({
     type: "string",
     format: "ulid",
     check: "string_format",
@@ -17569,8 +17083,8 @@ function _ulid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _xid(Class2, params) {
-  return new Class2({
+function _xid(Class, params) {
+  return new Class({
     type: "string",
     format: "xid",
     check: "string_format",
@@ -17578,8 +17092,8 @@ function _xid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _ksuid(Class2, params) {
-  return new Class2({
+function _ksuid(Class, params) {
+  return new Class({
     type: "string",
     format: "ksuid",
     check: "string_format",
@@ -17587,8 +17101,8 @@ function _ksuid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _ipv4(Class2, params) {
-  return new Class2({
+function _ipv4(Class, params) {
+  return new Class({
     type: "string",
     format: "ipv4",
     check: "string_format",
@@ -17596,8 +17110,8 @@ function _ipv4(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _ipv6(Class2, params) {
-  return new Class2({
+function _ipv6(Class, params) {
+  return new Class({
     type: "string",
     format: "ipv6",
     check: "string_format",
@@ -17605,8 +17119,8 @@ function _ipv6(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _cidrv4(Class2, params) {
-  return new Class2({
+function _cidrv4(Class, params) {
+  return new Class({
     type: "string",
     format: "cidrv4",
     check: "string_format",
@@ -17614,8 +17128,8 @@ function _cidrv4(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _cidrv6(Class2, params) {
-  return new Class2({
+function _cidrv6(Class, params) {
+  return new Class({
     type: "string",
     format: "cidrv6",
     check: "string_format",
@@ -17623,8 +17137,8 @@ function _cidrv6(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _base64(Class2, params) {
-  return new Class2({
+function _base64(Class, params) {
+  return new Class({
     type: "string",
     format: "base64",
     check: "string_format",
@@ -17632,8 +17146,8 @@ function _base64(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _base64url(Class2, params) {
-  return new Class2({
+function _base64url(Class, params) {
+  return new Class({
     type: "string",
     format: "base64url",
     check: "string_format",
@@ -17641,8 +17155,8 @@ function _base64url(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _e164(Class2, params) {
-  return new Class2({
+function _e164(Class, params) {
+  return new Class({
     type: "string",
     format: "e164",
     check: "string_format",
@@ -17650,8 +17164,8 @@ function _e164(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _jwt(Class2, params) {
-  return new Class2({
+function _jwt(Class, params) {
+  return new Class({
     type: "string",
     format: "jwt",
     check: "string_format",
@@ -17659,8 +17173,8 @@ function _jwt(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _isoDateTime(Class2, params) {
-  return new Class2({
+function _isoDateTime(Class, params) {
+  return new Class({
     type: "string",
     format: "datetime",
     check: "string_format",
@@ -17670,16 +17184,16 @@ function _isoDateTime(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _isoDate(Class2, params) {
-  return new Class2({
+function _isoDate(Class, params) {
+  return new Class({
     type: "string",
     format: "date",
     check: "string_format",
     ...normalizeParams(params)
   });
 }
-function _isoTime(Class2, params) {
-  return new Class2({
+function _isoTime(Class, params) {
+  return new Class({
     type: "string",
     format: "time",
     check: "string_format",
@@ -17687,23 +17201,23 @@ function _isoTime(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _isoDuration(Class2, params) {
-  return new Class2({
+function _isoDuration(Class, params) {
+  return new Class({
     type: "string",
     format: "duration",
     check: "string_format",
     ...normalizeParams(params)
   });
 }
-function _number(Class2, params) {
-  return new Class2({
+function _number(Class, params) {
+  return new Class({
     type: "number",
     checks: [],
     ...normalizeParams(params)
   });
 }
-function _int(Class2, params) {
-  return new Class2({
+function _int(Class, params) {
+  return new Class({
     type: "number",
     check: "number_format",
     abort: false,
@@ -17711,25 +17225,25 @@ function _int(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _boolean(Class2, params) {
-  return new Class2({
+function _boolean(Class, params) {
+  return new Class({
     type: "boolean",
     ...normalizeParams(params)
   });
 }
-function _null2(Class2, params) {
-  return new Class2({
+function _null2(Class, params) {
+  return new Class({
     type: "null",
     ...normalizeParams(params)
   });
 }
-function _unknown(Class2) {
-  return new Class2({
+function _unknown(Class) {
+  return new Class({
     type: "unknown"
   });
 }
-function _never(Class2, params) {
-  return new Class2({
+function _never(Class, params) {
+  return new Class({
     type: "never",
     ...normalizeParams(params)
   });
@@ -17859,17 +17373,17 @@ function _toLowerCase() {
 function _toUpperCase() {
   return _overwrite((input) => input.toUpperCase());
 }
-function _array(Class2, element, params) {
-  return new Class2({
+function _array(Class, element, params) {
+  return new Class({
     type: "array",
     element,
     ...normalizeParams(params)
   });
 }
-function _custom(Class2, fn, _params) {
+function _custom(Class, fn, _params) {
   const norm = normalizeParams(_params);
   norm.abort ?? (norm.abort = true);
-  const schema = new Class2({
+  const schema = new Class({
     type: "custom",
     check: "custom",
     fn,
@@ -17877,8 +17391,8 @@ function _custom(Class2, fn, _params) {
   });
   return schema;
 }
-function _refine(Class2, fn, _params) {
-  const schema = new Class2({
+function _refine(Class, fn, _params) {
+  const schema = new Class({
     type: "custom",
     check: "custom",
     fn,
@@ -18372,7 +17886,7 @@ class JSONSchemaGenerator {
       const defsSegment = this.target === "draft-2020-12" ? "$defs" : "definitions";
       if (params.external) {
         const externalId = params.external.registry.get(entry[0])?.id;
-        const uriGenerator = params.external.uri ?? ((id2) => id2);
+        const uriGenerator = params.external.uri ?? ((id) => id);
         if (externalId) {
           return { ref: uriGenerator(externalId) };
         }
@@ -18397,11 +17911,11 @@ class JSONSchemaGenerator {
       seen.def = { ...seen.schema };
       if (defId)
         seen.defId = defId;
-      const schema2 = seen.schema;
-      for (const key in schema2) {
-        delete schema2[key];
+      const schema = seen.schema;
+      for (const key in schema) {
+        delete schema[key];
       }
-      schema2.$ref = ref;
+      schema.$ref = ref;
     };
     if (params.cycles === "throw") {
       for (const entry of this.seen.entries()) {
@@ -18440,30 +17954,30 @@ class JSONSchemaGenerator {
         }
       }
     }
-    const flattenRef = (zodSchema, params2) => {
+    const flattenRef = (zodSchema, params) => {
       const seen = this.seen.get(zodSchema);
-      const schema2 = seen.def ?? seen.schema;
-      const _cached = { ...schema2 };
+      const schema = seen.def ?? seen.schema;
+      const _cached = { ...schema };
       if (seen.ref === null) {
         return;
       }
       const ref = seen.ref;
       seen.ref = null;
       if (ref) {
-        flattenRef(ref, params2);
+        flattenRef(ref, params);
         const refSchema = this.seen.get(ref).schema;
-        if (refSchema.$ref && params2.target === "draft-7") {
-          schema2.allOf = schema2.allOf ?? [];
-          schema2.allOf.push(refSchema);
+        if (refSchema.$ref && params.target === "draft-7") {
+          schema.allOf = schema.allOf ?? [];
+          schema.allOf.push(refSchema);
         } else {
-          Object.assign(schema2, refSchema);
-          Object.assign(schema2, _cached);
+          Object.assign(schema, refSchema);
+          Object.assign(schema, _cached);
         }
       }
       if (!seen.isParent)
         this.override({
           zodSchema,
-          jsonSchema: schema2,
+          jsonSchema: schema,
           path: seen.path ?? []
         });
     };
@@ -18510,11 +18024,11 @@ class JSONSchemaGenerator {
 }
 function toJSONSchema(input, _params) {
   if (input instanceof $ZodRegistry) {
-    const gen2 = new JSONSchemaGenerator(_params);
+    const gen = new JSONSchemaGenerator(_params);
     const defs = {};
     for (const entry of input._idmap.entries()) {
       const [_, schema] = entry;
-      gen2.process(schema);
+      gen.process(schema);
     }
     const schemas = {};
     const external = {
@@ -18524,13 +18038,13 @@ function toJSONSchema(input, _params) {
     };
     for (const entry of input._idmap.entries()) {
       const [key, schema] = entry;
-      schemas[key] = gen2.emit(schema, {
+      schemas[key] = gen.emit(schema, {
         ..._params,
         external
       });
     }
     if (Object.keys(defs).length > 0) {
-      const defsSegment = gen2.target === "draft-2020-12" ? "$defs" : "definitions";
+      const defsSegment = gen.target === "draft-2020-12" ? "$defs" : "definitions";
       schemas.__shared = {
         [defsSegment]: defs
       };
@@ -18648,12 +18162,12 @@ var ZodMiniType = /* @__PURE__ */ $constructor("ZodMiniType", (inst, def) => {
   inst.safeParse = (data, params) => safeParse(inst, data, params);
   inst.parseAsync = async (data, params) => parseAsync(inst, data, params, { callee: inst.parseAsync });
   inst.safeParseAsync = async (data, params) => safeParseAsync(inst, data, params);
-  inst.check = (...checks2) => {
+  inst.check = (...checks) => {
     return inst.clone({
       ...def,
       checks: [
         ...def.checks ?? [],
-        ...checks2.map((ch) => typeof ch === "function" ? { _zod: { check: ch, def: { check: "custom" }, onattach: [] } } : ch)
+        ...checks.map((ch) => typeof ch === "function" ? { _zod: { check: ch, def: { check: "custom" }, onattach: [] } } : ch)
       ]
     });
   };
@@ -18667,16 +18181,16 @@ var ZodMiniType = /* @__PURE__ */ $constructor("ZodMiniType", (inst, def) => {
 var ZodMiniObject = /* @__PURE__ */ $constructor("ZodMiniObject", (inst, def) => {
   $ZodObject.init(inst, def);
   ZodMiniType.init(inst, def);
-  exports_util.defineLazy(inst, "shape", () => def.shape);
+  defineLazy(inst, "shape", () => def.shape);
 });
 function object(shape, params) {
   const def = {
     type: "object",
     get shape() {
-      exports_util.assignProp(this, "shape", { ...shape });
+      assignProp(this, "shape", { ...shape });
       return this.shape;
     },
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   };
   return new ZodMiniObject(def);
 }
@@ -18699,8 +18213,8 @@ function objectFromShape(shape) {
 }
 function safeParse2(schema, data) {
   if (isZ4Schema(schema)) {
-    const result2 = safeParse(schema, data);
-    return result2;
+    const result = safeParse(schema, data);
+    return result;
   }
   const v3Schema = schema;
   const result = v3Schema.safeParse(data);
@@ -18708,8 +18222,8 @@ function safeParse2(schema, data) {
 }
 async function safeParseAsync2(schema, data) {
   if (isZ4Schema(schema)) {
-    const result2 = await safeParseAsync(schema, data);
-    return result2;
+    const result = await safeParseAsync(schema, data);
+    return result;
   }
   const v3Schema = schema;
   const result = await v3Schema.safeParseAsync(data);
@@ -18764,24 +18278,24 @@ function normalizeObjectSchema(schema) {
   }
   return;
 }
-function getParseErrorMessage(error2) {
-  if (error2 && typeof error2 === "object") {
-    if ("message" in error2 && typeof error2.message === "string") {
-      return error2.message;
+function getParseErrorMessage(error) {
+  if (error && typeof error === "object") {
+    if ("message" in error && typeof error.message === "string") {
+      return error.message;
     }
-    if ("issues" in error2 && Array.isArray(error2.issues) && error2.issues.length > 0) {
-      const firstIssue = error2.issues[0];
+    if ("issues" in error && Array.isArray(error.issues) && error.issues.length > 0) {
+      const firstIssue = error.issues[0];
       if (firstIssue && typeof firstIssue === "object" && "message" in firstIssue) {
         return String(firstIssue.message);
       }
     }
     try {
-      return JSON.stringify(error2);
+      return JSON.stringify(error);
     } catch {
-      return String(error2);
+      return String(error);
     }
   }
-  return String(error2);
+  return String(error);
 }
 function getSchemaDescription(schema) {
   return schema.description;
@@ -18800,12 +18314,12 @@ function isSchemaOptional(schema) {
 function getLiteralValue(schema) {
   if (isZ4Schema(schema)) {
     const v4Schema = schema;
-    const def2 = v4Schema._zod?.def;
-    if (def2) {
-      if (def2.value !== undefined)
-        return def2.value;
-      if (Array.isArray(def2.values) && def2.values.length > 0) {
-        return def2.values[0];
+    const def = v4Schema._zod?.def;
+    if (def) {
+      if (def.value !== undefined)
+        return def.value;
+      if (Array.isArray(def.values) && def.values.length > 0) {
+        return def.values[0];
       }
     }
   }
@@ -18824,17 +18338,6 @@ function getLiteralValue(schema) {
   return;
 }
 // node_modules/zod/v4/classic/iso.js
-var exports_iso2 = {};
-__export(exports_iso2, {
-  time: () => time2,
-  duration: () => duration2,
-  datetime: () => datetime2,
-  date: () => date2,
-  ZodISOTime: () => ZodISOTime,
-  ZodISODuration: () => ZodISODuration,
-  ZodISODateTime: () => ZodISODateTime,
-  ZodISODate: () => ZodISODate
-});
 var ZodISODateTime = /* @__PURE__ */ $constructor("ZodISODateTime", (inst, def) => {
   $ZodISODateTime.init(inst, def);
   ZodStringFormat.init(inst, def);
@@ -18876,10 +18379,10 @@ var initializer2 = (inst, issues) => {
       value: (mapper) => flattenError(inst, mapper)
     },
     addIssue: {
-      value: (issue2) => inst.issues.push(issue2)
+      value: (issue) => inst.issues.push(issue)
     },
     addIssues: {
-      value: (issues2) => inst.issues.push(...issues2)
+      value: (issues) => inst.issues.push(...issues)
     },
     isEmpty: {
       get() {
@@ -18888,7 +18391,7 @@ var initializer2 = (inst, issues) => {
     }
   });
 };
-var ZodError3 = $constructor("ZodError", initializer2);
+var ZodError2 = $constructor("ZodError", initializer2);
 var ZodRealError = $constructor("ZodError", initializer2, {
   Parent: Error
 });
@@ -18904,16 +18407,16 @@ var ZodType2 = /* @__PURE__ */ $constructor("ZodType", (inst, def) => {
   $ZodType.init(inst, def);
   inst.def = def;
   Object.defineProperty(inst, "_def", { value: def });
-  inst.check = (...checks3) => {
+  inst.check = (...checks) => {
     return inst.clone({
       ...def,
       checks: [
         ...def.checks ?? [],
-        ...checks3.map((ch) => typeof ch === "function" ? { _zod: { check: ch, def: { check: "custom" }, onattach: [] } } : ch)
+        ...checks.map((ch) => typeof ch === "function" ? { _zod: { check: ch, def: { check: "custom" }, onattach: [] } } : ch)
       ]
     });
   };
-  inst.clone = (def2, params) => clone(inst, def2, params);
+  inst.clone = (def, params) => clone(inst, def, params);
   inst.brand = () => inst;
   inst.register = (reg, meta) => {
     reg.add(inst, meta);
@@ -18935,8 +18438,8 @@ var ZodType2 = /* @__PURE__ */ $constructor("ZodType", (inst, def) => {
   inst.or = (arg) => union([inst, arg]);
   inst.and = (arg) => intersection(inst, arg);
   inst.transform = (tx) => pipe(inst, transform(tx));
-  inst.default = (def2) => _default(inst, def2);
-  inst.prefault = (def2) => prefault(inst, def2);
+  inst.default = (def) => _default(inst, def);
+  inst.prefault = (def) => prefault(inst, def);
   inst.catch = (params) => _catch(inst, params);
   inst.pipe = (target) => pipe(inst, target);
   inst.readonly = () => readonly(inst);
@@ -19178,7 +18681,7 @@ function array(element, params) {
 var ZodObject2 = /* @__PURE__ */ $constructor("ZodObject", (inst, def) => {
   $ZodObject.init(inst, def);
   ZodType2.init(inst, def);
-  exports_util.defineLazy(inst, "shape", () => def.shape);
+  defineLazy(inst, "shape", () => def.shape);
   inst.keyof = () => _enum(Object.keys(inst._zod.def.shape));
   inst.catchall = (catchall) => inst.clone({ ...inst._zod.def, catchall });
   inst.passthrough = () => inst.clone({ ...inst._zod.def, catchall: unknown() });
@@ -19186,22 +18689,22 @@ var ZodObject2 = /* @__PURE__ */ $constructor("ZodObject", (inst, def) => {
   inst.strict = () => inst.clone({ ...inst._zod.def, catchall: never() });
   inst.strip = () => inst.clone({ ...inst._zod.def, catchall: undefined });
   inst.extend = (incoming) => {
-    return exports_util.extend(inst, incoming);
+    return extend(inst, incoming);
   };
-  inst.merge = (other) => exports_util.merge(inst, other);
-  inst.pick = (mask) => exports_util.pick(inst, mask);
-  inst.omit = (mask) => exports_util.omit(inst, mask);
-  inst.partial = (...args) => exports_util.partial(ZodOptional2, inst, args[0]);
-  inst.required = (...args) => exports_util.required(ZodNonOptional, inst, args[0]);
+  inst.merge = (other) => merge(inst, other);
+  inst.pick = (mask) => pick(inst, mask);
+  inst.omit = (mask) => omit(inst, mask);
+  inst.partial = (...args) => partial(ZodOptional2, inst, args[0]);
+  inst.required = (...args) => required(ZodNonOptional, inst, args[0]);
 });
 function object2(shape, params) {
   const def = {
     type: "object",
     get shape() {
-      exports_util.assignProp(this, "shape", { ...shape });
+      assignProp(this, "shape", { ...shape });
       return this.shape;
     },
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   };
   return new ZodObject2(def);
 }
@@ -19209,11 +18712,11 @@ function looseObject(shape, params) {
   return new ZodObject2({
     type: "object",
     get shape() {
-      exports_util.assignProp(this, "shape", { ...shape });
+      assignProp(this, "shape", { ...shape });
       return this.shape;
     },
     catchall: unknown(),
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   });
 }
 var ZodUnion2 = /* @__PURE__ */ $constructor("ZodUnion", (inst, def) => {
@@ -19225,7 +18728,7 @@ function union(options, params) {
   return new ZodUnion2({
     type: "union",
     options,
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   });
 }
 var ZodDiscriminatedUnion2 = /* @__PURE__ */ $constructor("ZodDiscriminatedUnion", (inst, def) => {
@@ -19237,7 +18740,7 @@ function discriminatedUnion(discriminator, options, params) {
     type: "union",
     options,
     discriminator,
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   });
 }
 var ZodIntersection2 = /* @__PURE__ */ $constructor("ZodIntersection", (inst, def) => {
@@ -19262,7 +18765,7 @@ function record(keyType, valueType, params) {
     type: "record",
     keyType,
     valueType,
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   });
 }
 var ZodEnum2 = /* @__PURE__ */ $constructor("ZodEnum", (inst, def) => {
@@ -19282,7 +18785,7 @@ var ZodEnum2 = /* @__PURE__ */ $constructor("ZodEnum", (inst, def) => {
     return new ZodEnum2({
       ...def,
       checks: [],
-      ...exports_util.normalizeParams(params),
+      ...normalizeParams(params),
       entries: newEntries
     });
   };
@@ -19297,7 +18800,7 @@ var ZodEnum2 = /* @__PURE__ */ $constructor("ZodEnum", (inst, def) => {
     return new ZodEnum2({
       ...def,
       checks: [],
-      ...exports_util.normalizeParams(params),
+      ...normalizeParams(params),
       entries: newEntries
     });
   };
@@ -19307,7 +18810,7 @@ function _enum(values, params) {
   return new ZodEnum2({
     type: "enum",
     entries,
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   });
 }
 var ZodLiteral2 = /* @__PURE__ */ $constructor("ZodLiteral", (inst, def) => {
@@ -19327,7 +18830,7 @@ function literal(value, params) {
   return new ZodLiteral2({
     type: "literal",
     values: Array.isArray(value) ? value : [value],
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   });
 }
 var ZodTransform = /* @__PURE__ */ $constructor("ZodTransform", (inst, def) => {
@@ -19336,7 +18839,7 @@ var ZodTransform = /* @__PURE__ */ $constructor("ZodTransform", (inst, def) => {
   inst._zod.parse = (payload, _ctx) => {
     payload.addIssue = (issue2) => {
       if (typeof issue2 === "string") {
-        payload.issues.push(exports_util.issue(issue2, payload.value, def));
+        payload.issues.push(issue(issue2, payload.value, def));
       } else {
         const _issue = issue2;
         if (_issue.fatal)
@@ -19345,13 +18848,13 @@ var ZodTransform = /* @__PURE__ */ $constructor("ZodTransform", (inst, def) => {
         _issue.input ?? (_issue.input = payload.value);
         _issue.inst ?? (_issue.inst = inst);
         _issue.continue ?? (_issue.continue = true);
-        payload.issues.push(exports_util.issue(_issue));
+        payload.issues.push(issue(_issue));
       }
     };
     const output = def.transform(payload.value, payload);
     if (output instanceof Promise) {
-      return output.then((output2) => {
-        payload.value = output2;
+      return output.then((output) => {
+        payload.value = output;
         return payload;
       });
     }
@@ -19425,7 +18928,7 @@ function nonoptional(innerType, params) {
   return new ZodNonOptional({
     type: "nonoptional",
     innerType,
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   });
 }
 var ZodCatch2 = /* @__PURE__ */ $constructor("ZodCatch", (inst, def) => {
@@ -19475,7 +18978,7 @@ function check(fn) {
   ch._zod.check = fn;
   return ch;
 }
-function custom2(fn, _params) {
+function custom(fn, _params) {
   return _custom(ZodCustom, fn ?? (() => true), _params);
 }
 function refine(fn, _params = {}) {
@@ -19485,7 +18988,7 @@ function superRefine(fn) {
   const ch = check((payload) => {
     payload.addIssue = (issue2) => {
       if (typeof issue2 === "string") {
-        payload.issues.push(exports_util.issue(issue2, payload.value, ch._zod.def));
+        payload.issues.push(issue(issue2, payload.value, ch._zod.def));
       } else {
         const _issue = issue2;
         if (_issue.fatal)
@@ -19494,7 +18997,7 @@ function superRefine(fn) {
         _issue.input ?? (_issue.input = payload.value);
         _issue.inst ?? (_issue.inst = ch);
         _issue.continue ?? (_issue.continue = !ch._zod.def.abort);
-        payload.issues.push(exports_util.issue(_issue));
+        payload.issues.push(issue(_issue));
       }
     };
     return fn(payload.value, payload);
@@ -19512,7 +19015,7 @@ var LATEST_PROTOCOL_VERSION = "2025-11-25";
 var SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
 var RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
 var JSONRPC_VERSION = "2.0";
-var AssertObjectSchema = custom2((v) => v !== null && (typeof v === "object" || typeof v === "function"));
+var AssertObjectSchema = custom((v) => v !== null && (typeof v === "object" || typeof v === "function"));
 var ProgressTokenSchema = union([string2(), number2().int()]);
 var CursorSchema = string2();
 var TaskCreationParamsSchema = looseObject({
@@ -19569,15 +19072,15 @@ var JSONRPCResultResponseSchema = object2({
 }).strict();
 var isJSONRPCResultResponse = (value) => JSONRPCResultResponseSchema.safeParse(value).success;
 var ErrorCode;
-(function(ErrorCode2) {
-  ErrorCode2[ErrorCode2["ConnectionClosed"] = -32000] = "ConnectionClosed";
-  ErrorCode2[ErrorCode2["RequestTimeout"] = -32001] = "RequestTimeout";
-  ErrorCode2[ErrorCode2["ParseError"] = -32700] = "ParseError";
-  ErrorCode2[ErrorCode2["InvalidRequest"] = -32600] = "InvalidRequest";
-  ErrorCode2[ErrorCode2["MethodNotFound"] = -32601] = "MethodNotFound";
-  ErrorCode2[ErrorCode2["InvalidParams"] = -32602] = "InvalidParams";
-  ErrorCode2[ErrorCode2["InternalError"] = -32603] = "InternalError";
-  ErrorCode2[ErrorCode2["UrlElicitationRequired"] = -32042] = "UrlElicitationRequired";
+(function(ErrorCode) {
+  ErrorCode[ErrorCode["ConnectionClosed"] = -32000] = "ConnectionClosed";
+  ErrorCode[ErrorCode["RequestTimeout"] = -32001] = "RequestTimeout";
+  ErrorCode[ErrorCode["ParseError"] = -32700] = "ParseError";
+  ErrorCode[ErrorCode["InvalidRequest"] = -32600] = "InvalidRequest";
+  ErrorCode[ErrorCode["MethodNotFound"] = -32601] = "MethodNotFound";
+  ErrorCode[ErrorCode["InvalidParams"] = -32602] = "InvalidParams";
+  ErrorCode[ErrorCode["InternalError"] = -32603] = "InternalError";
+  ErrorCode[ErrorCode["UrlElicitationRequired"] = -32042] = "UrlElicitationRequired";
 })(ErrorCode || (ErrorCode = {}));
 var JSONRPCErrorResponseSchema = object2({
   jsonrpc: literal(JSONRPC_VERSION),
@@ -19804,7 +19307,7 @@ var RoleSchema = _enum(["user", "assistant"]);
 var AnnotationsSchema = object2({
   audience: array(RoleSchema).optional(),
   priority: number2().min(0).max(1).optional(),
-  lastModified: exports_iso2.datetime({ offset: true }).optional()
+  lastModified: datetime2({ offset: true }).optional()
 });
 var ResourceSchema = object2({
   ...BaseMetadataSchema.shape,
@@ -20481,38 +19984,38 @@ function parseBigintDef(def, refs) {
   };
   if (!def.checks)
     return res;
-  for (const check2 of def.checks) {
-    switch (check2.kind) {
+  for (const check of def.checks) {
+    switch (check.kind) {
       case "min":
         if (refs.target === "jsonSchema7") {
-          if (check2.inclusive) {
-            setResponseValueAndErrors(res, "minimum", check2.value, check2.message, refs);
+          if (check.inclusive) {
+            setResponseValueAndErrors(res, "minimum", check.value, check.message, refs);
           } else {
-            setResponseValueAndErrors(res, "exclusiveMinimum", check2.value, check2.message, refs);
+            setResponseValueAndErrors(res, "exclusiveMinimum", check.value, check.message, refs);
           }
         } else {
-          if (!check2.inclusive) {
+          if (!check.inclusive) {
             res.exclusiveMinimum = true;
           }
-          setResponseValueAndErrors(res, "minimum", check2.value, check2.message, refs);
+          setResponseValueAndErrors(res, "minimum", check.value, check.message, refs);
         }
         break;
       case "max":
         if (refs.target === "jsonSchema7") {
-          if (check2.inclusive) {
-            setResponseValueAndErrors(res, "maximum", check2.value, check2.message, refs);
+          if (check.inclusive) {
+            setResponseValueAndErrors(res, "maximum", check.value, check.message, refs);
           } else {
-            setResponseValueAndErrors(res, "exclusiveMaximum", check2.value, check2.message, refs);
+            setResponseValueAndErrors(res, "exclusiveMaximum", check.value, check.message, refs);
           }
         } else {
-          if (!check2.inclusive) {
+          if (!check.inclusive) {
             res.exclusiveMaximum = true;
           }
-          setResponseValueAndErrors(res, "maximum", check2.value, check2.message, refs);
+          setResponseValueAndErrors(res, "maximum", check.value, check.message, refs);
         }
         break;
       case "multipleOf":
-        setResponseValueAndErrors(res, "multipleOf", check2.value, check2.message, refs);
+        setResponseValueAndErrors(res, "multipleOf", check.value, check.message, refs);
         break;
     }
   }
@@ -20568,13 +20071,13 @@ var integerDateParser = (def, refs) => {
   if (refs.target === "openApi3") {
     return res;
   }
-  for (const check2 of def.checks) {
-    switch (check2.kind) {
+  for (const check of def.checks) {
+    switch (check.kind) {
       case "min":
-        setResponseValueAndErrors(res, "minimum", check2.value, check2.message, refs);
+        setResponseValueAndErrors(res, "minimum", check.value, check.message, refs);
         break;
       case "max":
-        setResponseValueAndErrors(res, "maximum", check2.value, check2.message, refs);
+        setResponseValueAndErrors(res, "maximum", check.value, check.message, refs);
         break;
     }
   }
@@ -20646,20 +20149,20 @@ function parseIntersectionDef(def, refs) {
 
 // node_modules/zod-to-json-schema/dist/esm/parsers/literal.js
 function parseLiteralDef(def, refs) {
-  const parsedType2 = typeof def.value;
-  if (parsedType2 !== "bigint" && parsedType2 !== "number" && parsedType2 !== "boolean" && parsedType2 !== "string") {
+  const parsedType = typeof def.value;
+  if (parsedType !== "bigint" && parsedType !== "number" && parsedType !== "boolean" && parsedType !== "string") {
     return {
       type: Array.isArray(def.value) ? "array" : "object"
     };
   }
   if (refs.target === "openApi3") {
     return {
-      type: parsedType2 === "bigint" ? "integer" : parsedType2,
+      type: parsedType === "bigint" ? "integer" : parsedType,
       enum: [def.value]
     };
   }
   return {
-    type: parsedType2 === "bigint" ? "integer" : parsedType2,
+    type: parsedType === "bigint" ? "integer" : parsedType,
     const: def.value
   };
 }
@@ -20692,132 +20195,132 @@ function parseStringDef(def, refs) {
     type: "string"
   };
   if (def.checks) {
-    for (const check2 of def.checks) {
-      switch (check2.kind) {
+    for (const check of def.checks) {
+      switch (check.kind) {
         case "min":
-          setResponseValueAndErrors(res, "minLength", typeof res.minLength === "number" ? Math.max(res.minLength, check2.value) : check2.value, check2.message, refs);
+          setResponseValueAndErrors(res, "minLength", typeof res.minLength === "number" ? Math.max(res.minLength, check.value) : check.value, check.message, refs);
           break;
         case "max":
-          setResponseValueAndErrors(res, "maxLength", typeof res.maxLength === "number" ? Math.min(res.maxLength, check2.value) : check2.value, check2.message, refs);
+          setResponseValueAndErrors(res, "maxLength", typeof res.maxLength === "number" ? Math.min(res.maxLength, check.value) : check.value, check.message, refs);
           break;
         case "email":
           switch (refs.emailStrategy) {
             case "format:email":
-              addFormat(res, "email", check2.message, refs);
+              addFormat(res, "email", check.message, refs);
               break;
             case "format:idn-email":
-              addFormat(res, "idn-email", check2.message, refs);
+              addFormat(res, "idn-email", check.message, refs);
               break;
             case "pattern:zod":
-              addPattern(res, zodPatterns.email, check2.message, refs);
+              addPattern(res, zodPatterns.email, check.message, refs);
               break;
           }
           break;
         case "url":
-          addFormat(res, "uri", check2.message, refs);
+          addFormat(res, "uri", check.message, refs);
           break;
         case "uuid":
-          addFormat(res, "uuid", check2.message, refs);
+          addFormat(res, "uuid", check.message, refs);
           break;
         case "regex":
-          addPattern(res, check2.regex, check2.message, refs);
+          addPattern(res, check.regex, check.message, refs);
           break;
         case "cuid":
-          addPattern(res, zodPatterns.cuid, check2.message, refs);
+          addPattern(res, zodPatterns.cuid, check.message, refs);
           break;
         case "cuid2":
-          addPattern(res, zodPatterns.cuid2, check2.message, refs);
+          addPattern(res, zodPatterns.cuid2, check.message, refs);
           break;
         case "startsWith":
-          addPattern(res, RegExp(`^${escapeLiteralCheckValue(check2.value, refs)}`), check2.message, refs);
+          addPattern(res, RegExp(`^${escapeLiteralCheckValue(check.value, refs)}`), check.message, refs);
           break;
         case "endsWith":
-          addPattern(res, RegExp(`${escapeLiteralCheckValue(check2.value, refs)}$`), check2.message, refs);
+          addPattern(res, RegExp(`${escapeLiteralCheckValue(check.value, refs)}$`), check.message, refs);
           break;
         case "datetime":
-          addFormat(res, "date-time", check2.message, refs);
+          addFormat(res, "date-time", check.message, refs);
           break;
         case "date":
-          addFormat(res, "date", check2.message, refs);
+          addFormat(res, "date", check.message, refs);
           break;
         case "time":
-          addFormat(res, "time", check2.message, refs);
+          addFormat(res, "time", check.message, refs);
           break;
         case "duration":
-          addFormat(res, "duration", check2.message, refs);
+          addFormat(res, "duration", check.message, refs);
           break;
         case "length":
-          setResponseValueAndErrors(res, "minLength", typeof res.minLength === "number" ? Math.max(res.minLength, check2.value) : check2.value, check2.message, refs);
-          setResponseValueAndErrors(res, "maxLength", typeof res.maxLength === "number" ? Math.min(res.maxLength, check2.value) : check2.value, check2.message, refs);
+          setResponseValueAndErrors(res, "minLength", typeof res.minLength === "number" ? Math.max(res.minLength, check.value) : check.value, check.message, refs);
+          setResponseValueAndErrors(res, "maxLength", typeof res.maxLength === "number" ? Math.min(res.maxLength, check.value) : check.value, check.message, refs);
           break;
         case "includes": {
-          addPattern(res, RegExp(escapeLiteralCheckValue(check2.value, refs)), check2.message, refs);
+          addPattern(res, RegExp(escapeLiteralCheckValue(check.value, refs)), check.message, refs);
           break;
         }
         case "ip": {
-          if (check2.version !== "v6") {
-            addFormat(res, "ipv4", check2.message, refs);
+          if (check.version !== "v6") {
+            addFormat(res, "ipv4", check.message, refs);
           }
-          if (check2.version !== "v4") {
-            addFormat(res, "ipv6", check2.message, refs);
+          if (check.version !== "v4") {
+            addFormat(res, "ipv6", check.message, refs);
           }
           break;
         }
         case "base64url":
-          addPattern(res, zodPatterns.base64url, check2.message, refs);
+          addPattern(res, zodPatterns.base64url, check.message, refs);
           break;
         case "jwt":
-          addPattern(res, zodPatterns.jwt, check2.message, refs);
+          addPattern(res, zodPatterns.jwt, check.message, refs);
           break;
         case "cidr": {
-          if (check2.version !== "v6") {
-            addPattern(res, zodPatterns.ipv4Cidr, check2.message, refs);
+          if (check.version !== "v6") {
+            addPattern(res, zodPatterns.ipv4Cidr, check.message, refs);
           }
-          if (check2.version !== "v4") {
-            addPattern(res, zodPatterns.ipv6Cidr, check2.message, refs);
+          if (check.version !== "v4") {
+            addPattern(res, zodPatterns.ipv6Cidr, check.message, refs);
           }
           break;
         }
         case "emoji":
-          addPattern(res, zodPatterns.emoji(), check2.message, refs);
+          addPattern(res, zodPatterns.emoji(), check.message, refs);
           break;
         case "ulid": {
-          addPattern(res, zodPatterns.ulid, check2.message, refs);
+          addPattern(res, zodPatterns.ulid, check.message, refs);
           break;
         }
         case "base64": {
           switch (refs.base64Strategy) {
             case "format:binary": {
-              addFormat(res, "binary", check2.message, refs);
+              addFormat(res, "binary", check.message, refs);
               break;
             }
             case "contentEncoding:base64": {
-              setResponseValueAndErrors(res, "contentEncoding", "base64", check2.message, refs);
+              setResponseValueAndErrors(res, "contentEncoding", "base64", check.message, refs);
               break;
             }
             case "pattern:zod": {
-              addPattern(res, zodPatterns.base64, check2.message, refs);
+              addPattern(res, zodPatterns.base64, check.message, refs);
               break;
             }
           }
           break;
         }
         case "nanoid": {
-          addPattern(res, zodPatterns.nanoid, check2.message, refs);
+          addPattern(res, zodPatterns.nanoid, check.message, refs);
         }
         case "toLowerCase":
         case "toUpperCase":
         case "trim":
           break;
         default:
-          ((_) => {})(check2);
+          ((_) => {})(check);
       }
     }
   }
   return res;
 }
-function escapeLiteralCheckValue(literal2, refs) {
-  return refs.patternStrategy === "escape" ? escapeNonAlphaNumeric(literal2) : literal2;
+function escapeLiteralCheckValue(literal, refs) {
+  return refs.patternStrategy === "escape" ? escapeNonAlphaNumeric(literal) : literal;
 }
 var ALPHA_NUMERIC = new Set("ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvxyz0123456789");
 function escapeNonAlphaNumeric(source) {
@@ -21040,11 +20543,11 @@ function parseMapDef(def, refs) {
 
 // node_modules/zod-to-json-schema/dist/esm/parsers/nativeEnum.js
 function parseNativeEnumDef(def) {
-  const object3 = def.values;
+  const object = def.values;
   const actualKeys = Object.keys(def.values).filter((key) => {
-    return typeof object3[object3[key]] !== "number";
+    return typeof object[object[key]] !== "number";
   });
-  const actualValues = actualKeys.map((key) => object3[key]);
+  const actualValues = actualKeys.map((key) => object[key]);
   const parsedTypes = Array.from(new Set(actualValues.map((values) => typeof values)));
   return {
     type: parsedTypes.length === 1 ? parsedTypes[0] === "string" ? "string" : "number" : ["string", "number"],
@@ -21085,15 +20588,15 @@ function parseUnionDef(def, refs) {
     return asAnyOf(def, refs);
   const options = def.options instanceof Map ? Array.from(def.options.values()) : def.options;
   if (options.every((x) => (x._def.typeName in primitiveMappings) && (!x._def.checks || !x._def.checks.length))) {
-    const types2 = options.reduce((types3, x) => {
+    const types = options.reduce((types, x) => {
       const type = primitiveMappings[x._def.typeName];
-      return type && !types3.includes(type) ? [...types3, type] : types3;
+      return type && !types.includes(type) ? [...types, type] : types;
     }, []);
     return {
-      type: types2.length > 1 ? types2 : types2[0]
+      type: types.length > 1 ? types : types[0]
     };
   } else if (options.every((x) => x._def.typeName === "ZodLiteral" && !x.description)) {
-    const types2 = options.reduce((acc, x) => {
+    const types = options.reduce((acc, x) => {
       const type = typeof x._def.value;
       switch (type) {
         case "string":
@@ -21112,8 +20615,8 @@ function parseUnionDef(def, refs) {
           return acc;
       }
     }, []);
-    if (types2.length === options.length) {
-      const uniqueTypes = types2.filter((x, i, a) => a.indexOf(x) === i);
+    if (types.length === options.length) {
+      const uniqueTypes = types.filter((x, i, a) => a.indexOf(x) === i);
       return {
         type: uniqueTypes.length > 1 ? uniqueTypes : uniqueTypes[0],
         enum: options.reduce((acc, x) => {
@@ -21126,7 +20629,7 @@ function parseUnionDef(def, refs) {
       type: "string",
       enum: options.reduce((acc, x) => [
         ...acc,
-        ...x._def.values.filter((x2) => !acc.includes(x2))
+        ...x._def.values.filter((x) => !acc.includes(x))
       ], [])
     };
   }
@@ -21157,13 +20660,13 @@ function parseNullableDef(def, refs) {
     };
   }
   if (refs.target === "openApi3") {
-    const base2 = parseDef(def.innerType._def, {
+    const base = parseDef(def.innerType._def, {
       ...refs,
       currentPath: [...refs.currentPath]
     });
-    if (base2 && "$ref" in base2)
-      return { allOf: [base2], nullable: true };
-    return base2 && { ...base2, nullable: true };
+    if (base && "$ref" in base)
+      return { allOf: [base], nullable: true };
+    return base && { ...base, nullable: true };
   }
   const base = parseDef(def.innerType._def, {
     ...refs,
@@ -21179,42 +20682,42 @@ function parseNumberDef(def, refs) {
   };
   if (!def.checks)
     return res;
-  for (const check2 of def.checks) {
-    switch (check2.kind) {
+  for (const check of def.checks) {
+    switch (check.kind) {
       case "int":
         res.type = "integer";
-        addErrorMessage(res, "type", check2.message, refs);
+        addErrorMessage(res, "type", check.message, refs);
         break;
       case "min":
         if (refs.target === "jsonSchema7") {
-          if (check2.inclusive) {
-            setResponseValueAndErrors(res, "minimum", check2.value, check2.message, refs);
+          if (check.inclusive) {
+            setResponseValueAndErrors(res, "minimum", check.value, check.message, refs);
           } else {
-            setResponseValueAndErrors(res, "exclusiveMinimum", check2.value, check2.message, refs);
+            setResponseValueAndErrors(res, "exclusiveMinimum", check.value, check.message, refs);
           }
         } else {
-          if (!check2.inclusive) {
+          if (!check.inclusive) {
             res.exclusiveMinimum = true;
           }
-          setResponseValueAndErrors(res, "minimum", check2.value, check2.message, refs);
+          setResponseValueAndErrors(res, "minimum", check.value, check.message, refs);
         }
         break;
       case "max":
         if (refs.target === "jsonSchema7") {
-          if (check2.inclusive) {
-            setResponseValueAndErrors(res, "maximum", check2.value, check2.message, refs);
+          if (check.inclusive) {
+            setResponseValueAndErrors(res, "maximum", check.value, check.message, refs);
           } else {
-            setResponseValueAndErrors(res, "exclusiveMaximum", check2.value, check2.message, refs);
+            setResponseValueAndErrors(res, "exclusiveMaximum", check.value, check.message, refs);
           }
         } else {
-          if (!check2.inclusive) {
+          if (!check.inclusive) {
             res.exclusiveMaximum = true;
           }
-          setResponseValueAndErrors(res, "maximum", check2.value, check2.message, refs);
+          setResponseValueAndErrors(res, "maximum", check.value, check.message, refs);
         }
         break;
       case "multipleOf":
-        setResponseValueAndErrors(res, "multipleOf", check2.value, check2.message, refs);
+        setResponseValueAndErrors(res, "multipleOf", check.value, check.message, refs);
         break;
     }
   }
@@ -21228,7 +20731,7 @@ function parseObjectDef(def, refs) {
     type: "object",
     properties: {}
   };
-  const required2 = [];
+  const required = [];
   const shape = def.shape();
   for (const propName in shape) {
     let propDef = shape[propName];
@@ -21255,11 +20758,11 @@ function parseObjectDef(def, refs) {
     }
     result.properties[propName] = parsedDef;
     if (!propOptional) {
-      required2.push(propName);
+      required.push(propName);
     }
   }
-  if (required2.length) {
-    result.required = required2;
+  if (required.length) {
+    result.required = required;
   }
   const additionalProperties = decideAdditionalProperties(def, refs);
   if (additionalProperties !== undefined) {
@@ -21536,11 +21039,11 @@ var addMeta = (def, refs, jsonSchema) => {
 // node_modules/zod-to-json-schema/dist/esm/zodToJsonSchema.js
 var zodToJsonSchema = (schema, options) => {
   const refs = getRefs(options);
-  let definitions = typeof options === "object" && options.definitions ? Object.entries(options.definitions).reduce((acc, [name2, schema2]) => ({
+  let definitions = typeof options === "object" && options.definitions ? Object.entries(options.definitions).reduce((acc, [name, schema]) => ({
     ...acc,
-    [name2]: parseDef(schema2._def, {
+    [name]: parseDef(schema._def, {
       ...refs,
-      currentPath: [...refs.basePath, refs.definitionPath, name2]
+      currentPath: [...refs.basePath, refs.definitionPath, name]
     }, true) ?? parseAnyDef(refs)
   }), {}) : undefined;
   const name = typeof options === "string" ? options : options?.nameStrategy === "title" ? undefined : options?.name;
@@ -21686,8 +21189,8 @@ class Protocol {
                     resolver(message);
                   } else {
                     const errorMessage = message;
-                    const error2 = new McpError(errorMessage.error.code, errorMessage.error.message, errorMessage.error.data);
-                    resolver(error2);
+                    const error = new McpError(errorMessage.error.code, errorMessage.error.message, errorMessage.error.data);
+                    resolver(error);
                   }
                 } else {
                   const messageType = queuedMessage.type === "response" ? "Response" : "Error";
@@ -21731,8 +21234,8 @@ class Protocol {
             nextCursor,
             _meta: {}
           };
-        } catch (error2) {
-          throw new McpError(ErrorCode.InvalidParams, `Failed to list tasks: ${error2 instanceof Error ? error2.message : String(error2)}`);
+        } catch (error) {
+          throw new McpError(ErrorCode.InvalidParams, `Failed to list tasks: ${error instanceof Error ? error.message : String(error)}`);
         }
       });
       this.setRequestHandler(CancelTaskRequestSchema, async (request, extra) => {
@@ -21754,11 +21257,11 @@ class Protocol {
             _meta: {},
             ...cancelledTask
           };
-        } catch (error2) {
-          if (error2 instanceof McpError) {
-            throw error2;
+        } catch (error) {
+          if (error instanceof McpError) {
+            throw error;
           }
-          throw new McpError(ErrorCode.InvalidRequest, `Failed to cancel task: ${error2 instanceof Error ? error2.message : String(error2)}`);
+          throw new McpError(ErrorCode.InvalidRequest, `Failed to cancel task: ${error instanceof Error ? error.message : String(error)}`);
         }
       });
     }
@@ -21814,9 +21317,9 @@ class Protocol {
       this._onclose();
     };
     const _onerror = this.transport?.onerror;
-    this._transport.onerror = (error2) => {
-      _onerror?.(error2);
-      this._onerror(error2);
+    this._transport.onerror = (error) => {
+      _onerror?.(error);
+      this._onerror(error);
     };
     const _onmessage = this._transport?.onmessage;
     this._transport.onmessage = (message, extra) => {
@@ -21847,22 +21350,22 @@ class Protocol {
       controller.abort();
     }
     this._requestHandlerAbortControllers.clear();
-    const error2 = McpError.fromError(ErrorCode.ConnectionClosed, "Connection closed");
+    const error = McpError.fromError(ErrorCode.ConnectionClosed, "Connection closed");
     this._transport = undefined;
     this.onclose?.();
     for (const handler of responseHandlers.values()) {
-      handler(error2);
+      handler(error);
     }
   }
-  _onerror(error2) {
-    this.onerror?.(error2);
+  _onerror(error) {
+    this.onerror?.(error);
   }
   _onnotification(notification) {
     const handler = this._notificationHandlers.get(notification.method) ?? this.fallbackNotificationHandler;
     if (handler === undefined) {
       return;
     }
-    Promise.resolve().then(() => handler(notification)).catch((error2) => this._onerror(new Error(`Uncaught error in notification handler: ${error2}`)));
+    Promise.resolve().then(() => handler(notification)).catch((error) => this._onerror(new Error(`Uncaught error in notification handler: ${error}`)));
   }
   _onrequest(request, extra) {
     const handler = this._requestHandlers.get(request.method) ?? this.fallbackRequestHandler;
@@ -21882,9 +21385,9 @@ class Protocol {
           type: "error",
           message: errorResponse,
           timestamp: Date.now()
-        }, capturedTransport?.sessionId).catch((error2) => this._onerror(new Error(`Failed to enqueue error response: ${error2}`)));
+        }, capturedTransport?.sessionId).catch((error) => this._onerror(new Error(`Failed to enqueue error response: ${error}`)));
       } else {
-        capturedTransport?.send(errorResponse).catch((error2) => this._onerror(new Error(`Failed to send an error response: ${error2}`)));
+        capturedTransport?.send(errorResponse).catch((error) => this._onerror(new Error(`Failed to send an error response: ${error}`)));
       }
       return;
     }
@@ -21950,7 +21453,7 @@ class Protocol {
       } else {
         await capturedTransport?.send(response);
       }
-    }, async (error2) => {
+    }, async (error) => {
       if (abortController.signal.aborted) {
         return;
       }
@@ -21958,9 +21461,9 @@ class Protocol {
         jsonrpc: "2.0",
         id: request.id,
         error: {
-          code: Number.isSafeInteger(error2["code"]) ? error2["code"] : ErrorCode.InternalError,
-          message: error2.message ?? "Internal error",
-          ...error2["data"] !== undefined && { data: error2["data"] }
+          code: Number.isSafeInteger(error["code"]) ? error["code"] : ErrorCode.InternalError,
+          message: error.message ?? "Internal error",
+          ...error["data"] !== undefined && { data: error["data"] }
         }
       };
       if (relatedTaskId && this._taskMessageQueue) {
@@ -21972,7 +21475,7 @@ class Protocol {
       } else {
         await capturedTransport?.send(errorResponse);
       }
-    }).catch((error2) => this._onerror(new Error(`Failed to send response: ${error2}`))).finally(() => {
+    }).catch((error) => this._onerror(new Error(`Failed to send response: ${error}`))).finally(() => {
       if (this._requestHandlerAbortControllers.get(request.id) === abortController) {
         this._requestHandlerAbortControllers.delete(request.id);
       }
@@ -21991,11 +21494,11 @@ class Protocol {
     if (timeoutInfo && responseHandler && timeoutInfo.resetTimeoutOnProgress) {
       try {
         this._resetTimeout(messageId);
-      } catch (error2) {
+      } catch (error) {
         this._responseHandlers.delete(messageId);
         this._progressHandlers.delete(messageId);
         this._cleanupTimeout(messageId);
-        responseHandler(error2);
+        responseHandler(error);
         return;
       }
     }
@@ -22009,8 +21512,8 @@ class Protocol {
       if (isJSONRPCResultResponse(response)) {
         resolver(response);
       } else {
-        const error2 = new McpError(response.error.code, response.error.message, response.error.data);
-        resolver(error2);
+        const error = new McpError(response.error.code, response.error.message, response.error.data);
+        resolver(error);
       }
       return;
     }
@@ -22038,8 +21541,8 @@ class Protocol {
     if (isJSONRPCResultResponse(response)) {
       handler(response);
     } else {
-      const error2 = McpError.fromError(response.error.code, response.error.message, response.error.data);
-      handler(error2);
+      const error = McpError.fromError(response.error.code, response.error.message, response.error.data);
+      handler(error);
     }
   }
   get transport() {
@@ -22054,10 +21557,10 @@ class Protocol {
       try {
         const result = await this.request(request, resultSchema, options);
         yield { type: "result", result };
-      } catch (error2) {
+      } catch (error) {
         yield {
           type: "error",
-          error: error2 instanceof McpError ? error2 : new McpError(ErrorCode.InternalError, String(error2))
+          error: error instanceof McpError ? error : new McpError(ErrorCode.InternalError, String(error))
         };
       }
       return;
@@ -22072,18 +21575,18 @@ class Protocol {
         throw new McpError(ErrorCode.InternalError, "Task creation did not return a task");
       }
       while (true) {
-        const task2 = await this.getTask({ taskId }, options);
-        yield { type: "taskStatus", task: task2 };
-        if (isTerminal(task2.status)) {
-          if (task2.status === "completed") {
+        const task = await this.getTask({ taskId }, options);
+        yield { type: "taskStatus", task };
+        if (isTerminal(task.status)) {
+          if (task.status === "completed") {
             const result = await this.getTaskResult({ taskId }, resultSchema, options);
             yield { type: "result", result };
-          } else if (task2.status === "failed") {
+          } else if (task.status === "failed") {
             yield {
               type: "error",
               error: new McpError(ErrorCode.InternalError, `Task ${taskId} failed`)
             };
-          } else if (task2.status === "cancelled") {
+          } else if (task.status === "cancelled") {
             yield {
               type: "error",
               error: new McpError(ErrorCode.InternalError, `Task ${taskId} was cancelled`)
@@ -22091,27 +21594,27 @@ class Protocol {
           }
           return;
         }
-        if (task2.status === "input_required") {
+        if (task.status === "input_required") {
           const result = await this.getTaskResult({ taskId }, resultSchema, options);
           yield { type: "result", result };
           return;
         }
-        const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1000;
+        const pollInterval = task.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1000;
         await new Promise((resolve) => setTimeout(resolve, pollInterval));
         options?.signal?.throwIfAborted();
       }
-    } catch (error2) {
+    } catch (error) {
       yield {
         type: "error",
-        error: error2 instanceof McpError ? error2 : new McpError(ErrorCode.InternalError, String(error2))
+        error: error instanceof McpError ? error : new McpError(ErrorCode.InternalError, String(error))
       };
     }
   }
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
     return new Promise((resolve, reject) => {
-      const earlyReject = (error2) => {
-        reject(error2);
+      const earlyReject = (error) => {
+        reject(error);
       };
       if (!this._transport) {
         earlyReject(new Error("Not connected"));
@@ -22171,9 +21674,9 @@ class Protocol {
             requestId: messageId,
             reason: String(reason)
           }
-        }, { relatedRequestId, resumptionToken, onresumptiontoken }).catch((error3) => this._onerror(new Error(`Failed to send cancellation: ${error3}`)));
-        const error2 = reason instanceof McpError ? reason : new McpError(ErrorCode.RequestTimeout, String(reason));
-        reject(error2);
+        }, { relatedRequestId, resumptionToken, onresumptiontoken }).catch((error) => this._onerror(new Error(`Failed to send cancellation: ${error}`)));
+        const error = reason instanceof McpError ? reason : new McpError(ErrorCode.RequestTimeout, String(reason));
+        reject(error);
       };
       this._responseHandlers.set(messageId, (response) => {
         if (options?.signal?.aborted) {
@@ -22189,8 +21692,8 @@ class Protocol {
           } else {
             resolve(parseResult.data);
           }
-        } catch (error2) {
-          reject(error2);
+        } catch (error) {
+          reject(error);
         }
       });
       options?.signal?.addEventListener("abort", () => {
@@ -22214,14 +21717,14 @@ class Protocol {
           type: "request",
           message: jsonrpcRequest,
           timestamp: Date.now()
-        }).catch((error2) => {
+        }).catch((error) => {
           this._cleanupTimeout(messageId);
-          reject(error2);
+          reject(error);
         });
       } else {
-        this._transport.send(jsonrpcRequest, { relatedRequestId, resumptionToken, onresumptiontoken }).catch((error2) => {
+        this._transport.send(jsonrpcRequest, { relatedRequestId, resumptionToken, onresumptiontoken }).catch((error) => {
           this._cleanupTimeout(messageId);
-          reject(error2);
+          reject(error);
         });
       }
     });
@@ -22245,7 +21748,7 @@ class Protocol {
     this.assertNotificationCapability(notification.method);
     const relatedTaskId = options?.relatedTask?.taskId;
     if (relatedTaskId) {
-      const jsonrpcNotification2 = {
+      const jsonrpcNotification = {
         ...notification,
         jsonrpc: "2.0",
         params: {
@@ -22258,7 +21761,7 @@ class Protocol {
       };
       await this._enqueueTaskMessage(relatedTaskId, {
         type: "notification",
-        message: jsonrpcNotification2,
+        message: jsonrpcNotification,
         timestamp: Date.now()
       });
       return;
@@ -22275,23 +21778,23 @@ class Protocol {
         if (!this._transport) {
           return;
         }
-        let jsonrpcNotification2 = {
+        let jsonrpcNotification = {
           ...notification,
           jsonrpc: "2.0"
         };
         if (options?.relatedTask) {
-          jsonrpcNotification2 = {
-            ...jsonrpcNotification2,
+          jsonrpcNotification = {
+            ...jsonrpcNotification,
             params: {
-              ...jsonrpcNotification2.params,
+              ...jsonrpcNotification.params,
               _meta: {
-                ...jsonrpcNotification2.params?._meta || {},
+                ...jsonrpcNotification.params?._meta || {},
                 [RELATED_TASK_META_KEY]: options.relatedTask
               }
             }
           };
         }
-        this._transport?.send(jsonrpcNotification2, options).catch((error2) => this._onerror(error2));
+        this._transport?.send(jsonrpcNotification, options).catch((error) => this._onerror(error));
       });
       return;
     }
@@ -22911,11 +22414,11 @@ class Server extends Protocol {
             if (!validationResult.valid) {
               throw new McpError(ErrorCode.InvalidParams, `Elicitation response content does not match requested schema: ${validationResult.errorMessage}`);
             }
-          } catch (error2) {
-            if (error2 instanceof McpError) {
-              throw error2;
+          } catch (error) {
+            if (error instanceof McpError) {
+              throw error;
             }
-            throw new McpError(ErrorCode.InternalError, `Error validating elicitation response: ${error2 instanceof Error ? error2.message : String(error2)}`);
+            throw new McpError(ErrorCode.InternalError, `Error validating elicitation response: ${error instanceof Error ? error.message : String(error)}`);
           }
         }
         return result;
@@ -22972,8 +22475,8 @@ function getCompleter(schema) {
   return meta?.complete;
 }
 var McpZodTypeKind;
-(function(McpZodTypeKind2) {
-  McpZodTypeKind2["Completable"] = "McpCompletable";
+(function(McpZodTypeKind) {
+  McpZodTypeKind["Completable"] = "McpCompletable";
 })(McpZodTypeKind || (McpZodTypeKind = {}));
 
 // node_modules/@modelcontextprotocol/sdk/dist/esm/shared/toolNameValidation.js
@@ -23039,13 +22542,13 @@ class ExperimentalMcpServerTasks {
   constructor(_mcpServer) {
     this._mcpServer = _mcpServer;
   }
-  registerToolTask(name, config2, handler) {
-    const execution = { taskSupport: "required", ...config2.execution };
+  registerToolTask(name, config, handler) {
+    const execution = { taskSupport: "required", ...config.execution };
     if (execution.taskSupport === "forbidden") {
       throw new Error(`Cannot register task-based tool '${name}' with taskSupport 'forbidden'. Use registerTool() instead.`);
     }
     const mcpServerInternal = this._mcpServer;
-    return mcpServerInternal._createRegisteredTool(name, config2.title, config2.description, config2.inputSchema, config2.outputSchema, config2.annotations, execution, config2._meta, handler);
+    return mcpServerInternal._createRegisteredTool(name, config.title, config.description, config.inputSchema, config.outputSchema, config.annotations, execution, config._meta, handler);
   }
 }
 // node_modules/@modelcontextprotocol/sdk/dist/esm/server/mcp.js
@@ -23143,13 +22646,13 @@ class McpServer {
         }
         await this.validateToolOutput(tool, result, request.params.name);
         return result;
-      } catch (error2) {
-        if (error2 instanceof McpError) {
-          if (error2.code === ErrorCode.UrlElicitationRequired) {
-            throw error2;
+      } catch (error) {
+        if (error instanceof McpError) {
+          if (error.code === ErrorCode.UrlElicitationRequired) {
+            throw error;
           }
         }
-        return this.createToolError(error2 instanceof Error ? error2.message : String(error2));
+        return this.createToolError(error instanceof Error ? error.message : String(error));
       }
     });
     this._toolHandlersInitialized = true;
@@ -23173,8 +22676,8 @@ class McpServer {
     const schemaToParse = inputObj ?? tool.inputSchema;
     const parseResult = await safeParseAsync2(schemaToParse, args);
     if (!parseResult.success) {
-      const error2 = "error" in parseResult ? parseResult.error : "Unknown error";
-      const errorMessage = getParseErrorMessage(error2);
+      const error = "error" in parseResult ? parseResult.error : "Unknown error";
+      const errorMessage = getParseErrorMessage(error);
       throw new McpError(ErrorCode.InvalidParams, `Input validation error: Invalid arguments for tool ${toolName}: ${errorMessage}`);
     }
     return parseResult.data;
@@ -23195,8 +22698,8 @@ class McpServer {
     const outputObj = normalizeObjectSchema(tool.outputSchema);
     const parseResult = await safeParseAsync2(outputObj, result.structuredContent);
     if (!parseResult.success) {
-      const error2 = "error" in parseResult ? parseResult.error : "Unknown error";
-      const errorMessage = getParseErrorMessage(error2);
+      const error = "error" in parseResult ? parseResult.error : "Unknown error";
+      const errorMessage = getParseErrorMessage(error);
       throw new McpError(ErrorCode.InvalidParams, `Output validation error: Invalid structured content for tool ${toolName}: ${errorMessage}`);
     }
   }
@@ -23398,8 +22901,8 @@ class McpServer {
         const argsObj = normalizeObjectSchema(prompt.argsSchema);
         const parseResult = await safeParseAsync2(argsObj, request.params.arguments);
         if (!parseResult.success) {
-          const error2 = "error" in parseResult ? parseResult.error : "Unknown error";
-          const errorMessage = getParseErrorMessage(error2);
+          const error = "error" in parseResult ? parseResult.error : "Unknown error";
+          const errorMessage = getParseErrorMessage(error);
           throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for prompt ${request.params.name}: ${errorMessage}`);
         }
         const args = parseResult.data;
@@ -23436,12 +22939,12 @@ class McpServer {
       return registeredResourceTemplate;
     }
   }
-  registerResource(name, uriOrTemplate, config2, readCallback) {
+  registerResource(name, uriOrTemplate, config, readCallback) {
     if (typeof uriOrTemplate === "string") {
       if (this._registeredResources[uriOrTemplate]) {
         throw new Error(`Resource ${uriOrTemplate} is already registered`);
       }
-      const registeredResource = this._createRegisteredResource(name, config2.title, uriOrTemplate, config2, readCallback);
+      const registeredResource = this._createRegisteredResource(name, config.title, uriOrTemplate, config, readCallback);
       this.setResourceRequestHandlers();
       this.sendResourceListChanged();
       return registeredResource;
@@ -23449,7 +22952,7 @@ class McpServer {
       if (this._registeredResourceTemplates[name]) {
         throw new Error(`Resource template ${name} is already registered`);
       }
-      const registeredResourceTemplate = this._createRegisteredResourceTemplate(name, config2.title, uriOrTemplate, config2, readCallback);
+      const registeredResourceTemplate = this._createRegisteredResourceTemplate(name, config.title, uriOrTemplate, config, readCallback);
       this.setResourceRequestHandlers();
       this.sendResourceListChanged();
       return registeredResourceTemplate;
@@ -23641,11 +23144,11 @@ class McpServer {
     const callback = rest[0];
     return this._createRegisteredTool(name, undefined, description, inputSchema, outputSchema, annotations, { taskSupport: "forbidden" }, undefined, callback);
   }
-  registerTool(name, config2, cb) {
+  registerTool(name, config, cb) {
     if (this._registeredTools[name]) {
       throw new Error(`Tool ${name} is already registered`);
     }
-    const { title, description, inputSchema, outputSchema, annotations, _meta } = config2;
+    const { title, description, inputSchema, outputSchema, annotations, _meta } = config;
     return this._createRegisteredTool(name, title, description, inputSchema, outputSchema, annotations, { taskSupport: "forbidden" }, _meta, cb);
   }
   prompt(name, ...rest) {
@@ -23666,11 +23169,11 @@ class McpServer {
     this.sendPromptListChanged();
     return registeredPrompt;
   }
-  registerPrompt(name, config2, cb) {
+  registerPrompt(name, config, cb) {
     if (this._registeredPrompts[name]) {
       throw new Error(`Prompt ${name} is already registered`);
     }
-    const { title, description, argsSchema } = config2;
+    const { title, description, argsSchema } = config;
     const registeredPrompt = this._createRegisteredPrompt(name, title, description, argsSchema, cb);
     this.setPromptRequestHandlers();
     this.sendPromptListChanged();
@@ -23818,8 +23321,8 @@ class StdioServerTransport {
       this._readBuffer.append(chunk);
       this.processReadBuffer();
     };
-    this._onerror = (error2) => {
-      this.onerror?.(error2);
+    this._onerror = (error) => {
+      this.onerror?.(error);
     };
   }
   async start() {
@@ -23838,8 +23341,8 @@ class StdioServerTransport {
           break;
         }
         this.onmessage?.(message);
-      } catch (error2) {
-        this.onerror?.(error2);
+      } catch (error) {
+        this.onerror?.(error);
       }
     }
   }
@@ -23990,9 +23493,9 @@ var powerShellPath = async () => {
 };
 
 // node_modules/define-lazy-prop/index.js
-function defineLazyProperty(object4, propertyName, valueGetter) {
-  const define = (value) => Object.defineProperty(object4, propertyName, { value, enumerable: true, writable: true });
-  Object.defineProperty(object4, propertyName, {
+function defineLazyProperty(object, propertyName, valueGetter) {
+  const define = (value) => Object.defineProperty(object, propertyName, { value, enumerable: true, writable: true });
+  Object.defineProperty(object, propertyName, {
     configurable: true,
     enumerable: true,
     get() {
@@ -24004,7 +23507,7 @@ function defineLazyProperty(object4, propertyName, valueGetter) {
       define(value);
     }
   });
-  return object4;
+  return object;
 }
 
 // node_modules/default-browser/index.js
@@ -24101,7 +23604,7 @@ async function defaultBrowser(_execFileAsync = execFileAsync3) {
 
 // node_modules/default-browser/index.js
 var execFileAsync4 = promisify4(execFile4);
-var titleize = (string4) => string4.toLowerCase().replaceAll(/(?:^|\s|-)\S/g, (x) => x.toUpperCase());
+var titleize = (string) => string.toLowerCase().replaceAll(/(?:^|\s|-)\S/g, (x) => x.toUpperCase());
 async function defaultBrowser2() {
   if (process7.platform === "darwin") {
     const id = await defaultBrowserId();
@@ -24146,13 +23649,13 @@ async function getWindowsDefaultBrowserFromWsl() {
   };
   return browserMap[progId] ? { id: browserMap[progId] } : {};
 }
-var pTryEach = async (array3, mapper) => {
+var pTryEach = async (array, mapper) => {
   let latestError;
-  for (const item of array3) {
+  for (const item of array) {
     try {
       return await mapper(item);
-    } catch (error2) {
-      latestError = error2;
+    } catch (error) {
+      latestError = error;
     }
   }
   throw latestError;
@@ -24486,9 +23989,9 @@ async function exchangeCodeForTokens(opts) {
 async function login(deps) {
   const {
     apiBaseUrl,
-    openBrowser: open2,
+    openBrowser: open,
     startCallbackServer,
-    log: log2
+    log
   } = deps;
   const credFile = deps.credentialsFilePath ?? defaultCredentialsPath();
   const server = await startCallbackServer();
@@ -24496,9 +23999,9 @@ async function login(deps) {
   const { codeVerifier, codeChallenge } = await generatePkce();
   const siteBaseUrl = deps.siteBaseUrl ?? "https://upubli.sh";
   const authUrl = buildAuthUrl({ siteBaseUrl, redirectUri, codeChallenge });
-  log2("Opening browser for sign-in...");
-  await open2(authUrl);
-  log2("Waiting for sign-in to finish in your browser (first-time setup happens there)...");
+  log("Opening browser for sign-in...");
+  await open(authUrl);
+  log("Waiting for sign-in to finish in your browser (first-time setup happens there)...");
   let code;
   try {
     code = await server.waitForCode();
@@ -24512,9 +24015,9 @@ async function login(deps) {
     fetchFn: deps.fetchFn
   });
   await saveCredentials(credFile, tokens.refresh_token);
-  log2("");
-  log2(`Authenticated as: ${tokens.username}`);
-  log2(`Credentials stored at: ${credFile}`);
+  log("");
+  log(`Authenticated as: ${tokens.username}`);
+  log(`Credentials stored at: ${credFile}`);
   return {
     username: tokens.username,
     credentialsFilePath: credFile
@@ -24542,9 +24045,9 @@ class ApiClient {
     this.tokenProvider = tokenProvider;
     this.fetchFn = fetchFn;
   }
-  async get(path3) {
+  async get(path) {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path3}`, {
+    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -24553,9 +24056,9 @@ class ApiClient {
     });
     return this.parseResponse(response);
   }
-  async post(path3, body) {
+  async post(path, body) {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path3}`, {
+    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -24566,9 +24069,9 @@ class ApiClient {
     });
     return this.parseResponse(response);
   }
-  async put(path3, body) {
+  async put(path, body) {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path3}`, {
+    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -24579,9 +24082,9 @@ class ApiClient {
     });
     return this.parseResponse(response);
   }
-  async patch(path3, body) {
+  async patch(path, body) {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path3}`, {
+    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -24592,9 +24095,9 @@ class ApiClient {
     });
     return this.parseResponse(response);
   }
-  async delete(path3) {
+  async delete(path) {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path3}`, {
+    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -24743,9 +24246,9 @@ var FILENAME_WARNING_LIST_CAP = 10;
 function classifyFilenames(paths) {
   const fragile = [];
   const fyi = [];
-  for (const path3 of paths) {
-    const slash = path3.lastIndexOf("/");
-    const name = slash === -1 ? path3 : path3.slice(slash + 1);
+  for (const path of paths) {
+    const slash = path.lastIndexOf("/");
+    const name = slash === -1 ? path : path.slice(slash + 1);
     let isFragile = false;
     let isFyi = false;
     for (const ch of name) {
@@ -24759,9 +24262,9 @@ function classifyFilenames(paths) {
       }
     }
     if (isFragile)
-      fragile.push(path3);
+      fragile.push(path);
     else if (isFyi)
-      fyi.push(path3);
+      fyi.push(path);
   }
   return { fragile, fyi };
 }
@@ -24908,7 +24411,7 @@ async function uploadChangedFiles(opts) {
   }
   const total = needed.length;
   const totalBatches = Math.ceil(total / UPLOAD_CONCURRENCY);
-  const sizeOf = (path3) => files[path3]?.size ?? 0;
+  const sizeOf = (path) => files[path]?.size ?? 0;
   const totalBytes = needed.reduce((sum, item) => sum + sizeOf(item.path), 0);
   let completed = 0;
   let completedBytes = 0;
@@ -24963,6 +24466,16 @@ async function uploadOneFile(item, files, fetchFn) {
     }
   }
 }
+function resolveDefaultTitle(slug, namespaceName, existingTitle) {
+  if (slug !== "_root")
+    return slug;
+  if (existingTitle != null) {
+    const trimmed = existingTitle.trim();
+    if (trimmed !== "" && trimmed !== "_root")
+      return existingTitle;
+  }
+  return namespaceName ?? slug;
+}
 async function publish(opts) {
   const {
     apiClient,
@@ -24971,6 +24484,8 @@ async function publish(opts) {
     slug,
     pathPrefix,
     title,
+    namespaceName,
+    existingTitle,
     visibility,
     passcode,
     passcodeLabel,
@@ -25003,8 +24518,8 @@ async function publish(opts) {
     throw new Error("Directory is empty \u2014 no files to publish");
   }
   const collectedFiles = await hashFiles(fileList, { onHashProgress });
-  const files = Object.entries(collectedFiles).map(([path3, file]) => ({
-    path: path3,
+  const files = Object.entries(collectedFiles).map(([path, file]) => ({
+    path,
     hash: force ? crypto.randomUUID() : file.hash,
     size: file.size
   }));
@@ -25014,7 +24529,7 @@ async function publish(opts) {
   try {
     manifestResult = await apiClient.manifest(nsId, slug, {
       files,
-      title: title ?? slug,
+      title: title ?? resolveDefaultTitle(slug, namespaceName, existingTitle),
       visibility,
       passcode: visibility === "passcode" ? passcode : undefined,
       passcode_label: visibility === "passcode" ? passcodeLabel ?? "default" : undefined,
@@ -25200,7 +24715,10 @@ async function setGate(apiClient, nsId, slug, fields) {
   if (!fields || fields.length === 0) {
     throw new Error("fields is required");
   }
-  const response = await apiClient.put(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/gate`, { fields });
+  const body = {
+    fields: fields.map((type) => ({ type, required: true }))
+  };
+  const response = await apiClient.put(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/gate`, body);
   return { gate: response.gate };
 }
 async function removeGate(apiClient, nsId, slug) {
@@ -25214,6 +24732,11 @@ async function getSubmissions(apiClient, nsId, slug) {
 async function clearSubmissions(apiClient, nsId, slug) {
   const response = await apiClient.delete(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/gate/submissions`);
   return { message: response.message };
+}
+function formatGateFields(fields) {
+  if (fields.length === 0)
+    return "(none)";
+  return fields.map((f) => f.required === false ? `${f.type} (optional)` : f.type).join(", ");
 }
 
 // lib/members.ts
@@ -25245,9 +24768,106 @@ async function changeMemberRole(apiClient, nsId, username, role) {
 }
 
 // lib/qrcode.ts
-var import_qrcode = __toESM(require_server(), 1);
 import * as fs7 from "fs";
 import * as path3 from "path";
+
+// node_modules/qrcode/lib/server.js
+var canPromise = require_can_promise();
+var QRCode = require_qrcode();
+var PngRenderer = require_png2();
+var Utf8Renderer = require_utf8();
+var TerminalRenderer = require_terminal2();
+var SvgRenderer = require_svg();
+function checkParams(text, opts, cb) {
+  if (typeof text === "undefined") {
+    throw new Error("String required as first argument");
+  }
+  if (typeof cb === "undefined") {
+    cb = opts;
+    opts = {};
+  }
+  if (typeof cb !== "function") {
+    if (!canPromise()) {
+      throw new Error("Callback required as last argument");
+    } else {
+      opts = cb || {};
+      cb = null;
+    }
+  }
+  return {
+    opts,
+    cb
+  };
+}
+function getTypeFromFilename(path) {
+  return path.slice((path.lastIndexOf(".") - 1 >>> 0) + 2).toLowerCase();
+}
+function getRendererFromType(type) {
+  switch (type) {
+    case "svg":
+      return SvgRenderer;
+    case "txt":
+    case "utf8":
+      return Utf8Renderer;
+    case "png":
+    case "image/png":
+    default:
+      return PngRenderer;
+  }
+}
+function getStringRendererFromType(type) {
+  switch (type) {
+    case "svg":
+      return SvgRenderer;
+    case "terminal":
+      return TerminalRenderer;
+    case "utf8":
+    default:
+      return Utf8Renderer;
+  }
+}
+function render(renderFunc, text, params) {
+  if (!params.cb) {
+    return new Promise(function(resolve, reject) {
+      try {
+        const data = QRCode.create(text, params.opts);
+        return renderFunc(data, params.opts, function(err, data) {
+          return err ? reject(err) : resolve(data);
+        });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+  try {
+    const data = QRCode.create(text, params.opts);
+    return renderFunc(data, params.opts, params.cb);
+  } catch (e) {
+    params.cb(e);
+  }
+}
+var $toCanvas = require_browser().toCanvas;
+var $toString = function toString(text, opts, cb) {
+  const params = checkParams(text, opts, cb);
+  const type = params.opts ? params.opts.type : undefined;
+  const renderer = getStringRendererFromType(type);
+  return render(renderer.render, text, params);
+};
+var $toFile = function toFile(path, text, opts, cb) {
+  if (typeof path !== "string" || !(typeof text === "string" || typeof text === "object")) {
+    throw new Error("Invalid argument");
+  }
+  if (arguments.length < 3 && !canPromise()) {
+    throw new Error("Too few arguments provided");
+  }
+  const params = checkParams(text, opts, cb);
+  const type = params.opts.type || getTypeFromFilename(path);
+  const renderer = getRendererFromType(type);
+  const renderToFile = renderer.renderToFile.bind(null, path);
+  return render(renderToFile, text, params);
+};
+
+// lib/qrcode.ts
 async function qrCode(args, deps) {
   const { slug, namespace, outputDir } = args;
   const { listFn } = deps;
@@ -25260,7 +24880,7 @@ async function qrCode(args, deps) {
     throw new Error(`Site '${slug}' has no URL. Re-publish the site to get the canonical URL.`);
   }
   const encodedUrl = `${site.url}?ref=qr`;
-  const unicodeQr = await import_qrcode.default.toString(encodedUrl, {
+  const unicodeQr = await $toString(encodedUrl, {
     type: "terminal",
     small: true,
     errorCorrectionLevel: "M"
@@ -25268,12 +24888,12 @@ async function qrCode(args, deps) {
   const targetDir = outputDir ?? process.cwd();
   const svgPath = path3.join(targetDir, "qr.svg");
   const pngPath = path3.join(targetDir, "qr.png");
-  const svgContent = await import_qrcode.default.toString(encodedUrl, {
+  const svgContent = await $toString(encodedUrl, {
     type: "svg",
     errorCorrectionLevel: "M"
   });
   await fs7.promises.writeFile(svgPath, svgContent, "utf-8");
-  await import_qrcode.default.toFile(pngPath, encodedUrl, {
+  await $toFile(pngPath, encodedUrl, {
     errorCorrectionLevel: "M"
   });
   return { siteUrl: encodedUrl, unicodeQr, svgPath, pngPath };
@@ -25507,8 +25127,8 @@ async function namespaceCreate(apiClient, name, domain = DEFAULT_NAMESPACE_DOMAI
 function enrichNamespaceError(err) {
   if (err instanceof ApiError && err.status === 402) {
     const body = err.rawBodyData;
-    const code2 = typeof body?.code === "string" ? body.code : "";
-    if (code2 === "needs_overage_approval" || /needs_overage_approval/i.test(err.message)) {
+    const code = typeof body?.code === "string" ? body.code : "";
+    if (code === "needs_overage_approval" || /needs_overage_approval/i.test(err.message)) {
       const approvalUrl = typeof body?.approval_url === "string" && body.approval_url ? body.approval_url : APPROVAL_URL_FALLBACK;
       const price = typeof body?.price === "number" && isFinite(body.price) ? body.price : null;
       const pack_size = typeof body?.pack_size === "number" && Number.isInteger(body.pack_size) && body.pack_size > 0 ? body.pack_size : null;
@@ -25544,8 +25164,8 @@ async function domain(apiClient, args) {
     throw mapDomainError(err);
   }
 }
-async function add(apiClient, hostname2) {
-  const res = await apiClient.post("/api/domains", { hostname: hostname2 });
+async function add(apiClient, hostname) {
+  const res = await apiClient.post("/api/domains", { hostname });
   return {
     action: "add",
     hostname: res.domain.hostname,
@@ -25682,9 +25302,18 @@ async function list2(namespaceName, deps) {
   const result = await listSites(apiClient, ns.id);
   return { ...result, namespace: ns };
 }
+async function lookupExistingRootTitle(apiClient, nsId) {
+  try {
+    const { sites } = await listSites(apiClient, nsId);
+    return sites.find((s) => s.slug === "_root")?.title ?? null;
+  } catch {
+    return null;
+  }
+}
 async function publish2(args, deps) {
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, args.namespace);
+  const existingTitle = args.slug === "_root" && args.title === undefined ? await lookupExistingRootTitle(apiClient, ns.id) : undefined;
   log(`[publish] slug=${args.slug} dir=${args.directory} namespace=${ns.name}`);
   return publish({
     apiClient,
@@ -25693,6 +25322,8 @@ async function publish2(args, deps) {
     slug: args.slug,
     pathPrefix: args.pathPrefix,
     title: args.title,
+    namespaceName: ns.name,
+    existingTitle,
     visibility: args.visibility,
     passcode: args.passcode,
     passcodeLabel: args.passcodeLabel,
@@ -25865,9 +25496,9 @@ async function adminDomains2(args, deps) {
   const apiClient = await buildApiClient(deps);
   return adminDomains(apiClient, args);
 }
-async function namespaceCreate2(name, domain2, deps) {
+async function namespaceCreate2(name, domain, deps) {
   const apiClient = await buildApiClient(deps);
-  return namespaceCreate(apiClient, name, domain2);
+  return namespaceCreate(apiClient, name, domain);
 }
 async function domain2(args, deps) {
   const apiClient = await buildApiClient(deps);
@@ -25947,7 +25578,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.32";
+var PACKAGE_VERSION = "0.12.33";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -25957,18 +25588,18 @@ function formatBytes(bytes) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
-function formatVersionEntry(version2) {
-  const liveMarker = version2.is_live ? " (LIVE)" : "";
+function formatVersionEntry(version) {
+  const liveMarker = version.is_live ? " (LIVE)" : "";
   const meta = [];
-  if (version2.created_at)
-    meta.push(new Date(version2.created_at).toLocaleString());
-  if (typeof version2.file_count === "number")
-    meta.push(`${version2.file_count} files`);
-  if (typeof version2.total_size === "number")
-    meta.push(formatBytes(version2.total_size));
+  if (version.created_at)
+    meta.push(new Date(version.created_at).toLocaleString());
+  if (typeof version.file_count === "number")
+    meta.push(`${version.file_count} files`);
+  if (typeof version.total_size === "number")
+    meta.push(formatBytes(version.total_size));
   const metaSuffix = meta.length > 0 ? `
     ${meta.join(" \xB7 ")}` : "";
-  return `v${version2.version_number} \u2014 ${version2.status}${liveMarker}${metaSuffix}`;
+  return `v${version.version_number} \u2014 ${version.status}${liveMarker}${metaSuffix}`;
 }
 function formatUsage(usage) {
   if (typeof usage.used_bytes === "number" && typeof usage.limit_bytes === "number") {
@@ -26013,9 +25644,9 @@ async function createCallbackServer() {
       const url = new URL(req.url);
       if (url.pathname === "/callback") {
         const code = url.searchParams.get("code");
-        const error2 = url.searchParams.get("error");
-        if (error2) {
-          rejectCode(new Error(`OAuth error: ${error2}`));
+        const error = url.searchParams.get("error");
+        if (error) {
+          rejectCode(new Error(`OAuth error: ${error}`));
           return new Response("<html><body><h2>Sign-in failed.</h2><p>You can close this tab and return to your terminal.</p></body></html>", { headers: { "Content-Type": "text/html" } });
         }
         if (!code) {
@@ -26048,16 +25679,16 @@ function createServer(coreDeps, opts) {
     title: "Publish Site",
     description: "Publishes a local directory as a static website to upubli.sh. " + "Hashes files locally, uploads only changed files via presigned R2 URLs, " + "automatically excluding .git, node_modules, .env, .DS_Store, and other non-site files. " + "Add a .upublishignore file to the directory for custom exclusions. " + "The site will be available at a public URL immediately after upload. " + "If a site with the same slug already exists, it will be updated efficiently.",
     inputSchema: {
-      directory: exports_external.string().describe("Path to the directory containing the files to publish. " + "Can be absolute or relative to the current working directory."),
-      slug: exports_external.string().describe("URL-safe identifier for the site. Must be 1-255 characters: " + "lowercase letters, numbers, and hyphens only, starting and ending " + "with a letter or number. Use '_root' to publish at the " + "address/domain root (e.g. vibeandscribe.xyz/)."),
-      path_prefix: exports_external.string().optional().describe("Optional nested path prefix so the site publishes at " + "'{path_prefix}/{slug}' instead of the address root, e.g. " + "'2026/q3/code-report'. Multiple slash-separated segments are " + "allowed (lowercase letters, numbers, and hyphens per segment). " + "Omit for a normal top-level site. The server rejects a prefix " + "that collides with another site's address."),
-      title: exports_external.string().optional().describe("Optional human-readable title for the site. Defaults to the slug."),
-      visibility: exports_external.enum(["public", "passcode"]).optional().describe("Site visibility mode. 'public' (default) or 'passcode'."),
-      passcode: exports_external.string().optional().describe("Passcode for passcode-protected sites. Required when visibility is 'passcode'."),
-      namespace: exports_external.string().optional().describe("Address name to publish into. When omitted, the default address is used."),
-      preview: exports_external.boolean().optional().describe("When true, publishes as a staging preview instead of going live immediately. " + "The response includes a preview_url where the staging version can be reviewed. " + "Use the promote tool to promote the staging version to live."),
-      force: exports_external.boolean().optional().describe("When true, uploads all files regardless of whether they changed. " + "Use this to force a full re-upload when the site is broken or out of sync."),
-      analytics_enabled: exports_external.boolean().optional().describe("Per-site analytics. Defaults to on. Set false to publish WITHOUT the " + 'analytics script (e.g. "publish ... with no analytics"). To toggle ' + "analytics on an already-published site without republishing, use the " + "analytics tool instead.")
+      directory: stringType().describe("Path to the directory containing the files to publish. " + "Can be absolute or relative to the current working directory."),
+      slug: stringType().describe("URL-safe identifier for the site. Must be 1-255 characters: " + "lowercase letters, numbers, and hyphens only, starting and ending " + "with a letter or number. Use '_root' to publish at the " + "address/domain root (e.g. vibeandscribe.xyz/)."),
+      path_prefix: stringType().optional().describe("Optional nested path prefix so the site publishes at " + "'{path_prefix}/{slug}' instead of the address root, e.g. " + "'2026/q3/code-report'. Multiple slash-separated segments are " + "allowed (lowercase letters, numbers, and hyphens per segment). " + "Omit for a normal top-level site. The server rejects a prefix " + "that collides with another site's address."),
+      title: stringType().optional().describe("Optional human-readable title for the site. Defaults to the slug " + "\u2014 or, for the '_root' slug (address root), the site's existing " + "title if it already has a meaningful one, else the address's name."),
+      visibility: enumType(["public", "passcode"]).optional().describe("Site visibility mode. 'public' (default) or 'passcode'."),
+      passcode: stringType().optional().describe("Passcode for passcode-protected sites. Required when visibility is 'passcode'."),
+      namespace: stringType().optional().describe("Address name to publish into. When omitted, the default address is used."),
+      preview: booleanType().optional().describe("When true, publishes as a staging preview instead of going live immediately. " + "The response includes a preview_url where the staging version can be reviewed. " + "Use the promote tool to promote the staging version to live."),
+      force: booleanType().optional().describe("When true, uploads all files regardless of whether they changed. " + "Use this to force a full re-upload when the site is broken or out of sync."),
+      analytics_enabled: booleanType().optional().describe("Per-site analytics. Defaults to on. Set false to publish WITHOUT the " + 'analytics script (e.g. "publish ... with no analytics"). To toggle ' + "analytics on an already-published site without republishing, use the " + "analytics tool instead.")
     }
   }, async ({ directory, slug, path_prefix, title, visibility, passcode, namespace, preview, force, analytics_enabled }, extra) => {
     log(`[publish] tool entry slug=${slug} dir=${directory}`);
@@ -26196,7 +25827,7 @@ Use the promote tool to make this preview live.`);
     title: "List Sites",
     description: "Lists all static websites you have published to upubli.sh. " + "Shows each site's name, URL, file count, and total size.",
     inputSchema: {
-      namespace: exports_external.string().optional().describe("Address name to list sites from. When omitted, the default address is used.")
+      namespace: stringType().optional().describe("Address name to list sites from. When omitted, the default address is used.")
     }
   }, async ({ namespace }) => {
     try {
@@ -26222,8 +25853,8 @@ ${lines.join(`
     title: "Delete Site",
     description: "Permanently deletes a published site from upubli.sh. " + "This action cannot be undone.",
     inputSchema: {
-      slug: exports_external.string().describe("The URL-safe identifier of the site to delete. " + "Use the `list` tool to find available slugs."),
-      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
+      slug: stringType().describe("The URL-safe identifier of the site to delete. " + "Use the `list` tool to find available slugs."),
+      namespace: stringType().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, namespace }) => {
     try {
@@ -26237,8 +25868,8 @@ ${lines.join(`
     title: "List Site Versions",
     description: "Lists all deploy versions of a published site on upubli.sh. " + "Shows each version's number, status, and which one is currently live. " + "Use `versions_delete` to remove an archived version and reclaim storage.",
     inputSchema: {
-      slug: exports_external.string().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
-      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
+      slug: stringType().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
+      namespace: stringType().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, namespace }) => {
     try {
@@ -26247,7 +25878,7 @@ ${lines.join(`
         return okResponse(`No versions found for site '${slug}'.`);
       }
       const header = `Versions for '${slug}'`;
-      const lines = result.versions.map((version2) => formatVersionEntry(version2));
+      const lines = result.versions.map((version) => formatVersionEntry(version));
       return okResponse(`${header}
 
 ${lines.join(`
@@ -26260,9 +25891,9 @@ ${lines.join(`
     title: "Delete Site Version",
     description: "Deletes a single archived version of a published site on upubli.sh to " + "reclaim storage. The currently live version cannot be deleted. " + "Returns the space reclaimed and your updated storage usage.",
     inputSchema: {
-      slug: exports_external.string().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
-      versionNumber: exports_external.number().int().positive().describe("The version number to delete (a positive integer). " + "Use `versions_list` to see available version numbers."),
-      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
+      slug: stringType().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
+      versionNumber: numberType().int().positive().describe("The version number to delete (a positive integer). " + "Use `versions_list` to see available version numbers."),
+      namespace: stringType().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, versionNumber, namespace }) => {
     try {
@@ -26278,13 +25909,13 @@ ${lines.join(`
     title: "Restore Site Version",
     description: "Rolls a published site on upubli.sh back to a previous version, making " + "that version live again. Use `versions_list` first to see version numbers " + "and their dates/sizes. Returns the now-live version number and live URL. " + "Restoring versions requires a paid plan.",
     inputSchema: {
-      slug: exports_external.string().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
-      version: exports_external.number().int().positive().describe("The version number to restore (a positive integer). " + "Use `versions_list` to see available version numbers."),
-      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
+      slug: stringType().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
+      version: numberType().int().positive().describe("The version number to restore (a positive integer). " + "Use `versions_list` to see available version numbers."),
+      namespace: stringType().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
-  }, async ({ slug, version: version2, namespace }) => {
+  }, async ({ slug, version, namespace }) => {
     try {
-      const result = await restoreSiteVersion(slug, version2, namespace, coreDeps);
+      const result = await restoreSiteVersion(slug, version, namespace, coreDeps);
       return okResponse(`Restored '${slug}' to version v${result.version_number}, now live.
 ` + `URL: ${result.url}`);
     } catch (err) {
@@ -26295,9 +25926,9 @@ ${lines.join(`
     title: "Set Version Retention Limit",
     description: "Sets or clears the version retention limit for a published site on upubli.sh. " + "When a limit is set, the oldest archived versions beyond that count are pruned " + "immediately, and future publishes will prune automatically. " + "Omit or pass null for `limit` to clear the limit (unlimited retention). " + "Returns the updated limit, pruned version numbers, and storage freed.",
     inputSchema: {
-      slug: exports_external.string().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
-      limit: exports_external.union([exports_external.number().int().min(1), exports_external.null()]).optional().describe("Maximum number of non-staging versions to retain (integer \u2265 1). " + "Omit or pass null to clear the limit (unlimited retention). " + "The live version is always preserved regardless of the limit."),
-      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
+      slug: stringType().describe("The URL-safe identifier of the site. " + "Use the `list` tool to find available slugs."),
+      limit: unionType([numberType().int().min(1), nullType()]).optional().describe("Maximum number of non-staging versions to retain (integer \u2265 1). " + "Omit or pass null to clear the limit (unlimited retention). " + "The live version is always preserved regardless of the limit."),
+      namespace: stringType().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, limit, namespace }) => {
     try {
@@ -26317,9 +25948,9 @@ ${prunedDisplay}`);
     title: "Toggle Site Analytics",
     description: "Turns the per-site analytics script on or off for an already-published " + "site on upubli.sh \u2014 WITHOUT republishing. Use for requests like " + '"turn off analytics for my-portfolio" or "turn analytics back on for my-portfolio". ' + "Analytics is on by default; to publish a new site with analytics off, use the " + "publish tool's analytics_enabled option instead.",
     inputSchema: {
-      slug: exports_external.string().describe("The URL-safe identifier of the site. Use the `list` tool to find available slugs."),
-      enabled: exports_external.boolean().describe("true to enable analytics (inject the script), false to disable it."),
-      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
+      slug: stringType().describe("The URL-safe identifier of the site. Use the `list` tool to find available slugs."),
+      enabled: booleanType().describe("true to enable analytics (inject the script), false to disable it."),
+      namespace: stringType().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, enabled, namespace }) => {
     try {
@@ -26335,10 +25966,10 @@ No republish was needed \u2014 this took effect immediately.`);
     title: "Add Passcode",
     description: "Adds a passcode to a passcode-protected site on upubli.sh. " + "Each passcode can have a unique label for identification (e.g. 'Client A'). " + "The site must already have visibility set to 'passcode'.",
     inputSchema: {
-      slug: exports_external.string().describe("The URL-safe identifier of the site to add a passcode to."),
-      code: exports_external.string().describe("The passcode string that visitors will use to access the site."),
-      label: exports_external.string().describe("Human-readable label for this passcode (e.g. 'Client A', 'Team B'). " + "Used to identify and revoke specific passcodes."),
-      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
+      slug: stringType().describe("The URL-safe identifier of the site to add a passcode to."),
+      code: stringType().describe("The passcode string that visitors will use to access the site."),
+      label: stringType().describe("Human-readable label for this passcode (e.g. 'Client A', 'Team B'). " + "Used to identify and revoke specific passcodes."),
+      namespace: stringType().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, code, label, namespace }) => {
     try {
@@ -26354,8 +25985,8 @@ No republish was needed \u2014 this took effect immediately.`);
     title: "List Passcodes",
     description: "Lists all passcodes for a passcode-protected site on upubli.sh. " + "Shows each passcode's ID, label, and creation date.",
     inputSchema: {
-      slug: exports_external.string().describe("The URL-safe identifier of the site to list passcodes for."),
-      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
+      slug: stringType().describe("The URL-safe identifier of the site to list passcodes for."),
+      namespace: stringType().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, namespace }) => {
     try {
@@ -26382,10 +26013,10 @@ No republish was needed \u2014 this took effect immediately.`);
     title: "Revoke Passcode",
     description: "Revokes (removes) a passcode from a passcode-protected site on upubli.sh. " + "Specify either the passcode ID or its label. " + "Use the passcode_list tool to find available IDs and labels.",
     inputSchema: {
-      slug: exports_external.string().describe("The URL-safe identifier of the site to revoke a passcode from."),
-      id: exports_external.string().optional().describe("The passcode ID to revoke. Takes precedence over label."),
-      label: exports_external.string().optional().describe("The passcode label to revoke (resolved to ID via list). " + "Used only when id is not provided."),
-      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
+      slug: stringType().describe("The URL-safe identifier of the site to revoke a passcode from."),
+      id: stringType().optional().describe("The passcode ID to revoke. Takes precedence over label."),
+      label: stringType().optional().describe("The passcode label to revoke (resolved to ID via list). " + "Used only when id is not provided."),
+      namespace: stringType().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, id, label, namespace }) => {
     try {
@@ -26408,10 +26039,10 @@ ${result.message}`);
 ` + `  submissions \u2014 List visitor submissions captured by the gate
 ` + "  clear       \u2014 Delete all submissions for a gate",
     inputSchema: {
-      action: exports_external.enum(["set", "get", "remove", "submissions", "clear"]).describe("The gate operation to perform: " + "'set' to create/update, 'get' to retrieve config, " + "'remove' to delete the gate, 'submissions' to list visitor data, " + "'clear' to delete all submissions."),
-      slug: exports_external.string().describe("The URL-safe identifier of the site."),
-      fields: exports_external.array(exports_external.enum(["email", "name", "company", "phone", "message"])).optional().describe("Fields to collect from visitors. Required when action is 'set'. " + "Valid values: 'email', 'name', 'company', 'phone', 'message'."),
-      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
+      action: enumType(["set", "get", "remove", "submissions", "clear"]).describe("The gate operation to perform: " + "'set' to create/update, 'get' to retrieve config, " + "'remove' to delete the gate, 'submissions' to list visitor data, " + "'clear' to delete all submissions."),
+      slug: stringType().describe("The URL-safe identifier of the site."),
+      fields: arrayType(enumType(["email", "name", "company", "phone"])).optional().describe("Fields to collect from visitors. Required when action is 'set'. " + "Valid values: 'email', 'name', 'company', 'phone'. " + "Every field is set as required."),
+      namespace: stringType().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ action, slug, fields, namespace }) => {
     try {
@@ -26422,42 +26053,42 @@ ${result.message}`);
         if (!fieldsArr || fieldsArr.length === 0) {
           return errResponse(new Error("fields is required when action is 'set'"));
         }
-        const result2 = await gate({ action: "set", slug: slugStr, fields: fieldsArr, namespace }, coreDeps);
-        if (result2.action !== "set")
+        const result = await gate({ action: "set", slug: slugStr, fields: fieldsArr, namespace }, coreDeps);
+        if (result.action !== "set")
           return errResponse(new Error("Unexpected result"));
-        const fieldsList = result2.gate.fields.join(", ");
+        const fieldsList = formatGateFields(result.gate.fields);
         return okResponse(`Gate set for '${slugStr}'
 Fields: ${fieldsList}`);
       }
       if (actionStr === "get") {
-        const result2 = await gate({ action: "get", slug: slugStr, namespace }, coreDeps);
-        if (result2.action !== "get")
+        const result = await gate({ action: "get", slug: slugStr, namespace }, coreDeps);
+        if (result.action !== "get")
           return errResponse(new Error("Unexpected result"));
-        const fieldsList = result2.gate.fields.join(", ");
+        const fieldsList = formatGateFields(result.gate.fields);
         return okResponse(`Gate for '${slugStr}'
 Fields: ${fieldsList}
-Submissions: ${result2.submission_count}`);
+Submissions: ${result.submission_count}`);
       }
       if (actionStr === "remove") {
-        const result2 = await gate({ action: "remove", slug: slugStr, namespace }, coreDeps);
-        if (result2.action !== "remove")
+        const result = await gate({ action: "remove", slug: slugStr, namespace }, coreDeps);
+        if (result.action !== "remove")
           return errResponse(new Error("Unexpected result"));
-        return okResponse(result2.message);
+        return okResponse(result.message);
       }
       if (actionStr === "submissions") {
-        const result2 = await gate({ action: "submissions", slug: slugStr, namespace }, coreDeps);
-        if (result2.action !== "submissions")
+        const result = await gate({ action: "submissions", slug: slugStr, namespace }, coreDeps);
+        if (result.action !== "submissions")
           return errResponse(new Error("Unexpected result"));
-        const { submissions } = result2;
+        const { submissions } = result;
         if (submissions.length === 0) {
           return okResponse(`No submissions found for gate on '${slugStr}'.`);
         }
         const lines = submissions.map((sub) => {
-          const date4 = new Date(sub.submitted_at).toLocaleDateString();
-          const fields2 = Object.entries(sub.data).map(([k, v]) => `  ${k}: ${v}`).join(`
+          const date = new Date(sub.submitted_at).toLocaleDateString();
+          const fields = Object.entries(sub.data).map(([k, v]) => `  ${k}: ${v}`).join(`
 `);
-          return `Submitted: ${date4}
-${fields2}`;
+          return `Submitted: ${date}
+${fields}`;
         });
         return okResponse(`Gate submissions for '${slugStr}' (${submissions.length}):
 
@@ -26483,50 +26114,50 @@ ${fields2}`;
 ` + `  remove \u2014 Remove a member by username
 ` + "  role   \u2014 Change a member's role (admin|user)",
     inputSchema: {
-      action: exports_external.enum(["list", "add", "remove", "role"]).describe("The member operation to perform: " + "'list' to show all members, 'add' to grant access, " + "'remove' to revoke access, 'role' to change a member's role."),
-      username: exports_external.string().optional().describe("The username to add, remove, or change role for. " + "Required for add, remove, and role actions."),
-      role: exports_external.enum(["admin", "user"]).optional().describe("The role to assign. Required for add and role actions. " + "'admin' can manage members; 'user' can publish and gate only."),
-      namespace: exports_external.string().optional().describe("Address name to manage members for. When omitted, the default address is used.")
+      action: enumType(["list", "add", "remove", "role"]).describe("The member operation to perform: " + "'list' to show all members, 'add' to grant access, " + "'remove' to revoke access, 'role' to change a member's role."),
+      username: stringType().optional().describe("The username to add, remove, or change role for. " + "Required for add, remove, and role actions."),
+      role: enumType(["admin", "user"]).optional().describe("The role to assign. Required for add and role actions. " + "'admin' can manage members; 'user' can publish and gate only."),
+      namespace: stringType().optional().describe("Address name to manage members for. When omitted, the default address is used.")
     }
   }, async ({ action, username, role, namespace }) => {
     try {
       const actionStr = action;
       const nsStr = namespace;
       if (actionStr === "list") {
-        const result2 = await members({ action: "list", namespace: nsStr }, coreDeps);
-        if (result2.action !== "list")
+        const result = await members({ action: "list", namespace: nsStr }, coreDeps);
+        if (result.action !== "list")
           return errResponse(new Error("Unexpected result"));
-        if (result2.members.length === 0) {
+        if (result.members.length === 0) {
           return okResponse("No members found. The address owner has sole access.");
         }
-        const lines = result2.members.map((m) => `  ${m.username} \u2014 ${m.role}`);
+        const lines = result.members.map((m) => `  ${m.username} \u2014 ${m.role}`);
         return okResponse(`Members:
 ${lines.join(`
 `)}`);
       }
       if (actionStr === "add") {
-        const usernameStr2 = username;
-        const roleStr2 = role;
-        if (!usernameStr2) {
+        const usernameStr = username;
+        const roleStr = role;
+        if (!usernameStr) {
           return errResponse(new Error("username is required for the add action"));
         }
-        if (!roleStr2) {
+        if (!roleStr) {
           return errResponse(new Error("role is required for the add action"));
         }
-        const result2 = await members({ action: "add", username: usernameStr2, role: roleStr2, namespace: nsStr }, coreDeps);
-        if (result2.action !== "add")
+        const result = await members({ action: "add", username: usernameStr, role: roleStr, namespace: nsStr }, coreDeps);
+        if (result.action !== "add")
           return errResponse(new Error("Unexpected result"));
-        return okResponse(`Added ${result2.member.username} as ${result2.member.role}`);
+        return okResponse(`Added ${result.member.username} as ${result.member.role}`);
       }
       if (actionStr === "remove") {
-        const usernameStr2 = username;
-        if (!usernameStr2) {
+        const usernameStr = username;
+        if (!usernameStr) {
           return errResponse(new Error("username is required for the remove action"));
         }
-        const result2 = await members({ action: "remove", username: usernameStr2, namespace: nsStr }, coreDeps);
-        if (result2.action !== "remove")
+        const result = await members({ action: "remove", username: usernameStr, namespace: nsStr }, coreDeps);
+        if (result.action !== "remove")
           return errResponse(new Error("Unexpected result"));
-        return okResponse(`Removed ${usernameStr2} from address`);
+        return okResponse(`Removed ${usernameStr} from address`);
       }
       const usernameStr = username;
       const roleStr = role;
@@ -26548,8 +26179,8 @@ ${lines.join(`
     title: "Promote Preview",
     description: "Promotes a staging preview version of a site to live on upubli.sh. " + "Use this after publishing with preview=true to make the staged version " + "available at the site's public URL. " + "Returns the live URL of the promoted site.",
     inputSchema: {
-      slug: exports_external.string().describe("The URL-safe identifier of the site to promote. " + "Use the list tool to find available slugs."),
-      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
+      slug: stringType().describe("The URL-safe identifier of the site to promote. " + "Use the list tool to find available slugs."),
+      namespace: stringType().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, namespace }) => {
     try {
@@ -26564,9 +26195,9 @@ ${lines.join(`
     title: "QR Code",
     description: "Generates a QR code for a published site on upubli.sh. " + "Displays a scannable unicode QR in the agent output and writes " + "qr.svg and qr.png files to the specified directory (defaults to cwd). " + "The QR encodes the site's canonical URL + ?ref=qr for analytics tracking. " + "Regenerating overwrites prior output \u2014 the QR is deterministic.",
     inputSchema: {
-      slug: exports_external.string().describe("The URL-safe identifier of the site to generate a QR code for. " + "Use the list tool to find available slugs."),
-      namespace: exports_external.string().optional().describe("Address name the site belongs to. When omitted, the default address is used."),
-      outputDir: exports_external.string().optional().describe("Directory to write qr.svg and qr.png into. " + "Defaults to the current working directory.")
+      slug: stringType().describe("The URL-safe identifier of the site to generate a QR code for. " + "Use the list tool to find available slugs."),
+      namespace: stringType().optional().describe("Address name the site belongs to. When omitted, the default address is used."),
+      outputDir: stringType().optional().describe("Directory to write qr.svg and qr.png into. " + "Defaults to the current working directory.")
     }
   }, async ({ slug, namespace, outputDir }) => {
     try {
@@ -26637,14 +26268,14 @@ ${lines.join(`
     title: "Upgrade Plan",
     description: "Opens the Stripe Checkout page for a paid plan (pro or max) in your browser " + "so the user can enter payment and upgrade their upubli.sh account. " + "Use this when an agent hits a free-tier wall (file-size or storage tier limit) " + "and the user wants more capacity. Card entry is browser-only by design \u2014 this " + "tool only opens the right page, it cannot complete payment. The checkout URL is " + "always included in the response so it can be opened manually (e.g. headless envs). " + "Defaults to the pro plan billed monthly.",
     inputSchema: {
-      plan: exports_external.enum(["pro", "max"]).optional().describe("Which paid plan to check out. Defaults to 'pro'."),
-      interval: exports_external.enum(["month", "year"]).optional().describe("Billing interval. Defaults to 'month'.")
+      plan: enumType(["pro", "max"]).optional().describe("Which paid plan to check out. Defaults to 'pro'."),
+      interval: enumType(["month", "year"]).optional().describe("Billing interval. Defaults to 'month'.")
     }
   }, async (args) => {
     let capturedUrl = "";
-    const result = await upgrade(async (url2) => {
-      capturedUrl = url2;
-      await openBrowser(url2);
+    const result = await upgrade(async (url) => {
+      capturedUrl = url;
+      await openBrowser(url);
     }, { plan: args.plan, interval: args.interval }, coreDeps);
     if (result.ok) {
       return okResponse([
@@ -26688,8 +26319,8 @@ ${lines.join(`
     title: "Create Address",
     description: "Creates a new address (your URL prefix) on a hosted platform domain. " + "You can choose between upubli.sh or pinn.sh (both available to all users). " + "Sites publish under an address at `name.{domain}/slug/`. " + "Your first address is chosen during sign-in onboarding; use this tool " + "to add more. Address count is tier-limited \u2014 the free plan allows one; " + "a tier-limit error includes the upgrade link.",
     inputSchema: {
-      name: exports_external.string().describe("The address name (3-63 chars, lowercase letters, numbers, hyphens)."),
-      domain: exports_external.string().optional().describe("Optional hosted domain (upubli.sh or pinn.sh) or custom domain. Defaults to upubli.sh.")
+      name: stringType().describe("The address name (3-63 chars, lowercase letters, numbers, hyphens)."),
+      domain: stringType().optional().describe("Optional hosted domain (upubli.sh or pinn.sh) or custom domain. Defaults to upubli.sh.")
     }
   }, async (args) => {
     try {
@@ -26736,49 +26367,49 @@ ${lines.join(`
 ` + `  list   \u2014 List the account's custom domains.
 ` + "  remove \u2014 Disconnect a custom domain by id.",
     inputSchema: {
-      action: exports_external.enum(["add", "status", "list", "remove"]).describe("The domain operation: 'add' to connect a hostname, 'status' to check " + "if it's live, 'list' to see all custom domains, 'remove' to disconnect."),
-      hostname: exports_external.string().optional().describe("The domain to connect. Required when action is 'add'. Use the root " + "(example.com), not www.example.com; a subdomain (blog.example.com) is fine."),
-      id: exports_external.string().optional().describe("The custom-domain id. Required for 'status' and 'remove'. Use 'list' to find ids.")
+      action: enumType(["add", "status", "list", "remove"]).describe("The domain operation: 'add' to connect a hostname, 'status' to check " + "if it's live, 'list' to see all custom domains, 'remove' to disconnect."),
+      hostname: stringType().optional().describe("The domain to connect. Required when action is 'add'. Use the root " + "(example.com), not www.example.com; a subdomain (blog.example.com) is fine."),
+      id: stringType().optional().describe("The custom-domain id. Required for 'status' and 'remove'. Use 'list' to find ids.")
     }
-  }, async ({ action, hostname: hostname2, id }) => {
+  }, async ({ action, hostname, id }) => {
     try {
       const act = action;
       if (act === "add") {
-        if (!hostname2) {
+        if (!hostname) {
           return errResponse(new Error("hostname is required when action is 'add'"));
         }
-        const result2 = await domain2({ action: "add", hostname: hostname2 }, coreDeps);
-        if (result2.action !== "add")
+        const result = await domain2({ action: "add", hostname }, coreDeps);
+        if (result.action !== "add")
           return errResponse(new Error("Unexpected result"));
-        const records = result2.records.map((r) => `  ${r.type}  name: ${r.name}  value: ${r.value}`).join(`
+        const records = result.records.map((r) => `  ${r.type}  name: ${r.name}  value: ${r.value}`).join(`
 `);
-        return okResponse(`Connected "${result2.hostname}" (id: ${result2.namespace.id}).
+        return okResponse(`Connected "${result.hostname}" (id: ${result.namespace.id}).
 
 ` + `Add these DNS record(s) at your registrar:
 ${records}
 
-` + `${result2.note}`);
+` + `${result.note}`);
       }
       if (act === "status") {
         if (!id) {
           return errResponse(new Error("id is required when action is 'status'"));
         }
-        const result2 = await domain2({ action: "status", id }, coreDeps);
-        if (result2.action !== "status")
+        const result = await domain2({ action: "status", id }, coreDeps);
+        if (result.action !== "status")
           return errResponse(new Error("Unexpected result"));
-        const state = result2.active ? "ACTIVE" : "PENDING";
-        const errLine = result2.validationErrors ? `
-Validation errors: ${result2.validationErrors}` : "";
-        return okResponse(`Custom domain "${result2.hostname}" is ${state}.` + (result2.active ? " It's live \u2014 publish to it like any address." : " DNS is still propagating, or the record(s) need a fix. Re-check shortly.") + errLine);
+        const state = result.active ? "ACTIVE" : "PENDING";
+        const errLine = result.validationErrors ? `
+Validation errors: ${result.validationErrors}` : "";
+        return okResponse(`Custom domain "${result.hostname}" is ${state}.` + (result.active ? " It's live \u2014 publish to it like any address." : " DNS is still propagating, or the record(s) need a fix. Re-check shortly.") + errLine);
       }
       if (act === "remove") {
         if (!id) {
           return errResponse(new Error("id is required when action is 'remove'"));
         }
-        const result2 = await domain2({ action: "remove", id }, coreDeps);
-        if (result2.action !== "remove")
+        const result = await domain2({ action: "remove", id }, coreDeps);
+        if (result.action !== "remove")
           return errResponse(new Error("Unexpected result"));
-        return okResponse(result2.message);
+        return okResponse(result.message);
       }
       const result = await domain2({ action: "list" }, coreDeps);
       if (result.action !== "list")
@@ -26801,11 +26432,11 @@ ${lines.join(`
     title: "Rename Site or Address",
     description: "Renames a site (slug) or an address on upubli.sh. " + "Provide `site` to rename a site within the address; omit `site` to rename the address itself. " + "Choose a redirect mode for old URLs: '30d' (default \u2014 safest, keeps old URLs working for 30 days), " + "'permanent' (301 redirect with no expiry), or 'off' (no redirect, old name released immediately). " + "Tier limits apply: Free accounts get one rename per resource lifetime; " + "Pro/Max accounts have a 30-day cooldown between renames of the same resource.",
     inputSchema: {
-      nsId: exports_external.string().describe("The address name (e.g. 'ryan') or its UUID. Use the status or list tool to see your addresses."),
-      site: exports_external.string().optional().describe("Slug of the site to rename. When provided, the site is renamed within the address. " + "When omitted, the address itself is renamed."),
-      newName: exports_external.string().describe("New name for the resource being renamed. When renaming a site, this is the " + "new slug (1-255 characters). When renaming the address, this is the new address " + "name (follows the address-name rules). In both cases: lowercase letters, numbers, " + "and hyphens only, starting and ending with a letter or number."),
-      path_prefix: exports_external.string().nullable().optional().describe("SITE renames only \u2014 set, change, or clear the site's nested path " + "prefix so it publishes at '{path_prefix}/{slug}' (e.g. " + "'2026/q3/code-report'). Omit to leave the current prefix " + "unchanged; pass an empty string or null to CLEAR the prefix " + "(move the site to the address root). Multiple slash-separated " + "segments are allowed. The server rejects a prefix that collides " + "with another site's address. Ignored when renaming an address."),
-      redirect: exports_external.enum(["off", "30d", "permanent"]).optional().describe("Redirect mode for old URLs. Defaults to '30d' (safest). " + "'off' \u2014 no redirect, old name released immediately. " + "'30d' \u2014 301 redirect for 30 days. " + "'permanent' \u2014 permanent 301 redirect with no expiry.")
+      nsId: stringType().describe("The address name (e.g. 'ryan') or its UUID. Use the status or list tool to see your addresses."),
+      site: stringType().optional().describe("Slug of the site to rename. When provided, the site is renamed within the address. " + "When omitted, the address itself is renamed."),
+      newName: stringType().describe("New name for the resource being renamed. When renaming a site, this is the " + "new slug (1-255 characters). When renaming the address, this is the new address " + "name (follows the address-name rules). In both cases: lowercase letters, numbers, " + "and hyphens only, starting and ending with a letter or number."),
+      path_prefix: stringType().nullable().optional().describe("SITE renames only \u2014 set, change, or clear the site's nested path " + "prefix so it publishes at '{path_prefix}/{slug}' (e.g. " + "'2026/q3/code-report'). Omit to leave the current prefix " + "unchanged; pass an empty string or null to CLEAR the prefix " + "(move the site to the address root). Multiple slash-separated " + "segments are allowed. The server rejects a prefix that collides " + "with another site's address. Ignored when renaming an address."),
+      redirect: enumType(["off", "30d", "permanent"]).optional().describe("Redirect mode for old URLs. Defaults to '30d' (safest). " + "'off' \u2014 no redirect, old name released immediately. " + "'30d' \u2014 301 redirect for 30 days. " + "'permanent' \u2014 permanent 301 redirect with no expiry.")
     }
   }, async ({ nsId, site, newName, path_prefix, redirect }) => {
     try {
@@ -26852,59 +26483,59 @@ Redirect: permanent`;
 ` + `  ban      \u2014 Permanently ban a user and block all their sites (triggers KV reconcile)
 ` + "  reinstate \u2014 Reinstate a suspended or banned user",
       inputSchema: {
-        action: exports_external.enum(["lookup", "inspect", "role", "suspend", "ban", "reinstate"]).describe("The admin user operation to perform."),
-        email: exports_external.string().optional().describe("User email address. Required for lookup action."),
-        userId: exports_external.string().optional().describe("User ID. Required for inspect, role, suspend, ban, and reinstate actions."),
-        role: exports_external.enum(["user", "admin"]).optional().describe("New platform role. Required for role action."),
-        reason: exports_external.string().optional().describe("Reason for status change. Recommended for suspend and ban actions.")
+        action: enumType(["lookup", "inspect", "role", "suspend", "ban", "reinstate"]).describe("The admin user operation to perform."),
+        email: stringType().optional().describe("User email address. Required for lookup action."),
+        userId: stringType().optional().describe("User ID. Required for inspect, role, suspend, ban, and reinstate actions."),
+        role: enumType(["user", "admin"]).optional().describe("New platform role. Required for role action."),
+        reason: stringType().optional().describe("Reason for status change. Recommended for suspend and ban actions.")
       }
-    }, async ({ action, email: email2, userId, role, reason }) => {
+    }, async ({ action, email, userId, role, reason }) => {
       try {
         const actionStr = action;
         if (actionStr === "lookup") {
-          if (!email2)
+          if (!email)
             return errResponse(new Error("email is required for lookup action"));
-          const result2 = await adminUser2({ action: "lookup", email: email2 }, coreDeps);
-          return okResponse(`User: ${result2.username} (${result2.email})
-` + `ID: ${result2.id}
-` + `Role: ${result2.role}
-` + `Status: ${result2.status}${result2.status_reason ? ` \u2014 ${result2.status_reason}` : ""}`);
+          const result = await adminUser2({ action: "lookup", email }, coreDeps);
+          return okResponse(`User: ${result.username} (${result.email})
+` + `ID: ${result.id}
+` + `Role: ${result.role}
+` + `Status: ${result.status}${result.status_reason ? ` \u2014 ${result.status_reason}` : ""}`);
         }
         if (actionStr === "inspect") {
           if (!userId)
             return errResponse(new Error("userId is required for inspect action"));
-          const result2 = await adminUser2({ action: "inspect", userId }, coreDeps);
-          const sitesLine = result2.sites.length > 0 ? `
-Sites (${result2.sites.length}): ${result2.sites.map((s) => s.slug).join(", ")}` : `
+          const result = await adminUser2({ action: "inspect", userId }, coreDeps);
+          const sitesLine = result.sites.length > 0 ? `
+Sites (${result.sites.length}): ${result.sites.map((s) => s.slug).join(", ")}` : `
 Sites: none`;
-          return okResponse(`User: ${result2.user.username} (${result2.user.email})
-` + `Status: ${result2.user.status}${result2.user.status_reason ? ` \u2014 ${result2.user.status_reason}` : ""}
-` + `Tier: ${result2.space?.tier ?? "none"}
-` + `Storage: ${formatBytes(result2.storage_bytes)}` + sitesLine);
+          return okResponse(`User: ${result.user.username} (${result.user.email})
+` + `Status: ${result.user.status}${result.user.status_reason ? ` \u2014 ${result.user.status_reason}` : ""}
+` + `Tier: ${result.space?.tier ?? "none"}
+` + `Storage: ${formatBytes(result.storage_bytes)}` + sitesLine);
         }
         if (actionStr === "role") {
           if (!userId)
             return errResponse(new Error("userId is required for role action"));
           if (!role)
             return errResponse(new Error("role is required for role action"));
-          const result2 = await adminUser2({ action: "role", userId, role }, coreDeps);
-          return okResponse(`Role updated: ${result2.id} \u2192 ${result2.role}`);
+          const result = await adminUser2({ action: "role", userId, role }, coreDeps);
+          return okResponse(`Role updated: ${result.id} \u2192 ${result.role}`);
         }
         if (actionStr === "suspend") {
           if (!userId)
             return errResponse(new Error("userId is required for suspend action"));
-          const result2 = await adminUser2({ action: "suspend", userId, reason }, coreDeps);
-          return okResponse(`User ${result2.id} suspended.
-` + `Reason: ${result2.status_reason ?? "(none)"}`);
+          const result = await adminUser2({ action: "suspend", userId, reason }, coreDeps);
+          return okResponse(`User ${result.id} suspended.
+` + `Reason: ${result.status_reason ?? "(none)"}`);
         }
         if (actionStr === "ban") {
           if (!userId)
             return errResponse(new Error("userId is required for ban action"));
-          const result2 = await adminUser2({ action: "ban", userId, reason }, coreDeps);
-          const reconcileLine = result2.reconcile ? `
-KV reconcile: written=${result2.reconcile.written} verified=${result2.reconcile.verified} failed=${result2.reconcile.failed.length}` : "";
-          return okResponse(`User ${result2.id} banned.
-` + `Reason: ${result2.status_reason ?? "(none)"}` + reconcileLine);
+          const result = await adminUser2({ action: "ban", userId, reason }, coreDeps);
+          const reconcileLine = result.reconcile ? `
+KV reconcile: written=${result.reconcile.written} verified=${result.reconcile.verified} failed=${result.reconcile.failed.length}` : "";
+          return okResponse(`User ${result.id} banned.
+` + `Reason: ${result.status_reason ?? "(none)"}` + reconcileLine);
         }
         if (!userId)
           return errResponse(new Error("userId is required for reinstate action"));
@@ -26922,18 +26553,18 @@ KV reconcile: written=${result2.reconcile.written} verified=${result2.reconcile.
 ` + `  block   \u2014 Block a site (removes it from public access)
 ` + "  unblock \u2014 Unblock a previously blocked site",
       inputSchema: {
-        action: exports_external.enum(["block", "unblock"]).describe("The admin site operation to perform."),
-        siteId: exports_external.string().describe("The site ID to block or unblock."),
-        reason: exports_external.string().optional().describe("Reason for blocking. Recommended for block action.")
+        action: enumType(["block", "unblock"]).describe("The admin site operation to perform."),
+        siteId: stringType().describe("The site ID to block or unblock."),
+        reason: stringType().optional().describe("Reason for blocking. Recommended for block action.")
       }
     }, async ({ action, siteId, reason }) => {
       try {
         const actionStr = action;
         const siteIdStr = siteId;
         if (actionStr === "block") {
-          const result2 = await adminSite2({ action: "block", siteId: siteIdStr, reason }, coreDeps);
+          const result = await adminSite2({ action: "block", siteId: siteIdStr, reason }, coreDeps);
           return okResponse(`Site ${siteIdStr} blocked.
-` + `Blocked at: ${result2.site.blocked_at ?? "unknown"}`);
+` + `Blocked at: ${result.site.blocked_at ?? "unknown"}`);
         }
         const result = await adminSite2({ action: "unblock", siteId: siteIdStr }, coreDeps);
         return okResponse(`Site ${siteIdStr} unblocked (blocked_at: ${result.site.blocked_at ?? "null"}).`);
@@ -26952,7 +26583,7 @@ KV reconcile: written=${result2.reconcile.written} verified=${result2.reconcile.
         const result = await adminStats2(coreDeps);
         const tierLines = Object.entries(result.users_by_tier).map(([tier, count]) => `  ${tier}: ${count}`).join(`
 `);
-        const statusLines = Object.entries(result.users_by_status).map(([status3, count]) => `  ${status3}: ${count}`).join(`
+        const statusLines = Object.entries(result.users_by_status).map(([status, count]) => `  ${status}: ${count}`).join(`
 `);
         return okResponse(`Platform Stats
 
@@ -26978,26 +26609,26 @@ ${statusLines}
 ` + "  sweep  \u2014 Scan for and optionally delete orphaned blobs/prefixes. " + `Defaults to dry-run=true. Pass confirm=true for live deletion.
 ` + "  resync \u2014 Resync KV access-control metadata for a site, user, or all entries.",
       inputSchema: {
-        action: exports_external.enum(["sweep", "resync"]).describe("The storage admin operation to perform."),
-        dryRun: exports_external.boolean().optional().describe("For sweep: when true (default), reports orphans without deleting. " + "Pass false to actually delete orphaned blobs."),
-        graceSeconds: exports_external.number().int().optional().describe("For sweep: grace period in seconds. Blobs newer than this are skipped."),
-        scope: exports_external.enum(["site", "user", "all"]).optional().describe("For resync: scope of the KV resync. Required for resync action."),
-        id: exports_external.string().optional().describe("For resync: the site or user ID to resync. Required when scope is site or user.")
+        action: enumType(["sweep", "resync"]).describe("The storage admin operation to perform."),
+        dryRun: booleanType().optional().describe("For sweep: when true (default), reports orphans without deleting. " + "Pass false to actually delete orphaned blobs."),
+        graceSeconds: numberType().int().optional().describe("For sweep: grace period in seconds. Blobs newer than this are skipped."),
+        scope: enumType(["site", "user", "all"]).optional().describe("For resync: scope of the KV resync. Required for resync action."),
+        id: stringType().optional().describe("For resync: the site or user ID to resync. Required when scope is site or user.")
       }
     }, async ({ action, dryRun, graceSeconds, scope, id }) => {
       try {
         const actionStr = action;
         if (actionStr === "sweep") {
-          const result2 = await adminStorage2({
+          const result = await adminStorage2({
             action: "sweep",
             dryRun,
             graceSeconds
           }, coreDeps);
-          const mode = result2.dry_run ? "DRY RUN" : "LIVE";
+          const mode = result.dry_run ? "DRY RUN" : "LIVE";
           return okResponse(`Storage sweep (${mode})
-` + `Orphaned blobs: ${result2.orphaned_blobs.length}
-` + `Abandoned prefixes: ${result2.abandoned_prefixes.length}
-` + `Deleted bytes: ${formatBytes(result2.deleted_bytes)}`);
+` + `Orphaned blobs: ${result.orphaned_blobs.length}
+` + `Abandoned prefixes: ${result.abandoned_prefixes.length}
+` + `Deleted bytes: ${formatBytes(result.deleted_bytes)}`);
         }
         if (!scope)
           return errResponse(new Error("scope is required for resync action"));
@@ -27025,12 +26656,12 @@ ${statusLines}
 ` + `  add    \u2014 Register a new custom domain
 ` + "  remove \u2014 Remove a registered custom domain",
       inputSchema: {
-        action: exports_external.enum(["list", "add", "remove"]).describe("The domain admin operation to perform."),
-        hostname: exports_external.string().optional().describe("Domain hostname (e.g. example.com). Required for add action."),
-        accessPolicy: exports_external.string().optional().describe("Access policy for the domain (e.g. 'open'). Required for add action."),
-        domainId: exports_external.string().optional().describe("Domain ID to remove. Required for remove action.")
+        action: enumType(["list", "add", "remove"]).describe("The domain admin operation to perform."),
+        hostname: stringType().optional().describe("Domain hostname (e.g. example.com). Required for add action."),
+        accessPolicy: stringType().optional().describe("Access policy for the domain (e.g. 'open'). Required for add action."),
+        domainId: stringType().optional().describe("Domain ID to remove. Required for remove action.")
       }
-    }, async ({ action, hostname: hostname2, accessPolicy, domainId }) => {
+    }, async ({ action, hostname, accessPolicy, domainId }) => {
       try {
         const actionStr = action;
         if (actionStr === "list") {
@@ -27044,11 +26675,11 @@ ${lines.join(`
 `)}`);
         }
         if (actionStr === "add") {
-          if (!hostname2)
+          if (!hostname)
             return errResponse(new Error("hostname is required for add action"));
           if (!accessPolicy)
             return errResponse(new Error("accessPolicy is required for add action"));
-          const result = await adminDomains2({ action: "add", hostname: hostname2, accessPolicy }, coreDeps);
+          const result = await adminDomains2({ action: "add", hostname, accessPolicy }, coreDeps);
           return okResponse(`Domain registered: ${result.hostname}
 ` + `ID: ${result.id}
 ` + `Access policy: ${result.access_policy}`);
@@ -27077,7 +26708,7 @@ if (import.meta.main) {
   });
 }
 export {
-  createServer,
+  PACKAGE_NAME,
   PACKAGE_VERSION,
-  PACKAGE_NAME
+  createServer
 };
