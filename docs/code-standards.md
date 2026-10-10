@@ -1,5 +1,5 @@
-<!-- base-commit: 3a0c258a9a4acff9dbaa849467a45e1f4aada286 -->
-<!-- generated: 2026-06-20 -->
+<!-- base-commit: 74e9d0da5a56f23189e9ee63fcdd7ff41a62f8cf -->
+<!-- generated: 2026-10-09 -->
 
 # Code Standards
 
@@ -42,6 +42,16 @@ new URLSearchParams({ flow: "local", redirect_uri, code_challenge, code_challeng
 ```
 
 **Never use `any`, `@ts-ignore`, or `eslint-disable`** — none exist in non-test source. Narrow `unknown`; cast args from MCP handlers explicitly (`slug as string`). `tsconfig.json` is `strict`.
+
+**Never send bare strings where the API wants objects** — the `gate set` tool failed every call (`400 each field must be an object`) until `lib/gate.ts` built `{type, required}` objects from the tool's `GateFieldType[]`. Type request bodies from the API contract, and render object lists through a formatter, never `.join()`.
+
+```typescript
+// BAD — bare strings are rejected by the API; joining objects prints "[object Object]"
+await apiClient.put(path, { fields });          fields.join(", ")
+// GOOD — lib/gate.ts setGate() / formatGateFields(): lib owns the wire shape
+const body: { fields: GateField[] } = { fields: fields.map((type) => ({ type, required: true })) };
+f.required === false ? `${f.type} (optional)` : f.type   // key on === false, not falsiness
+```
 
 **Never re-introduce zip-based upload (`fflate`)** — the publish flow is presigned-URL-only: manifest → PUT changed files → finalize. File bytes never pass through the API server.
 
@@ -115,7 +125,7 @@ Two coexisting strategies — match the one the function you touch already uses.
 throw new ApiError(response.status, parsedBody, `API error ${response.status}: ${errorMessage}`);
 ```
 
-**Structured-return functions (never throw for expected failures):** `rename`, `status`, `logout`. They return a discriminated union so callers branch on a flag, not a catch.
+**Structured-return functions (never throw for expected failures):** `rename`, `status`, `logout`, `startUpgrade` (`lib/upgrade.ts`). They return a discriminated union so callers branch on a flag, not a catch.
 
 ```typescript
 // lib/core.ts — failure is encoded in the type, including auth failure
@@ -138,6 +148,10 @@ if (err instanceof OverageApprovalError) { /* show err.approval_url, err.price *
 ```
 
 **Error enrichment at the domain boundary** — append actionable guidance only to the one case the agent can act on (403 tier-limit gets the upgrade URL); all other errors pass through verbatim because backend text is already actionable.
+
+**Capture before side-effecting** — `startUpgrade()` takes the checkout URL from the API *before* `openBrowser()`, so a headless failure still returns the URL for manual use. Browser/API are injected via `UpgradeDeps`.
+
+**Advisory warnings never block** — `publish` returns `warnings` and `filenameWarnings` (`fragile` vs `fyi` buckets) alongside `url`; the adapter renders them, the publish still succeeds.
 
 **Best-effort side effects are silently swallowed** — server-side token revoke on `logout`, namespace fetch in `status`, and `log()` must never block or break the primary operation.
 
@@ -206,6 +220,8 @@ const client = new ApiClient(BASE_URL, async () => "test-token", fetchFn);
 
 **Test naming:** `test_DW_<phase>_<n>_<description>` — `DW` = the "done-when" criterion from the plan that motivated the test (e.g. `test_DW_6_1_core_rename_site_calls_correct_route`).
 
+**Adapter tests use `createServer(coreDeps, { heartbeatIntervalMs })`** (`tests/mcp*.test.ts`) — pass a tiny interval (e.g. 50 ms) to test progress heartbeats without real 15 s waits. CI runs the full `bun test` (lib/ + tests/), not just `lib/`; `tests/manifests.test.ts` pins version sync and manifest shape across the plugin configs.
+
 **Boundary test (keep it green):** `lib/publish.test.ts` and `lib/qrcode.test.ts` read every non-test `lib/*.ts` and assert none import `@modelcontextprotocol/sdk`.
 
 ```typescript
@@ -240,13 +256,14 @@ lib/             Domain logic + facade. Unit tests co-located as *.test.ts.
   domain.ts        Custom-domain connect/check/list/remove (space-level /api/domains — not ns-scoped)
   analytics.ts     Per-site analytics on/off PATCH (no republish)
   display-msg.ts   Pure display-boundary translator (namespace → address) — leaf, no deps
+  upgrade.ts       Stripe Checkout opener (startUpgrade; UPGRADE_HINT appended to free-tier 403s)
   rename/list/delete/promote/passcode/gate/members/versions/qrcode.ts  one domain area each
   admin.ts         Env-gated admin ops (user/site/stats/storage/domains)
   types.ts         Shared types (leaf) | log.ts  file logger ~/.upublish/publish.log (leaf, never throws)
 mcp/index.ts     MCP adapter — createServer(coreDeps?, opts?) factory, tool registry, okResponse/errResponse
-tests/           Integration/adapter tests (import from mcp/)
+tests/           Integration/adapter tests (import from mcp/) + manifest checks
 references/      Markdown docs the skill/GEMINI.md route users to
-dist/mcp.js      Pre-built bundle — rebuilt by CI, never hand-edited
+dist/mcp.js      Pre-built bundle — rebuilt by CI on main; never hand-edit
 ```
 
 New domain area: add `lib/<area>.ts` + co-located `lib/<area>.test.ts`, wire it through `lib/core.ts` (import + facade fn + type re-export), then register the MCP tool in `mcp/index.ts`.
@@ -254,10 +271,11 @@ New domain area: add `lib/<area>.ts` + co-located `lib/<area>.test.ts`, wire it 
 ## Technology Decisions
 
 - **Bun** is runtime, test runner, and bundler. Only `node:` builtins, no Node-specific runtime APIs. No build step in dev — Bun runs `.ts` directly.
-- **PKCE auth is real (RFC 7636)** via Web Crypto (`crypto.subtle`), not `node:crypto`. The unified login opens the website provider-chooser with `flow=local` + PKCE params; legacy per-flow endpoints return HTTP 410 `upgrade_required` — do not call them.
+- **PKCE auth is real (RFC 7636)** via Web Crypto (`crypto.subtle`), not `node:crypto`. The unified login opens the website provider-chooser with `flow=local` + PKCE params; the old per-flow auth endpoints are removed server-side (404) — the skill never calls them.
 - **No linter/formatter config** (no eslint/biome/prettier). Style is enforced by tests and review. `tsconfig.json` is strict.
 - **zod** for MCP input schemas (required by the SDK). **open** for browser launch, **qrcode** for the qrcode tool.
-- **Version must be bumped on every change** — plugins only update when the number changes. It lives in six files that must stay in sync: `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`, `plugin.json` (root), `mcp/index.ts` (`PACKAGE_VERSION`). CI bumps them on merge.
+- **Versions are bumped by CI, not by hand** — plugins only update when the number changes. Six files stay in sync (`package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`, `plugin.json`, `mcp/index.ts` `PACKAGE_VERSION`); `.github/workflows/ci.yml` `bump-version` increments the **patch** on every push to `main` (after tests pass), rebuilds `dist/mcp.js`, and commits `chore: bump version to X [skip ci]`. A minor/major bump needs a manual edit of all six. `CHANGELOG.md` is hand-written per notable change.
+- **Per-client MCP timeout knobs differ in units** — `.mcp.json`/`gemini-extension.json` `timeout` is ms (21600000); `codex-mcp.json` `tool_timeout_sec` is seconds (21600). Progress notifications are cosmetic; do not rely on them for timeout survival.
 - **Rebuild `dist/mcp.js` on every source change** — installed plugins run the bundle, not the source: `bun build mcp/index.ts --target=bun --outfile=dist/mcp.js && chmod +x dist/mcp.js`.
 - **Admin tools are env-gated** — only registered when `UPUBLISH_ADMIN=1`; otherwise the registry is byte-identical to the public baseline.
 - **Hosted token injection** — `CoreDeps.tokenProvider` lets a host (backend `/mcp` router) supply a per-request bearer, bypassing the disk credential path. Takes precedence over `credentialsPath`; wrapped to fail closed on an empty token.

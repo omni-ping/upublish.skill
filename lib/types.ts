@@ -50,15 +50,34 @@ export type TokenProvider = () => Promise<string>;
 
 // ─── Gate types ───────────────────────────────────────────────────────────────
 
-/** A field type collected by a form gate. */
-export type GateFieldType = "email" | "name" | "company" | "phone" | "message";
+/**
+ * A field type collected by a form gate.
+ *
+ * These four are the complete set the API accepts — the backend validates every
+ * PUT against exactly this list (`VALID_GATE_FIELD_TYPES` in the server's
+ * `api/gate.ts`) and 400s on anything else.
+ */
+export type GateFieldType = "email" | "name" | "company" | "phone";
+
+/**
+ * A single field in a gate form.
+ *
+ * This is the element shape the API expects on the wire and returns on read —
+ * a bare field-type string is rejected with "each field must be an object".
+ */
+export interface GateField {
+  /** Which canned field to collect — determines the API's validation rules. */
+  type: GateFieldType;
+  /** Whether the visitor must fill it in to submit the form. */
+  required: boolean;
+}
 
 /** Gate configuration for a site. */
 export interface GateConfig {
   /** The site slug this gate belongs to. */
   slug: string;
-  /** Fields collected by the gate form. */
-  fields: GateFieldType[];
+  /** Fields collected by the gate form, in display order. */
+  fields: GateField[];
   /** ISO 8601 creation timestamp. */
   created_at: string;
   /** ISO 8601 last-update timestamp. */

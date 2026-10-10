@@ -1894,3 +1894,83 @@ describe("Phase 3: hashing phase MCP progress notifications", () => {
     }
   });
 });
+
+// ─── DW-1.2: the gate tool's set/get responses render object fields ──────────
+
+/**
+ * These tests guard the *adapter*, not the formatter.
+ *
+ * lib/gate.test.ts already pins formatGateFields itself, but nothing required
+ * mcp/index.ts to call it: `fields.join(", ")` is valid TypeScript on a
+ * GateField[] and yields "[object Object], [object Object]" at runtime, so both
+ * the typecheck and the whole suite stayed green with the defect restored.
+ * Asserting on the tool's returned text is what actually binds the render sites
+ * to the helper.
+ */
+describe("DW-1.2: gate tool renders field objects as readable text", () => {
+  /** A gate as the API really returns it — fields are objects, never strings. */
+  const GATE_WITH_OBJECT_FIELDS = {
+    id: "gate-1",
+    site_id: "abc123",
+    slug: "my-site",
+    fields: [
+      { type: "email", required: true },
+      { type: "name", required: true },
+    ],
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+  };
+
+  function gateDeps(gate: unknown = GATE_WITH_OBJECT_FIELDS) {
+    return makeDeps(makeMockFetch({ gate, submission_count: 4 }));
+  }
+
+  test("test_DW_1_2_gate_set_response_lists_field_types", async () => {
+    const { deps } = gateDeps();
+    const tools = getTools(createServer(deps));
+    const result = await tools["gate"].handler({
+      action: "set",
+      slug: "my-site",
+      fields: ["email", "name"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    expect(text).toContain("Fields: email, name");
+    expect(text).not.toContain("[object Object]");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_1_2_gate_get_response_lists_field_types", async () => {
+    const { deps } = gateDeps();
+    const tools = getTools(createServer(deps));
+    const result = await tools["gate"].handler({ action: "get", slug: "my-site" });
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    expect(text).toContain("Fields: email, name");
+    expect(text).toContain("Submissions: 4");
+    expect(text).not.toContain("[object Object]");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+
+  test("test_DW_1_2_gate_get_response_marks_optional_fields", async () => {
+    // A gate configured on the web dashboard can carry optional fields; the MCP
+    // surface must report that rather than implying everything is required.
+    const { deps } = gateDeps({
+      ...GATE_WITH_OBJECT_FIELDS,
+      fields: [
+        { type: "email", required: true },
+        { type: "phone", required: false },
+      ],
+    });
+    const tools = getTools(createServer(deps));
+    const result = await tools["gate"].handler({ action: "get", slug: "my-site" });
+
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    expect(text).toContain("Fields: email, phone (optional)");
+    expect(text).not.toContain("[object Object]");
+    fs.unlinkSync(deps.credentialsPath!);
+  });
+});

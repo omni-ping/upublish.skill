@@ -13,7 +13,11 @@ jobs:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bun test lib/
+      # Full suite, not `bun test lib/`. The adapter tests in tests/ are the only
+      # thing binding mcp/index.ts's rendering to its helpers — a lib-only run let
+      # a `fields.join(", ")` regression pass green. No credentials or network
+      # required; the suite runs in ~2s.
+      - run: bun test
 
   bump-version:
     needs: test

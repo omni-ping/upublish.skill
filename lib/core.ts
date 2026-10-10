@@ -71,6 +71,7 @@ import {
   removeGate as domainRemoveGate,
   getSubmissions as domainGetSubmissions,
   clearSubmissions as domainClearSubmissions,
+  formatGateFields,
 } from "./gate.ts";
 import type {
   GetGateResult,
@@ -133,7 +134,7 @@ import { renameSite, renameNamespace } from "./rename.ts";
 import type { RedirectMode } from "./rename.ts";
 import { startUpgrade as domainStartUpgrade, appendUpgradeHint } from "./upgrade.ts";
 import type { UpgradeArgs, UpgradeResult } from "./upgrade.ts";
-import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateSubmission, TokenProvider } from "./types.ts";
+import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateFieldType, GateSubmission, TokenProvider } from "./types.ts";
 import { displayMsg } from "./display-msg.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
@@ -149,9 +150,10 @@ export type { ListVersionsResult, DeleteVersionResult, RestoreVersionResult, Set
 export type { SetAnalyticsResult };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
+export { formatGateFields };
 export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, ChangeMemberRoleResult };
 export type { QrCodeArgs, QrCodeResult };
-export type { Namespace, Site, Visibility, GateConfig, GateSubmission };
+export type { Namespace, Site, Visibility, GateConfig, GateFieldType, GateSubmission };
 export type { NamespaceCreateResult };
 export { OverageApprovalError };
 export type {
@@ -226,7 +228,13 @@ export interface PublishArgs {
    * validated server-side (400/422/409 on malformed/reserved/shadowing).
    */
   pathPrefix?: string | null;
-  /** Optional human-readable title. Defaults to slug. */
+  /**
+   * Optional human-readable title. When omitted, a normal slug defaults to
+   * the slug itself; the reserved `_root` slug (address root) preserves the
+   * site's existing stored title when there is a meaningful one to keep,
+   * otherwise defaults to the resolved namespace's name instead of the
+   * literal slug `"_root"` — see `lib/publish.ts`'s `resolveDefaultTitle`.
+   */
   title?: string;
   /** Site visibility mode. */
   visibility?: Visibility;
@@ -385,6 +393,36 @@ export async function list(namespaceName?: string, deps?: CoreDeps): Promise<Lis
 }
 
 /**
+ * Looks up the `_root` site's currently-stored title within a namespace, so
+ * `publish()` can thread it into `resolveDefaultTitle()` (see
+ * `lib/publish.ts`) and preserve a user's hand-set `_root` title instead of
+ * resetting it to the namespace name on every re-publish.
+ *
+ * There is no single-site GET endpoint — the backend only exposes the
+ * namespace-scoped list (`GET /api/ns/:nsId/sites`), so this reuses
+ * `listSites()` (already used by `list()` above) rather than adding a new
+ * API surface, and finds the `_root` entry within it.
+ *
+ * Never throws: a lookup failure (network error, non-2xx, malformed
+ * response) degrades to `null`, same as "no existing `_root` site found".
+ * `resolveDefaultTitle()` treats `null` as "nothing usable to preserve" and
+ * falls back to the namespace name — strictly better than the pre-fix
+ * behavior (which stored the literal `"_root"`) and never worse than simply
+ * not knowing. A failed lookup must never fail the publish itself.
+ */
+async function lookupExistingRootTitle(
+  apiClient: ApiClient,
+  nsId: string,
+): Promise<string | null> {
+  try {
+    const { sites } = await listSites(apiClient, nsId);
+    return sites.find((s) => s.slug === "_root")?.title ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Publishes a directory to upubli.sh via the presigned-URL flow:
  * hashes files, diffs against server manifest, uploads only changed files
  * via presigned R2 URLs, then finalizes.
@@ -400,6 +438,15 @@ export async function publish(
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, args.namespace);
 
+  // Scoped lookup: only a _root publish with no explicit title needs the
+  // existing title (an explicit title always wins and would discard it
+  // anyway; a non-_root publish never consults it) — so ordinary publishes
+  // never pay for the extra request.
+  const existingTitle =
+    args.slug === "_root" && args.title === undefined
+      ? await lookupExistingRootTitle(apiClient, ns.id)
+      : undefined;
+
   log(`[publish] slug=${args.slug} dir=${args.directory} namespace=${ns.name}`);
 
   return domainPublish({
@@ -409,6 +456,8 @@ export async function publish(
     slug: args.slug,
     pathPrefix: args.pathPrefix,
     title: args.title,
+    namespaceName: ns.name,
+    existingTitle,
     visibility: args.visibility,
     passcode: args.passcode,
     passcodeLabel: args.passcodeLabel,
@@ -655,10 +704,14 @@ export async function revokePasscode(
 /**
  * Discriminated union of arguments for the gate() dispatch function.
  * The `action` field determines which domain operation is invoked.
+ *
+ * `set` takes field *types*; setGate turns each into the `{ type, required }`
+ * object the API requires. The union is closed to the four types the backend
+ * accepts, so an unsupported type fails to compile instead of 400ing at runtime.
  */
 export type GateArgs =
   | { action: "get"; slug: string; namespace?: string }
-  | { action: "set"; slug: string; fields: string[]; namespace?: string }
+  | { action: "set"; slug: string; fields: GateFieldType[]; namespace?: string }
   | { action: "remove"; slug: string; namespace?: string }
   | { action: "submissions"; slug: string; namespace?: string }
   | { action: "clear"; slug: string; namespace?: string };

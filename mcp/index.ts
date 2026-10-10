@@ -50,6 +50,7 @@ import {
   displayMsg,
   appendUpgradeHint,
   renderFilenameWarning,
+  formatGateFields,
 } from "../lib/core.ts";
 import type {
   CoreDeps,
@@ -60,6 +61,7 @@ import type {
   CallbackServer,
   NamespaceCreateResult,
   HashProgress,
+  GateFieldType,
   GateSubmission,
   UploadProgress,
   Member,
@@ -321,7 +323,9 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .optional()
           .describe(
-            "Optional human-readable title for the site. Defaults to the slug.",
+            "Optional human-readable title for the site. Defaults to the slug " +
+            "— or, for the '_root' slug (address root), the site's existing " +
+            "title if it already has a meaningful one, else the address's name.",
           ),
         visibility: z
           .enum(["public", "passcode"])
@@ -1111,11 +1115,12 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
           .string()
           .describe("The URL-safe identifier of the site."),
         fields: z
-          .array(z.enum(["email", "name", "company", "phone", "message"]))
+          .array(z.enum(["email", "name", "company", "phone"]))
           .optional()
           .describe(
             "Fields to collect from visitors. Required when action is 'set'. " +
-            "Valid values: 'email', 'name', 'company', 'phone', 'message'.",
+            "Valid values: 'email', 'name', 'company', 'phone'. " +
+            "Every field is set as required.",
           ),
         namespace: z
           .string()
@@ -1131,7 +1136,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         const slugStr = slug as string;
 
         if (actionStr === "set") {
-          const fieldsArr = fields as string[] | undefined;
+          const fieldsArr = fields as GateFieldType[] | undefined;
           if (!fieldsArr || fieldsArr.length === 0) {
             return errResponse(new Error("fields is required when action is 'set'"));
           }
@@ -1140,7 +1145,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             coreDeps,
           );
           if (result.action !== "set") return errResponse(new Error("Unexpected result"));
-          const fieldsList = result.gate.fields.join(", ");
+          const fieldsList = formatGateFields(result.gate.fields);
           return okResponse(
             `Gate set for '${slugStr}'\nFields: ${fieldsList}`,
           );
@@ -1152,7 +1157,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
             coreDeps,
           );
           if (result.action !== "get") return errResponse(new Error("Unexpected result"));
-          const fieldsList = result.gate.fields.join(", ");
+          const fieldsList = formatGateFields(result.gate.fields);
           return okResponse(
             `Gate for '${slugStr}'\nFields: ${fieldsList}\nSubmissions: ${result.submission_count}`,
           );
