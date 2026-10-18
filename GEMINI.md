@@ -35,6 +35,7 @@ directly. Tell the user to complete setup in the browser window.
 | Publish a directory as a live site | `references/publishing.md` |
 | List, delete, or manage existing sites | `references/managing.md` |
 | Control who can access a site (passcode) | `references/visibility.md` |
+| Add voting, a guestbook, signups or any shared data to a site | `references/site-data.md` |
 | Fix something that's broken | `references/troubleshooting.md` |
 
 ## Available tools
@@ -48,6 +49,10 @@ directly. Tell the user to complete setup in the browser window.
 - `mcp_upublish_passcode_add` — add a passcode to a site
 - `mcp_upublish_passcode_list` — list passcodes for a site
 - `mcp_upublish_passcode_revoke` — revoke a passcode from a site
+- `mcp_upublish_data` — site data add-on: status, enable (shows the price first; charges only with `accept_charge: true`), disable, wipe (destructive)
+- `mcp_upublish_data_collection` — site data collections: list, get, set (create or update), delete (also deletes the data)
+- `mcp_upublish_data_rows` — site data rows: list, export to a file, archive, delete, create, put, import
+- `mcp_upublish_data_jwt` — site data bring-your-own JWT issuer: set, clear
 - `mcp_upublish_logout` — log out and remove credentials
 
 ## Quick reference

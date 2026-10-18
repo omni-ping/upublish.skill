@@ -14,6 +14,7 @@
  *   login()     — run the OAuth flow and store credentials
  *   status()    — check authentication state against the API
  *   logout()    — revoke refresh token server-side and delete local credentials
+ *   data(), dataCollection(), dataRows(), dataJwt() — site data add-on (lib/site-data*.ts)
  *
  * All functions accept an optional CoreDeps for test injection:
  *   credentialsPath  — override credentials file location
@@ -136,6 +137,15 @@ import { startUpgrade as domainStartUpgrade, appendUpgradeHint } from "./upgrade
 import type { UpgradeArgs, UpgradeResult } from "./upgrade.ts";
 import type { FetchFn, Namespace, Site, Visibility, GateConfig, GateFieldType, GateSubmission, TokenProvider } from "./types.ts";
 import { displayMsg } from "./display-msg.ts";
+import { runData, runDataJwt } from "./site-data.ts";
+import type { DataArgs, DataResult, DataJwtArgs, DataJwtResult } from "./site-data.ts";
+import { runDataCollection } from "./site-data-collections.ts";
+import type { DataCollectionArgs, DataCollectionResult } from "./site-data-collections.ts";
+import { runDataRows } from "./site-data-rows.ts";
+import type { DataRowsArgs, DataRowsResult } from "./site-data-rows.ts";
+import { formatDataResult, formatCollectionResult, formatRowsResult, formatJwtResult } from "./site-data-format.ts";
+import { SiteDataError } from "./site-data-errors.ts";
+import { JWT_ALGORITHMS, SITE_DATA_LIMITS } from "./site-data-types.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
 
@@ -171,6 +181,8 @@ export type { RedirectMode };
 export type { UpgradeArgs, UpgradeResult };
 export { appendUpgradeHint };
 export { displayMsg };
+export type { DataArgs, DataResult, DataJwtArgs, DataJwtResult, DataCollectionArgs, DataCollectionResult, DataRowsArgs, DataRowsResult };
+export { formatDataResult, formatCollectionResult, formatRowsResult, formatJwtResult, SiteDataError, JWT_ALGORITHMS, SITE_DATA_LIMITS };
 export type {
   AdminUserArgs,
   AdminSiteArgs,
@@ -763,6 +775,38 @@ export async function gate(args: GateArgs, deps?: CoreDeps): Promise<GateResult>
       return { action: "clear", ...result };
     }
   }
+}
+
+// ─── Site data ────────────────────────────────────────────────────────────────
+
+/**
+ * Site data add-on: status, enable (consent-gated), disable, wipe.
+ * `enable` returns the price instead of charging unless `accept_charge` is true.
+ *
+ * @throws Error "Not authenticated" if no credentials are stored.
+ * @throws SiteDataError on an API failure, with an actionable message.
+ */
+export async function data(args: DataArgs, deps?: CoreDeps): Promise<DataResult> {
+  const apiClient = await buildApiClient(deps);
+  return runData(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+}
+
+/** Site data collections: list, get, set (create or update), delete. Sites are named by slug. */
+export async function dataCollection(args: DataCollectionArgs, deps?: CoreDeps): Promise<DataCollectionResult> {
+  const apiClient = await buildApiClient(deps);
+  return runDataCollection(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+}
+
+/** Site data rows: list, export (streamed to a file), archive, delete, create, put, import. */
+export async function dataRows(args: DataRowsArgs, deps?: CoreDeps): Promise<DataRowsResult> {
+  const apiClient = await buildApiClient(deps);
+  return runDataRows(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+}
+
+/** Site data bring-your-own JWT issuer: set, clear. */
+export async function dataJwt(args: DataJwtArgs, deps?: CoreDeps): Promise<DataJwtResult> {
+  const apiClient = await buildApiClient(deps);
+  return runDataJwt(apiClient, await resolveNamespace(apiClient, args.namespace), args);
 }
 
 // ─── Members ──────────────────────────────────────────────────────────────────

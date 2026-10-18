@@ -56,6 +56,7 @@ Match what the user wants and read the reference file, then follow it.
 | List, delete, or manage existing sites | `../../references/managing.md` |
 | Roll a site back to a previous version, or manage versions | `../../references/managing.md` |
 | Control who can access a site (passcode) | `../../references/visibility.md` |
+| Add voting, a guestbook, signups or any shared data to a site (browser code + collections) | `../../references/site-data.md` |
 | Add another address (URL prefix) | Call `namespace_create` (free plan allows one; tier-limit errors include the upgrade link) |
 | Optimize site performance or reduce size | `../../references/optimization.md` |
 | Add SEO tags, social previews, or favicon | `../../references/seo-social.md` |
@@ -79,6 +80,10 @@ Match what the user wants and read the reference file, then follow it.
 | `mcp_upublish_passcode_add` | Add a passcode to a site |
 | `mcp_upublish_passcode_list` | List passcodes for a site |
 | `mcp_upublish_passcode_revoke` | Revoke a passcode from a site |
+| `mcp_upublish_data` | Site data add-on: status, enable (shows the price first; charges only with `accept_charge: true`), disable, wipe (destructive) |
+| `mcp_upublish_data_collection` | Site data collections: list, get, set (create or update), delete (also deletes the data) |
+| `mcp_upublish_data_rows` | Site data rows: list, export to a file, archive, delete, create, put, import |
+| `mcp_upublish_data_jwt` | Site data bring-your-own JWT issuer: set, clear |
 | `mcp_upublish_logout` | Log out and remove credentials |
 
 ## Quick reference

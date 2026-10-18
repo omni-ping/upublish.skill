@@ -1,0 +1,17 @@
+{
+  "route": "api.disable",
+  "request": {
+    "method": "POST",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/data/disable"
+  },
+  "responses": [
+    {
+      "name": "disabled",
+      "status": 200,
+      "body": {
+        "entitled": false,
+        "wipe_after": "2026-11-17T12:00:00.000Z"
+      }
+    }
+  ]
+}

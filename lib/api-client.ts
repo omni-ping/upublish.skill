@@ -58,6 +58,21 @@ export class ApiClient {
     return this.parseResponse<T>(response);
   }
 
+  /**
+   * GET request that returns the raw, un-consumed Response so the caller can
+   * stream a large body (e.g. an NDJSON export) without buffering it. Non-2xx
+   * responses throw the same ApiError as every other method.
+   */
+  async getRaw(path: string): Promise<Response> {
+    const token = await this.tokenProvider();
+    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) await this.throwApiError(response);
+    return response;
+  }
+
   /** POST request with a JSON body — returns parsed JSON body. */
   async post<T>(path: string, body: unknown): Promise<T> {
     const token = await this.tokenProvider();
@@ -223,7 +238,11 @@ export class ApiClient {
     if (response.ok) {
       return response.json() as Promise<T>;
     }
+    return this.throwApiError(response);
+  }
 
+  /** Reads a non-2xx response's body and throws it as an ApiError. */
+  private async throwApiError(response: Response): Promise<never> {
     let errorMessage: string;
     let rawBody = "";
     let parsedBody: unknown = null;

@@ -1,0 +1,126 @@
+{
+  "route": "api.status",
+  "request": {
+    "method": "GET",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/data"
+  },
+  "responses": [
+    {
+      "name": "enabled",
+      "status": 200,
+      "body": {
+        "available": true,
+        "entitled": true,
+        "entitlement_source": "paid",
+        "activating": false,
+        "billing": {
+          "item_present": true,
+          "interval": "month",
+          "past_due": false,
+          "enabled_at": "2026-10-18T12:00:00.000Z",
+          "disabled_at": null,
+          "wipe_after": null,
+          "wiped_at": null
+        },
+        "price": {
+          "month_cents": 200,
+          "year_cents": 2000
+        },
+        "collections": {
+          "votes": {
+            "config": {
+              "rule": "own-rows",
+              "sites": [
+                "5b0e3c1a-0000-4000-8000-00000000b001",
+                "5b0e3c1a-0000-4000-8000-00000000b002"
+              ],
+              "writers": [
+                "passcode"
+              ],
+              "per_identity_limit": null,
+              "write_claims": [
+                {
+                  "kind": "passcode",
+                  "claims": {
+                    "site": "5b0e3c1a-0000-4000-8000-00000000b001",
+                    "label": "her"
+                  }
+                }
+              ],
+              "admin_claims": [
+                {
+                  "kind": "passcode",
+                  "claims": {
+                    "site": "5b0e3c1a-0000-4000-8000-00000000b002",
+                    "label": "founder"
+                  }
+                }
+              ],
+              "max_rows": 10000,
+              "max_row_bytes": 16384,
+              "writes_per_min": 60
+            },
+            "stats": {
+              "rows": 42,
+              "archived_rows": 7,
+              "bytes": 5120,
+              "last_write_at": "2026-10-18T12:05:00.000Z"
+            }
+          }
+        },
+        "stats_state": "ok",
+        "kv": {
+          "drift": "none",
+          "checked_at": "2026-10-18T12:05:00.000Z"
+        },
+        "wipe_job": {
+          "last_run_at": "2026-10-18T12:00:00.000Z",
+          "last_result": "ok"
+        },
+        "jwt_issuer": null
+      }
+    },
+    {
+      "name": "dark launch: hidden",
+      "status": 200,
+      "body": {
+        "available": false,
+        "entitled": false,
+        "entitlement_source": null,
+        "activating": false,
+        "billing": {
+          "item_present": false,
+          "interval": null,
+          "past_due": false,
+          "enabled_at": null,
+          "disabled_at": null,
+          "wipe_after": null,
+          "wiped_at": null
+        },
+        "price": {
+          "month_cents": 200,
+          "year_cents": 2000
+        },
+        "collections": {},
+        "stats_state": "ok",
+        "kv": {
+          "drift": "none",
+          "checked_at": "2026-10-18T12:05:00.000Z"
+        },
+        "wipe_job": {
+          "last_run_at": "2026-10-18T12:00:00.000Z",
+          "last_result": "ok"
+        },
+        "jwt_issuer": null
+      }
+    },
+    {
+      "name": "not a member",
+      "status": 404,
+      "body": {
+        "error": "Namespace not found.",
+        "code": "not_found"
+      }
+    }
+  ]
+}

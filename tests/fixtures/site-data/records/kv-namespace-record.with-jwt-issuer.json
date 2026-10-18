@@ -1,0 +1,72 @@
+{
+  "v": 1,
+  "ns_id": "5b0e3c1a-0000-4000-8000-00000000a001",
+  "entitled": true,
+  "collections": {
+    "votes": {
+      "rule": "own-rows",
+      "sites": [
+        "5b0e3c1a-0000-4000-8000-00000000b001",
+        "5b0e3c1a-0000-4000-8000-00000000b002"
+      ],
+      "writers": [
+        "passcode"
+      ],
+      "per_identity_limit": null,
+      "write_claims": [
+        {
+          "kind": "passcode",
+          "claims": {
+            "site": "5b0e3c1a-0000-4000-8000-00000000b001",
+            "label": "her"
+          }
+        }
+      ],
+      "admin_claims": [
+        {
+          "kind": "passcode",
+          "claims": {
+            "site": "5b0e3c1a-0000-4000-8000-00000000b002",
+            "label": "founder"
+          }
+        }
+      ],
+      "max_rows": 10000,
+      "max_row_bytes": 16384,
+      "writes_per_min": 60
+    },
+    "feedback": {
+      "rule": "inbox",
+      "sites": [
+        "5b0e3c1a-0000-4000-8000-00000000b001"
+      ],
+      "writers": [
+        "anonymous",
+        "jwt"
+      ],
+      "per_identity_limit": 5,
+      "write_claims": [],
+      "admin_claims": [
+        {
+          "kind": "jwt",
+          "claims": {
+            "role": "admin",
+            "email_verified": true
+          }
+        }
+      ],
+      "max_rows": 1000,
+      "max_row_bytes": 4096,
+      "writes_per_min": 10
+    }
+  },
+  "jwt_issuer": {
+    "issuer": "https://abcdefgh.supabase.co/auth/v1",
+    "jwks_uri": "https://abcdefgh.supabase.co/auth/v1/.well-known/jwks.json",
+    "audience": "authenticated",
+    "algorithms": [
+      "ES256",
+      "RS256"
+    ]
+  }
+}

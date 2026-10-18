@@ -1,0 +1,31 @@
+{
+  "route": "admin.stats",
+  "request": {
+    "method": "GET",
+    "path": "/__upublish/data-admin/ns/5b0e3c1a-0000-4000-8000-00000000a001/stats"
+  },
+  "responses": [
+    {
+      "name": "ok",
+      "status": 200,
+      "body": {
+        "collections": {
+          "votes": {
+            "rows": 42,
+            "archived_rows": 7,
+            "bytes": 5120,
+            "last_write_at": "2026-10-18T12:05:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "bad signature",
+      "status": 401,
+      "body": {
+        "error": "Signature mismatch.",
+        "code": "bad_signature"
+      }
+    }
+  ]
+}

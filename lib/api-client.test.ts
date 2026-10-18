@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "bun:test";
-import { ApiClient } from "./api-client.ts";
+import { ApiClient, ApiError } from "./api-client.ts";
 
 const BASE_URL = "https://api.example.com";
 const TOKEN = "test-token-abc";
@@ -261,5 +261,38 @@ describe("DW-1.7: ApiClient", () => {
       // Must NOT be an array
       expect(Array.isArray(parsed.files)).toBe(false);
     });
+  });
+});
+
+// ─── getRaw (streaming GET) ──────────────────────────────────────────────────
+
+describe("ApiClient.getRaw", () => {
+  it("test_DW_6_1_get_raw_returns_unconsumed_response_with_bearer", async () => {
+    let seen: { url: string; headers: Record<string, string> } | undefined;
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      seen = { url, headers: init?.headers as Record<string, string> };
+      return new Response("line1\nline2\n", { status: 200 });
+    };
+    const res = await new ApiClient(BASE_URL, staticTokenProvider, fetchFn).getRaw("/export");
+    expect(seen!.url).toBe(`${BASE_URL}/export`);
+    expect(seen!.headers["Authorization"]).toBe(`Bearer ${TOKEN}`);
+    expect(res.bodyUsed).toBe(false);
+    expect(await res.text()).toBe("line1\nline2\n");
+  });
+
+  it("test_DW_6_1_get_raw_throws_api_error_with_status_and_parsed_body_on_non_2xx", async () => {
+    const client = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(403, { error: "no", code: "forbidden" }));
+    const err = await client.getRaw("/export").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(403);
+    expect((err as ApiError).rawBodyData).toEqual({ error: "no", code: "forbidden" });
+    expect((err as ApiError).message).toBe("API error 403: no");
+  });
+
+  it("test_DW_6_1_get_raw_non_json_error_body_falls_back_to_status_text", async () => {
+    const client = new ApiClient(BASE_URL, staticTokenProvider, async () => new Response("<html>", { status: 502, statusText: "Bad Gateway" }));
+    const err = await client.getRaw("/export").catch((e: unknown) => e);
+    expect((err as ApiError).message).toBe("API error 502: Bad Gateway");
+    expect((err as ApiError).rawBodyData).toBeNull();
   });
 });

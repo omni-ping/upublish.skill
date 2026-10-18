@@ -1,0 +1,28 @@
+{
+  "note": "Secret is a fixture value, never a real key.",
+  "secret": "fixture-secret-not-a-real-key",
+  "anonymous": {
+    "name": "__Host-upublish_did",
+    "host": "ryan.upubli.sh",
+    "did": "AAAAAAAAAAAAAAAAAAAAAA",
+    "iat": 1760788800,
+    "payload": "anon:v1:ryan.upubli.sh:AAAAAAAAAAAAAAAAAAAAAA:1760788800",
+    "mac": "328bfad26da554a19cf0150a187a7dea2716e19d58bca50246af134cbbf3361d",
+    "value": "AAAAAAAAAAAAAAAAAAAAAA.1760788800.328bfad26da554a19cf0150a187a7dea2716e19d58bca50246af134cbbf3361d"
+  },
+  "passcode_v2": {
+    "user": "ryan",
+    "addr": "for-her",
+    "passcode_id": "5b0e3c1a-0000-4000-8000-00000000c001",
+    "nonce": 3,
+    "ts": 1760788800,
+    "payload": "v2:ryan:for-her:5b0e3c1a-0000-4000-8000-00000000c001:3:1760788800",
+    "mac": "851773a1763c0a4dba86f7423e7b491d4e5f124fdaf16f633430a5152f13e865",
+    "value": "v2:5b0e3c1a-0000-4000-8000-00000000c001:3:1760788800:851773a1763c0a4dba86f7423e7b491d4e5f124fdaf16f633430a5152f13e865"
+  },
+  "passcode_v1_legacy": {
+    "value": "3:1760788800:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "grants_static_access": true,
+    "yields_passcode_identity": false
+  }
+}

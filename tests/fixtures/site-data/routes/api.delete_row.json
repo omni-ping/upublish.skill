@@ -1,0 +1,16 @@
+{
+  "route": "api.delete_row",
+  "request": {
+    "method": "DELETE",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/data/collections/votes/rows/item-17?author=passcode%3A5b0e3c1a-0000-4000-8000-00000000c001"
+  },
+  "responses": [
+    {
+      "name": "deleted",
+      "status": 200,
+      "body": {
+        "deleted": true
+      }
+    }
+  ]
+}

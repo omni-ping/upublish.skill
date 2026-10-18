@@ -1,0 +1,41 @@
+{
+  "route": "api.set_jwt_issuer",
+  "request": {
+    "method": "PUT",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/data/jwt-issuer",
+    "body": {
+      "issuer": "https://abcdefgh.supabase.co/auth/v1",
+      "jwks_uri": "https://abcdefgh.supabase.co/auth/v1/.well-known/jwks.json",
+      "audience": "authenticated",
+      "algorithms": [
+        "ES256",
+        "RS256"
+      ]
+    }
+  },
+  "responses": [
+    {
+      "name": "set",
+      "status": 200,
+      "body": {
+        "jwt_issuer": {
+          "issuer": "https://abcdefgh.supabase.co/auth/v1",
+          "jwks_uri": "https://abcdefgh.supabase.co/auth/v1/.well-known/jwks.json",
+          "audience": "authenticated",
+          "algorithms": [
+            "ES256",
+            "RS256"
+          ]
+        }
+      }
+    },
+    {
+      "name": "rejected",
+      "status": 400,
+      "body": {
+        "error": "jwks_uri host is not allowed",
+        "code": "invalid_request"
+      }
+    }
+  ]
+}

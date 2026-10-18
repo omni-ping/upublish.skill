@@ -515,6 +515,12 @@ export interface FilenameWarnings {
    * fine now; the note only flags that simple names are safest.
    */
   fyi: string[];
+  /**
+   * Paths under a top-level `_data` directory (any case), present only when
+   * non-empty. The site data add-on serves `/{slug}/_data/...` itself, so these
+   * files would be shadowed and never served. Warn-only: they are still published.
+   */
+  reserved?: string[];
 }
 
 /** Max filenames listed per bucket before the message summarizes the remainder. */
@@ -534,6 +540,8 @@ const FILENAME_WARNING_LIST_CAP = 10;
 export function classifyFilenames(paths: string[]): FilenameWarnings {
   const fragile: string[] = [];
   const fyi: string[] = [];
+  // Independent of the fragile/fyi buckets: a reserved path may also be listed in one of them.
+  const reserved = paths.filter((p) => p.split("/")[0]!.toLowerCase() === "_data");
 
   for (const path of paths) {
     // Classify by the basename — `/` separators and dir names never qualify.
@@ -560,7 +568,7 @@ export function classifyFilenames(paths: string[]): FilenameWarnings {
     else if (isFyi) fyi.push(path);
   }
 
-  return { fragile, fyi };
+  return reserved.length > 0 ? { fragile, fyi, reserved } : { fragile, fyi };
 }
 
 /**
@@ -576,7 +584,8 @@ export function renderFilenameWarning(fw: FilenameWarnings | undefined): string 
   if (!fw) return "";
   const fragile = fw.fragile ?? [];
   const fyi = fw.fyi ?? [];
-  if (fragile.length === 0 && fyi.length === 0) return "";
+  const reserved = fw.reserved ?? [];
+  if (fragile.length === 0 && fyi.length === 0 && reserved.length === 0) return "";
 
   // Cap the listed names so a large flagged tree stays readable; summarize the rest.
   const summarize = (names: string[]): string => {
@@ -586,6 +595,11 @@ export function renderFilenameWarning(fw: FilenameWarnings | undefined): string 
   };
 
   let out = "";
+  if (reserved.length > 0) {
+    out +=
+      `\nWarning: ${reserved.length} file(s) are under a top-level '_data' directory: ${summarize(reserved)}` +
+      `\n  '_data' is reserved for the site data add-on, so these files will NOT be served. Rename the directory.`;
+  }
   if (fragile.length > 0) {
     out +=
       `\nWarning: ${fragile.length} file(s) have names that may not be reachable by URL ` +
@@ -1261,7 +1275,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   // a successful finalize) and never renames a file or alters the manifest.
   // Attached only when something qualifies, so a clean tree omits the field.
   const filenameWarnings = classifyFilenames(files.map((f) => f.path));
-  if (filenameWarnings.fragile.length > 0 || filenameWarnings.fyi.length > 0) {
+  if (filenameWarnings.fragile.length > 0 || filenameWarnings.fyi.length > 0 || filenameWarnings.reserved) {
     result.filenameWarnings = filenameWarnings;
   }
 

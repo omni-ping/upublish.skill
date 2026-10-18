@@ -1,0 +1,61 @@
+{
+  "route": "visitor.put",
+  "request": {
+    "method": "PUT",
+    "path": "/_data/votes/item-17",
+    "headers": {
+      "Content-Type": "application/json",
+      "Origin": "https://ryan.upubli.sh"
+    },
+    "body": {
+      "val": "y",
+      "device": "iphone"
+    }
+  },
+  "responses": [
+    {
+      "name": "created",
+      "status": 201,
+      "body": {
+        "id": "item-17",
+        "data": {
+          "val": "y",
+          "device": "iphone"
+        },
+        "created_at": "2026-10-18T12:00:00.000Z",
+        "updated_at": "2026-10-18T12:00:00.000Z",
+        "mine": true
+      }
+    },
+    {
+      "name": "replaced",
+      "status": 200,
+      "body": {
+        "id": "item-17",
+        "data": {
+          "val": "y",
+          "device": "iphone"
+        },
+        "created_at": "2026-10-18T12:00:00.000Z",
+        "updated_at": "2026-10-18T12:05:00.000Z",
+        "mine": true
+      }
+    },
+    {
+      "name": "append-only id exists with different body",
+      "status": 409,
+      "body": {
+        "error": "A row with this id already exists.",
+        "code": "exists"
+      }
+    },
+    {
+      "name": "writer not allowed",
+      "status": 403,
+      "body": {
+        "error": "Not allowed.",
+        "code": "forbidden"
+      }
+    }
+  ]
+}

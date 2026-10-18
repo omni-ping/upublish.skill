@@ -1,0 +1,18 @@
+{
+  "route": "admin.wipe",
+  "request": {
+    "method": "POST",
+    "path": "/__upublish/data-admin/ns/5b0e3c1a-0000-4000-8000-00000000a001/wipe",
+    "body": {}
+  },
+  "responses": [
+    {
+      "name": "wiped",
+      "status": 200,
+      "body": {
+        "collections": 1,
+        "rows": 49
+      }
+    }
+  ]
+}
