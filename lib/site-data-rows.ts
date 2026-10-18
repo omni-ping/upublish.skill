@@ -38,7 +38,7 @@ export interface DataRowsArgs {
   cursor?: string;
   /** list/delete: restrict to an author's `identityKey` (e.g. `passcode:{id}`); required to delete an own-rows row. */
   author?: string;
-  /** delete: remove the archived row with this (author, id) instead of the active one (sent as `archived=true`; omitted/false targets the active row). */
+  /** delete: remove EVERY archived row with this (author, id) instead of the active one (sent as `archived=true`; history can hold several, as each archive moves the active row to history; omitted/false targets the active row). */
   archived?: boolean;
   /** list: also return archived rows. */
   include_archived?: boolean;
@@ -99,6 +99,35 @@ const exists = async (p: string): Promise<boolean> =>
 const partialExistsError = (partial: string): Error =>
   new Error(`'${safeText(partial)}' already exists: a previous export may be running or failed; remove ${safeText(partial)} first. Nothing was written.`);
 
+/** `link()` failures meaning "this filesystem or user cannot hard-link", not "the destination exists". */
+const LINK_UNSUPPORTED = new Set(["EXDEV", "EPERM", "ENOTSUP", "EOPNOTSUPP"]);
+
+const appearedError = (target: string): Error =>
+  new Error(`'${safeText(target)}' appeared during the export and was not replaced. Pass overwrite: true to replace it.`);
+
+/**
+ * Publishes `partial` at `target` without ever replacing an existing file:
+ * a hard link, or (where hard links are unsupported) an exclusively created
+ * copy. Throws EEXIST if `target` exists. A copy that fails midway removes the
+ * destination file this call created, so no truncated export is left behind.
+ */
+async function publishWithoutOverwrite(partial: string, target: string): Promise<void> {
+  try {
+    await fs.promises.link(partial, target);
+    return;
+  } catch (err) {
+    if (!LINK_UNSUPPORTED.has((err as NodeJS.ErrnoException).code ?? "")) throw err;
+  }
+  const dest = await fs.promises.open(target, "wx", 0o600); // throws EEXIST instead of replacing
+  try {
+    await pipeline(fs.createReadStream(partial), dest.createWriteStream());
+  } catch (err) {
+    await dest.close().catch(() => {});
+    await fs.promises.rm(target, { force: true }); // ours: the exclusive open above succeeded
+    throw err;
+  }
+}
+
 /**
  * Streams a collection's NDJSON export (every row incl. archived) to `dest`.
  *
@@ -106,8 +135,10 @@ const partialExistsError = (partial: string): Error =>
  * unless `overwrite` is true. Data goes to `<dest>.partial`, created
  * exclusively (a pre-existing partial is refused and left alone, even with
  * `overwrite`) with mode 0600, then published: without `overwrite` by a hard
- * link, which fails instead of replacing a file that appeared meanwhile; with
- * `overwrite` by rename. A failure removes only the partial this call created.
+ * link (or, where the filesystem has none, an exclusively created copy), which
+ * fails instead of replacing a file that appeared meanwhile; with `overwrite`
+ * by rename. A failure removes only the partial this call created: ownership
+ * is "our exclusive open succeeded", never inferred from an error's fields.
  */
 async function exportRows(apiClient: ApiClient, ns: Namespace, collection: string, dest: string, overwrite: boolean): Promise<DataRowsResult> {
   const target = path.resolve(dest);
@@ -122,28 +153,33 @@ async function exportRows(apiClient: ApiClient, ns: Namespace, collection: strin
   const response = await guard("admin", () => apiClient.getRaw(`${dataBase(ns.id)}/collections/${collection}/export`));
   if (!response.body) throw new Error("The export response had no body.");
   const counter = lineCounter();
-  let createdPartial = true;
+  let handle: fs.promises.FileHandle;
+  try {
+    handle = await fs.promises.open(partial, "wx", 0o600);
+  } catch (err) {
+    // Someone else's partial appeared after our check: it is not ours, so leave it.
+    if ((err as NodeJS.ErrnoException).code === "EEXIST") throw partialExistsError(partial);
+    throw err;
+  }
+  // From here the partial is ours (the exclusive open succeeded); every failure below removes it.
   try {
     await pipeline(
       // Not Readable.fromWeb: Bun's version can drop the last chunk of a closing stream.
       Readable.from(response.body, { objectMode: false }),
       counter.stream,
-      fs.createWriteStream(partial, { flags: "wx", mode: 0o600 }),
+      handle.createWriteStream(),
     );
     if (overwrite) {
       await fs.promises.rename(partial, target);
     } else {
-      await fs.promises.link(partial, target);
+      await publishWithoutOverwrite(partial, target).catch((err: NodeJS.ErrnoException) => {
+        throw err.code === "EEXIST" ? appearedError(target) : err; // only the publish step can mean "destination appeared"
+      });
       await fs.promises.rm(partial);
     }
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === "EEXIST" && (err as NodeJS.ErrnoException).syscall === "open") {
-      createdPartial = false; // someone else's partial appeared after our check: leave it
-      throw partialExistsError(partial);
-    }
-    if (createdPartial) await fs.promises.rm(partial, { force: true });
-    if (code === "EEXIST") throw new Error(`'${safeText(target)}' appeared during the export and was not replaced. Pass overwrite: true to replace it.`);
+    await handle.close().catch(() => {}); // no-op once the stream closed it
+    await fs.promises.rm(partial, { force: true });
     throw err;
   }
   const { lines, bytes, lastByte } = counter.state;

@@ -58,7 +58,7 @@ const CASES: Case[] = [
   },
   {
     route: "api.enable",
-    call: (c) => runData(c, NS, { action: "enable", accept_charge: true, expected: { tier: "pro", would_charge: false, price_cents: null, interval: "month" } }),
+    call: (c) => runData(c, NS, { action: "enable", accept_charge: true, expected: { tier: "pro", would_charge: false, price_cents: null, interval: "month", month_cents: 200, year_cents: 2000 } }),
     prelude: withAccount({ tier: "pro", role: "user" }, (req) => (req.method === "GET" && req.path === `/api/ns/${NS.id}/data` ? jsonResponse(200, unentitledStatus) : undefined)),
     onSuccess: (r) => expect(r).toMatchObject({ action: "enable", state: "enabled" }),
   },

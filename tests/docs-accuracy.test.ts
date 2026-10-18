@@ -105,7 +105,7 @@ describe("DW-6.2: every doc surface lists the site data tools and routes to the 
 
   test("test_DW_6_2_vendored_fixtures_readme_names_source_and_commit", () => {
     const readme = readDoc("tests/fixtures/site-data/README.md");
-    expect(readme).toContain("745e2e6");
+    expect(readme).toContain("ce2923d");
     expect(readme).toContain("docs/site-data/fixtures/");
     expect(readme).toMatch(/read-only snapshot/i);
   });
@@ -251,8 +251,70 @@ describe("review R-3: guide retry prose is exact and consistent with the table a
       expect(inRetry !== inPermanent, c).toBe(true);
     }
     // The queue code in the worked example retries exactly the codes the prose calls retryable.
-    expect(guide).toContain('e.code === "invalid_token" || e.code === "data_unavailable"');
+    expect(guide).toContain('e.status >= 500 || e.code === "data_unavailable"');
     expect(guide).toContain('e.code === "rate_limited"');
+  });
+});
+
+describe("DW-6.7 N2: guide offline queue runs as documented", () => {
+  const guide = readDoc("references/site-data.md");
+  const blocks = [...guide.matchAll(/```js\n([\s\S]*?)```/g)].map((m) => m[1]!);
+  const source = blocks.find((c) => c.includes("async function api("))! + "\n" + blocks.find((c) => c.includes("async function flush("))!;
+  const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (...a: string[]) => (...a: unknown[]) => Promise<{
+    configure: (o: unknown) => void; flush: () => Promise<void>;
+  }>;
+
+  /** Runs the guide's real helper + queue against a fake fetch; `replies` maps "<collection>/<id>" to [status, body]. */
+  async function run(replies: Record<string, [number, object]>, token: string | null) {
+    const store: Record<string, string> = {
+      "site-data-queue": JSON.stringify(["a", "b", "c"].map((id) => ({ collection: "votes", id, data: { id } }))),
+    };
+    const sent: string[] = [];
+    const events: Array<{ type: string; detail: { code?: string; write?: { id: string } } }> = [];
+    const fakeFetch = async (url: string) => {
+      const key = url.split("/_data/")[1]!;
+      sent.push(key);
+      const [status, body] = replies[key] ?? [200, {}];
+      return { ok: status < 300, status, statusText: "x", headers: { get: () => null }, json: async () => body };
+    };
+    class Ev { type: string; detail: never; constructor(type: string, init: { detail: never }) { this.type = type; this.detail = init.detail; } }
+    const win = { dispatchEvent: (e: (typeof events)[number]) => events.push(e) };
+    const fn = new AsyncFunction("fetch", "localStorage", "window", "CustomEvent", "addEventListener", `${source}\nreturn { configure, flush };`);
+    const lib = await fn(
+      fakeFetch, { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v; } }, win, Ev, () => {},
+    );
+    lib.configure({ getToken: async () => token });
+    await lib.flush();
+    return { sent, events, queued: (JSON.parse(store["site-data-queue"]!) as Array<{ id: string }>).map((w) => w.id) };
+  }
+
+  test("test_DW_6_7_N2_forbidden_with_a_token_is_dropped_rejected_event_and_flush_continues", async () => {
+    const r = await run({ "votes/a": [403, { code: "forbidden", error: "no" }] }, "tok");
+    expect(r.sent).toEqual(["votes/a", "votes/b", "votes/c"]);
+    expect(r.queued).toEqual([]);
+    expect(r.events.map((e) => e.type)).toEqual(["site-data-rejected"]);
+    expect(r.events[0]!.detail).toMatchObject({ code: "forbidden", write: { id: "a" } });
+  });
+
+  test("test_DW_6_7_N2_401_invalid_token_stops_the_flush_keeps_everything_and_asks_to_sign_in", async () => {
+    const r = await run({ "votes/b": [401, { code: "invalid_token", error: "bad" }] }, "tok");
+    expect(r.sent).toEqual(["votes/a", "votes/b", "votes/b"]); // b is retried once with a refreshed token, then the flush stops
+    expect(r.queued).toEqual(["b", "c"]);
+    expect(r.events.map((e) => e.type)).toEqual(["site-data-auth-needed"]);
+  });
+
+  test("test_DW_6_7_N2_forbidden_when_signed_out_on_a_jwt_site_asks_to_sign_in_and_keeps_the_queue", async () => {
+    const r = await run({ "votes/a": [403, { code: "forbidden", error: "no" }] }, null);
+    expect(r.sent).toEqual(["votes/a"]);
+    expect(r.queued).toEqual(["a", "b", "c"]);
+    expect(r.events.map((e) => e.type)).toEqual(["site-data-auth-needed"]);
+  });
+
+  test("test_DW_6_7_N2_prose_describes_the_split_between_401_and_forbidden_with_a_token", () => {
+    expect(guide).toMatch(/Only a 401 \/ `invalid_token`[^\n]*stops the flush/);
+    expect(guide).toMatch(/403 `forbidden` is different when a token WAS sent[^\n]*`site-data-rejected`[^\n]*CONTINUES/);
+    expect(guide).not.toMatch(/a 401 or 403 is not dropped as permanent/);
+    expect(guide).not.toMatch(/a 401 or 403 from a queued write is not permanent/);
   });
 });
 
@@ -295,10 +357,10 @@ describe("DW-6.5: guide fixes from the independent review", () => {
     expect(helper).toContain("api(method, path, data, true)"); // refresh and retry once
     const queue = jsBlocks.find((c) => c.includes("async function flush("))!;
     expect(queue).toContain('await api("PUT"'); // the queue goes through api(), so the token is read at flush time
-    expect(queue).toContain("getToken && (e.status === 401");
+    expect(queue).toContain('e.status === 401 || e.code === "invalid_token"');
     expect(queue).toContain("site-data-auth-needed");
     expect(guide).toMatch(/at send time, not enqueue time/);
-    expect(guide).toMatch(/a 401 or 403 is not dropped as permanent/);
+    expect(guide).toMatch(/Only a 401 \/ `invalid_token`[^\n]*stops the flush/);
   });
 
   test("test_DW_6_5_documents_site_moved_and_the_passcode_nonce_bump", () => {
@@ -343,7 +405,7 @@ describe("DW-6.5: guide fixes from the independent review", () => {
   });
 
   test("test_DW_6_5_two_step_enable_is_documented_on_every_surface", () => {
-    expect(guide).toContain('expected: {"tier":..,"would_charge":..,"price_cents":..,"interval":..}');
+    expect(guide).toContain('expected: {"tier":..,"would_charge":..,"price_cents":..,"interval":..,"month_cents":..,"year_cents":..}');
     expect(guide).toContain("NOTHING HAS BEEN CHARGED");
     expect(guide).toContain("that exact `expected` object");
     expect(guide).toContain("Pro or Max plan");
@@ -374,3 +436,45 @@ describe("DW-6.5: guide fixes from the independent review", () => {
     expect(guide).toContain("mode 0600");
   });
 });
+
+describe("DW-6.7: final fix round (N1, N4, amendment 5) is documented", () => {
+  const guide = readDoc("references/site-data.md");
+  const skill = readDoc("skills/upublish/SKILL.md");
+  const gemini = readDoc("GEMINI.md");
+  const tools = () =>
+    (createServer({ credentialsPath: "/nonexistent" }) as unknown as {
+      _registeredTools: Record<string, { description?: string; inputSchema: { shape: Record<string, { description?: string }> } }>;
+    })._registeredTools;
+
+  test("test_DW_6_7_N1_every_surface_shows_the_six_field_expected_with_list_prices", () => {
+    expect(guide).toContain('"month_cents":..,"year_cents":..');
+    expect(guide).toMatch(/`month_cents` \/ `year_cents` are always the current list prices/);
+    expect(guide).toContain("either list price");
+    for (const doc of [skill, gemini]) expect(doc).toContain("both list prices");
+    const desc = tools()["data"]!.description!;
+    expect(desc).toContain("month_cents, year_cents");
+    expect(desc).toContain("either list price");
+  });
+
+  test("test_DW_6_7_N4_data_rows_description_and_guide_say_the_id_quotes_are_not_part_of_the_id", () => {
+    const rows = tools()["data_rows"]!;
+    expect(rows.description).toContain("the quotes are not part of the id");
+    expect(rows.inputSchema.shape.id!.description).toContain("quotes are NOT part of the id");
+    expect(guide).toContain("the quotes are not part of the id, so pass `item-17`");
+  });
+
+  test("test_DW_6_7_amendment_5_archived_delete_removes_every_archived_row_in_tool_and_guide", () => {
+    const rows = tools()["data_rows"]!;
+    expect(rows.description).toContain("delete ALL archived (history) rows with that author and id");
+    expect(rows.description).toContain("list again afterwards");
+    expect(rows.inputSchema.shape.archived!.description).toContain("EVERY archived");
+    expect(guide).toMatch(/removes EVERY archived row with that key[^\n]*each `archive` moves the active row to history[^\n]*`list` again/);
+    expect(guide).toContain("also pass `archived: true`"); // still the same switch
+  });
+
+  test("test_DW_6_7_amendment_5_contract_sha_is_ce2923d_in_the_types_header", () => {
+    expect(readDoc("lib/site-data-types.ts")).toContain("backend commit ce2923d");
+    expect(readDoc("tests/fixtures/site-data/README.md")).toContain("Source commit: `ce2923d`");
+  });
+});
+

@@ -7,7 +7,7 @@
  * Enabling is a paid action, so `enable` never charges on its own, and consent
  * is bound to what the user was shown. Every enable re-reads the status, the
  * plan tier (`GET /api/space`) and the role (`GET /auth/me`), derives an
- * `expected` {tier, would_charge, price_cents, interval} from them, and only
+ * `expected` {tier, would_charge, price_cents, interval, month_cents, year_cents} from them, and only
  * POSTs when the caller passes `accept_charge: true` together with an
  * `expected` equal to the freshly derived one. Anything that changed since the
  * consent was shown (an upgrade, a new interval, a new price) yields a new
@@ -40,12 +40,16 @@ export const dataBase = (nsId: string): string => `/api/ns/${nsId}/data`;
  * What a user consents to when enabling: the plan tier, whether this enable
  * charges, and the list price at the billing interval. `price_cents` and
  * `interval` are null when nothing is charged (or the interval is unknown).
+ * `month_cents` / `year_cents` are ALWAYS the status list prices (null when
+ * unpublished), so a change to either price alone invalidates a consent.
  */
 export interface EnableExpectation {
   tier: PlanTier;
   would_charge: boolean;
   price_cents: number | null;
   interval: BillingInterval | null;
+  month_cents: number | null;
+  year_cents: number | null;
 }
 
 export type PlanTier = "free" | "pro" | "max";
@@ -130,11 +134,12 @@ async function readAccount(apiClient: ApiClient): Promise<{ tier: PlanTier; admi
 function expectedFor(status: DataStatus, tier: PlanTier): EnableExpectation {
   const { interval, would_charge } = status.billing;
   const price = interval === "month" ? status.price.month_cents : interval === "year" ? status.price.year_cents : null;
-  return { tier, would_charge, price_cents: would_charge ? price : null, interval };
+  return { tier, would_charge, price_cents: would_charge ? price : null, interval, month_cents: status.price.month_cents, year_cents: status.price.year_cents };
 }
 
 const sameExpectation = (a: EnableExpectation | undefined, b: EnableExpectation): boolean =>
-  a !== undefined && a !== null && a.tier === b.tier && a.would_charge === b.would_charge && a.price_cents === b.price_cents && a.interval === b.interval;
+  a !== undefined && a !== null && a.tier === b.tier && a.would_charge === b.would_charge && a.price_cents === b.price_cents && a.interval === b.interval &&
+  a.month_cents === b.month_cents && a.year_cents === b.year_cents;
 
 async function enable(apiClient: ApiClient, ns: Namespace, acceptCharge: boolean, given: EnableExpectation | undefined): Promise<DataResult> {
   // Read first: never POST (and so never risk a second charge) when already enabled.

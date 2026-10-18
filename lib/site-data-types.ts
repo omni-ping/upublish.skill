@@ -2,7 +2,7 @@
  * Wire types for the site data add-on (server REST `/api/ns/:nsId/data/*`).
  *
  * Mirrored by hand from the frozen contract (`@upublish/shared/site-data`,
- * backend commit 745e2e6: `api.ts`, `kv.ts`, `store.ts`, `errors.ts`,
+ * backend commit ce2923d: `api.ts`, `kv.ts`, `store.ts`, `errors.ts`,
  * `limits.ts`, `identity.ts`) so the skill repo stays self-contained, the same
  * way `lib/types.ts` mirrors `@upublish/shared`. Types and constants only; no
  * behavior beyond the pure name validators. If the contract changes, refresh

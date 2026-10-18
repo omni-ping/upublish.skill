@@ -4,8 +4,9 @@
  * failure cleanup).
  */
 
-import { describe, it, expect, afterAll } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { describe, it, expect, afterAll, spyOn } from "bun:test";
+import * as nodeFs from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runDataRows } from "./site-data-rows.ts";
@@ -401,3 +402,106 @@ describe("DW-6.1: data_rows export (streamed)", () => {
     await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: join(tmp, "nobody.ndjson") })).rejects.toThrow("no body");
   });
 });
+
+// ─── Export: no-hard-link fallback (N3) and partial ownership (N5) ───────────
+
+const errno = (code: string, syscall = "link"): NodeJS.ErrnoException => Object.assign(new Error(`${code}: simulated`), { code, syscall });
+
+describe("DW-6.7: export on filesystems without hard links", () => {
+  for (const code of ["EXDEV", "EPERM", "ENOTSUP", "EOPNOTSUPP"]) {
+    it(`test_DW_6_7_N3_link_${code}_falls_back_to_an_exclusive_0600_copy_and_removes_only_the_partial`, async () => {
+      const dest = join(tmp, `nolink-${code}.ndjson`);
+      const spy = spyOn(nodeFs.promises, "link").mockRejectedValue(errno(code));
+      try {
+        const { client } = makeClient(() => streamingResponse(['{"a":1}\n', '{"a":2}\n']));
+        const r = await runDataRows(client, NS, { action: "export", collection: "votes", path: dest });
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(r).toMatchObject({ rows: 2, bytes: 16, path: dest });
+        expect(readFileSync(dest, "utf-8")).toBe('{"a":1}\n{"a":2}\n');
+        expect(statSync(dest).mode & 0o777).toBe(0o600);
+        expect(existsSync(`${dest}.partial`)).toBe(false);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+  }
+
+  it("test_DW_6_7_N3_fallback_keeps_no_overwrite_semantics_when_the_destination_appears_meanwhile", async () => {
+    const dest = join(tmp, "nolink-late.ndjson");
+    const spy = spyOn(nodeFs.promises, "link").mockRejectedValue(errno("EXDEV"));
+    try {
+      const { client } = makeClient(() => {
+        writeFileSync(dest, "appeared");
+        return streamingResponse(["{}\n"]);
+      });
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("appeared during the export");
+      expect(readFileSync(dest, "utf-8")).toBe("appeared"); // untouched, not truncated or replaced
+      expect(existsSync(`${dest}.partial`)).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("test_DW_6_7_N3_other_link_errors_keep_current_behaviour_and_do_not_fall_back", async () => {
+    const dest = join(tmp, "nolink-other.ndjson");
+    const spy = spyOn(nodeFs.promises, "link").mockRejectedValue(errno("EACCES"));
+    try {
+      const { client } = makeClient(() => streamingResponse(["{}\n"]));
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("EACCES");
+      expect(existsSync(dest)).toBe(false); // no fallback copy was made
+      expect(existsSync(`${dest}.partial`)).toBe(false); // our partial is cleaned up
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe("DW-6.7: export only deletes the partial it created", () => {
+  it("test_DW_6_7_N5_failure_before_the_exclusive_open_never_deletes_an_existing_partial_whatever_the_error_says", async () => {
+    const dest = join(tmp, "own-before.ndjson");
+    // A partial appears after the pre-check; the open then fails with an error that merely LOOKS like ours
+    // (code EEXIST, syscall "unlink"): ownership must not be inferred from error fields.
+    const { client } = makeClient(() => {
+      writeFileSync(`${dest}.partial`, "not ours");
+      return streamingResponse(["{}\n"]);
+    });
+    const spy = spyOn(nodeFs.promises, "open").mockRejectedValue(errno("EPERM", "unlink"));
+    try {
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("EPERM");
+    } finally {
+      spy.mockRestore();
+    }
+    expect(readFileSync(`${dest}.partial`, "utf-8")).toBe("not ours");
+    expect(existsSync(dest)).toBe(false);
+  });
+
+  it("test_DW_6_7_N5_failure_after_the_exclusive_open_deletes_ours_even_when_the_error_has_syscall_open_and_eexist", async () => {
+    const dest = join(tmp, "own-after.ndjson");
+    // The stream dies with an error shaped like the old "someone else's partial" signal. We DID create the partial.
+    const body = new ReadableStream<Uint8Array>({
+      start(c) { c.enqueue(enc.encode("{}\n")); },
+      pull() { throw errno("EEXIST", "open"); },
+    });
+    const { client } = makeClient(() => new Response(body, { status: 200 }));
+    await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("EEXIST");
+    expect(existsSync(`${dest}.partial`)).toBe(false);
+    expect(existsSync(dest)).toBe(false);
+  });
+
+  it("test_DW_6_7_N5_failure_after_the_exclusive_open_removes_ours_and_leaves_a_sibling_partial_alone", async () => {
+    mkdirSync(join(tmp, "sib"));
+    const dest = join(tmp, "sib", "a.ndjson");
+    const other = join(tmp, "sib", "b.ndjson.partial");
+    writeFileSync(other, "sibling");
+    const spy = spyOn(nodeFs.promises, "link").mockRejectedValue(errno("EACCES"));
+    try {
+      const { client } = makeClient(() => streamingResponse(["{}\n"]));
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("EACCES");
+    } finally {
+      spy.mockRestore();
+    }
+    expect(existsSync(`${dest}.partial`)).toBe(false);
+    expect(readFileSync(other, "utf-8")).toBe("sibling");
+  });
+});
+

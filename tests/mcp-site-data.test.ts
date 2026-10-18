@@ -38,7 +38,7 @@ const text = (r: ToolResult) => r.content[0]!.text;
 const DATA = `/api/ns/${NS.id}/data`;
 const status = fixtureResponse(loadRoute("api.status"), "enabled").body as object;
 const unentitled = { ...status, entitled: false, billing: { ...(status as { billing: object }).billing, item_present: false } };
-const freeOfCharge = { tier: "pro", would_charge: false, price_cents: null, interval: "month" };
+const freeOfCharge = { tier: "pro", would_charge: false, price_cents: null, interval: "month", month_cents: 200, year_cents: 2000 };
 const darkStatus = fixtureResponse(loadRoute("api.status"), "dark launch: hidden").body;
 const sites = (req: { path: string }) => (req.path === `/api/ns/${NS.id}/sites` ? jsonResponse(200, SITES_BODY) : undefined);
 
@@ -84,19 +84,22 @@ describe("DW-6.1: site data tool registration and schemas", () => {
     expect(s.safeParse({ action: "enable", accept_charge: "yes" }).success).toBe(false);
   });
 
-  test("test_DW_6_4_schema_expected_is_a_strict_object_of_the_four_consent_fields", () => {
+  test("test_DW_6_4_schema_expected_is_a_strict_object_of_the_six_consent_fields", () => {
     const { tools } = setup(() => undefined);
     const s = tools["data"]!.inputSchema;
-    const ok = { tier: "pro", would_charge: true, price_cents: 200, interval: "month" };
+    const ok = { tier: "pro", would_charge: true, price_cents: 200, interval: "month", month_cents: 200, year_cents: 2000 };
     const parse = (expected: unknown) => s.safeParse({ action: "enable", accept_charge: true, expected }).success;
     expect(parse(ok)).toBe(true);
-    expect(parse({ tier: "free", would_charge: false, price_cents: null, interval: null })).toBe(true);
+    expect(parse({ tier: "free", would_charge: false, price_cents: null, interval: null, month_cents: 200, year_cents: 2000 })).toBe(true);
     expect(parse({ ...ok, extra: 1 })).toBe(false);
     expect(parse({ ...ok, tier: "enterprise" })).toBe(false);
     expect(parse({ ...ok, interval: "week" })).toBe(false);
     expect(parse({ ...ok, price_cents: 1.5 })).toBe(false);
     expect(parse({ ...ok, price_cents: -1 })).toBe(false);
     expect(parse({ ...ok, would_charge: "yes" })).toBe(false);
+    expect(parse({ ...ok, month_cents: 1.5 })).toBe(false);
+    expect(parse({ ...ok, year_cents: -1 })).toBe(false);
+    expect(parse({ ...ok, month_cents: null, year_cents: null })).toBe(true);
     for (const k of Object.keys(ok)) expect(parse(Object.fromEntries(Object.entries(ok).filter(([key]) => key !== k)))).toBe(false);
   });
 
@@ -216,7 +219,7 @@ describe("DW-6.1: data tool", () => {
     expect(text(r)).toContain("The server reports no new charge");
     expect(text(r)).not.toContain("$2.00");
     expect(text(r)).toContain("accept_charge: true");
-    expect(text(r)).toContain('expected: {"tier":"pro","would_charge":false,"price_cents":null,"interval":"month"}');
+    expect(text(r)).toContain('expected: {"tier":"pro","would_charge":false,"price_cents":null,"interval":"month","month_cents":200,"year_cents":2000}');
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
   });
 
@@ -239,7 +242,7 @@ describe("DW-6.1: data tool", () => {
   });
 
   const charging = { ...unentitled, billing: { ...unentitled.billing, would_charge: true, interval: "month" } };
-  const chargingExpected = { tier: "pro", would_charge: true, price_cents: 200, interval: "month" };
+  const chargingExpected = { tier: "pro", would_charge: true, price_cents: 200, interval: "month", month_cents: 200, year_cents: 2000 };
 
   test("test_DW_6_4_tool_data_enable_consent_prints_expected_that_round_trips_through_the_schema", async () => {
     const enabled = fixtureResponse(loadRoute("api.enable"), "enabled").body;
@@ -398,11 +401,11 @@ describe("DW-6.1: data_rows tool", () => {
   test("test_DW_6_6_tool_rows_delete_archived_through_server", async () => {
     const { call, calls } = setup(() => jsonResponse(200, { deleted: true }));
     const arch = await call("data_rows", { action: "delete", collection: "votes", id: "item-17", author: "passcode:p1", archived: true });
-    expect(text(arch)).toContain("Deleted archived row 'item-17'");
+    expect(text(arch)).toContain('Deleted all archived rows with id "item-17"');
     expect(calls[0]!.method).toBe("DELETE");
     expect(calls[0]!.path).toContain("/rows/item-17?author=passcode%3Ap1&archived=true");
     const active = await call("data_rows", { action: "delete", collection: "votes", id: "item-17", author: "passcode:p1" });
-    expect(text(active)).toContain("Deleted row 'item-17'");
+    expect(text(active)).toContain('Deleted row "item-17"');
     expect(calls[1]!.path).not.toContain("archived");
     expect(calls).toHaveLength(2);
   });
@@ -429,7 +432,7 @@ describe("DW-6.1: data_rows tool", () => {
       if (req.method === "DELETE") return jsonResponse(200, { deleted: true });
       return jsonResponse(req.method === "POST" ? 201 : 200, row);
     });
-    expect(text(await call("data_rows", { action: "list", collection: "votes", limit: 5 }))).toContain("item-17  2026-10-18T12:00:00.000Z\n  author: passcode:p1\n  label: \"her\"");
+    expect(text(await call("data_rows", { action: "list", collection: "votes", limit: 5 }))).toContain("id \"item-17\"  2026-10-18T12:00:00.000Z\n  author: passcode:p1\n  label: \"her\"");
     expect(text(await call("data_rows", { action: "create", collection: "votes", data: { a: 1 } }))).toContain("Created row");
     expect(text(await call("data_rows", { action: "put", collection: "votes", id: "item-17", data: { a: 1 } }))).toContain("Saved row");
     expect(text(await call("data_rows", { action: "archive", collection: "votes" }))).toContain("Archived 2");
