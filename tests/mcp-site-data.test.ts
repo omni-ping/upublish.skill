@@ -49,6 +49,14 @@ describe("DW-6.1: site data tool registration and schemas", () => {
   test("test_DW_6_1_data_descriptions_state_cost_and_destructive_actions", () => {
     const { tools } = setup(() => undefined);
     expect(tools["data"]!.description).toContain("WITHOUT accept_charge");
+    expect(tools["data"]!.description).toContain("May charge");
+    expect(tools["data"]!.description).toContain("charges nothing");
+    expect(tools["data"]!.description).toContain("would_charge false");
+    expect(tools["data"]!.description).toContain("only after the user agrees");
+    expect(tools["data"]!.description).not.toContain("Charges the account");
+    expect(tools["data_rows"]!.description).toContain("key already exists are skipped");
+    expect(tools["data_rows"]!.description).toContain("author+id for own-rows");
+    expect(tools["data_rows"]!.description).not.toContain("existing ids");
     expect(tools["data"]!.description).toContain("DESTRUCTIVE and irreversible");
     expect(tools["data"]!.description).toContain("not available for this account");
     expect(tools["data_collection"]!.description).toContain("deletes the collection AND all its rows");

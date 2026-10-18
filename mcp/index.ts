@@ -1246,8 +1246,9 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         "for the browser-side code. It is a paid add-on.\n\n" +
         "Actions:\n" +
         "  status  — Availability, whether enabled, price, collections with row counts, JWT issuer\n" +
-        "  enable  — Turn the add-on on. Charges the account's payment method, so WITHOUT accept_charge " +
-        "it only reports the price; show it to the user and call again with accept_charge: true once they agree\n" +
+        "  enable  — Turn the add-on on. May charge the account's payment method. WITHOUT accept_charge " +
+        "it charges nothing and only reports the price (or that the account will not be charged, would_charge false); " +
+        "pass accept_charge: true only after the user agrees\n" +
         "  disable — Turn the add-on off. Visitor access stops immediately; data is kept " +
         `${SITE_DATA_LIMITS.wipeRetentionDays} days, then permanently deleted\n` +
         "  wipe    — DESTRUCTIVE and irreversible: delete ALL data of the address now. Owner only; " +
@@ -1364,7 +1365,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         "  delete  — Delete one row by id. For 'own-rows' collections also pass author (the row's 'author:' value from list, e.g. 'passcode:<id>', without the label)\n" +
         "  create  — Add a row with a generated id (data)\n" +
         "  put     — Create or replace a row by id (id, data)\n" +
-        "  import  — Owner only: up to 500 rows per call with explicit authors and timestamps; existing ids are skipped",
+        "  import  — Owner only: up to 500 rows per call with explicit authors and timestamps; rows whose key already exists are skipped (key = author+id for own-rows collections, id for other presets)",
       inputSchema: {
         action: z.enum(["list", "export", "archive", "delete", "create", "put", "import"]).describe("The operation to perform."),
         collection: z.string().describe("Collection name."),

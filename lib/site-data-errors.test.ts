@@ -77,16 +77,18 @@ describe("DW-6.1: toSiteDataError", () => {
 });
 
 describe("DW-6.3: conflict and billing unavailable hints", () => {
-  it("test_DW_6_3_unavailable_in_billing_context_says_nothing_changed_try_again", () => {
+  it("test_DW_6_3_unavailable_in_billing_context_makes_no_state_guarantee_and_says_check_status_then_retry", () => {
     const e = toSiteDataError(apiError(503, "unavailable", "Billing is temporarily unavailable. Try again."), "owner", "billing") as SiteDataError;
     expect(e.code).toBe("unavailable");
     expect(e.status).toBe(503);
-    expect(e.message).toContain("Billing is temporarily unavailable. Nothing changed: try again shortly.");
+    expect(e.message).toContain("the change may not have taken effect. Check `data` status, then retry.");
+    expect(e.message).toContain("will not charge again if the add-on is already on");
+    expect(e.message).not.toContain("Nothing changed");
   });
 
   it("test_DW_6_3_guard_threads_context_to_the_mapping", async () => {
     const err = await guard("owner", async () => { throw apiError(503, "unavailable"); }, "billing").catch((e: unknown) => e);
-    expect((err as SiteDataError).message).toContain("Nothing changed");
+    expect((err as SiteDataError).message).toContain("may not have taken effect");
   });
 });
 

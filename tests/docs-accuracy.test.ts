@@ -190,8 +190,15 @@ describe("DW-6.2: references/site-data.md matches the frozen contract", () => {
 
   test("test_DW_6_3_guide_lists_conflict_and_enable_disable_503_unavailable_as_owner_side", () => {
     expect(guide).toMatch(/`conflict` \(409:[^)]*rule[^)]*active rows/);
-    expect(guide).toMatch(/`enable` and `disable` can also fail with 503 `unavailable`[^.]*try again shortly/);
-    expect(guide).toMatch(/never charges twice/);
+    expect(guide).toMatch(/`enable` and `disable` can also fail with 503 `unavailable`[^.]*may not have taken effect/);
+    expect(guide).toMatch(/check `data` `status`, then retry/);
+    expect(guide).toMatch(/will not charge again if the add-on is already on/);
+    expect(guide).not.toMatch(/nothing changed|never charges twice/i);
+  });
+
+  test("test_DW_6_2_guide_import_skips_by_key_not_id", () => {
+    expect(guide).toMatch(/key already exists are skipped[^;]*`\(author, id\)`[^;]*`own-rows`/);
+    expect(guide).not.toContain("existing ids");
   });
 
   test("test_DW_6_2_guide_consent_and_dark_launch_instructions", () => {

@@ -68,7 +68,7 @@ function hintFor(code: SiteDataErrorCode, role: ApiRole, context?: ErrorContext)
       return "A collection's rule cannot change while it has active rows. Archive them with data_rows action 'archive' (export first to keep a copy), or create a new collection with the rule you want.";
     case "unavailable":
       return context === "billing"
-        ? "Billing is temporarily unavailable. Nothing changed: try again shortly."
+        ? "Billing is temporarily unavailable; the change may not have taken effect. Check `data` status, then retry. Retrying enable is safe: it re-reads status first and will not charge again if the add-on is already on."
         : "The service had a temporary failure. Retry shortly.";
     default:
       return undefined;
