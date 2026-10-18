@@ -1,0 +1,60 @@
+{
+  "route": "api.list_collections",
+  "request": {
+    "method": "GET",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/data/collections"
+  },
+  "responses": [
+    {
+      "name": "list",
+      "status": 200,
+      "body": {
+        "collections": [
+          {
+            "name": "votes",
+            "rule": "own-rows",
+            "sites": [
+              "5b0e3c1a-0000-4000-8000-00000000b001",
+              "5b0e3c1a-0000-4000-8000-00000000b002"
+            ],
+            "writers": [
+              "passcode"
+            ],
+            "per_identity_limit": null,
+            "write_claims": [
+              {
+                "kind": "passcode",
+                "claims": {
+                  "site": "5b0e3c1a-0000-4000-8000-00000000b001",
+                  "label": "her"
+                }
+              }
+            ],
+            "admin_claims": [
+              {
+                "kind": "passcode",
+                "claims": {
+                  "site": "5b0e3c1a-0000-4000-8000-00000000b002",
+                  "label": "founder"
+                }
+              }
+            ],
+            "max_rows": 10000,
+            "max_row_bytes": 16384,
+            "writes_per_min": 60,
+            "created_at": "2026-10-18T12:00:00.000Z",
+            "updated_at": "2026-10-18T12:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "not enabled",
+      "status": 402,
+      "body": {
+        "error": "Enable site data first.",
+        "code": "addon_not_enabled"
+      }
+    }
+  ]
+}

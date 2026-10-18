@@ -1,0 +1,54 @@
+{
+  "route": "visitor.list",
+  "request": {
+    "method": "GET",
+    "path": "/_data/votes",
+    "query": "limit=50",
+    "headers": {}
+  },
+  "responses": [
+    {
+      "name": "page",
+      "status": 200,
+      "body": {
+        "rows": [
+          {
+            "id": "item-17",
+            "data": {
+              "val": "y",
+              "device": "iphone"
+            },
+            "created_at": "2026-10-18T12:00:00.000Z",
+            "updated_at": "2026-10-18T12:00:00.000Z",
+            "mine": true
+          }
+        ],
+        "next_cursor": null
+      }
+    },
+    {
+      "name": "site not in collection.sites",
+      "status": 404,
+      "body": {
+        "error": "Not found.",
+        "code": "not_found"
+      }
+    },
+    {
+      "name": "passcode site without a valid cookie",
+      "status": 403,
+      "body": {
+        "error": "Site data is not available for this address.",
+        "code": "data_unavailable"
+      }
+    },
+    {
+      "name": "bad limit",
+      "status": 400,
+      "body": {
+        "error": "limit must be 1..100.",
+        "code": "invalid_request"
+      }
+    }
+  ]
+}

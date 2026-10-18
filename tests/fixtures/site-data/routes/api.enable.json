@@ -1,0 +1,73 @@
+{
+  "route": "api.enable",
+  "request": {
+    "method": "POST",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/data/enable",
+    "body": {
+      "accept_charge": true
+    }
+  },
+  "responses": [
+    {
+      "name": "enabled",
+      "status": 200,
+      "body": {
+        "entitled": true,
+        "activating": true,
+        "charge": {
+          "interval": "month",
+          "price_cents": 140
+        }
+      }
+    },
+    {
+      "name": "comped",
+      "status": 200,
+      "body": {
+        "entitled": true,
+        "activating": true,
+        "charge": null
+      }
+    },
+    {
+      "name": "free tier",
+      "status": 402,
+      "body": {
+        "error": "The add-on needs a Pro or Max plan.",
+        "code": "upgrade_required"
+      }
+    },
+    {
+      "name": "comped without subscription",
+      "status": 402,
+      "body": {
+        "error": "Subscribe to a paid plan first.",
+        "code": "no_subscription"
+      }
+    },
+    {
+      "name": "no consent",
+      "status": 402,
+      "body": {
+        "error": "Send accept_charge: true to approve the charge.",
+        "code": "consent_required"
+      }
+    },
+    {
+      "name": "not owner",
+      "status": 403,
+      "body": {
+        "error": "Only the namespace owner can do this.",
+        "code": "forbidden"
+      }
+    },
+    {
+      "name": "stripe failure",
+      "status": 503,
+      "body": {
+        "error": "Billing is temporarily unavailable. Try again.",
+        "code": "unavailable"
+      }
+    }
+  ]
+}

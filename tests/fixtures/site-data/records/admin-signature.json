@@ -1,0 +1,22 @@
+{
+  "note": "Secret is a fixture value, never a real key.",
+  "secret": "fixture-secret-not-a-real-key",
+  "input": {
+    "method": "POST",
+    "pathAndQuery": "/__upublish/data-admin/ns/5b0e3c1a-0000-4000-8000-00000000a001/collections/votes/archive",
+    "nsId": "5b0e3c1a-0000-4000-8000-00000000a001",
+    "body": "{}",
+    "timestamp": 1760788800,
+    "nonce": "n0nce-n0nce-n0nce-0001"
+  },
+  "canonical": "POST\n/__upublish/data-admin/ns/5b0e3c1a-0000-4000-8000-00000000a001/collections/votes/archive\n5b0e3c1a-0000-4000-8000-00000000a001\n44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\n1760788800\nn0nce-n0nce-n0nce-0001",
+  "signature": "668314949eee5a1579eae86de38653e4f11fe3a4eef5e02015b451b0c50562de",
+  "body_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+  "empty_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "headers": {
+    "X-Upublish-Timestamp": "1760788800",
+    "X-Upublish-Nonce": "n0nce-n0nce-n0nce-0001",
+    "X-Upublish-Signature": "668314949eee5a1579eae86de38653e4f11fe3a4eef5e02015b451b0c50562de",
+    "X-Upublish-Body-SHA256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  }
+}

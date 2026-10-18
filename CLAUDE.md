@@ -19,11 +19,14 @@ There is no build step for development — Bun runs TypeScript directly. The `di
 ## Architecture
 
 ```
-mcp/index.ts       MCP server adapter — registers 21 always-on tools plus 5 env-gated admin tools:
-                   • auth/account: login, status, logout, namespace_create, domain, rename
+mcp/index.ts       MCP server adapter — registers 26 always-on tools plus 5 env-gated admin tools:
+                   • auth/account: login, status, logout, namespace_create, domain, rename, upgrade
                    • sites: publish, list, delete, promote, qrcode, analytics
                    • versions: versions_list, versions_delete, versions_restore, versions_limit
                    • access: passcode_add, passcode_list, passcode_revoke (now three tools, not one), gate, members
+                   • site data add-on (paid; shared data for published sites): data (status/enable/disable/wipe),
+                     data_collection (list/get/set/delete), data_rows (list/export/archive/delete/create/put/import),
+                     data_jwt (set/clear)
                    • admin (only when UPUBLISH_ADMIN=1): admin_user, admin_site, admin_stats, admin_storage, admin_domains
 lib/core.ts        Facade — all user-facing operations, wires credentials + ApiClient per call
 lib/auth.ts        Unified OAuth login (PKCE auth-code + token exchange), token refresh, credential read/write (~/.upublish/credentials)
@@ -33,6 +36,9 @@ lib/publish.ts     Hash files, diff against server manifest, upload only changed
 lib/list.ts        GET /api/sites
 lib/delete.ts      DELETE /api/sites/:slug
 lib/types.ts       Shared types (Site, Visibility, FetchFn, TokenProvider)
+lib/site-data*.ts  Site data add-on: -types (wire mirrors of the frozen contract), -errors (code -> actionable
+                   message), -sites (slug <-> site_id), site-data.ts (status/enable consent/disable/wipe/jwt),
+                   -collections, -rows (incl. streamed NDJSON export), -format (result -> text)
 ```
 
 **Sign-in is one unified flow.** `login` opens `{SITE}/login?flow=local` — the
@@ -60,7 +66,7 @@ The repo ships plugin configs for four platforms:
 - `gemini-extension.json` + `GEMINI.md` — Gemini CLI
 - `plugin.json` + `mcp_config.json` — Antigravity CLI
 
-`references/` contains markdown docs that the skill and GEMINI.md route users to (publishing, visibility, managing, troubleshooting).
+`references/` contains markdown docs that the skill and GEMINI.md route users to (publishing, visibility, managing, troubleshooting, site-data). `references/site-data.md` is the AI-facing guide for the site data add-on: tool setup plus the browser code (same-origin `/_data` fetch, upsert-by-id, offline queue, identity per kind, error codes). Its contract is frozen; `tests/fixtures/site-data/` is a read-only snapshot of the contract fixtures (see its README) that the site-data parsers and tools are tested against.
 
 ## Version tracking
 

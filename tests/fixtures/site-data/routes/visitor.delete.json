@@ -1,0 +1,25 @@
+{
+  "route": "visitor.delete",
+  "request": {
+    "method": "DELETE",
+    "path": "/_data/votes/item-17",
+    "headers": {
+      "Origin": "https://ryan.upubli.sh"
+    }
+  },
+  "responses": [
+    {
+      "name": "deleted",
+      "status": 204,
+      "body": null
+    },
+    {
+      "name": "not allowed",
+      "status": 403,
+      "body": {
+        "error": "Not allowed.",
+        "code": "forbidden"
+      }
+    }
+  ]
+}

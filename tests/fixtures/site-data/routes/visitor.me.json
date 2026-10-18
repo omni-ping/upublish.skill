@@ -1,0 +1,33 @@
+{
+  "route": "visitor.me",
+  "request": {
+    "method": "GET",
+    "path": "/_data/_me",
+    "headers": {}
+  },
+  "responses": [
+    {
+      "name": "passcode caller",
+      "status": 200,
+      "body": {
+        "kind": "passcode",
+        "label": "her",
+        "collections": {
+          "votes": {
+            "read": "own",
+            "write": true,
+            "admin": false
+          }
+        }
+      }
+    },
+    {
+      "name": "fail closed: no KV record / not entitled",
+      "status": 403,
+      "body": {
+        "error": "Site data is not available for this address.",
+        "code": "data_unavailable"
+      }
+    }
+  ]
+}

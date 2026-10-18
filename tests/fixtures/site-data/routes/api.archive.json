@@ -1,0 +1,17 @@
+{
+  "route": "api.archive",
+  "request": {
+    "method": "POST",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/data/collections/votes/archive",
+    "body": {}
+  },
+  "responses": [
+    {
+      "name": "archived",
+      "status": 200,
+      "body": {
+        "archived": 42
+      }
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "route": "api.create_collection",
+  "request": {
+    "method": "POST",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/data/collections",
+    "body": {
+      "name": "votes",
+      "rule": "own-rows",
+      "sites": [
+        "5b0e3c1a-0000-4000-8000-00000000b001",
+        "5b0e3c1a-0000-4000-8000-00000000b002"
+      ],
+      "writers": [
+        "passcode"
+      ],
+      "write_claims": [
+        {
+          "kind": "passcode",
+          "claims": {
+            "site": "5b0e3c1a-0000-4000-8000-00000000b001",
+            "label": "her"
+          }
+        }
+      ],
+      "admin_claims": [
+        {
+          "kind": "passcode",
+          "claims": {
+            "site": "5b0e3c1a-0000-4000-8000-00000000b002",
+            "label": "founder"
+          }
+        }
+      ]
+    }
+  },
+  "responses": [
+    {
+      "name": "created",
+      "status": 201,
+      "body": {
+        "name": "votes",
+        "rule": "own-rows",
+        "sites": [
+          "5b0e3c1a-0000-4000-8000-00000000b001",
+          "5b0e3c1a-0000-4000-8000-00000000b002"
+        ],
+        "writers": [
+          "passcode"
+        ],
+        "per_identity_limit": null,
+        "write_claims": [
+          {
+            "kind": "passcode",
+            "claims": {
+              "site": "5b0e3c1a-0000-4000-8000-00000000b001",
+              "label": "her"
+            }
+          }
+        ],
+        "admin_claims": [
+          {
+            "kind": "passcode",
+            "claims": {
+              "site": "5b0e3c1a-0000-4000-8000-00000000b002",
+              "label": "founder"
+            }
+          }
+        ],
+        "max_rows": 10000,
+        "max_row_bytes": 16384,
+        "writes_per_min": 60,
+        "created_at": "2026-10-18T12:00:00.000Z",
+        "updated_at": "2026-10-18T12:00:00.000Z"
+      }
+    },
+    {
+      "name": "invalid",
+      "status": 400,
+      "body": {
+        "error": "sites: passcode matcher site is not in sites",
+        "code": "invalid_request"
+      }
+    },
+    {
+      "name": "exists",
+      "status": 409,
+      "body": {
+        "error": "A collection with this name exists.",
+        "code": "collection_exists"
+      }
+    },
+    {
+      "name": "too many",
+      "status": 409,
+      "body": {
+        "error": "Collection limit reached.",
+        "code": "limit_exceeded"
+      }
+    }
+  ]
+}

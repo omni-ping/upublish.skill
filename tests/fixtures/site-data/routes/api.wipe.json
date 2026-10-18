@@ -1,0 +1,28 @@
+{
+  "route": "api.wipe",
+  "request": {
+    "method": "POST",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/data/wipe",
+    "body": {
+      "confirm_namespace": "ryan"
+    }
+  },
+  "responses": [
+    {
+      "name": "wiped",
+      "status": 200,
+      "body": {
+        "collections": 1,
+        "rows": 49
+      }
+    },
+    {
+      "name": "wrong confirmation",
+      "status": 400,
+      "body": {
+        "error": "confirm_namespace does not match.",
+        "code": "invalid_request"
+      }
+    }
+  ]
+}

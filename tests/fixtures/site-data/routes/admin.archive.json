@@ -1,0 +1,25 @@
+{
+  "route": "admin.archive",
+  "request": {
+    "method": "POST",
+    "path": "/__upublish/data-admin/ns/5b0e3c1a-0000-4000-8000-00000000a001/collections/votes/archive",
+    "body": {}
+  },
+  "responses": [
+    {
+      "name": "ok",
+      "status": 200,
+      "body": {
+        "archived": 42
+      }
+    },
+    {
+      "name": "replayed nonce",
+      "status": 401,
+      "body": {
+        "error": "Nonce already used.",
+        "code": "replayed_nonce"
+      }
+    }
+  ]
+}
