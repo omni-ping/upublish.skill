@@ -46,7 +46,8 @@ function consentText(r: ConsentResult): string {
   const { expected } = r;
   const lead = r.changed ? "The plan or price changed since the last consent, so nothing was charged. Show the user the new details.\n" : "";
   let cost: string;
-  if (r.admin) {
+  // Never assure "no charge" when the server says it would charge, whatever the role.
+  if (r.admin && !expected.would_charge) {
     cost = "No charge for this account (platform admin).";
   } else if (expected.would_charge) {
     const unknown = expected.interval === null

@@ -88,6 +88,13 @@ describe("DW-6.1: formatDataResult", () => {
     expect(out).toContain('expected: {"tier":"pro","would_charge":false,"price_cents":null,"interval":"month"}');
   });
 
+  it("test_DW_6_4_admin_with_would_charge_true_shows_price_not_no_charge", () => {
+    const out = consent({ tier: "pro", would_charge: true, price_cents: 200, interval: "month" }, { admin: true });
+    expect(out).not.toContain("No charge");
+    expect(out).toContain("$2.00/month");
+    expect(out).toContain("NOTHING HAS BEEN CHARGED");
+  });
+
   it("test_DW_6_4_format_consent_admin_says_no_charge_for_this_account", () => {
     const out = consent({ tier: "free", would_charge: false, price_cents: null, interval: null }, { admin: true });
     expect(out).toContain("No charge for this account");
