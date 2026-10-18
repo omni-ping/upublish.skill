@@ -20,7 +20,7 @@ import { runDataRows } from "./site-data-rows.ts";
 import { SiteDataError } from "./site-data-errors.ts";
 import type { DataStatus, ImportRow, JsonObject, SiteDataErrorCode } from "./site-data-types.ts";
 import {
-  NS, fixtureResponse, fromFixture, jsonResponse, loadRoute, makeClient, withSites,
+  NS, fixtureResponse, fromFixture, jsonResponse, loadRoute, makeClient, withAccount, withSites,
   type Handler, type RouteFixture,
 } from "../tests/helpers/site-data.ts";
 
@@ -39,10 +39,8 @@ interface Case {
 }
 
 const statusFixture = loadRoute("api.status");
-const unentitledStatus = {
-  ...(fixtureResponse(statusFixture, "enabled").body as object),
-  entitled: false,
-};
+const enabledFixture = fixtureResponse(statusFixture, "enabled").body as { billing: object };
+const unentitledStatus = { ...enabledFixture, entitled: false, billing: { ...enabledFixture.billing, item_present: false } };
 
 const importRequest = loadRoute("api.import").request.body as { rows: ImportRow[] };
 const exportPath = join(tmp, "votes.ndjson");
@@ -60,8 +58,8 @@ const CASES: Case[] = [
   },
   {
     route: "api.enable",
-    call: (c) => runData(c, NS, { action: "enable", accept_charge: true }),
-    prelude: (req) => (req.method === "GET" && req.path === `/api/ns/${NS.id}/data` ? jsonResponse(200, unentitledStatus) : undefined),
+    call: (c) => runData(c, NS, { action: "enable", accept_charge: true, expected: { tier: "pro", would_charge: false, price_cents: null, interval: "month" } }),
+    prelude: withAccount({ tier: "pro", role: "user" }, (req) => (req.method === "GET" && req.path === `/api/ns/${NS.id}/data` ? jsonResponse(200, unentitledStatus) : undefined)),
     onSuccess: (r) => expect(r).toMatchObject({ action: "enable", state: "enabled" }),
   },
   {

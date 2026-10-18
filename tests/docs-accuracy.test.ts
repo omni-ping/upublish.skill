@@ -105,7 +105,7 @@ describe("DW-6.2: every doc surface lists the site data tools and routes to the 
 
   test("test_DW_6_2_vendored_fixtures_readme_names_source_and_commit", () => {
     const readme = readDoc("tests/fixtures/site-data/README.md");
-    expect(readme).toContain("a07b0a4");
+    expect(readme).toContain("7d77c06");
     expect(readme).toContain("docs/site-data/fixtures/");
     expect(readme).toMatch(/read-only snapshot/i);
   });

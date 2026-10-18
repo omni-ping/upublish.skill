@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, afterAll } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runDataRows } from "./site-data-rows.ts";
@@ -254,9 +254,118 @@ describe("DW-6.1: data_rows export (streamed)", () => {
       },
     });
     const { client } = makeClient(() => new Response(body, { status: 200 }));
-    await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("connection reset");
+    await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest, overwrite: true })).rejects.toThrow("connection reset");
     expect(readFileSync(dest, "utf-8")).toBe("previous export\n");
     expect(existsSync(`${dest}.partial`)).toBe(false);
+  });
+
+  it("test_DW_6_4_export_rejects_other_extensions_before_any_request", async () => {
+    for (const name of ["votes.txt", "votes", "votes.json", "votes.ndjson.bak", ".ssh-authorized_keys"]) {
+      const { client, calls } = makeClient(() => streamingResponse(["{}\n"]));
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: join(tmp, name) })).rejects.toThrow("must end in .ndjson or .jsonl");
+      expect(calls).toHaveLength(0);
+    }
+  });
+
+  it("test_DW_6_4_export_accepts_ndjson_and_jsonl_in_any_case", async () => {
+    for (const name of ["a.ndjson", "b.jsonl", "c.NDJSON", "d.JsonL"]) {
+      const { client } = makeClient(() => streamingResponse(["{}\n"]));
+      expect(await runDataRows(client, NS, { action: "export", collection: "votes", path: join(tmp, name) })).toMatchObject({ rows: 1 });
+    }
+  });
+
+  it("test_DW_6_4_export_refuses_existing_destination_without_overwrite_and_makes_no_request", async () => {
+    const dest = join(tmp, "exists.ndjson");
+    writeFileSync(dest, "precious\n");
+    const { client, calls } = makeClient(() => streamingResponse(["{}\n"]));
+    await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("already exists");
+    await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest, overwrite: false })).rejects.toThrow("overwrite: true");
+    expect(calls).toHaveLength(0);
+    expect(readFileSync(dest, "utf-8")).toBe("precious\n");
+    expect(existsSync(`${dest}.partial`)).toBe(false);
+  });
+
+  it("test_DW_6_4_export_refuses_a_dangling_symlink_destination", async () => {
+    const dest = join(tmp, "link.ndjson");
+    symlinkSync(join(tmp, "nowhere-target"), dest);
+    const { client } = makeClient(() => streamingResponse(["{}\n"]));
+    await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("already exists");
+    expect(existsSync(join(tmp, "nowhere-target"))).toBe(false);
+  });
+
+  it("test_DW_6_4_export_overwrite_true_replaces_only_at_the_final_rename", async () => {
+    const dest = join(tmp, "replace.ndjson");
+    writeFileSync(dest, "old\n");
+    const { client } = makeClient(() => streamingResponse(['{"id":"new"}\n']));
+    await runDataRows(client, NS, { action: "export", collection: "votes", path: dest, overwrite: true });
+    expect(readFileSync(dest, "utf-8")).toBe('{"id":"new"}\n');
+    expect(existsSync(`${dest}.partial`)).toBe(false);
+  });
+
+  it("test_DW_6_4_export_overwrite_failure_keeps_the_old_file", async () => {
+    const dest = join(tmp, "replace-fail.ndjson");
+    writeFileSync(dest, "old\n");
+    const { client } = makeClient(() => new Response(new ReadableStream<Uint8Array>({ pull(c) { c.error(new Error("boom")); } }), { status: 200 }));
+    await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest, overwrite: true })).rejects.toThrow("boom");
+    expect(readFileSync(dest, "utf-8")).toBe("old\n");
+    expect(existsSync(`${dest}.partial`)).toBe(false);
+  });
+
+  it("test_DW_6_4_export_pre_existing_partial_is_refused_even_with_overwrite_and_never_deleted", async () => {
+    const dest = join(tmp, "busy.ndjson");
+    writeFileSync(`${dest}.partial`, "someone else's data");
+    for (const overwrite of [false, true]) {
+      const { client, calls } = makeClient(() => streamingResponse(["{}\n"]));
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest, overwrite })).rejects.toThrow(
+        "a previous export may be running or failed; remove",
+      );
+      expect(calls).toHaveLength(0);
+      expect(readFileSync(`${dest}.partial`, "utf-8")).toBe("someone else's data");
+    }
+    expect(existsSync(dest)).toBe(false);
+  });
+
+  it("test_DW_6_4_export_pre_existing_partial_dangling_symlink_is_refused_not_followed", async () => {
+    const dest = join(tmp, "symp.ndjson");
+    symlinkSync(join(tmp, "victim-file"), `${dest}.partial`);
+    const { client } = makeClient(() => streamingResponse(["{}\n"]));
+    await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("remove");
+    expect(existsSync(join(tmp, "victim-file"))).toBe(false);
+  });
+
+  it("test_DW_6_4_export_partial_appearing_after_the_check_is_not_deleted", async () => {
+    const dest = join(tmp, "race.ndjson");
+    // The partial appears while the request is in flight (after the pre-check, before the exclusive open).
+    const { client } = makeClient(() => {
+      writeFileSync(`${dest}.partial`, "raced");
+      return streamingResponse(["{}\n"]);
+    });
+    await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("remove");
+    expect(readFileSync(`${dest}.partial`, "utf-8")).toBe("raced");
+    expect(existsSync(dest)).toBe(false);
+  });
+
+  it("test_DW_6_4_export_destination_appearing_during_export_is_not_clobbered_without_overwrite", async () => {
+    const dest = join(tmp, "late.ndjson");
+    // The destination appears while the request is in flight (after the pre-check).
+    const { client } = makeClient(() => {
+      writeFileSync(dest, "appeared");
+      return streamingResponse(["{}\n"]);
+    });
+    await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("appeared during the export");
+    expect(readFileSync(dest, "utf-8")).toBe("appeared");
+    expect(existsSync(`${dest}.partial`)).toBe(false);
+  });
+
+  it("test_DW_6_4_export_file_mode_is_0600", async () => {
+    const dest = join(tmp, "mode.ndjson");
+    const { client } = makeClient(() => streamingResponse(["{}\n"]));
+    await runDataRows(client, NS, { action: "export", collection: "votes", path: dest });
+    expect(statSync(dest).mode & 0o777).toBe(0o600);
+    const over = join(tmp, "mode2.ndjson");
+    writeFileSync(over, "x", { mode: 0o644 });
+    await runDataRows(client, NS, { action: "export", collection: "votes", path: over, overwrite: true });
+    expect(statSync(over).mode & 0o777).toBe(0o600);
   });
 
   it("test_DW_6_1_export_unwritable_destination_fails_cleanly", async () => {

@@ -40,8 +40,10 @@ export interface DataRowsArgs {
   author?: string;
   /** list: also return archived rows. */
   include_archived?: boolean;
-  /** export: destination file path (relative paths resolve against the working directory). */
+  /** export: destination file path, must end in .ndjson or .jsonl (relative paths resolve against the working directory). */
   path?: string;
+  /** export: allow replacing an existing destination file. */
+  overwrite?: boolean;
   /** import: up to 500 rows with explicit authors and timestamps. */
   rows?: ImportRow[];
 }
@@ -83,27 +85,63 @@ function lineCounter() {
   return { stream, state };
 }
 
+/** Case-insensitive: `.NDJSON` is as clearly an export file as `.ndjson`. */
+const EXPORT_EXTENSION = /\.(ndjson|jsonl)$/i;
+
+const exists = async (p: string): Promise<boolean> =>
+  fs.promises.lstat(p).then(() => true, (err: NodeJS.ErrnoException) => {
+    if (err.code === "ENOENT") return false;
+    throw err;
+  });
+
+const partialExistsError = (partial: string): Error =>
+  new Error(`'${safeText(partial)}' already exists: a previous export may be running or failed; remove ${safeText(partial)} first. Nothing was written.`);
+
 /**
  * Streams a collection's NDJSON export (every row incl. archived) to `dest`.
- * Writes to `<dest>.partial` and renames on success, so a failed or
- * interrupted export never leaves a truncated file at `dest`.
+ *
+ * Safety: the destination must be a .ndjson/.jsonl file and is never replaced
+ * unless `overwrite` is true. Data goes to `<dest>.partial`, created
+ * exclusively (a pre-existing partial is refused and left alone, even with
+ * `overwrite`) with mode 0600, then published: without `overwrite` by a hard
+ * link, which fails instead of replacing a file that appeared meanwhile; with
+ * `overwrite` by rename. A failure removes only the partial this call created.
  */
-async function exportRows(apiClient: ApiClient, ns: Namespace, collection: string, dest: string): Promise<DataRowsResult> {
+async function exportRows(apiClient: ApiClient, ns: Namespace, collection: string, dest: string, overwrite: boolean): Promise<DataRowsResult> {
   const target = path.resolve(dest);
+  if (!EXPORT_EXTENSION.test(target)) {
+    throw new Error(`export path must end in .ndjson or .jsonl (got '${safeText(dest)}'). Nothing was written.`);
+  }
+  const partial = `${target}.partial`;
+  if (await exists(partial)) throw partialExistsError(partial);
+  if (!overwrite && (await exists(target))) {
+    throw new Error(`'${safeText(target)}' already exists. Choose another path, or pass overwrite: true to replace it. Nothing was written.`);
+  }
   const response = await guard("admin", () => apiClient.getRaw(`${dataBase(ns.id)}/collections/${collection}/export`));
   if (!response.body) throw new Error("The export response had no body.");
-  const partial = `${target}.partial`;
   const counter = lineCounter();
+  let createdPartial = true;
   try {
     await pipeline(
       // Not Readable.fromWeb: Bun's version can drop the last chunk of a closing stream.
       Readable.from(response.body, { objectMode: false }),
       counter.stream,
-      fs.createWriteStream(partial),
+      fs.createWriteStream(partial, { flags: "wx", mode: 0o600 }),
     );
-    await fs.promises.rename(partial, target);
+    if (overwrite) {
+      await fs.promises.rename(partial, target);
+    } else {
+      await fs.promises.link(partial, target);
+      await fs.promises.rm(partial);
+    }
   } catch (err) {
-    await fs.promises.rm(partial, { force: true });
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "EEXIST" && (err as NodeJS.ErrnoException).syscall === "open") {
+      createdPartial = false; // someone else's partial appeared after our check: leave it
+      throw partialExistsError(partial);
+    }
+    if (createdPartial) await fs.promises.rm(partial, { force: true });
+    if (code === "EEXIST") throw new Error(`'${safeText(target)}' appeared during the export and was not replaced. Pass overwrite: true to replace it.`);
     throw err;
   }
   const { lines, bytes, lastByte } = counter.state;
@@ -136,7 +174,7 @@ export async function runDataRows(apiClient: ApiClient, ns: Namespace, args: Dat
       return { action: "list", collection, rows: res.rows, next_cursor: res.next_cursor };
     }
     case "export":
-      return exportRows(apiClient, ns, collection, requireArg(args.path, "path", "export"));
+      return exportRows(apiClient, ns, collection, requireArg(args.path, "path", "export"), args.overwrite === true);
     case "archive": {
       const res = await guard("admin", async () => parseArchiveResponse(await apiClient.post<unknown>(`${base}/archive`, {})));
       return { action: "archive", collection, archived: res.archived };

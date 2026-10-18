@@ -78,16 +78,30 @@ describe("DW-6.1: toSiteDataError", () => {
 
 describe("DW-6.3: conflict and billing unavailable hints", () => {
   it("test_DW_6_3_unavailable_in_billing_context_makes_no_state_guarantee_and_says_check_status_then_retry", () => {
-    const e = toSiteDataError(apiError(503, "unavailable", "Billing is temporarily unavailable. Try again."), "owner", "billing") as SiteDataError;
+    const e = toSiteDataError(apiError(503, "unavailable", "Billing is temporarily unavailable. Try again."), "owner", "billing_disable") as SiteDataError;
     expect(e.code).toBe("unavailable");
     expect(e.status).toBe(503);
     expect(e.message).toContain("the change may not have taken effect. Check `data` status, then retry.");
-    expect(e.message).toContain("will not charge again if the add-on is already on");
     expect(e.message).not.toContain("Nothing changed");
+    expect(e.message).not.toContain("accept_charge");
+  });
+
+  it("test_DW_6_4_unavailable_in_enable_context_asks_for_a_fresh_consent_not_a_retry_with_accept", () => {
+    const e = toSiteDataError(apiError(503, "unavailable"), "owner", "billing_enable") as SiteDataError;
+    expect(e.message).toContain("the change may not have taken effect. Check `data` status.");
+    expect(e.message).toContain("run `data` action 'enable' again WITHOUT accept_charge to get a fresh consent");
+    expect(e.message).toContain("will not charge again if the add-on is already on");
+    expect(e.message).not.toContain("retry with accept");
+  });
+
+  it("test_DW_6_4_consent_required_hint_points_at_a_fresh_consent_with_expected", () => {
+    const e = toSiteDataError(apiError(402, "consent_required"), "owner") as SiteDataError;
+    expect(e.message).toContain("WITHOUT accept_charge");
+    expect(e.message).toContain("expected");
   });
 
   it("test_DW_6_3_guard_threads_context_to_the_mapping", async () => {
-    const err = await guard("owner", async () => { throw apiError(503, "unavailable"); }, "billing").catch((e: unknown) => e);
+    const err = await guard("owner", async () => { throw apiError(503, "unavailable"); }, "billing_enable").catch((e: unknown) => e);
     expect((err as SiteDataError).message).toContain("may not have taken effect");
   });
 });

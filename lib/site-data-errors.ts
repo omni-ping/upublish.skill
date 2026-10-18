@@ -31,7 +31,7 @@ const NOT_AVAILABLE_TEXT = "Site data is not available for this account.";
  * depends on it: `unavailable` is a visitor-side store failure on `/_data`,
  * but on the owner REST API only enable/disable raise it (a Stripe failure).
  */
-export type ErrorContext = "billing";
+export type ErrorContext = "billing_enable" | "billing_disable";
 
 /** What to do next, per code. `role` is what the failing route requires. */
 function hintFor(code: SiteDataErrorCode, role: ApiRole, context?: ErrorContext): string | undefined {
@@ -49,7 +49,7 @@ function hintFor(code: SiteDataErrorCode, role: ApiRole, context?: ErrorContext)
     case "no_subscription":
       return "The add-on bills through a Stripe subscription and this account has none (complimentary plan). Subscribe to a paid plan with the upgrade tool first.";
     case "consent_required":
-      return "The charge was not approved. Confirm the price with the user, then retry with accept_charge: true.";
+      return "The charge was not approved. Run `data` action 'enable' WITHOUT accept_charge to get the current consent, confirm it with the user, then pass accept_charge: true with the printed expected.";
     case "addon_not_enabled":
       return "Enable site data first: data action 'enable'.";
     case "collection_not_found":
@@ -67,8 +67,11 @@ function hintFor(code: SiteDataErrorCode, role: ApiRole, context?: ErrorContext)
     case "conflict":
       return "A collection's rule cannot change while it has active rows. Archive them with data_rows action 'archive' (export first to keep a copy), or create a new collection with the rule you want.";
     case "unavailable":
-      return context === "billing"
-        ? "Billing is temporarily unavailable; the change may not have taken effect. Check `data` status, then retry. Retrying enable is safe: it re-reads status first and will not charge again if the add-on is already on."
+      if (context === "billing_enable") {
+        return "Billing is temporarily unavailable; the change may not have taken effect. Check `data` status. If site data is still not enabled, run `data` action 'enable' again WITHOUT accept_charge to get a fresh consent (consent is bound to the price shown, so do not reuse an earlier accept). It will not charge again if the add-on is already on.";
+      }
+      return context === "billing_disable"
+        ? "Billing is temporarily unavailable; the change may not have taken effect. Check `data` status, then retry."
         : "The service had a temporary failure. Retry shortly.";
     default:
       return undefined;

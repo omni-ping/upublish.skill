@@ -14,7 +14,7 @@ import { formatCollectionResult, formatDataResult, formatJwtResult, formatRowsRe
 import { parseDataStatus } from "./site-data-shape.ts";
 import { sanitizeErrorText, sanitizeOutput } from "./site-data-text.ts";
 import type { CollectionView, DataStatus } from "./site-data-types.ts";
-import { NS, fixtureResponse, jsonResponse, loadRoute, makeClient, withSites } from "../tests/helpers/site-data.ts";
+import { NS, fixtureResponse, jsonResponse, loadRoute, makeClient, withAccount, withSites } from "../tests/helpers/site-data.ts";
 
 /** What a line-splitting reader (JS regex line terminators plus NEL) would see. */
 const lines = (s: string): string[] => s.split(/\r\n|[\n\r\u0085\u2028\u2029]/);
@@ -185,10 +185,12 @@ describe("finding 3: malformed response bodies are rejected", () => {
   });
 
   it("test_F3_enable_validates_charge_and_flags", async () => {
-    const unentitled = { ...(fixtureResponse(loadRoute("api.status"), "enabled").body as DataStatus), entitled: false };
+    const enabled = fixtureResponse(loadRoute("api.status"), "enabled").body as DataStatus;
+    const unentitled = { ...enabled, entitled: false, billing: { ...enabled.billing, item_present: false } };
     const mk = (enableBody: unknown) =>
-      makeClient((req) => (req.method === "GET" ? jsonResponse(200, unentitled) : jsonResponse(200, enableBody))).client;
-    const run = (b: unknown) => field(runData(mk(b), NS, { action: "enable", accept_charge: true }));
+      makeClient(withAccount({ tier: "pro" }, (req) => (req.method === "GET" ? jsonResponse(200, unentitled) : jsonResponse(200, enableBody)))).client;
+    const expected = { tier: "pro" as const, would_charge: false, price_cents: null, interval: "month" as const };
+    const run = (b: unknown) => field(runData(mk(b), NS, { action: "enable", accept_charge: true, expected }));
     expect(await run({ entitled: true, activating: true, charge: { interval: "weekly", price_cents: 100 } })).toMatch(/charge\.interval/);
     expect(await run({ entitled: true, activating: true, charge: { interval: "month", price_cents: "1" } })).toMatch(/charge\.price_cents/);
     expect(await run({ entitled: true, charge: null })).toMatch(/activating/);

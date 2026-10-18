@@ -104,17 +104,43 @@ export const withSites =
 
 const json = { "Content-Type": "application/json" };
 
+/** The account the fake stack reports on `GET /api/space` (tier) and `GET /auth/me` (role); a status makes that read fail. */
+export interface Account {
+  tier?: "free" | "pro" | "max";
+  role?: string;
+  spaceStatus?: number;
+  meStatus?: number;
+}
+
+/** Handler answering `GET /api/space` and `GET /auth/me` for `account`, delegating everything else to `next`. */
+export const withAccount =
+  (account: Account, next: Handler): Handler =>
+  (req) => {
+    if (req.method === "GET" && req.path === "/api/space") {
+      return account.spaceStatus ? jsonResponse(account.spaceStatus, { error: "down" }) : jsonResponse(200, { space: { id: "sp1", default_namespace_id: NS.id, tier: account.tier ?? "pro" } });
+    }
+    if (req.method === "GET" && req.path === "/auth/me") {
+      return account.meStatus ? jsonResponse(account.meStatus, { error: "down" }) : jsonResponse(200, { id: "u1", username: "ryan", email: "r@x.test", role: account.role ?? "user" });
+    }
+    return next(req);
+  };
+
 /**
  * A fetch for core/MCP tests: answers token refresh, `GET /api/space` and
  * `GET /api/ns` (two namespaces: `ryan` = default, `other`), then delegates
  * everything else to `handler`. Requests are recorded in `calls`.
  */
-export function stackFetch(handler: Handler): { fetchFn: (url: string, init?: RequestInit) => Promise<Response>; calls: Recorded[] } {
+export function stackFetch(handler: Handler, account: Account = {}): { fetchFn: (url: string, init?: RequestInit) => Promise<Response>; calls: Recorded[] } {
   const calls: Recorded[] = [];
   const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
     const path = url.replace(/^https?:\/\/[^/]+/, "");
     if (path.includes("/auth/token/refresh")) return jsonResponse(200, { access_token: "mock-access", expires_in: 3600 });
-    if (path === "/api/space") return jsonResponse(200, { space: { id: "sp1", default_namespace_id: NS.id, tier: "pro" } });
+    if (path === "/api/space") {
+      return account.spaceStatus ? jsonResponse(account.spaceStatus, { error: "down" }) : jsonResponse(200, { space: { id: "sp1", default_namespace_id: NS.id, tier: account.tier ?? "pro" } });
+    }
+    if (path === "/auth/me") {
+      return account.meStatus ? jsonResponse(account.meStatus, { error: "down" }) : jsonResponse(200, { id: "u1", username: "ryan", email: "r@x.test", role: account.role ?? "user" });
+    }
     if (path === "/api/ns") {
       return new Response(
         JSON.stringify({ namespaces: [{ ...NS, role: "owner" }, { id: "ns-other", name: "other", domain: "upubli.sh", role: "owner" }] }),
