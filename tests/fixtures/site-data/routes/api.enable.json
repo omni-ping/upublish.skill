@@ -60,6 +60,14 @@
         "error": "Only the namespace owner can do this.",
         "code": "forbidden"
       }
+    },
+    {
+      "name": "stripe failure",
+      "status": 503,
+      "body": {
+        "error": "Billing is temporarily unavailable. Try again.",
+        "code": "unavailable"
+      }
     }
   ]
 }

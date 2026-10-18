@@ -26,8 +26,15 @@ export class SiteDataError extends Error {
 
 const NOT_AVAILABLE_TEXT = "Site data is not available for this account.";
 
+/**
+ * Which tool action a failure came from, for the one code whose meaning
+ * depends on it: `unavailable` is a visitor-side store failure on `/_data`,
+ * but on the owner REST API only enable/disable raise it (a Stripe failure).
+ */
+export type ErrorContext = "billing";
+
 /** What to do next, per code. `role` is what the failing route requires. */
-function hintFor(code: SiteDataErrorCode, role: ApiRole): string | undefined {
+function hintFor(code: SiteDataErrorCode, role: ApiRole, context?: ErrorContext): string | undefined {
   switch (code) {
     case "unauthenticated":
       return "Sign in with the login tool, then retry.";
@@ -57,13 +64,19 @@ function hintFor(code: SiteDataErrorCode, role: ApiRole): string | undefined {
       return "The row exceeds the collection's max_row_bytes. Send less data or raise max_row_bytes.";
     case "admin_channel_failed":
       return "The data service could not be reached. This is temporary: retry shortly.";
+    case "conflict":
+      return "A collection's rule cannot change while it has active rows. Archive them with data_rows action 'archive' (export first to keep a copy), or create a new collection with the rule you want.";
+    case "unavailable":
+      return context === "billing"
+        ? "Billing is temporarily unavailable. Nothing changed: try again shortly."
+        : "The service had a temporary failure. Retry shortly.";
     default:
       return undefined;
   }
 }
 
 /** Converts an ApiError carrying a `{ error, code }` body into a SiteDataError; anything else is returned as-is. */
-export function toSiteDataError(err: unknown, role: ApiRole): unknown {
+export function toSiteDataError(err: unknown, role: ApiRole, context?: ErrorContext): unknown {
   if (!(err instanceof ApiError)) return err;
   const body = err.rawBodyData as { error?: unknown; code?: unknown } | null;
   const code = typeof body?.code === "string" ? (body.code as SiteDataErrorCode) : null;
@@ -72,7 +85,7 @@ export function toSiteDataError(err: unknown, role: ApiRole): unknown {
     return hasControlChars(err.message) ? new SiteDataError(null, err.status, safeText(err.message)) : err;
   }
   const text = code === "not_available" ? NOT_AVAILABLE_TEXT : typeof body?.error === "string" ? safeText(body.error) : "";
-  const hint = hintFor(code, role);
+  const hint = hintFor(code, role, context);
   const parts = [text, `[${safeText(code)}]`, hint === text ? undefined : hint].filter(Boolean);
   return new SiteDataError(code, err.status, parts.join(" "));
 }
@@ -87,12 +100,12 @@ export function requireArg<T>(value: T | undefined, name: string, action: string
   return value;
 }
 
-/** Runs `fn`, translating site-data API failures for the route's required `role`. */
-export async function guard<T>(role: ApiRole, fn: () => Promise<T>): Promise<T> {
+/** Runs `fn`, translating site-data API failures for the route's required `role` (and, optionally, its `context`). */
+export async function guard<T>(role: ApiRole, fn: () => Promise<T>, context?: ErrorContext): Promise<T> {
   try {
     return await fn();
   } catch (err) {
-    throw toSiteDataError(err, role);
+    throw toSiteDataError(err, role, context);
   }
 }
 

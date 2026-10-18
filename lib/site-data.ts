@@ -95,7 +95,7 @@ async function enable(apiClient: ApiClient, ns: Namespace, acceptCharge: boolean
       interval: status.billing.interval, wouldCharge: status.billing.would_charge,
     };
   }
-  const res = await guard("owner", async () => parseEnableResponse(await apiClient.post<unknown>(`${dataBase(ns.id)}/enable`, { accept_charge: true })));
+  const res = await guard("owner", async () => parseEnableResponse(await apiClient.post<unknown>(`${dataBase(ns.id)}/enable`, { accept_charge: true })), "billing");
   return { action: "enable", state: "enabled", activating: res.activating, charge: res.charge };
 }
 
@@ -115,7 +115,7 @@ export async function runData(apiClient: ApiClient, ns: Namespace, args: DataArg
     case "enable":
       return enable(apiClient, ns, args.accept_charge === true);
     case "disable": {
-      const res = await guard("owner", async () => parseDisableResponse(await apiClient.post<unknown>(`${dataBase(ns.id)}/disable`, {})));
+      const res = await guard("owner", async () => parseDisableResponse(await apiClient.post<unknown>(`${dataBase(ns.id)}/disable`, {})), "billing");
       return { action: "disable", ...res };
     }
     case "wipe": {

@@ -32,6 +32,8 @@ describe("DW-6.1: toSiteDataError", () => {
     ["collection_full", 409, /max_rows/],
     ["row_too_large", 413, /max_row_bytes/],
     ["admin_channel_failed", 502, /retry shortly/],
+    ["conflict", 409, /active rows.*data_rows action 'archive'.*new collection/],
+    ["unavailable", 503, /Retry shortly/],
   ];
   for (const [code, status, hint] of cases) {
     it(`test_DW_6_1_error_${code}_is_actionable`, () => {
@@ -71,6 +73,20 @@ describe("DW-6.1: toSiteDataError", () => {
   it("test_DW_6_1_error_missing_text_still_yields_code_and_hint", () => {
     const e = toSiteDataError(new ApiError(402, { code: "addon_not_enabled" }, "x"), "admin") as SiteDataError;
     expect(e.message).toMatch(/^\[addon_not_enabled\] Enable site data first/);
+  });
+});
+
+describe("DW-6.3: conflict and billing unavailable hints", () => {
+  it("test_DW_6_3_unavailable_in_billing_context_says_nothing_changed_try_again", () => {
+    const e = toSiteDataError(apiError(503, "unavailable", "Billing is temporarily unavailable. Try again."), "owner", "billing") as SiteDataError;
+    expect(e.code).toBe("unavailable");
+    expect(e.status).toBe(503);
+    expect(e.message).toContain("Billing is temporarily unavailable. Nothing changed: try again shortly.");
+  });
+
+  it("test_DW_6_3_guard_threads_context_to_the_mapping", async () => {
+    const err = await guard("owner", async () => { throw apiError(503, "unavailable"); }, "billing").catch((e: unknown) => e);
+    expect((err as SiteDataError).message).toContain("Nothing changed");
   });
 });
 

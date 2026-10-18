@@ -2,7 +2,7 @@
   "route": "admin.import",
   "request": {
     "method": "POST",
-    "path": "/__upublish/data-admin/ns/5b0e3c1a-0000-4000-8000-00000000a001/collections/votes/import",
+    "path": "/__upublish/data-admin/ns/5b0e3c1a-0000-4000-8000-00000000a001/collections/votes/import?ns_prefix=ryan.upubli.sh",
     "body": {
       "rows": [
         {

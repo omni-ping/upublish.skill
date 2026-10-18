@@ -516,9 +516,11 @@ export interface FilenameWarnings {
    */
   fyi: string[];
   /**
-   * Paths under a top-level `_data` directory (any case), present only when
-   * non-empty. The site data add-on serves `/{slug}/_data/...` itself, so these
-   * files would be shadowed and never served. Warn-only: they are still published.
+   * Paths with any `_data` segment at any depth (any case; a file named exactly
+   * `_data` counts too), present only when non-empty. The site data add-on
+   * answers every `_data` path segment under a site address as JSON, never
+   * static, so these files would be shadowed and never served. Warn-only:
+   * they are still published.
    */
   reserved?: string[];
 }
@@ -541,7 +543,7 @@ export function classifyFilenames(paths: string[]): FilenameWarnings {
   const fragile: string[] = [];
   const fyi: string[] = [];
   // Independent of the fragile/fyi buckets: a reserved path may also be listed in one of them.
-  const reserved = paths.filter((p) => p.split("/")[0]!.toLowerCase() === "_data");
+  const reserved = paths.filter((p) => p.split("/").some((seg) => seg.toLowerCase() === "_data"));
 
   for (const path of paths) {
     // Classify by the basename — `/` separators and dir names never qualify.
@@ -597,8 +599,8 @@ export function renderFilenameWarning(fw: FilenameWarnings | undefined): string 
   let out = "";
   if (reserved.length > 0) {
     out +=
-      `\nWarning: ${reserved.length} file(s) are under a top-level '_data' directory: ${summarize(reserved)}` +
-      `\n  '_data' is reserved for the site data add-on, so these files will NOT be served. Rename the directory.`;
+      `\nWarning: ${reserved.length} file(s) have a '_data' path segment (a '_data' directory at any depth is reserved): ${summarize(reserved)}` +
+      `\n  '_data' is reserved for the site data add-on, so these files will NOT be served. Rename the '_data' directory.`;
   }
   if (fragile.length > 0) {
     out +=

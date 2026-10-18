@@ -105,7 +105,7 @@ describe("DW-6.2: every doc surface lists the site data tools and routes to the 
 
   test("test_DW_6_2_vendored_fixtures_readme_names_source_and_commit", () => {
     const readme = readDoc("tests/fixtures/site-data/README.md");
-    expect(readme).toContain("45f6dd0");
+    expect(readme).toContain("a07b0a4");
     expect(readme).toContain("docs/site-data/fixtures/");
     expect(readme).toMatch(/read-only snapshot/i);
   });
@@ -128,7 +128,7 @@ describe("DW-6.2: references/site-data.md matches the frozen contract", () => {
   }
 
   test("test_DW_6_2_guide_names_owner_side_codes_as_tool_errors", () => {
-    for (const c of ["unauthenticated", "not_available", "upgrade_required", "no_subscription", "consent_required", "addon_not_enabled", "collection_exists", "collection_not_found", "limit_exceeded", "admin_channel_failed"]) {
+    for (const c of ["unauthenticated", "not_available", "upgrade_required", "no_subscription", "consent_required", "addon_not_enabled", "collection_exists", "collection_not_found", "limit_exceeded", "admin_channel_failed", "conflict"]) {
       expect(guide).toContain(`\`${c}\``);
     }
   });
@@ -178,6 +178,20 @@ describe("DW-6.2: references/site-data.md matches the frozen contract", () => {
     expect(guide).toContain('addEventListener("online"');
     expect(guide).toContain("Retry-After");
     expect(guide).toMatch(/Worked example: a one-vote poll/);
+  });
+
+  test("test_DW_6_3_guide_reserves_data_at_any_depth_and_scopes_inbox_idempotency_to_same_author", () => {
+    expect(guide).toContain("at any depth");
+    expect(guide).toContain("assets/_data/");
+    expect(guide).toMatch(/identical-body PUT is a harmless 200 only for the same author/);
+    expect(guide).toMatch(/different author gets 409 `exists`/);
+    expect(guide).not.toMatch(/in `append-only` and `inbox` an identical body returns 200/);
+  });
+
+  test("test_DW_6_3_guide_lists_conflict_and_enable_disable_503_unavailable_as_owner_side", () => {
+    expect(guide).toMatch(/`conflict` \(409:[^)]*rule[^)]*active rows/);
+    expect(guide).toMatch(/`enable` and `disable` can also fail with 503 `unavailable`[^.]*try again shortly/);
+    expect(guide).toMatch(/never charges twice/);
   });
 
   test("test_DW_6_2_guide_consent_and_dark_launch_instructions", () => {

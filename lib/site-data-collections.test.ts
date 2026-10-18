@@ -115,6 +115,21 @@ describe("DW-6.1: data_collection set", () => {
     expect(calls.some((c) => c.method === "POST")).toBe(false);
   });
 
+  it("test_DW_6_3_collection_set_rule_change_conflict_is_actionable_and_does_not_fall_back_to_create", async () => {
+    const { client, calls } = makeClient(
+      withSites((req) =>
+        req.method === "PATCH" ? jsonResponse(409, { error: "Cannot change the rule while the collection has active rows.", code: "conflict" }) : undefined,
+      ),
+    );
+    const err = await runDataCollection(client, NS, {
+      action: "set", collection: "votes", rule: "inbox", sites: ["for-her"], writers: ["anonymous"],
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SiteDataError);
+    expect(err).toMatchObject({ code: "conflict", status: 409 });
+    expect((err as SiteDataError).message).toMatch(/data_rows action 'archive'/);
+    expect(calls.some((c) => c.method === "POST")).toBe(false);
+  });
+
   it("test_DW_6_1_collection_set_create_conflict_is_collection_exists", async () => {
     const { client } = makeClient(
       withSites((req) =>

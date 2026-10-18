@@ -2,7 +2,7 @@
  * Wire types for the site data add-on (server REST `/api/ns/:nsId/data/*`).
  *
  * Mirrored by hand from the frozen contract (`@upublish/shared/site-data`,
- * backend commit 45f6dd0: `api.ts`, `kv.ts`, `store.ts`, `errors.ts`,
+ * backend commit a07b0a4: `api.ts`, `kv.ts`, `store.ts`, `errors.ts`,
  * `limits.ts`, `identity.ts`) so the skill repo stays self-contained, the same
  * way `lib/types.ts` mirrors `@upublish/shared`. Types and constants only; no
  * behavior beyond the pure name validators. If the contract changes, refresh
@@ -60,7 +60,7 @@ export type SiteDataErrorCode =
   | "unavailable" | "bad_signature" | "stale_timestamp" | "replayed_nonce" | "unauthenticated"
   | "not_available" | "upgrade_required" | "no_subscription" | "consent_required"
   | "addon_not_enabled" | "collection_exists" | "collection_not_found" | "limit_exceeded"
-  | "admin_channel_failed";
+  | "admin_channel_failed" | "conflict";
 
 /** Role the server requires for a route (contract section 8). */
 export type ApiRole = "member" | "admin" | "owner";

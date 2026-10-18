@@ -188,6 +188,36 @@ describe("DW-6.1: data enable (consent gate)", () => {
   });
 });
 
+describe("DW-6.3: Stripe failure (503 unavailable) on enable/disable", () => {
+  const stripeDown = () => jsonResponse(503, { error: "Billing is temporarily unavailable. Try again.", code: "unavailable" });
+
+  it("test_DW_6_3_enable_503_says_nothing_changed_try_again", async () => {
+    const { client } = makeClient((req) => (req.method === "POST" ? stripeDown() : serveStatus(unentitled)(req)));
+    const err = await runData(client, NS, { action: "enable", accept_charge: true }).catch((e: unknown) => e);
+    expect(err).toMatchObject({ code: "unavailable", status: 503 });
+    expect((err as SiteDataError).message).toContain("Nothing changed: try again shortly.");
+  });
+
+  it("test_DW_6_3_disable_503_says_nothing_changed_try_again", async () => {
+    const { client } = makeClient(stripeDown);
+    const err = await runData(client, NS, { action: "disable" }).catch((e: unknown) => e);
+    expect(err).toMatchObject({ code: "unavailable", status: 503 });
+    expect((err as SiteDataError).message).toContain("try again shortly");
+  });
+
+  it("test_DW_6_3_retrying_enable_after_503_cannot_double_charge_when_the_first_attempt_took_effect", async () => {
+    // Attempt 1: status says not entitled, POST fails 503 (but Stripe charged). Attempt 2: status now entitled.
+    let entitled = false;
+    const { client, calls } = makeClient((req) => {
+      if (req.method === "POST") { entitled = true; return stripeDown(); }
+      return serveStatus(entitled ? enabledStatus : unentitled)(req);
+    });
+    await expect(runData(client, NS, { action: "enable", accept_charge: true })).rejects.toMatchObject({ code: "unavailable" });
+    expect(await runData(client, NS, { action: "enable", accept_charge: true })).toEqual({ action: "enable", state: "already_enabled" });
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(1);
+  });
+});
+
 describe("DW-6.1: data disable / wipe", () => {
   it("test_DW_6_1_disable_returns_wipe_after", async () => {
     const { client, calls } = makeClient(() => jsonResponse(200, { entitled: false, wipe_after: "2026-11-17T12:00:00.000Z" }));

@@ -16,7 +16,7 @@ Do these in order. Stop and report if a step fails; error messages say what to d
 
 Other tools: `data_rows` (list, export to a file, archive = reset, delete one row, create/put rows as the owner, import up to 500 rows per call with explicit authors and timestamps), `data_jwt` (bring-your-own sign-in), `data` actions `disable` (data kept 30 days, then permanently deleted) and `wipe` (**destructive**: deletes everything now; needs `confirm_namespace` equal to the address name).
 
-Do not name a `_data` directory in the site's files: `/_data` is reserved and files there are never served (publish warns). Sites are named by slug in tool arguments (`_root` for the root site); the tools translate to ids.
+Do not put files in a `_data` directory, at any depth (`_data/`, `assets/_data/`, ...): any `_data` path segment under a site address is answered by the data plane as JSON, never as a static file, so such files are never served (publish warns but still uploads them). Sites are named by slug in tool arguments (`_root` for the root site); the tools translate to ids.
 
 ## Step 2: Choosing a preset
 
@@ -24,7 +24,7 @@ Do not name a `_data` directory in the site's files: `/_data` is reserved and fi
 |---|---|---|---|
 | `append-only` | add rows | everyone who can open the site | nobody edits (a PUT to an existing id with the identical body is a harmless 200; a different body is 409 `exists`); admins delete |
 | `own-rows` | add or replace their own rows | each visitor sees only their own rows; admin claims read all | the author edits and deletes their own; admins delete |
-| `inbox` | submit rows | admins only | nobody edits; admins delete |
+| `inbox` | submit rows | admins only | nobody edits (an identical-body PUT is a harmless 200 only for the same author; a different author gets 409 `exists`, with no row body); admins delete |
 | `owner-only` | nothing (only admin claims and the owner write) | everyone who can open the site | admins edit and delete |
 
 - `writers`: which identity kinds may write: `anonymous`, `passcode`, `jwt`.
@@ -106,7 +106,7 @@ const listAll = async (collection) => {
 
 ### Idempotent writes: upsert by id
 
-Network failures and retries must not duplicate rows. Choose the row id **on the client, once**, and write with `PUT /{collection}/{id}`. Retrying the same PUT is safe: in `own-rows` and `owner-only` it replaces; in `append-only` and `inbox` an identical body returns 200 with no write (even at a limit, at no rate cost), and a different body returns 409 `exists`. Use `POST` only when you do not care about duplicates.
+Network failures and retries must not duplicate rows. Choose the row id **on the client, once**, and write with `PUT /{collection}/{id}`. Retrying the same PUT is safe: in `own-rows` and `owner-only` it replaces; in `append-only` an identical body returns 200 with no write (even at a limit, at no rate cost), and a different body returns 409 `exists`. In `inbox` the identical-body retry is 200 only for the **same author** (the same identity); a different author gets 409 `exists` with no row body, even for an identical body. Use `POST` only when you do not care about duplicates.
 
 ### Offline queue
 
@@ -146,7 +146,7 @@ addEventListener("online", flush);
 addEventListener("load", flush);
 ```
 
-Treat 200 and 201 as success. For append-only collections an identical-body 200 after a lost response is success, not an error. `409 exists` means a *different* row already has that id: a real conflict.
+Treat 200 and 201 as success. For `append-only` collections (and `inbox`, for the same author) an identical-body 200 after a lost response is success, not an error. `409 exists` means a *different* row, or on `inbox` a row from a *different author*, already has that id: a real conflict.
 
 ## Identity: who is the visitor?
 
@@ -174,7 +174,7 @@ const canVote = me.collections["votes"]?.write === true;
 | `data_unavailable` | 403 | Fails closed: add-on not enabled or not yet active, passcode/gated site without a valid cookie, blocked or paused site, bad config | Tell the visitor to unlock the site; otherwise ask the owner to check `data status` |
 | `not_found` | 404 | Unknown collection, site not in the collection's `sites`, or missing row | Check the collection name and its `sites`; for a row, treat as absent |
 | `method_not_allowed` | 405 | Wrong method for the path | Fix the request (bug) |
-| `exists` | 409 | append-only/inbox PUT to an existing id with a different body | Treat as already submitted (for example "you already voted") |
+| `exists` | 409 | append-only/inbox PUT to an existing id with a different body (on inbox also any PUT by a different author) | Treat as already submitted (for example "you already voted") |
 | `identity_limit_reached` | 409 | `per_identity_limit` hit | Tell the visitor they reached their limit |
 | `collection_full` | 409 | `max_rows` hit | Tell the visitor it is full; owner raises `max_rows` or archives |
 | `site_moved` | 410 | The site's address now redirects (renamed or moved); `/_data` never redirects | Use the site's new address |
@@ -184,7 +184,7 @@ const canVote = me.collections["votes"]?.write === true;
 | `data_plane_disabled` | 503 | The service is switched off | Retry later |
 | `unavailable` | 503 | Other store failure | Retry with backoff |
 
-Treat a network failure, any 5xx, `invalid_token` (after refreshing), `data_unavailable` and `rate_limited` (429, only after waiting `Retry-After` seconds) as retryable. Every other 4xx is permanent for that request, so do not retry or queue it: `invalid_request`, `forbidden`, `csrf_blocked`, `not_found`, `method_not_allowed`, `exists`, `identity_limit_reached`, `collection_full`, `site_moved` and `row_too_large`. The `bad_signature`, `stale_timestamp` and `replayed_nonce` (401) codes belong to the server-to-edge channel and never reach page code. `unauthenticated`, `not_available`, `upgrade_required`, `no_subscription`, `consent_required`, `addon_not_enabled`, `collection_exists`, `collection_not_found`, `limit_exceeded` and `admin_channel_failed` are owner-side (tool) errors; the tools explain them.
+Treat a network failure, any 5xx, `invalid_token` (after refreshing), `data_unavailable` and `rate_limited` (429, only after waiting `Retry-After` seconds) as retryable. Every other 4xx is permanent for that request, so do not retry or queue it: `invalid_request`, `forbidden`, `csrf_blocked`, `not_found`, `method_not_allowed`, `exists`, `identity_limit_reached`, `collection_full`, `site_moved` and `row_too_large`. The `bad_signature`, `stale_timestamp` and `replayed_nonce` (401) codes belong to the server-to-edge channel and never reach page code. `unauthenticated`, `not_available`, `upgrade_required`, `no_subscription`, `consent_required`, `addon_not_enabled`, `collection_exists`, `collection_not_found`, `limit_exceeded`, `admin_channel_failed` and `conflict` (409: a collection's `rule` cannot change while it has active rows; archive them with `data_rows` `archive`, or create a new collection) are owner-side (tool) errors; the tools explain them. `data` `enable` and `disable` can also fail with 503 `unavailable` when billing is down: nothing changed, so try again shortly (retrying `enable` is safe, it checks status first and never charges twice).
 
 ## Worked example: a one-vote poll with a results page
 

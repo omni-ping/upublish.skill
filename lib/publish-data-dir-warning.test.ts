@@ -1,6 +1,6 @@
 /**
  * DW-6.1: publish warns (never blocks) when the manifest has files under a
- * top-level `_data` directory, because the site data add-on's `/_data`
+ * `_data` at any depth directory, because the site data add-on's `/_data`
  * intercept would shadow them. Mirrors the filename-warning wiring.
  */
 
@@ -36,8 +36,17 @@ describe("classifyFilenames: reserved _data bucket", () => {
     expect(r.reserved).toEqual(["_data/votes.json", "_DATA/x.json", "_Data/sub/y.json"]);
   });
 
-  it("test_DW_6_1_reserved_ignores_nested_and_lookalike_names", () => {
-    const r = classifyFilenames(["assets/_data/x.json", "data/x.json", "my-data/x.json", "_data2/x.json", "x_data.json"]);
+  it("test_DW_6_3_reserved_matches_a_data_segment_at_any_depth_any_case", () => {
+    const r = classifyFilenames(["a/_data/x.json", "a/b/_DATA/y", "a/b/c/_Data/z/w.json", "index.html"]);
+    expect(r.reserved).toEqual(["a/_data/x.json", "a/b/_DATA/y", "a/b/c/_Data/z/w.json"]);
+  });
+
+  it("test_DW_6_3_reserved_nested_file_named_data_is_shadowed_like_a_top_level_one", () => {
+    expect(classifyFilenames(["a/_data", "a/b/_DATA"]).reserved).toEqual(["a/_data", "a/b/_DATA"]);
+  });
+
+  it("test_DW_6_3_reserved_ignores_lookalike_names", () => {
+    const r = classifyFilenames(["my_data/x", "_data.json", "data/x", "a/_data.json", "my-data/x.json", "_data2/x.json", "x_data.json", "a/x_data/y"]);
     expect(r.reserved).toBeUndefined();
     expect("reserved" in r).toBe(false); // key omitted so existing { fragile, fyi } equality holds
   });
@@ -56,7 +65,8 @@ describe("classifyFilenames: reserved _data bucket", () => {
 describe("renderFilenameWarning: reserved _data", () => {
   it("test_DW_6_1_render_reserved_warning_text_and_cap", () => {
     const out = renderFilenameWarning({ fragile: [], fyi: [], reserved: ["_data/a.json"] });
-    expect(out).toContain("Warning: 1 file(s) are under a top-level '_data' directory: _data/a.json");
+    expect(out).toContain("Warning: 1 file(s) have a '_data' path segment (a '_data' directory at any depth is reserved): _data/a.json");
+    expect(out).not.toContain("top-level");
     expect(out).toContain("will NOT be served");
     const many = Array.from({ length: 12 }, (_, i) => `_data/${i}.json`);
     expect(renderFilenameWarning({ fragile: [], fyi: [], reserved: many })).toContain("…and 2 more");
@@ -90,8 +100,15 @@ describe("publish(): _data warning wiring", () => {
     expect(renderFilenameWarning(r.filenameWarnings)).toContain("'_data'");
   });
 
-  it("test_DW_6_1_publish_without_data_dir_has_no_warnings_field", async () => {
+  it("test_DW_6_3_publish_with_nested_data_dir_succeeds_uploads_it_and_warns", async () => {
     const r = await run({ "index.html": "hi", "assets/_data/x.json": "[]" });
+    expect(r.uploadedFiles).toContain("assets/_data/x.json"); // warn-only, still published
+    expect(r.filenameWarnings?.reserved).toEqual(["assets/_data/x.json"]);
+    expect(renderFilenameWarning(r.filenameWarnings)).toContain("assets/_data/x.json");
+  });
+
+  it("test_DW_6_1_publish_without_data_dir_has_no_warnings_field", async () => {
+    const r = await run({ "index.html": "hi", "assets/my_data/x.json": "[]", "_data.json": "[]" });
     expect(r.filenameWarnings).toBeUndefined();
   });
 });
