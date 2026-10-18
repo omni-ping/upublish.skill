@@ -9,7 +9,7 @@
  */
 
 import { ApiError } from "./api-client.ts";
-import { hasControlChars, safeText, sanitizeOutput } from "./site-data-text.ts";
+import { hasControlChars, safeText, sanitizeErrorText } from "./site-data-text.ts";
 import type { ApiRole, SiteDataErrorCode } from "./site-data-types.ts";
 
 /** An actionable site-data failure. `code` is null when the body carried none. */
@@ -99,16 +99,17 @@ export async function guard<T>(role: ApiRole, fn: () => Promise<T>): Promise<T> 
 /**
  * Error boundary for the public site-data entry points. Whatever a lib
  * routine throws (server text, a visitor-supplied key echoed in a message, an
- * argument echoed back) leaves with every control character except `\n`
- * escaped, so error text can never forge a line. The error object is kept
- * (class, status, code); only its message is cleaned.
+ * argument echoed back) leaves with every control character escaped, `\n`
+ * included: error messages are single-line by design, so error text can never
+ * forge a line. The error object is kept (class, status, code); only its
+ * message is cleaned.
  */
 export async function sanitizeErrors<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
-    if (!(err instanceof Error)) throw new Error(sanitizeOutput(String(err)));
-    err.message = sanitizeOutput(err.message);
+    if (!(err instanceof Error)) throw new Error(sanitizeErrorText(String(err)));
+    err.message = sanitizeErrorText(err.message);
     throw err;
   }
 }

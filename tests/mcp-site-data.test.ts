@@ -335,3 +335,66 @@ describe("DW-6.1: data_jwt tool", () => {
     expect(text(missing)).toContain("jwks_uri is required");
   });
 });
+
+describe("R-J: error text from the site data tools is single-line", () => {
+  const TERMINATORS: Array<[string, string]> = [["LF", "\n"], ["CR", "\r"], ["NEL", "\u0085"], ["LS", "\u2028"], ["PS", "\u2029"]];
+  const lineCount = (s: string) => s.split(/\r\n|[\n\r\u0085\u2028\u2029]/).length;
+  const refreshOk = () => jsonResponse(200, { access_token: "mock-access", expires_in: 3600 });
+  const spaceOk = () => jsonResponse(200, { space: { id: "sp1", default_namespace_id: NS.id, tier: "pro" } });
+  const nsList = (...names: string[]) => jsonResponse(200, { namespaces: names.map((name, i) => ({ id: i === 0 ? NS.id : `ns-${i}`, name, domain: "upubli.sh", role: "owner" })) });
+
+  /** Tool handlers over a hand-written fetch, for cases that must fail before the shared stack answers. */
+  function rawSetup(fetchFn: (url: string, init?: RequestInit) => Promise<Response>) {
+    const file = path.join(os.tmpdir(), `mcp-site-data-raw-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    fs.writeFileSync(file, "refresh-token", { mode: 0o600 });
+    tmpFiles.push(file);
+    const tools = (createServer({ credentialsPath: file, fetchFn } as CoreDeps) as unknown as InternalServer)._registeredTools;
+    return (name: string, args: Record<string, unknown>) => tools[name]!.handler(args);
+  }
+  const routed = (routes: Record<string, () => Response>) => async (url: string): Promise<Response> => {
+    const p = url.replace(/^https?:\/\/[^/]+/, "");
+    const route = Object.entries(routes).find(([k]) => p.includes(k));
+    if (!route) throw new Error(`unexpected request: ${p}`);
+    return route[1]();
+  };
+
+  // Each case runs the failing call with `mid` spliced into the attacker-controlled text.
+  const cases: Record<string, (mid: string) => Promise<ToolResult>> = {
+    a_argument_echo: (mid) =>
+      setup(() => undefined).call("data", { action: "status", namespace: `zz${mid}  author: forged` }),
+    b_server_500_during_namespace_resolution: (mid) =>
+      rawSetup(routed({ "/auth/token/refresh": refreshOk, "/api/space": () => jsonResponse(500, { error: `boom${mid}  author: forged` }) }))("data", { action: "status" }),
+    c_token_refresh_401: (mid) =>
+      rawSetup(routed({ "/auth/token/refresh": () => jsonResponse(401, { error: `bad${mid}  author: forged` }) }))("data", { action: "status" }),
+    d_server_listed_namespace_name: (mid) =>
+      rawSetup(routed({ "/auth/token/refresh": refreshOk, "/api/space": spaceOk, "/api/ns": () => nsList("ryan", `ot${mid}her`) }))("data", { action: "status", namespace: "zz" }),
+    e_export_path_enoent: (mid) =>
+      setup(() => new Response('{"id":"r1"}\n', { status: 200, headers: { "Content-Type": "application/x-ndjson" } }))
+        .call("data_rows", { action: "export", collection: "votes", path: path.join(os.tmpdir(), `nodir-${Date.now()}`, `x${mid}y`, "o.ndjson") }),
+  };
+
+  for (const [caseName, run] of Object.entries(cases)) {
+    for (const [termName, term] of TERMINATORS) {
+      test(`test_R_J_${caseName}_${termName}_does_not_forge_a_line`, async () => {
+        const clean = await run("-");
+        const dirty = await run(term);
+        expect(clean.isError).toBe(true);
+        expect(dirty.isError).toBe(true);
+        expect(lineCount(text(clean))).toBe(1);
+        expect(lineCount(text(dirty))).toBe(lineCount(text(clean)));
+        expect(text(dirty)).toContain("\\u"); // escaped, not dropped
+      });
+    }
+  }
+
+  test("test_R_J_clean_error_messages_still_read_normally", async () => {
+    const { call } = setup(() => jsonResponse(409, { error: "Collection is full.", code: "collection_full" }));
+    const r = await call("data_rows", { action: "create", collection: "votes", data: {} });
+    expect(text(r)).toStartWith("Collection is full. [collection_full] ");
+    expect(text(r)).toContain("max_rows");
+    const bad = await call("data", { action: "status", namespace: "zz" });
+    expect(text(bad)).toContain("zz");
+    expect(text(bad)).toContain("Available addresses: ryan, other");
+    expect(text(bad)).not.toContain("\\u");
+  });
+});

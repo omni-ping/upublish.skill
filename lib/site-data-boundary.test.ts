@@ -12,7 +12,7 @@ import { runDataRows } from "./site-data-rows.ts";
 import { SiteDataError, sanitizeErrors, toSiteDataError } from "./site-data-errors.ts";
 import { formatCollectionResult, formatDataResult, formatJwtResult, formatRowsResult } from "./site-data-format.ts";
 import { parseDataStatus } from "./site-data-shape.ts";
-import { sanitizeOutput } from "./site-data-text.ts";
+import { sanitizeErrorText, sanitizeOutput } from "./site-data-text.ts";
 import type { CollectionView, DataStatus } from "./site-data-types.ts";
 import { NS, fixtureResponse, jsonResponse, loadRoute, makeClient, withSites } from "../tests/helpers/site-data.ts";
 
@@ -96,6 +96,15 @@ describe("finding 1/2: error boundary", () => {
     const nonError = await sanitizeErrors(async () => { throw "x\u0085y"; }).catch((e: unknown) => e);
     expect((nonError as Error).message).toBe("x\\u0085y");
     expect(await sanitizeErrors(async () => 5)).toBe(5);
+  });
+
+  it("test_R_J_sanitizeErrors_escapes_newline_but_sanitizeOutput_keeps_it", async () => {
+    const caught = await sanitizeErrors(async () => { throw new Error("a\nb"); }).catch((e: unknown) => e);
+    expect((caught as Error).message).toBe("a\\u000ab");
+    const nonError = await sanitizeErrors(async () => { throw "x\ny"; }).catch((e: unknown) => e);
+    expect((nonError as Error).message).toBe("x\\u000ay");
+    expect(sanitizeErrorText("p\tq\r\n")).toBe("p\\u0009q\\u000d\\u000a");
+    expect(sanitizeOutput("a\nb")).toBe("a\nb");
   });
 });
 

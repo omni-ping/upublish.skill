@@ -41,3 +41,10 @@ const NON_NEWLINE_CONTROL_RE = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u2028\u
  * `safeText` / `quoteText` stay responsible for keeping `\n` out of fields.
  */
 export const sanitizeOutput = (text: string): string => text.replace(NON_NEWLINE_CONTROL_RE, hex4);
+
+/**
+ * Error-message pass: like `sanitizeOutput` but also escapes `\n`. An error
+ * message is a single line by design (no site-data error text is multi-line),
+ * so unlike formatter output it has no line break of its own to preserve.
+ */
+export const sanitizeErrorText = (text: string): string => text.replace(CONTROL_RE_G, hex4);
