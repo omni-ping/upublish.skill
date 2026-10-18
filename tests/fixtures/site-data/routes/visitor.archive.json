@@ -1,0 +1,37 @@
+{
+  "route": "visitor.archive",
+  "request": {
+    "method": "POST",
+    "path": "/_data/votes/_archive",
+    "headers": {
+      "Content-Type": "application/json",
+      "Origin": "https://ryan.upubli.sh"
+    },
+    "body": {}
+  },
+  "responses": [
+    {
+      "name": "archived",
+      "status": 200,
+      "body": {
+        "archived": 42
+      }
+    },
+    {
+      "name": "foreign origin",
+      "status": 403,
+      "body": {
+        "error": "Cross-origin write refused.",
+        "code": "csrf_blocked"
+      }
+    },
+    {
+      "name": "not a collection admin",
+      "status": 403,
+      "body": {
+        "error": "You don't have permission to do that.",
+        "code": "forbidden"
+      }
+    }
+  ]
+}

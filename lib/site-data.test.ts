@@ -123,7 +123,7 @@ const posts = (calls: Array<{ method: string }>) => calls.filter((c) => c.method
 describe("DW-6.4: data enable (consent bound to what was shown)", () => {
   const chargingMonth: DataStatus = { ...unentitled, billing: { ...unentitled.billing, item_present: false, would_charge: true, interval: "month" } };
   const chargingYear: DataStatus = { ...chargingMonth, billing: { ...chargingMonth.billing, interval: "year" } };
-  const goodExpected = { tier: "pro" as const, would_charge: true, price_cents: 200, interval: "month" as const };
+  const goodExpected = { tier: "pro" as const, would_charge: true, price_cents: 200, interval: "month" as const, month_cents: 200, year_cents: 2000 };
   const enableFx = loadRoute("api.enable");
   const enabledReply = () => jsonResponse(200, fixtureResponse(enableFx, "enabled").body);
   const serveEnable = (account: Account, status: unknown) => withAccount(account, (req) => (req.method === "POST" ? enabledReply() : serveStatus(status)(req)));
@@ -182,9 +182,9 @@ describe("DW-6.4: data enable (consent bound to what was shown)", () => {
 
   it("test_DW_6_4_expected_price_follows_interval_and_is_null_when_unknown_or_not_charging", async () => {
     const run = async (status: DataStatus) => ((await runData(makeClient(asAccount(PRO, status)).client, NS, { action: "enable" })) as { expected: unknown }).expected;
-    expect(await run(chargingYear)).toEqual({ tier: "pro", would_charge: true, price_cents: 2000, interval: "year" });
-    expect(await run(wouldCharge)).toEqual({ tier: "pro", would_charge: true, price_cents: null, interval: null });
-    expect(await run(unentitled)).toEqual({ tier: "pro", would_charge: false, price_cents: null, interval: "month" });
+    expect(await run(chargingYear)).toEqual({ tier: "pro", would_charge: true, price_cents: 2000, interval: "year", month_cents: 200, year_cents: 2000 });
+    expect(await run(wouldCharge)).toEqual({ tier: "pro", would_charge: true, price_cents: null, interval: null, month_cents: 200, year_cents: 2000 });
+    expect(await run(unentitled)).toEqual({ tier: "pro", would_charge: false, price_cents: null, interval: "month", month_cents: 200, year_cents: 2000 });
     expect(await run({ ...chargingYear, price: { month_cents: 200, year_cents: null } })).toMatchObject({ price_cents: null, interval: "year" });
   });
 
@@ -219,14 +219,47 @@ describe("DW-6.4: data enable (consent bound to what was shown)", () => {
     }
   });
 
+  it("test_DW_6_7_N1_month_or_year_list_price_change_alone_refuses_with_new_consent_and_never_posts", async () => {
+    const cases: Array<[string, DataStatus, Record<string, number | null>]> = [
+      ["month list price", { ...chargingMonth, price: { month_cents: 250, year_cents: 2000 } }, { price_cents: 250, month_cents: 250, year_cents: 2000 }],
+      ["year list price (billing monthly)", { ...chargingMonth, price: { month_cents: 200, year_cents: 2500 } }, { price_cents: 200, month_cents: 200, year_cents: 2500 }],
+      ["year list price withdrawn", { ...chargingMonth, price: { month_cents: 200, year_cents: null } }, { price_cents: 200, month_cents: 200, year_cents: null }],
+    ];
+    for (const [name, status, fresh] of cases) {
+      const { client, calls } = makeClient(serveEnable(PRO, status));
+      const r = await runData(client, NS, { action: "enable", accept_charge: true, expected: goodExpected });
+      expect({ name, state: (r as { state: string }).state, changed: (r as { changed?: boolean }).changed }).toEqual({ name, state: "consent_needed", changed: true });
+      expect(r).toMatchObject({ expected: fresh });
+      expect(posts(calls)).toHaveLength(0);
+    }
+  });
+
+  it("test_DW_6_7_N1_month_price_alone_changing_is_refused_even_when_interval_and_price_cents_are_null", async () => {
+    const unknownInterval = { tier: "pro" as const, would_charge: true, price_cents: null, interval: null, month_cents: 200, year_cents: 2000 };
+    const { client: same, calls: sameCalls } = makeClient(serveEnable(PRO, wouldCharge));
+    expect(await runData(same, NS, { action: "enable", accept_charge: true, expected: unknownInterval })).toMatchObject({ state: "enabled" });
+    expect(posts(sameCalls)).toHaveLength(1);
+    const { client, calls } = makeClient(serveEnable(PRO, { ...wouldCharge, price: { month_cents: 250, year_cents: 2000 } }));
+    const r = await runData(client, NS, { action: "enable", accept_charge: true, expected: unknownInterval });
+    expect(r).toMatchObject({ state: "consent_needed", changed: true, expected: { ...unknownInterval, month_cents: 250 } });
+    expect(posts(calls)).toHaveLength(0);
+  });
+
+  it("test_DW_6_7_N1_expected_carries_list_prices_even_when_nothing_is_charged", async () => {
+    const { client } = makeClient(asAccount(PRO, unentitled));
+    expect(await runData(client, NS, { action: "enable" })).toMatchObject({
+      expected: { would_charge: false, price_cents: null, month_cents: 200, year_cents: 2000 },
+    });
+  });
+
   it("test_DW_6_4_mismatch_consent_carries_the_new_expected", async () => {
     const { client } = makeClient(serveEnable({ tier: "max", role: "user" }, chargingMonth));
     const r = await runData(client, NS, { action: "enable", accept_charge: true, expected: goodExpected });
-    expect(r).toMatchObject({ expected: { tier: "max", would_charge: true, price_cents: 200, interval: "month" } });
+    expect(r).toMatchObject({ expected: { tier: "max", would_charge: true, price_cents: 200, interval: "month", month_cents: 200, year_cents: 2000 } });
   });
 
   it("test_DW_6_4_paid_tier_not_charging_consents_then_posts_on_matching_expected", async () => {
-    const expected = { tier: "pro" as const, would_charge: false, price_cents: null, interval: "month" as const };
+    const expected = { tier: "pro" as const, would_charge: false, price_cents: null, interval: "month" as const, month_cents: 200, year_cents: 2000 };
     const { client, calls } = makeClient(serveEnable(PRO, unentitled));
     expect(await runData(client, NS, { action: "enable" })).toMatchObject({ state: "consent_needed", expected, admin: false });
     expect(await runData(client, NS, { action: "enable", accept_charge: true, expected })).toMatchObject({ state: "enabled" });
@@ -235,7 +268,7 @@ describe("DW-6.4: data enable (consent bound to what was shown)", () => {
 
   it("test_DW_6_4_admin_on_free_tier_gets_no_charge_consent_and_posts_on_matching_expected", async () => {
     const adminFree: Account = { tier: "free", role: "admin" };
-    const expected = { tier: "free" as const, would_charge: false, price_cents: null, interval: "month" as const };
+    const expected = { tier: "free" as const, would_charge: false, price_cents: null, interval: "month" as const, month_cents: 200, year_cents: 2000 };
     const { client, calls } = makeClient(serveEnable(adminFree, unentitled));
     expect(await runData(client, NS, { action: "enable" })).toMatchObject({ state: "consent_needed", admin: true, expected });
     expect(posts(calls)).toHaveLength(0);
@@ -244,7 +277,7 @@ describe("DW-6.4: data enable (consent bound to what was shown)", () => {
   });
 
   it("test_DW_6_4_comped_enable_has_null_charge", async () => {
-    const expected = { tier: "pro" as const, would_charge: false, price_cents: null, interval: "month" as const };
+    const expected = { tier: "pro" as const, would_charge: false, price_cents: null, interval: "month" as const, month_cents: 200, year_cents: 2000 };
     const { client } = makeClient(
       withAccount(PRO, (req) => (req.method === "POST" ? jsonResponse(200, fixtureResponse(enableFx, "comped").body) : serveStatus(unentitled)(req))),
     );
@@ -278,7 +311,7 @@ describe("DW-6.4: data enable (consent bound to what was shown)", () => {
 describe("DW-6.3: Stripe failure (503 unavailable) on enable/disable", () => {
   const stripeDown = () => jsonResponse(503, { error: "Billing is temporarily unavailable. Try again.", code: "unavailable" });
   const charging: DataStatus = { ...unentitled, billing: { ...unentitled.billing, item_present: false, would_charge: true } };
-  const expected = { tier: "pro" as const, would_charge: true, price_cents: 200, interval: "month" as const };
+  const expected = { tier: "pro" as const, would_charge: true, price_cents: 200, interval: "month" as const, month_cents: 200, year_cents: 2000 };
 
   it("test_DW_6_3_enable_503_makes_no_state_guarantee_and_asks_for_a_fresh_consent", async () => {
     const { client } = makeClient(withAccount(PRO, (req) => (req.method === "POST" ? stripeDown() : serveStatus(charging)(req))));

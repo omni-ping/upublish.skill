@@ -58,7 +58,7 @@ const CASES: Case[] = [
   },
   {
     route: "api.enable",
-    call: (c) => runData(c, NS, { action: "enable", accept_charge: true, expected: { tier: "pro", would_charge: false, price_cents: null, interval: "month" } }),
+    call: (c) => runData(c, NS, { action: "enable", accept_charge: true, expected: { tier: "pro", would_charge: false, price_cents: null, interval: "month", month_cents: 200, year_cents: 2000 } }),
     prelude: withAccount({ tier: "pro", role: "user" }, (req) => (req.method === "GET" && req.path === `/api/ns/${NS.id}/data` ? jsonResponse(200, unentitledStatus) : undefined)),
     onSuccess: (r) => expect(r).toMatchObject({ action: "enable", state: "enabled" }),
   },
@@ -243,5 +243,23 @@ describe("DW-6.6: contract amendment 745e2e6 (archived delete, fixture notes)", 
     const { client, calls } = makeClient(() => jsonResponse(200, { deleted: true }));
     await runDataRows(client, NS, { action: "delete", collection: "votes", id: "item-17", author: "passcode:5b0e3c1a-0000-4000-8000-00000000c001" });
     expect(`${calls[0]!.path}&archived=true`).toBe(f.request.path);
+  });
+});
+
+describe("DW-6.8: vendored visitor.archive fixture (a visitor route, not replayed through tools)", () => {
+  it("test_DW_6_8_visitor_archive_fixture_is_present_and_has_the_documented_shape", () => {
+    const fx = loadRoute("visitor.archive");
+    expect(fx.request.method).toBe("POST");
+    expect(fx.request.path).toBe("/_data/votes/_archive");
+    expect(fx.request.body).toEqual({});
+    expect(fx.responses.map((r) => `${r.status} ${(r.body as { code?: string }).code ?? "ok"}`)).toEqual(["200 ok", "403 csrf_blocked", "403 forbidden"]);
+    expect(fx.responses[0]!.body).toEqual({ archived: 42 });
+  });
+
+  it("test_DW_6_8_visitor_archive_response_matches_the_owner_archive_shape", () => {
+    const visitor = loadRoute("visitor.archive").responses[0]!.body as { archived: number };
+    const owner = loadRoute("api.archive").responses[0]!.body as { archived: number };
+    expect(Object.keys(visitor)).toEqual(Object.keys(owner));
+    expect(Number.isInteger(visitor.archived)).toBe(true);
   });
 });

@@ -2,7 +2,7 @@
  * Wire types for the site data add-on (server REST `/api/ns/:nsId/data/*`).
  *
  * Mirrored by hand from the frozen contract (`@upublish/shared/site-data`,
- * backend commit 745e2e6: `api.ts`, `kv.ts`, `store.ts`, `errors.ts`,
+ * backend commit e1b3962: `api.ts`, `kv.ts`, `store.ts`, `errors.ts`,
  * `limits.ts`, `identity.ts`) so the skill repo stays self-contained, the same
  * way `lib/types.ts` mirrors `@upublish/shared`. Types and constants only; no
  * behavior beyond the pure name validators. If the contract changes, refresh
@@ -46,9 +46,9 @@ export function assertCollectionName(name: string): string {
   return name;
 }
 
-/** Row ids: URL-unreserved characters, 1..128 chars, not `.` or `..`. */
+/** Row ids: URL-unreserved characters, 1..128 chars, not `.` or `..`, never starting with `_` (reserves the `_archive` route segment). */
 export const isValidRowId = (s: string): boolean =>
-  s.length >= 1 && s.length <= SITE_DATA_LIMITS.maxRowIdLength && ROW_ID_RE.test(s) && s !== "." && s !== "..";
+  s.length >= 1 && s.length <= SITE_DATA_LIMITS.maxRowIdLength && ROW_ID_RE.test(s) && !s.startsWith("_") && s !== "." && s !== "..";
 
 // ─── Error codes (contract section 6) ─────────────────────────────────────────
 

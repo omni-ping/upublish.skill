@@ -4,10 +4,12 @@
  * failure cleanup).
  */
 
-import { describe, it, expect, afterAll } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { describe, it, expect, afterAll, spyOn } from "bun:test";
+import * as nodeFs from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Writable } from "node:stream";
 import { runDataRows } from "./site-data-rows.ts";
 import type { ImportRow } from "./site-data-types.ts";
 import { NS, jsonResponse, makeClient } from "../tests/helpers/site-data.ts";
@@ -399,5 +401,184 @@ describe("DW-6.1: data_rows export (streamed)", () => {
   it("test_DW_6_1_export_response_without_body_is_an_error", async () => {
     const { client } = makeClient(() => new Response(null, { status: 204 }));
     await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: join(tmp, "nobody.ndjson") })).rejects.toThrow("no body");
+  });
+});
+
+// ─── Export: no-hard-link fallback (N3) and partial ownership (N5) ───────────
+
+const errno = (code: string, syscall = "link"): NodeJS.ErrnoException => Object.assign(new Error(`${code}: simulated`), { code, syscall });
+
+describe("DW-6.7: export on filesystems without hard links", () => {
+  for (const code of ["EXDEV", "EPERM", "ENOTSUP", "EOPNOTSUPP"]) {
+    it(`test_DW_6_7_N3_link_${code}_falls_back_to_an_exclusive_0600_copy_and_removes_only_the_partial`, async () => {
+      const dest = join(tmp, `nolink-${code}.ndjson`);
+      const spy = spyOn(nodeFs.promises, "link").mockRejectedValue(errno(code));
+      try {
+        const { client } = makeClient(() => streamingResponse(['{"a":1}\n', '{"a":2}\n']));
+        const r = await runDataRows(client, NS, { action: "export", collection: "votes", path: dest });
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(r).toMatchObject({ rows: 2, bytes: 16, path: dest });
+        expect(readFileSync(dest, "utf-8")).toBe('{"a":1}\n{"a":2}\n');
+        expect(statSync(dest).mode & 0o777).toBe(0o600);
+        expect(existsSync(`${dest}.partial`)).toBe(false);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+  }
+
+  it("test_DW_6_7_N3_fallback_keeps_no_overwrite_semantics_when_the_destination_appears_meanwhile", async () => {
+    const dest = join(tmp, "nolink-late.ndjson");
+    const spy = spyOn(nodeFs.promises, "link").mockRejectedValue(errno("EXDEV"));
+    try {
+      const { client } = makeClient(() => {
+        writeFileSync(dest, "appeared");
+        return streamingResponse(["{}\n"]);
+      });
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("appeared during the export");
+      expect(readFileSync(dest, "utf-8")).toBe("appeared"); // untouched, not truncated or replaced
+      expect(existsSync(`${dest}.partial`)).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("test_DW_6_7_N3_other_link_errors_keep_current_behaviour_and_do_not_fall_back", async () => {
+    const dest = join(tmp, "nolink-other.ndjson");
+    const spy = spyOn(nodeFs.promises, "link").mockRejectedValue(errno("EACCES"));
+    try {
+      const { client } = makeClient(() => streamingResponse(["{}\n"]));
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("EACCES");
+      expect(existsSync(dest)).toBe(false); // no fallback copy was made
+      expect(existsSync(`${dest}.partial`)).toBe(false); // our partial is cleaned up
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("test_DW_6_7_N3_fallback_copy_failure_leaves_neither_destination_nor_partial", async () => {
+    const dest = join(tmp, "nolink-copyfail.ndjson");
+    const bystander = join(tmp, "nolink-copyfail-bystander.ndjson");
+    writeFileSync(bystander, "keep me");
+    const realOpen = nodeFs.promises.open.bind(nodeFs.promises);
+    const linkSpy = spyOn(nodeFs.promises, "link").mockRejectedValue(errno("EXDEV"));
+    // The destination's exclusive open succeeds (creating the file) but its write stream dies midway.
+    const openSpy = spyOn(nodeFs.promises, "open").mockImplementation((async (p: string, ...rest: unknown[]) => {
+      const handle = await (realOpen as (...a: unknown[]) => Promise<nodeFs.promises.FileHandle>)(p, ...rest);
+      if (p === dest) {
+        handle.createWriteStream = (() =>
+          new Writable({ write(_c, _e, cb) { cb(new Error("disk full (simulated)")); } })) as never;
+      }
+      return handle;
+    }) as never);
+    try {
+      const { client } = makeClient(() => streamingResponse(['{"a":1}\n', '{"a":2}\n']));
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("disk full");
+      expect(existsSync(dest)).toBe(false);
+      expect(existsSync(`${dest}.partial`)).toBe(false);
+      expect(readFileSync(bystander, "utf-8")).toBe("keep me");
+    } finally {
+      openSpy.mockRestore();
+      linkSpy.mockRestore();
+    }
+  });
+
+  it("test_DW_6_7_exists_check_failure_other_than_ENOENT_is_rethrown_and_nothing_is_created_or_deleted", async () => {
+    const dest = join(tmp, "stat-denied.ndjson");
+    const bystander = join(tmp, "stat-denied-bystander.ndjson");
+    writeFileSync(bystander, "keep me");
+    const spy = spyOn(nodeFs.promises, "lstat").mockRejectedValue(errno("EACCES", "lstat"));
+    try {
+      const { client, calls } = makeClient(() => streamingResponse(["{}\n"]));
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("EACCES");
+      expect(calls).toHaveLength(0); // failed before any request
+    } finally {
+      spy.mockRestore();
+    }
+    expect(existsSync(dest)).toBe(false);
+    expect(existsSync(`${dest}.partial`)).toBe(false);
+    expect(readFileSync(bystander, "utf-8")).toBe("keep me");
+  });
+});
+
+describe("DW-6.7: export only deletes the partial it created", () => {
+  it("test_DW_6_7_N5_failure_before_the_exclusive_open_never_deletes_an_existing_partial_whatever_the_error_says", async () => {
+    const dest = join(tmp, "own-before.ndjson");
+    // A partial appears after the pre-check; the open then fails with an error that merely LOOKS like ours
+    // (code EEXIST, syscall "unlink"): ownership must not be inferred from error fields.
+    const { client } = makeClient(() => {
+      writeFileSync(`${dest}.partial`, "not ours");
+      return streamingResponse(["{}\n"]);
+    });
+    const spy = spyOn(nodeFs.promises, "open").mockRejectedValue(errno("EPERM", "unlink"));
+    try {
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("EPERM");
+    } finally {
+      spy.mockRestore();
+    }
+    expect(readFileSync(`${dest}.partial`, "utf-8")).toBe("not ours");
+    expect(existsSync(dest)).toBe(false);
+  });
+
+  it("test_DW_6_7_N5_failure_after_the_exclusive_open_deletes_ours_even_when_the_error_has_syscall_open_and_eexist", async () => {
+    const dest = join(tmp, "own-after.ndjson");
+    // The stream dies with an error shaped like the old "someone else's partial" signal. We DID create the partial.
+    const body = new ReadableStream<Uint8Array>({
+      start(c) { c.enqueue(enc.encode("{}\n")); },
+      pull() { throw errno("EEXIST", "open"); },
+    });
+    const { client } = makeClient(() => new Response(body, { status: 200 }));
+    await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("EEXIST");
+    expect(existsSync(`${dest}.partial`)).toBe(false);
+    expect(existsSync(dest)).toBe(false);
+  });
+
+  it("test_DW_6_7_N5_failure_after_the_exclusive_open_removes_ours_and_leaves_a_sibling_partial_alone", async () => {
+    mkdirSync(join(tmp, "sib"));
+    const dest = join(tmp, "sib", "a.ndjson");
+    const other = join(tmp, "sib", "b.ndjson.partial");
+    writeFileSync(other, "sibling");
+    const spy = spyOn(nodeFs.promises, "link").mockRejectedValue(errno("EACCES"));
+    try {
+      const { client } = makeClient(() => streamingResponse(["{}\n"]));
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("EACCES");
+    } finally {
+      spy.mockRestore();
+    }
+    expect(existsSync(`${dest}.partial`)).toBe(false);
+    expect(readFileSync(other, "utf-8")).toBe("sibling");
+  });
+});
+
+
+describe("DW-6.8: leading-underscore row ids are refused before any request", () => {
+  const imp = (id: string): ImportRow => ({ id, author: { kind: "passcode", subject: "p1", label: "her" }, data: { v: 1 }, created_at: "2026-10-18T12:00:00.000Z" });
+
+  it("test_DW_6_8_rows_delete_and_put_refuse_leading_underscore_with_a_clear_message", async () => {
+    const { client, calls } = makeClient(() => undefined);
+    for (const id of ["_x", "_archive"]) {
+      await expect(runDataRows(client, NS, { action: "delete", collection: "votes", id })).rejects.toThrow(/Invalid row id .*a leading '_' is reserved/);
+      await expect(runDataRows(client, NS, { action: "put", collection: "votes", id, data: { v: 1 } })).rejects.toThrow(/Invalid row id .*a leading '_' is reserved/);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("test_DW_6_8_rows_import_refuses_a_leading_underscore_id_anywhere_in_the_batch", async () => {
+    const { client, calls } = makeClient(() => undefined);
+    await expect(runDataRows(client, NS, { action: "import", collection: "votes", rows: [imp("ok"), imp("_archive")] })).rejects.toThrow("Invalid row id");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("test_DW_6_8_rows_delete_and_put_accept_inner_and_trailing_underscores", async () => {
+    const del = makeClient(() => jsonResponse(200, { deleted: true }));
+    await runDataRows(del.client, NS, { action: "delete", collection: "votes", id: "a_b" });
+    await runDataRows(del.client, NS, { action: "delete", collection: "votes", id: "x_" });
+    expect(del.calls.map((c) => c.path)).toEqual([`${ROWS}/a_b`, `${ROWS}/x_`]);
+  });
+
+  it("test_DW_6_8_row_response_with_a_leading_underscore_id_is_a_malformed_body", async () => {
+    const row = { id: "_archive", author: { kind: "owner", subject: "u" }, data: { v: 1 }, created_at: "2026-10-18T12:00:00.000Z", updated_at: "2026-10-18T12:00:00.000Z", archived_at: null };
+    const { client } = makeClient(() => jsonResponse(200, row));
+    await expect(runDataRows(client, NS, { action: "put", collection: "votes", id: "ok", data: { v: 1 } })).rejects.toThrow();
   });
 });
