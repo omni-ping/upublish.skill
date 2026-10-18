@@ -80,6 +80,27 @@ describe("DW-6.1: data_rows archive/delete/create/put", () => {
     expect(calls[0]!.path).toBe(`${ROWS}/x`);
   });
 
+  it("test_DW_6_6_rows_delete_archived_true_appends_archived_after_author", async () => {
+    const { client, calls } = makeClient(() => jsonResponse(200, { deleted: true }));
+    const res = await runDataRows(client, NS, { action: "delete", collection: "votes", id: "item-17", author: "passcode:p1", archived: true });
+    expect(calls[0]!.method).toBe("DELETE");
+    expect(calls[0]!.path).toBe(`${ROWS}/item-17?author=passcode%3Ap1&archived=true`);
+    expect(res).toEqual({ action: "delete", collection: "votes", id: "item-17", archived: true });
+  });
+
+  it("test_DW_6_6_rows_delete_archived_true_without_author", async () => {
+    const { client, calls } = makeClient(() => jsonResponse(200, { deleted: true }));
+    await runDataRows(client, NS, { action: "delete", collection: "votes", id: "x", archived: true });
+    expect(calls[0]!.path).toBe(`${ROWS}/x?archived=true`);
+  });
+
+  it("test_DW_6_6_rows_delete_archived_false_or_omitted_sends_no_param", async () => {
+    const { client, calls } = makeClient(() => jsonResponse(200, { deleted: true }));
+    await runDataRows(client, NS, { action: "delete", collection: "votes", id: "x", author: "owner:u", archived: false });
+    await runDataRows(client, NS, { action: "delete", collection: "votes", id: "x", author: "owner:u" });
+    expect(calls.map((c) => c.path)).toEqual([`${ROWS}/x?author=owner%3Au`, `${ROWS}/x?author=owner%3Au`]);
+  });
+
   it("test_DW_6_1_rows_delete_rejects_path_traversal_and_bad_ids", async () => {
     const { client, calls } = makeClient(() => undefined);
     for (const id of ["..", ".", "a/b", "a%2Fb", "", "x".repeat(129)]) {

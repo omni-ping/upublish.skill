@@ -4,7 +4,7 @@ Verbatim copy of the frozen site-data contract fixtures.
 
 - Source repo: `/Users/r/repos/wt-backend-sitedata` (backend worktree, read-only)
 - Source path: `docs/site-data/fixtures/` (`routes/` and `records/`)
-- Source commit: `7d77c06`
+- Source commit: `745e2e6`
 
 This is a snapshot. Do not edit these files by hand: refresh them only by
 re-copying the whole directory from the source commit (and update the commit

@@ -1375,7 +1375,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         "  list    — Page of rows (limit, cursor, author, include_archived)\n" +
         "  export  — Stream every row, including archived, to a local NDJSON file (path ending .ndjson or .jsonl; refuses an existing file unless overwrite: true); handles large collections\n" +
         "  archive — Reset: move all active rows to history (not deleted; there is no un-archive)\n" +
-        "  delete  — Delete one row by id. For 'own-rows' collections also pass author (the row's 'author:' value from list, e.g. 'passcode:<id>', without the label)\n" +
+        "  delete  — Delete one row by id. For 'own-rows' collections also pass author (the row's 'author:' value from list, e.g. 'passcode:<id>', without the label). Deletes the ACTIVE row by default; pass archived: true to delete an archived (history) row with that author and id instead\n" +
         "  create  — Add a row with a generated id (data)\n" +
         "  put     — Create or replace a row by id (id, data)\n" +
         "  import  — Owner only: up to 500 rows per call with explicit authors and timestamps; rows whose key already exists are skipped (key = author+id for own-rows collections, id for other presets)",
@@ -1387,6 +1387,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         limit: z.number().int().min(1).max(SITE_DATA_LIMITS.maxPageSize).optional().describe("list: page size (default 50, max 100)."),
         cursor: z.string().optional().describe("list: next_cursor from the previous page."),
         author: z.string().optional().describe("list/delete: a row's 'author:' value exactly as list prints it ('kind:subject', e.g. 'passcode:<id>'); never the label."),
+        archived: z.boolean().optional().describe("delete: remove the archived (history) row with this author and id instead of the active one. Default false (active row)."),
         include_archived: z.boolean().optional().describe("list: also return archived rows."),
         path: z.string().optional().describe("export: file to write; must end in .ndjson or .jsonl (e.g. /tmp/votes.ndjson)."),
         overwrite: z.boolean().optional().describe("export: replace the destination if it already exists (default: refuse)."),

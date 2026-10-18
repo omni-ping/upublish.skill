@@ -15,5 +15,6 @@
       "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     }
   ],
-  "passcode_nonce": 3
+  "passcode_nonce": 3,
+  "note": "An ABSENT passcode_entries means unknown (v2 cookies keep static access, no passcode identity). A present array lacking the cookie's id revokes both. Invalid entries are dropped individually."
 }

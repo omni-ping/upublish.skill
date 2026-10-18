@@ -194,7 +194,7 @@ function rowsText(r: DataRowsResult): string {
     case "archive":
       return `Archived ${r.archived} active row(s) in '${t(r.collection)}'. They are kept as history and no longer count or show to visitors.`;
     case "delete":
-      return `Deleted row '${t(r.id)}' from '${t(r.collection)}'.`;
+      return `Deleted ${r.archived ? "archived " : ""}row '${t(r.id)}' from '${t(r.collection)}'.`;
     case "create":
     case "put":
       return `${r.action === "create" ? "Created" : "Saved"} row '${t(r.row.id)}' in '${t(r.collection)}'.\n${rowText(r.row)}`;

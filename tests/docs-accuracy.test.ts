@@ -105,7 +105,7 @@ describe("DW-6.2: every doc surface lists the site data tools and routes to the 
 
   test("test_DW_6_2_vendored_fixtures_readme_names_source_and_commit", () => {
     const readme = readDoc("tests/fixtures/site-data/README.md");
-    expect(readme).toContain("7d77c06");
+    expect(readme).toContain("745e2e6");
     expect(readme).toContain("docs/site-data/fixtures/");
     expect(readme).toMatch(/read-only snapshot/i);
   });
@@ -305,8 +305,41 @@ describe("DW-6.5: guide fixes from the independent review", () => {
     expect(guide).toMatch(/`site_moved` \| 410 \|[^|]*\|[^|]*SITE_PATH/);
     expect(guide).toContain("bumps the site's passcode nonce");
     expect(guide).toMatch(/403 `data_unavailable`\*\* \(JSON, never the passcode form\)/);
-    expect(guide).toContain("v1");
     expect(guide).not.toMatch(/until then they act as anonymous/);
+  });
+
+  test("test_DW_6_6_guide_states_v1_rejected_reenter_once_and_address_apex_binding", () => {
+    expect(guide).toMatch(/Legacy unbound v1 passcode cookies are rejected for ALL access/);
+    expect(guide).toMatch(/\*\*enter the passcode once\*\*/);
+    expect(guide).toContain("bound to the exact site address and its apex");
+    expect(guide).toContain("`alice.upubli.sh` and `alice.pinn.sh` never share one");
+    expect(guide).toContain("exact address the page is served from");
+  });
+
+  test("test_DW_6_6_guide_has_no_claim_that_v1_keeps_static_access_or_is_anonymous", () => {
+    expect(guide).not.toMatch(/v1[^.\n]*keeps granting static access/i);
+    expect(guide).not.toMatch(/legacy \(v1\) cookie/i);
+    expect(guide).not.toMatch(/v1[^.\n]*is anonymous on `\/_data`/i);
+    expect(guide).toContain("a v1 cookie is never treated as anonymous");
+  });
+
+  test("test_DW_6_6_guide_static_only_dash_cookie_and_gate_cookie_are_anonymous_on_data", () => {
+    expect(guide).toMatch(/passcode id is `-`\) grants static access only and is anonymous on `\/_data` until the visitor enters the passcode again/);
+    expect(guide).toContain("Gate (form) cookies stay anonymous on `/_data`");
+  });
+
+  test("test_DW_6_6_guide_nonce_bump_paragraph_still_says_403_until_reentry", () => {
+    expect(guide).toMatch(/bumps the site's passcode nonce[^\n]*403 `data_unavailable`[^\n]*enter the passcode again/);
+  });
+
+  test("test_DW_6_6_guide_error_rows_match_amendment_4", () => {
+    expect(guide).toMatch(/`data_plane_disabled` \| 503 \|[^|]*kill switch[^|]*fails closed/);
+    expect(guide).toMatch(/`data_unavailable` \| 403 \|[^\n]*legacy v1 cookie/);
+  });
+
+  test("test_DW_6_6_guide_documents_archived_delete", () => {
+    expect(guide).toContain("also pass `archived: true`");
+    expect(guide).toMatch(/deletes the active row/);
   });
 
   test("test_DW_6_5_two_step_enable_is_documented_on_every_surface", () => {

@@ -2,7 +2,7 @@
   "route": "admin.delete_row",
   "request": {
     "method": "DELETE",
-    "path": "/__upublish/data-admin/ns/5b0e3c1a-0000-4000-8000-00000000a001/collections/votes/rows/item-17?author=passcode%3A5b0e3c1a-0000-4000-8000-00000000c001"
+    "path": "/__upublish/data-admin/ns/5b0e3c1a-0000-4000-8000-00000000a001/collections/votes/rows/item-17?author=passcode%3A5b0e3c1a-0000-4000-8000-00000000c001&archived=true"
   },
   "responses": [
     {
@@ -20,5 +20,6 @@
         "code": "not_found"
       }
     }
-  ]
+  ],
+  "note": "`archived=true` deletes the archived row with this (author, id); omit it to delete the active row."
 }

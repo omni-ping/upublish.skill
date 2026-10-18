@@ -11,18 +11,40 @@
     "value": "AAAAAAAAAAAAAAAAAAAAAA.1760788800.328bfad26da554a19cf0150a187a7dea2716e19d58bca50246af134cbbf3361d"
   },
   "passcode_v2": {
-    "user": "ryan",
-    "addr": "for-her",
+    "ns_prefix": "ryan.upubli.sh",
+    "address": "for-her",
     "passcode_id": "5b0e3c1a-0000-4000-8000-00000000c001",
     "nonce": 3,
     "ts": 1760788800,
-    "payload": "v2:ryan:for-her:5b0e3c1a-0000-4000-8000-00000000c001:3:1760788800",
-    "mac": "851773a1763c0a4dba86f7423e7b491d4e5f124fdaf16f633430a5152f13e865",
-    "value": "v2:5b0e3c1a-0000-4000-8000-00000000c001:3:1760788800:851773a1763c0a4dba86f7423e7b491d4e5f124fdaf16f633430a5152f13e865"
+    "payload": "pc:v2:ryan.upubli.sh:for-her:5b0e3c1a-0000-4000-8000-00000000c001:3:1760788800",
+    "mac": "1ffeceed009575b691ebbf6c6248921745179919db63a652dddde7d55d13300e",
+    "value": "v2:5b0e3c1a-0000-4000-8000-00000000c001:3:1760788800:1ffeceed009575b691ebbf6c6248921745179919db63a652dddde7d55d13300e"
   },
   "passcode_v1_legacy": {
     "value": "3:1760788800:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    "grants_static_access": true,
-    "yields_passcode_identity": false
+    "rejected": true,
+    "note": "Unbound v1 cookies are rejected for ALL access (parsePasscodeCookie -> null); visitors re-enter the passcode once."
+  },
+  "passcode_v2_other_apex": {
+    "ns_prefix": "ryan.pinn.sh",
+    "address": "for-her",
+    "passcode_id": "5b0e3c1a-0000-4000-8000-00000000c001",
+    "nonce": 3,
+    "ts": 1760788800,
+    "payload": "pc:v2:ryan.pinn.sh:for-her:5b0e3c1a-0000-4000-8000-00000000c001:3:1760788800",
+    "mac": "97ccb2437e2de158366756f9b63ef4cc11c6c51ade4bb055d3798c83532a6aad",
+    "value": "v2:5b0e3c1a-0000-4000-8000-00000000c001:3:1760788800:97ccb2437e2de158366756f9b63ef4cc11c6c51ade4bb055d3798c83532a6aad",
+    "note": "Same user/address/id/nonce/ts on the other apex: a different MAC, so the upubli.sh cookie never verifies on pinn.sh."
+  },
+  "passcode_v2_static_only": {
+    "ns_prefix": "ryan.upubli.sh",
+    "address": "for-her",
+    "passcode_id": null,
+    "nonce": 3,
+    "ts": 1760788800,
+    "payload": "pc:v2:ryan.upubli.sh:for-her:-:3:1760788800",
+    "mac": "66a83ce22b0ce714a6c9fd7ea3465a8979f3ca3423fa89dac151ace01e448844",
+    "value": "v2:-:3:1760788800:66a83ce22b0ce714a6c9fd7ea3465a8979f3ca3423fa89dac151ace01e448844",
+    "note": "passcode_id `-`: minted when the Worker had no passcode_entries for the site. Static access only; anonymous on /_data."
   }
 }

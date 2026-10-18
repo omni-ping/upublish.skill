@@ -38,6 +38,8 @@ export interface DataRowsArgs {
   cursor?: string;
   /** list/delete: restrict to an author's `identityKey` (e.g. `passcode:{id}`); required to delete an own-rows row. */
   author?: string;
+  /** delete: remove the archived row with this (author, id) instead of the active one (sent as `archived=true`; omitted/false targets the active row). */
+  archived?: boolean;
   /** list: also return archived rows. */
   include_archived?: boolean;
   /** export: destination file path, must end in .ndjson or .jsonl (relative paths resolve against the working directory). */
@@ -52,7 +54,7 @@ export type DataRowsResult =
   | { action: "list"; collection: string; rows: AdminRow[]; next_cursor: string | null }
   | { action: "export"; collection: string; path: string; rows: number; bytes: number }
   | { action: "archive"; collection: string; archived: number }
-  | { action: "delete"; collection: string; id: string }
+  | { action: "delete"; collection: string; id: string; archived?: boolean }
   | { action: "create" | "put"; collection: string; row: AdminRow }
   | ({ action: "import"; collection: string } & ImportResponse);
 
@@ -181,9 +183,12 @@ export async function runDataRows(apiClient: ApiClient, ns: Namespace, args: Dat
     }
     case "delete": {
       const id = validRowId(requireArg(args.id, "id", "delete"));
-      const qs = args.author !== undefined ? `?${new URLSearchParams({ author: args.author })}` : "";
+      const q = new URLSearchParams();
+      if (args.author !== undefined) q.set("author", args.author);
+      if (args.archived === true) q.set("archived", "true");
+      const qs = q.size > 0 ? `?${q}` : "";
       await guard("admin", async () => parseDeleteRowResponse(await apiClient.delete<unknown>(`${base}/rows/${id}${qs}`)));
-      return { action: "delete", collection, id };
+      return { action: "delete", collection, id, archived: args.archived === true };
     }
     case "create": {
       const data = requireArg(args.data, "data", "create");

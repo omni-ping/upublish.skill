@@ -395,6 +395,32 @@ describe("DW-6.1: data_collection tool", () => {
 describe("DW-6.1: data_rows tool", () => {
   const row = { id: "item-17", author: { kind: "passcode", subject: "p1", label: "her" }, data: { val: "y" }, created_at: "2026-10-18T12:00:00.000Z", updated_at: "2026-10-18T12:00:00.000Z", archived_at: null };
 
+  test("test_DW_6_6_tool_rows_delete_archived_through_server", async () => {
+    const { call, calls } = setup(() => jsonResponse(200, { deleted: true }));
+    const arch = await call("data_rows", { action: "delete", collection: "votes", id: "item-17", author: "passcode:p1", archived: true });
+    expect(text(arch)).toContain("Deleted archived row 'item-17'");
+    expect(calls[0]!.method).toBe("DELETE");
+    expect(calls[0]!.path).toContain("/rows/item-17?author=passcode%3Ap1&archived=true");
+    const active = await call("data_rows", { action: "delete", collection: "votes", id: "item-17", author: "passcode:p1" });
+    expect(text(active)).toContain("Deleted row 'item-17'");
+    expect(calls[1]!.path).not.toContain("archived");
+    expect(calls).toHaveLength(2);
+  });
+
+  test("test_DW_6_6_data_rows_archived_is_an_optional_boolean_in_the_schema", () => {
+    const { tools } = setup(() => undefined);
+    const parse = (archived: unknown) => tools["data_rows"]!.inputSchema.safeParse({ action: "delete", collection: "votes", id: "x", archived }).success;
+    expect([parse(true), parse(false), parse(undefined)]).toEqual([true, true, true]);
+    expect(parse("yes")).toBe(false);
+  });
+
+  test("test_DW_6_6_data_rows_description_documents_archived_delete", () => {
+    const { tools } = setup(() => undefined);
+    const d = tools["data_rows"]!.description!;
+    expect(d).toContain("ACTIVE row by default");
+    expect(d).toContain("archived: true");
+  });
+
   test("test_DW_6_1_tool_rows_list_create_put_archive_delete_import", async () => {
     const { call, calls } = setup((req) => {
       if (req.method === "GET") return jsonResponse(200, { rows: [row], next_cursor: null });

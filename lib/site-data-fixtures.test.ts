@@ -149,8 +149,9 @@ const CASES: Case[] = [
         collection: "votes",
         id: "item-17",
         author: "passcode:5b0e3c1a-0000-4000-8000-00000000c001",
+        archived: true,
       }),
-    onSuccess: (r) => expect(r).toMatchObject({ action: "delete", id: "item-17" }),
+    onSuccess: (r) => expect(r).toMatchObject({ action: "delete", id: "item-17", archived: true }),
   },
   {
     route: "api.import",
@@ -228,4 +229,19 @@ describe("DW-6.1: contract fixtures replayed against every api.* route", () => {
       });
     }
   }
+});
+
+describe("DW-6.6: contract amendment 745e2e6 (archived delete, fixture notes)", () => {
+  it("test_DW_6_6_fixture_loader_tolerates_top_level_note_and_delete_fixture_requests_archived", () => {
+    const f = loadRoute("api.delete_row") as RouteFixture & { note?: string };
+    expect(typeof f.note).toBe("string");
+    expect(f.request.path).toMatch(/\?author=[^&]+&archived=true$/);
+  });
+
+  it("test_DW_6_6_delete_without_archived_differs_from_the_fixture_request_by_exactly_the_param", async () => {
+    const f = loadRoute("api.delete_row");
+    const { client, calls } = makeClient(() => jsonResponse(200, { deleted: true }));
+    await runDataRows(client, NS, { action: "delete", collection: "votes", id: "item-17", author: "passcode:5b0e3c1a-0000-4000-8000-00000000c001" });
+    expect(`${calls[0]!.path}&archived=true`).toBe(f.request.path);
+  });
 });
