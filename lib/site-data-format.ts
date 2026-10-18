@@ -7,7 +7,7 @@
  * unit-tested.
  */
 
-import { quoteText, safeText as t, hasControlChars } from "./site-data-text.ts";
+import { quoteText, safeText as t, hasControlChars, sanitizeOutput } from "./site-data-text.ts";
 import type { DataCollectionResult } from "./site-data-collections.ts";
 import type { DataJwtResult, DataResult } from "./site-data.ts";
 import type { DataRowsResult } from "./site-data-rows.ts";
@@ -15,6 +15,12 @@ import type { AdminRow, BillingInterval, ClaimMatcher, CollectionConfig, Collect
 
 /** Cents as dollars, e.g. 200 -> "$2.00". */
 const usd = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
+
+// ─── Output boundary ─────────────────────────────────────────────────────────
+// Each exported formatter runs its text through `sanitizeOutput` last, so a
+// control character that slipped past a per-field escape (or comes from JSON
+// output such as row data: JSON.stringify leaves NEL, LS and PS raw) still
+// cannot add a line. Per-field escaping remains responsible for `\n`.
 
 // ─── data ────────────────────────────────────────────────────────────────────
 
@@ -30,12 +36,12 @@ const NO_CHARGE_TEXT = "Enabling will not charge this account.";
 const statsText = (s: CollectionStats | null): string =>
   s ? `${s.rows} rows, ${s.archived_rows} archived, ${s.bytes} bytes` : "stats unavailable";
 
-export function formatDataResult(r: DataResult): string {
+function dataText(r: DataResult): string {
   switch (r.action) {
     case "status": {
       if (!r.available) return "Site data is not available for this account.";
       const s = r.status;
-      const lines = [`Site data for '${r.namespace}': ${s.entitled ? "ENABLED" : "not enabled"}${s.activating ? " (activating; can take up to a minute)" : ""}`];
+      const lines = [`Site data for '${t(r.namespace)}': ${s.entitled ? "ENABLED" : "not enabled"}${s.activating ? " (activating; can take up to a minute)" : ""}`];
       if (s.entitlement_source) lines.push(`Entitlement: ${t(s.entitlement_source)}`);
       if (s.billing.past_due) lines.push("Billing: PAST DUE");
       if (!s.entitled) {
@@ -94,7 +100,7 @@ function collectionText(name: string, c: CollectionConfig): string {
 
 const viewText = (v: CollectionView): string => collectionText(v.name, v);
 
-export function formatCollectionResult(r: DataCollectionResult): string {
+function collectionResultText(r: DataCollectionResult): string {
   switch (r.action) {
     case "list":
       return r.collections.length === 0 ? "No collections." : r.collections.map(viewText).join("\n\n");
@@ -127,7 +133,7 @@ const authorLines = (a: AdminRow["author"]): string => {
 const rowText = (r: AdminRow): string =>
   `${t(r.id)}  ${t(r.created_at)}${r.archived_at ? "  ARCHIVED" : ""}\n${authorLines(r.author)}\n  ${JSON.stringify(r.data)}`;
 
-export function formatRowsResult(r: DataRowsResult): string {
+function rowsText(r: DataRowsResult): string {
   switch (r.action) {
     case "list": {
       const body = r.rows.length === 0 ? `No rows in '${t(r.collection)}'.` : r.rows.map(rowText).join("\n");
@@ -152,6 +158,11 @@ export function formatRowsResult(r: DataRowsResult): string {
 const issuerText = (j: JwtIssuerConfig): string =>
   `issuer ${t(j.issuer)}\n  jwks_uri ${t(j.jwks_uri)}\n  audience ${t(j.audience)}\n  algorithms ${j.algorithms.map(t).join(", ")}`;
 
-export function formatJwtResult(r: DataJwtResult): string {
+function jwtText(r: DataJwtResult): string {
   return r.jwt_issuer ? `JWT issuer set:\n  ${issuerText(r.jwt_issuer)}` : "JWT issuer cleared. Visitors can no longer authenticate with a bearer token.";
 }
+
+export const formatDataResult = (r: DataResult): string => sanitizeOutput(dataText(r));
+export const formatCollectionResult = (r: DataCollectionResult): string => sanitizeOutput(collectionResultText(r));
+export const formatRowsResult = (r: DataRowsResult): string => sanitizeOutput(rowsText(r));
+export const formatJwtResult = (r: DataJwtResult): string => sanitizeOutput(jwtText(r));

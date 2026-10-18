@@ -14,9 +14,11 @@ import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ApiClient } from "./api-client.ts";
 import { guard, requireArg } from "./site-data-errors.ts";
+import { parseAdminRow, parseArchiveResponse, parseDeleteRowResponse, parseImportResponse, parseRowList } from "./site-data-shape.ts";
+import { safeText } from "./site-data-text.ts";
 import { dataBase } from "./site-data.ts";
 import { assertCollectionName, isValidRowId, SITE_DATA_LIMITS } from "./site-data-types.ts";
-import type { AdminRow, ImportResponse, ImportRow, JsonObject, RowList } from "./site-data-types.ts";
+import type { AdminRow, ImportResponse, ImportRow, JsonObject } from "./site-data-types.ts";
 import type { Namespace } from "./types.ts";
 
 // ─── Args / results ──────────────────────────────────────────────────────────
@@ -60,7 +62,7 @@ const validCollection = (args: DataRowsArgs): string =>
 
 function validRowId(id: string): string {
   if (!isValidRowId(id)) {
-    throw new Error(`Invalid row id '${id}': use 1-128 letters, digits and . _ ~ - (not '.' or '..').`);
+    throw new Error(`Invalid row id '${safeText(id)}': use 1-128 letters, digits and . _ ~ - (not '.' or '..').`);
   }
   return id;
 }
@@ -130,30 +132,30 @@ export async function runDataRows(apiClient: ApiClient, ns: Namespace, args: Dat
       if (args.author !== undefined) q.set("author", args.author);
       if (args.include_archived !== undefined) q.set("include_archived", String(args.include_archived));
       const qs = q.size > 0 ? `?${q}` : "";
-      const res = await guard("admin", () => apiClient.get<RowList>(`${base}/rows${qs}`));
+      const res = await guard("admin", async () => parseRowList(await apiClient.get<unknown>(`${base}/rows${qs}`)));
       return { action: "list", collection, rows: res.rows, next_cursor: res.next_cursor };
     }
     case "export":
       return exportRows(apiClient, ns, collection, requireArg(args.path, "path", "export"));
     case "archive": {
-      const res = await guard("admin", () => apiClient.post<{ archived: number }>(`${base}/archive`, {}));
+      const res = await guard("admin", async () => parseArchiveResponse(await apiClient.post<unknown>(`${base}/archive`, {})));
       return { action: "archive", collection, archived: res.archived };
     }
     case "delete": {
       const id = validRowId(requireArg(args.id, "id", "delete"));
       const qs = args.author !== undefined ? `?${new URLSearchParams({ author: args.author })}` : "";
-      await guard("admin", () => apiClient.delete<{ deleted: true }>(`${base}/rows/${id}${qs}`));
+      await guard("admin", async () => parseDeleteRowResponse(await apiClient.delete<unknown>(`${base}/rows/${id}${qs}`)));
       return { action: "delete", collection, id };
     }
     case "create": {
       const data = requireArg(args.data, "data", "create");
-      const row = await guard("admin", () => apiClient.post<AdminRow>(`${base}/rows`, { data }));
+      const row = await guard("admin", async () => parseAdminRow(await apiClient.post<unknown>(`${base}/rows`, { data })));
       return { action: "create", collection, row };
     }
     case "put": {
       const id = validRowId(requireArg(args.id, "id", "put"));
       const data = requireArg(args.data, "data", "put");
-      const row = await guard("admin", () => apiClient.put<AdminRow>(`${base}/rows/${id}`, { data }));
+      const row = await guard("admin", async () => parseAdminRow(await apiClient.put<unknown>(`${base}/rows/${id}`, { data })));
       return { action: "put", collection, row };
     }
     case "import": {
@@ -162,7 +164,7 @@ export async function runDataRows(apiClient: ApiClient, ns: Namespace, args: Dat
         throw new Error(`rows must contain 1 to ${SITE_DATA_LIMITS.maxImportRowsPerCall} rows per call; split larger imports into several calls.`);
       }
       rows.forEach((r) => validRowId(r.id));
-      const res = await guard("owner", () => apiClient.post<ImportResponse>(`${base}/import`, { rows }));
+      const res = await guard("owner", async () => parseImportResponse(await apiClient.post<unknown>(`${base}/import`, { rows })));
       return { action: "import", collection, ...res };
     }
   }

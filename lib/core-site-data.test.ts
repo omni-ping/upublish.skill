@@ -70,7 +70,7 @@ describe("DW-6.1: core site data wiring", () => {
 
   it("test_DW_6_1_core_collection_and_rows_dispatch", async () => {
     const view = fixtureResponse(loadRoute("api.get_collection"), "found").body;
-    const row = { id: "a", author: { kind: "owner", subject: "u" }, data: {}, created_at: "t", updated_at: "t", archived_at: null };
+    const row = { id: "a", author: { kind: "owner", subject: "u" }, data: {}, created_at: "2026-10-18T12:00:00.000Z", updated_at: "2026-10-18T12:00:00.000Z", archived_at: null };
     const { deps: d } = deps((req) =>
       req.path.endsWith("/sites") ? jsonResponse(200, SITES_BODY)
       : req.path.includes("/rows") ? jsonResponse(200, { rows: [row], next_cursor: null })

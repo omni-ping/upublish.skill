@@ -16,7 +16,7 @@ const tmp = mkdtempSync(join(tmpdir(), "site-data-rows-"));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
 const ROWS = `/api/ns/${NS.id}/data/collections/votes/rows`;
-const row = { id: "a", author: { kind: "owner", subject: "u1" }, data: { n: 1 }, created_at: "t", updated_at: "t", archived_at: null };
+const row = { id: "a", author: { kind: "owner", subject: "u1" }, data: { n: 1 }, created_at: "2026-10-18T12:00:00.000Z", updated_at: "2026-10-18T12:00:00.000Z", archived_at: null };
 
 describe("DW-6.1: data_rows list", () => {
   it("test_DW_6_1_rows_list_builds_query_with_encoding", async () => {

@@ -13,7 +13,7 @@
 import type { ApiClient } from "./api-client.ts";
 import { guard, requireArg, SiteDataError } from "./site-data-errors.ts";
 import { dataBase } from "./site-data.ts";
-import { parseCollectionBody, parseCollectionList } from "./site-data-shape.ts";
+import { parseCollectionBody, parseCollectionList, parseWipeResponse } from "./site-data-shape.ts";
 import {
   loadSiteDirectory, loadSiteDirectoryForDisplay, resolveConfigSites, slugifyConfig,
 } from "./site-data-sites.ts";
@@ -60,7 +60,7 @@ async function setCollection(apiClient: ApiClient, ns: Namespace, args: DataColl
   if (Object.keys(patch).length === 0) {
     throw new Error(`Nothing to set: pass at least one of ${PATCH_FIELDS.join(", ")} (rule, sites and writers are required to create a new collection).`);
   }
-  const dir = await loadSiteDirectory(apiClient, ns.id);
+  const dir = await guard("owner", () => loadSiteDirectory(apiClient, ns.id));
   const resolved = resolveConfigSites(dir, patch);
   const base = `${dataBase(ns.id)}/collections`;
   try {
@@ -104,7 +104,7 @@ export async function runDataCollection(
       return setCollection(apiClient, ns, args);
     case "delete": {
       const name = validName(args);
-      const res = await guard("owner", () => apiClient.delete<WipeResponse>(`${base}/${name}`));
+      const res = await guard("owner", async () => parseWipeResponse(await apiClient.delete<unknown>(`${base}/${name}`), "delete collection"));
       return { action: "delete", name, ...res };
     }
   }

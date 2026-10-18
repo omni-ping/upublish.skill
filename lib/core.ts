@@ -144,7 +144,7 @@ import type { DataCollectionArgs, DataCollectionResult } from "./site-data-colle
 import { runDataRows } from "./site-data-rows.ts";
 import type { DataRowsArgs, DataRowsResult } from "./site-data-rows.ts";
 import { formatDataResult, formatCollectionResult, formatRowsResult, formatJwtResult } from "./site-data-format.ts";
-import { SiteDataError } from "./site-data-errors.ts";
+import { SiteDataError, sanitizeErrors } from "./site-data-errors.ts";
 import { JWT_ALGORITHMS, SITE_DATA_LIMITS } from "./site-data-types.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
@@ -787,26 +787,34 @@ export async function gate(args: GateArgs, deps?: CoreDeps): Promise<GateResult>
  * @throws SiteDataError on an API failure, with an actionable message.
  */
 export async function data(args: DataArgs, deps?: CoreDeps): Promise<DataResult> {
-  const apiClient = await buildApiClient(deps);
-  return runData(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+  return sanitizeErrors(async () => {
+    const apiClient = await buildApiClient(deps);
+    return runData(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+  });
 }
 
 /** Site data collections: list, get, set (create or update), delete. Sites are named by slug. */
 export async function dataCollection(args: DataCollectionArgs, deps?: CoreDeps): Promise<DataCollectionResult> {
-  const apiClient = await buildApiClient(deps);
-  return runDataCollection(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+  return sanitizeErrors(async () => {
+    const apiClient = await buildApiClient(deps);
+    return runDataCollection(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+  });
 }
 
 /** Site data rows: list, export (streamed to a file), archive, delete, create, put, import. */
 export async function dataRows(args: DataRowsArgs, deps?: CoreDeps): Promise<DataRowsResult> {
-  const apiClient = await buildApiClient(deps);
-  return runDataRows(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+  return sanitizeErrors(async () => {
+    const apiClient = await buildApiClient(deps);
+    return runDataRows(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+  });
 }
 
 /** Site data bring-your-own JWT issuer: set, clear. */
 export async function dataJwt(args: DataJwtArgs, deps?: CoreDeps): Promise<DataJwtResult> {
-  const apiClient = await buildApiClient(deps);
-  return runDataJwt(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+  return sanitizeErrors(async () => {
+    const apiClient = await buildApiClient(deps);
+    return runDataJwt(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+  });
 }
 
 // ─── Members ──────────────────────────────────────────────────────────────────

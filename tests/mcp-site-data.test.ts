@@ -122,7 +122,7 @@ describe("DW-6.1: site data tool registration and schemas", () => {
     expect(s.safeParse({ action: "list", collection: "c", limit: 101 }).success).toBe(false);
     expect(s.safeParse({ action: "list", collection: "c" }).success).toBe(true);
     expect(s.safeParse({ action: "list" }).success).toBe(false); // collection is required for every action
-    const row = { id: "a", author: { kind: "owner", subject: "u" }, data: { x: 1 }, created_at: "2026-10-18T12:00:00.000Z" };
+    const row = { id: "a", author: { kind: "owner", subject: "u" }, data: { x: 1 }, created_at: "2026-10-18T12:00:00.000Z", updated_at: "2026-10-18T12:00:00.000Z", archived_at: null };
     expect(s.safeParse({ action: "import", collection: "c", rows: [row] }).success).toBe(true);
     expect(s.safeParse({ action: "import", collection: "c", rows: Array.from({ length: 501 }, () => row) }).success).toBe(false);
     expect(s.safeParse({ action: "import", collection: "c", rows: [{ ...row, author: { kind: "robot", subject: "u" } }] }).success).toBe(false);
@@ -275,7 +275,7 @@ describe("DW-6.1: data_collection tool", () => {
 });
 
 describe("DW-6.1: data_rows tool", () => {
-  const row = { id: "item-17", author: { kind: "passcode", subject: "p1", label: "her" }, data: { val: "y" }, created_at: "2026-10-18T12:00:00.000Z", updated_at: "x", archived_at: null };
+  const row = { id: "item-17", author: { kind: "passcode", subject: "p1", label: "her" }, data: { val: "y" }, created_at: "2026-10-18T12:00:00.000Z", updated_at: "2026-10-18T12:00:00.000Z", archived_at: null };
 
   test("test_DW_6_1_tool_rows_list_create_put_archive_delete_import", async () => {
     const { call, calls } = setup((req) => {

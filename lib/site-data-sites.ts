@@ -42,7 +42,7 @@ export function resolveSiteRef(dir: SiteDirectory, ref: string): string {
   if (bySlug !== undefined) return bySlug;
   if (dir.slugById.has(ref)) return ref;
   const known = [...dir.idBySlug.keys()].map(safeText).join(", ") || "(none published)";
-  throw new Error(`Unknown site '${ref}'. Sites in this address: ${known}`);
+  throw new Error(`Unknown site '${safeText(ref)}'. Sites in this address: ${known}`);
 }
 
 const slugOf = (dir: SiteDirectory, id: string): string => dir.slugById.get(id) ?? id;

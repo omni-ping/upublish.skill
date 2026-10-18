@@ -16,7 +16,8 @@
 
 import type { ApiClient } from "./api-client.ts";
 import { guard, requireArg, SiteDataError } from "./site-data-errors.ts";
-import { parseDataStatus } from "./site-data-shape.ts";
+import { parseDataStatus, parseDisableResponse, parseEnableResponse, parseJwtIssuerResponse, parseWipeResponse } from "./site-data-shape.ts";
+import { safeText } from "./site-data-text.ts";
 import { loadSiteDirectoryForDisplay, slugifyConfig } from "./site-data-sites.ts";
 import type {
   BillingInterval, DataStatus, DisableResponse, EnableResponse, JwtAlgorithm, JwtIssuerConfig, WipeResponse,
@@ -94,7 +95,7 @@ async function enable(apiClient: ApiClient, ns: Namespace, acceptCharge: boolean
       interval: status.billing.interval, wouldCharge: status.billing.would_charge,
     };
   }
-  const res = await guard("owner", () => apiClient.post<EnableResponse>(`${dataBase(ns.id)}/enable`, { accept_charge: true }));
+  const res = await guard("owner", async () => parseEnableResponse(await apiClient.post<unknown>(`${dataBase(ns.id)}/enable`, { accept_charge: true })));
   return { action: "enable", state: "enabled", activating: res.activating, charge: res.charge };
 }
 
@@ -114,15 +115,15 @@ export async function runData(apiClient: ApiClient, ns: Namespace, args: DataArg
     case "enable":
       return enable(apiClient, ns, args.accept_charge === true);
     case "disable": {
-      const res = await guard("owner", () => apiClient.post<DisableResponse>(`${dataBase(ns.id)}/disable`, {}));
+      const res = await guard("owner", async () => parseDisableResponse(await apiClient.post<unknown>(`${dataBase(ns.id)}/disable`, {})));
       return { action: "disable", ...res };
     }
     case "wipe": {
       const confirm = requireArg(args.confirm_namespace, "confirm_namespace", "wipe");
       if (confirm !== ns.name) {
-        throw new Error(`confirm_namespace '${confirm}' does not match the address name '${ns.name}'. Nothing was deleted.`);
+        throw new Error(`confirm_namespace '${safeText(confirm)}' does not match the address name '${safeText(ns.name)}'. Nothing was deleted.`);
       }
-      const res = await guard("owner", () => apiClient.post<WipeResponse>(`${dataBase(ns.id)}/wipe`, { confirm_namespace: confirm }));
+      const res = await guard("owner", async () => parseWipeResponse(await apiClient.post<unknown>(`${dataBase(ns.id)}/wipe`, { confirm_namespace: confirm }), "wipe"));
       return { action: "wipe", namespace: ns.name, ...res };
     }
   }
@@ -135,7 +136,7 @@ export async function runData(apiClient: ApiClient, ns: Namespace, args: DataArg
 export async function runDataJwt(apiClient: ApiClient, ns: Namespace, args: DataJwtArgs): Promise<DataJwtResult> {
   const path = `${dataBase(ns.id)}/jwt-issuer`;
   if (args.action === "clear") {
-    const res = await guard("owner", () => apiClient.delete<{ jwt_issuer: JwtIssuerConfig | null }>(path));
+    const res = await guard("owner", async () => parseJwtIssuerResponse(await apiClient.delete<unknown>(path)));
     return { action: "clear", jwt_issuer: res.jwt_issuer };
   }
   const body: JwtIssuerConfig = {
@@ -144,6 +145,6 @@ export async function runDataJwt(apiClient: ApiClient, ns: Namespace, args: Data
     audience: requireArg(args.audience, "audience", "set"),
     algorithms: requireArg(args.algorithms, "algorithms", "set"),
   };
-  const res = await guard("owner", () => apiClient.put<{ jwt_issuer: JwtIssuerConfig | null }>(path, body));
+  const res = await guard("owner", async () => parseJwtIssuerResponse(await apiClient.put<unknown>(path, body)));
   return { action: "set", jwt_issuer: res.jwt_issuer };
 }

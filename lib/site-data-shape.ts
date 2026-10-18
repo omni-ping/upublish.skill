@@ -1,7 +1,9 @@
 /**
  * Runtime validation of server bodies against the frozen site data contract
- * (`dataStatusSchema` in api.ts, `collectionConfigSchema` in kv.ts,
- * `collectionStatsSchema` in store.ts, `jwtIssuerSchema`, `claimMatcherSchema`).
+ * (`dataStatusSchema`, `enableResponseSchema`, `disableResponseSchema`,
+ * `jwtIssuerResponseSchema` in api.ts; `collectionConfigSchema` in kv.ts;
+ * `collectionStatsSchema`, `adminRowSchema`, `adminRowListSchema` in store.ts;
+ * the archive/import/wipe/delete-row response schemas in admin.ts).
  *
  * The server is an external input even though we own it: a body that drifts
  * from the contract must fail here, naming the first bad field, rather than
@@ -10,8 +12,11 @@
  * Only shapes are checked, not the contract's length/size ceilings.
  */
 
-import { JWT_ALGORITHMS } from "./site-data-types.ts";
-import type { CollectionView, DataStatus } from "./site-data-types.ts";
+import { safeText } from "./site-data-text.ts";
+import { isValidRowId, JWT_ALGORITHMS } from "./site-data-types.ts";
+import type {
+  AdminRow, CollectionView, DataStatus, DisableResponse, EnableResponse, ImportResponse, JwtIssuerConfig, RowList, WipeResponse,
+} from "./site-data-types.ts";
 
 type Check = (v: unknown) => boolean;
 /** `[dotted path, check]` pairs, parents before children. */
@@ -23,6 +28,7 @@ const isStr: Check = (v) => typeof v === "string";
 const isArr: Check = (v) => Array.isArray(v);
 const intMin = (min: number): Check => (v) => Number.isInteger(v) && (v as number) >= min;
 const nullable = (c: Check): Check => (v) => v === null || c(v);
+const optionalOf = (c: Check): Check => (v) => v === undefined || c(v);
 const oneOf = (...allowed: readonly unknown[]): Check => (v) => allowed.includes(v);
 const arrOf = (c: Check): Check => (v) => Array.isArray(v) && v.every(c);
 
@@ -113,7 +119,7 @@ export function parseDataStatus(raw: unknown): DataStatus {
   if (top !== null) throw invalidBody("status", top);
   for (const [name, entry] of Object.entries((raw as { collections: object }).collections)) {
     const bad = firstInvalid(entry, COLLECTION_STATUS_SHAPE);
-    if (bad !== null) throw invalidBody("status", `collections.${name}.${bad}`);
+    if (bad !== null) throw invalidBody("status", `collections.${safeText(name)}.${bad}`);
   }
   return raw as unknown as DataStatus;
 }
@@ -133,4 +139,65 @@ export const parseCollectionBody = (raw: unknown): CollectionView => parseCollec
 export function parseCollectionList(raw: unknown): CollectionView[] {
   if (!isObj(raw) || !isArr((raw as { collections: unknown }).collections)) throw invalidBody("collections", "collections");
   return (raw as { collections: unknown[] }).collections.map((c, i) => parseCollectionView(c, `collections[${i}]`));
+}
+
+// ─── Action responses (enable/disable/jwt/wipe/archive/import/delete) and rows ───
+
+/** Validates `raw` against one flat shape; the body must be an object. */
+function parseShape<T>(raw: unknown, endpoint: string, shape: Shape): T {
+  if (!isObj(raw)) throw invalidBody(endpoint, "(body)");
+  const bad = firstInvalid(raw, shape);
+  if (bad !== null) throw invalidBody(endpoint, bad);
+  return raw as T;
+}
+
+const counts = (...keys: string[]): Shape => keys.map((k) => [k, intMin(0)] as const);
+
+const ENABLE_SHAPE: Shape = [
+  ["entitled", oneOf(true)], ["activating", isBool], ["charge", nullable(isObj)],
+  ["charge.interval", oneOf("month", "year")], ["charge.price_cents", intMin(0)],
+];
+const DISABLE_SHAPE: Shape = [["entitled", oneOf(false)], ["wipe_after", isoTime]];
+const JWT_RESPONSE_SHAPE: Shape = [["jwt_issuer", nullable(isObj)], ...under("jwt_issuer", JWT_ISSUER_SHAPE)];
+
+const ROW_SHAPE: Shape = [
+  ["id", (v) => isStr(v) && isValidRowId(v as string)],
+  ["author", isObj],
+  ["author.kind", oneOf("anonymous", "passcode", "jwt", "owner")],
+  ["author.subject", (v) => isStr(v) && (v as string).length > 0],
+  ["author.label", optionalOf(isStr)],
+  ["data", isObj], ["created_at", isoTime], ["updated_at", isoTime], ["archived_at", nullable(isoTime)],
+];
+
+export const parseEnableResponse = (raw: unknown): EnableResponse => parseShape(raw, "enable", ENABLE_SHAPE);
+export const parseDisableResponse = (raw: unknown): DisableResponse => parseShape(raw, "disable", DISABLE_SHAPE);
+export const parseJwtIssuerResponse = (raw: unknown): { jwt_issuer: JwtIssuerConfig | null } =>
+  parseShape(raw, "jwt-issuer", JWT_RESPONSE_SHAPE);
+
+/** `POST /wipe` and `DELETE /collections/:name` response; `endpoint` names which in errors. */
+export const parseWipeResponse = (raw: unknown, endpoint: string): WipeResponse =>
+  parseShape(raw, endpoint, counts("collections", "rows"));
+export const parseArchiveResponse = (raw: unknown): { archived: number } =>
+  parseShape(raw, "archive", counts("archived"));
+export const parseImportResponse = (raw: unknown): ImportResponse =>
+  parseShape(raw, "import", counts("imported", "skipped"));
+export const parseDeleteRowResponse = (raw: unknown): { deleted: true } =>
+  parseShape(raw, "delete row", [["deleted", oneOf(true)]]);
+
+/** A single `AdminRow` (create/put response); `where` prefixes the field in errors (empty for a bare body). */
+export function parseAdminRow(raw: unknown, where = ""): AdminRow {
+  if (!isObj(raw)) throw invalidBody("rows", where || "(body)");
+  const bad = firstInvalid(raw, ROW_SHAPE);
+  if (bad !== null) throw invalidBody("rows", where ? `${where}.${bad}` : bad);
+  return raw as unknown as AdminRow;
+}
+
+/** `GET /collections/:name/rows` response. */
+export function parseRowList(raw: unknown): RowList {
+  const o = raw as Record<string, unknown>;
+  if (!isObj(raw)) throw invalidBody("rows", "(body)");
+  if (!isArr(o["rows"])) throw invalidBody("rows", "rows");
+  if (!nullable(isStr)(o["next_cursor"])) throw invalidBody("rows", "next_cursor");
+  (o["rows"] as unknown[]).forEach((r, i) => parseAdminRow(r, `rows[${i}]`));
+  return raw as unknown as RowList;
 }

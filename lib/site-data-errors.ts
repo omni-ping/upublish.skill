@@ -9,7 +9,7 @@
  */
 
 import { ApiError } from "./api-client.ts";
-import { safeText } from "./site-data-text.ts";
+import { hasControlChars, safeText, sanitizeOutput } from "./site-data-text.ts";
 import type { ApiRole, SiteDataErrorCode } from "./site-data-types.ts";
 
 /** An actionable site-data failure. `code` is null when the body carried none. */
@@ -67,7 +67,10 @@ export function toSiteDataError(err: unknown, role: ApiRole): unknown {
   if (!(err instanceof ApiError)) return err;
   const body = err.rawBodyData as { error?: unknown; code?: unknown } | null;
   const code = typeof body?.code === "string" ? (body.code as SiteDataErrorCode) : null;
-  if (code === null) return err; // unstructured (e.g. a gateway 5xx): keep the original message
+  if (code === null) {
+    // Unstructured (e.g. a gateway 5xx): keep the original error unless its text could forge a line.
+    return hasControlChars(err.message) ? new SiteDataError(null, err.status, safeText(err.message)) : err;
+  }
   const text = code === "not_available" ? NOT_AVAILABLE_TEXT : typeof body?.error === "string" ? safeText(body.error) : "";
   const hint = hintFor(code, role);
   const parts = [text, `[${safeText(code)}]`, hint === text ? undefined : hint].filter(Boolean);
@@ -90,5 +93,22 @@ export async function guard<T>(role: ApiRole, fn: () => Promise<T>): Promise<T> 
     return await fn();
   } catch (err) {
     throw toSiteDataError(err, role);
+  }
+}
+
+/**
+ * Error boundary for the public site-data entry points. Whatever a lib
+ * routine throws (server text, a visitor-supplied key echoed in a message, an
+ * argument echoed back) leaves with every control character except `\n`
+ * escaped, so error text can never forge a line. The error object is kept
+ * (class, status, code); only its message is cleaned.
+ */
+export async function sanitizeErrors<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!(err instanceof Error)) throw new Error(sanitizeOutput(String(err)));
+    err.message = sanitizeOutput(err.message);
+    throw err;
   }
 }

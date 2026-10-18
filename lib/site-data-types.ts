@@ -9,6 +9,8 @@
  * `tests/fixtures/site-data/` and update this file together.
  */
 
+import { safeText } from "./site-data-text.ts";
+
 // ─── Limits (contract section 10) ─────────────────────────────────────────────
 
 export const SITE_DATA_LIMITS = {
@@ -39,7 +41,7 @@ export const isValidCollectionName = (s: string): boolean =>
 /** Throws the one user-facing error for a bad collection name; returns the name when valid. */
 export function assertCollectionName(name: string): string {
   if (!isValidCollectionName(name)) {
-    throw new Error(`Invalid collection name '${name}': use 1-${SITE_DATA_LIMITS.maxCollectionNameLength} lowercase letters, digits and hyphens (no leading/trailing hyphen).`);
+    throw new Error(`Invalid collection name '${safeText(name)}': use 1-${SITE_DATA_LIMITS.maxCollectionNameLength} lowercase letters, digits and hyphens (no leading/trailing hyphen).`);
   }
   return name;
 }
