@@ -28,7 +28,7 @@ describe("DW-6.1: formatDataResult", () => {
     const s: DataStatus = {
       ...status, entitled: false, entitlement_source: null, activating: true, collections: {}, stats_state: "unavailable",
       kv: { drift: "stale", checked_at: null },
-      billing: { ...status.billing, past_due: true, wipe_after: "2026-11-17T00:00:00.000Z", interval: null },
+      billing: { ...status.billing, past_due: true, wipe_after: "2026-11-17T00:00:00.000Z", interval: null, would_charge: true },
       jwt_issuer: { issuer: "https://i", jwks_uri: "https://i/j", audience: "a", algorithms: ["ES256"] },
     };
     const out = formatDataResult({ action: "status", available: true, namespace: "ryan", status: s });
@@ -48,17 +48,33 @@ describe("DW-6.1: formatDataResult", () => {
   });
 
   it("test_DW_6_1_format_enable_consent_needed_says_nothing_charged_and_how_to_confirm", () => {
-    const out = formatDataResult({ action: "enable", state: "consent_needed", price: { month_cents: 200, year_cents: 2000 }, interval: null });
+    const out = formatDataResult({ action: "enable", state: "consent_needed", price: { month_cents: 200, year_cents: 2000 }, interval: null, wouldCharge: true });
     expect(out).toContain("$2.00/month or $20.00/year");
     expect(out).toContain("NOTHING HAS BEEN CHARGED");
     expect(out).toContain("accept_charge: true");
   });
 
+  it("test_DW_6_3_format_enable_consent_when_not_charged_says_no_charge_and_still_needs_accept_charge", () => {
+    const out = formatDataResult({ action: "enable", state: "consent_needed", price: { month_cents: 200, year_cents: 2000 }, interval: null, wouldCharge: false });
+    expect(out).toContain("will not charge this account");
+    expect(out).toContain("NOTHING HAS BEEN CHARGED");
+    expect(out).not.toContain("$2.00");
+    expect(out).not.toContain("paid add-on");
+    expect(out).toContain("accept_charge: true");
+  });
+
+  it("test_DW_6_3_format_status_not_enabled_and_not_charged_shows_no_price", () => {
+    const s: DataStatus = { ...status, entitled: false, collections: {}, billing: { ...status.billing, would_charge: false } };
+    const out = formatDataResult({ action: "status", available: true, namespace: "ryan", status: s });
+    expect(out).toContain("Enabling will not charge this account.");
+    expect(out).not.toContain("Price if enabled");
+  });
+
   it("test_DW_6_1_format_enable_consent_price_follows_known_interval_and_missing_prices", () => {
     const p = { month_cents: 200, year_cents: 2000 };
-    expect(formatDataResult({ action: "enable", state: "consent_needed", price: p, interval: "year" })).toContain("$20.00/year,");
-    expect(formatDataResult({ action: "enable", state: "consent_needed", price: p, interval: "month" })).not.toContain("/year");
-    expect(formatDataResult({ action: "enable", state: "consent_needed", price: { month_cents: null, year_cents: null }, interval: null })).toContain("price unavailable");
+    expect(formatDataResult({ action: "enable", state: "consent_needed", price: p, interval: "year", wouldCharge: true })).toContain("$20.00/year,");
+    expect(formatDataResult({ action: "enable", state: "consent_needed", price: p, interval: "month", wouldCharge: true })).not.toContain("/year");
+    expect(formatDataResult({ action: "enable", state: "consent_needed", price: { month_cents: null, year_cents: null }, interval: null, wouldCharge: true })).toContain("price unavailable");
   });
 
   it("test_DW_6_1_format_enable_outcomes", () => {
@@ -97,11 +113,22 @@ describe("DW-6.1: formatCollectionResult", () => {
 describe("DW-6.1: formatRowsResult", () => {
   it("test_DW_6_1_format_rows_list_with_cursor_and_empty", () => {
     const out = formatRowsResult({ action: "list", collection: "votes", rows: [row, { ...row, id: "z", archived_at: "t", author: { kind: "owner", subject: "u" } }], next_cursor: "c2" });
-    expect(out).toContain('item-17  by passcode:p1 (her)  2026-10-18T12:00:00.000Z\n  {"val":"y"}');
-    expect(out).toContain("by owner:u");
+    expect(out).toContain('item-17  2026-10-18T12:00:00.000Z\n  author: passcode:p1\n  label: her\n  {"val":"y"}');
+    expect(out).toContain("author: owner:u\n  {");
     expect(out).toContain("ARCHIVED");
     expect(out).toContain('pass cursor "c2"');
     expect(formatRowsResult({ action: "list", collection: "votes", rows: [], next_cursor: null })).toBe("No rows in 'votes'.");
+  });
+
+  it("test_DW_6_1_format_rows_author_key_is_copyable_and_label_is_separate", () => {
+    const out = formatRowsResult({ action: "list", collection: "votes", rows: [row], next_cursor: null });
+    const key = /^ {2}author: (.+)$/m.exec(out)![1]!;
+    expect(key).toBe("passcode:p1");
+    expect(key).not.toContain("her");
+    expect(out).toMatch(/^ {2}label: her$/m);
+    const noLabel = formatRowsResult({ action: "list", collection: "votes", rows: [{ ...row, author: { kind: "anonymous", subject: "a1" } }], next_cursor: null });
+    expect(noLabel).toContain("author: anonymous:a1");
+    expect(noLabel).not.toContain("label:");
   });
 
   it("test_DW_6_1_format_rows_other_actions", () => {

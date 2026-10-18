@@ -16,7 +16,7 @@ import { dataBase } from "./site-data.ts";
 import {
   loadSiteDirectory, loadSiteDirectoryForDisplay, resolveConfigSites, slugifyConfig,
 } from "./site-data-sites.ts";
-import { isValidCollectionName } from "./site-data-types.ts";
+import { assertCollectionName } from "./site-data-types.ts";
 import type { CollectionInput, CollectionPatch, CollectionView, WipeResponse } from "./site-data-types.ts";
 import type { Namespace } from "./types.ts";
 
@@ -43,13 +43,8 @@ const PATCH_FIELDS = [
   "max_rows", "max_row_bytes", "writes_per_min",
 ] as const;
 
-function validName(args: DataCollectionArgs): string {
-  const name = requireArg(args.collection, "collection", args.action);
-  if (!isValidCollectionName(name)) {
-    throw new Error(`Invalid collection name '${name}': use 1-40 lowercase letters, digits and hyphens (no leading/trailing hyphen).`);
-  }
-  return name;
-}
+const validName = (args: DataCollectionArgs): string =>
+  assertCollectionName(requireArg(args.collection, "collection", args.action));
 
 /** The mutable fields the caller actually supplied. */
 function pickPatch(args: DataCollectionArgs): CollectionPatch {

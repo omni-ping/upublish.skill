@@ -93,9 +93,19 @@ describe("DW-6.2: every doc surface lists the site data tools and routes to the 
     expect(documented).toBe(registeredToolNames().length);
   });
 
+  test("test_DW_6_2_guide_tells_ai_to_copy_the_author_line_not_the_label", () => {
+    const guide = readDoc("references/site-data.md");
+    expect(guide).toContain("the `author:` line `list` prints");
+    expect(guide).toContain("`label:` line is display-only");
+  });
+
+  test("test_DW_6_3_guide_covers_not_charged_enable_reply", () => {
+    expect(readDoc("references/site-data.md")).toContain("will not be charged");
+  });
+
   test("test_DW_6_2_vendored_fixtures_readme_names_source_and_commit", () => {
     const readme = readDoc("tests/fixtures/site-data/README.md");
-    expect(readme).toContain("bb7374d");
+    expect(readme).toContain("45f6dd0");
     expect(readme).toContain("docs/site-data/fixtures/");
     expect(readme).toMatch(/read-only snapshot/i);
   });

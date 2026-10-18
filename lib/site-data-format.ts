@@ -24,6 +24,8 @@ function priceText(price: { month_cents: number | null; year_cents: number | nul
   return shown.filter(Boolean).join(" or ") || "price unavailable";
 }
 
+const NO_CHARGE_TEXT = "Enabling will not charge this account.";
+
 const statsText = (s: CollectionStats | null): string =>
   s ? `${s.rows} rows, ${s.archived_rows} archived, ${s.bytes} bytes` : "stats unavailable";
 
@@ -35,7 +37,9 @@ export function formatDataResult(r: DataResult): string {
       const lines = [`Site data for '${r.namespace}': ${s.entitled ? "ENABLED" : "not enabled"}${s.activating ? " (activating; can take up to a minute)" : ""}`];
       if (s.entitlement_source) lines.push(`Entitlement: ${s.entitlement_source}`);
       if (s.billing.past_due) lines.push("Billing: PAST DUE");
-      if (!s.entitled) lines.push(`Price if enabled: ${priceText(s.price, s.billing.interval)}`);
+      if (!s.entitled) {
+        lines.push(s.billing.would_charge ? `Price if enabled: ${priceText(s.price, s.billing.interval)}` : NO_CHARGE_TEXT);
+      }
       if (s.billing.wipe_after) lines.push(`Data is retained until ${s.billing.wipe_after}, then permanently deleted.`);
       const names = Object.keys(s.collections);
       lines.push(names.length === 0 ? "Collections: none" : "Collections:");
@@ -51,11 +55,11 @@ export function formatDataResult(r: DataResult): string {
     case "enable":
       if (r.state === "already_enabled") return "Site data is already enabled. Nothing was charged.";
       if (r.state === "consent_needed") {
-        return (
-          `Enabling site data is a paid add-on: ${priceText(r.price, r.interval)}, billed to match your subscription ` +
-          `and charged now (prorated) on your existing payment method. NOTHING HAS BEEN CHARGED.\n` +
-          `Ask the user to confirm, then call data again with action 'enable' and accept_charge: true.`
-        );
+        const cost = r.wouldCharge
+          ? `Enabling site data is a paid add-on: ${priceText(r.price, r.interval)}, billed to match your subscription ` +
+            `and charged now (prorated) on your existing payment method. NOTHING HAS BEEN CHARGED.`
+          : `${NO_CHARGE_TEXT} NOTHING HAS BEEN CHARGED.`;
+        return `${cost}\nAsk the user to confirm, then call data again with action 'enable' and accept_charge: true.`;
       }
       return (
         "Site data enabled." +
@@ -104,10 +108,15 @@ export function formatCollectionResult(r: DataCollectionResult): string {
 
 // ─── data_rows ───────────────────────────────────────────────────────────────
 
-const authorText = (a: AdminRow["author"]): string => `${a.kind}:${a.subject}${a.label ? ` (${a.label})` : ""}`;
+/**
+ * `author:` is the copyable identity key (`kind:subject`) to pass as the
+ * `author` argument; `label:` is display-only and never part of the key.
+ */
+const authorLines = (a: AdminRow["author"]): string =>
+  `  author: ${a.kind}:${a.subject}${a.label ? `\n  label: ${a.label}` : ""}`;
 
 const rowText = (r: AdminRow): string =>
-  `${r.id}  by ${authorText(r.author)}  ${r.created_at}${r.archived_at ? "  ARCHIVED" : ""}\n  ${JSON.stringify(r.data)}`;
+  `${r.id}  ${r.created_at}${r.archived_at ? "  ARCHIVED" : ""}\n${authorLines(r.author)}\n  ${JSON.stringify(r.data)}`;
 
 export function formatRowsResult(r: DataRowsResult): string {
   switch (r.action) {

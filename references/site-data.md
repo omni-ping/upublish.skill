@@ -7,7 +7,7 @@ Published sites are static files. The **site data add-on** gives pages a small s
 Do these in order. Stop and report if a step fails; error messages say what to do next.
 
 1. `data` action `status`. If it says site data is **not available for this account**, tell the user and stop. Do not offer or advertise it.
-2. `data` action `enable` (no `accept_charge`). It does NOT charge: it returns the price. **Show the price to the user and get a clear yes.** Then call `enable` again with `accept_charge: true`. If the user said no, stop.
+2. `data` action `enable` (no `accept_charge`). It does NOT charge: it returns the price. **Show the price to the user and get a clear yes.** (If the reply says this account will not be charged, say so instead of quoting a price; you still need the user's yes and `accept_charge: true`.) Then call `enable` again with `accept_charge: true`. If the user said no, stop.
    - Free plan: `upgrade_required` (use the `upgrade` tool first). Complimentary plan with no subscription: `no_subscription`.
    - After enabling, the edge can take up to about a minute to start serving (`activating`). `403 data_unavailable` from the site in that window is expected.
 3. `data_collection` action `set` to create the collections the site needs (see "Choosing a preset").
@@ -236,7 +236,7 @@ Why this works: `append-only` lets everyone read and nobody edit; the client-cho
 
 - Inspect: `data_rows` `list` (use `limit` and `cursor`; `include_archived` for history).
 - Backup or privacy export: `data_rows` `export` with a file `path`; it streams every row, including archived, as NDJSON (one row object per line).
-- Remove a visitor's row on request: `data_rows` `delete` with `id`; for `own-rows` collections also pass `author` as `kind:subject` exactly as `list` shows it.
+- Remove a visitor's row on request: `data_rows` `delete` with `id`; for `own-rows` collections also pass `author` as the `author:` line `list` prints for that row (`kind:subject`, e.g. `passcode:<id>`); the separate `label:` line is display-only and not part of the key.
 - Migrate old data: `data_rows` `import` (owner only, 500 rows per call, each with `id`, `author`, `data`, `created_at`; existing ids are skipped; the `max_rows` and `max_row_bytes` limits still apply).
 
 Changes made with the tools can take up to about a minute to reach the edge; `data status` reports edge sync.

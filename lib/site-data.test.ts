@@ -11,6 +11,7 @@ import { NS, fixtureResponse, jsonResponse, loadRoute, makeClient, withSites } f
 
 const statusFx = loadRoute("api.status");
 const enabledStatus = fixtureResponse(statusFx, "enabled").body as DataStatus;
+const wouldCharge = fixtureResponse(statusFx, "not entitled: enabling would charge").body as DataStatus;
 const darkLaunch = fixtureResponse(statusFx, "dark launch: hidden").body as DataStatus;
 const unentitled: DataStatus = { ...enabledStatus, entitled: false };
 const STATUS_PATH = `/api/ns/${NS.id}/data`;
@@ -28,6 +29,53 @@ describe("DW-6.1: parseDataStatus", () => {
     for (const bad of [null, "x", {}, { available: true }, { available: true, entitled: true, price: {} }, { ...enabledStatus, collections: null }]) {
       expect(() => parseDataStatus(bad)).toThrow("Unexpected response from the site data status endpoint.");
     }
+  });
+});
+
+describe("DW-6.1: parseDataStatus full shape", () => {
+  const without = (path: string): unknown => {
+    const copy = structuredClone(enabledStatus) as unknown as Record<string, any>;
+    const keys = path.split(".");
+    const last = keys.pop()!;
+    delete keys.reduce((o, k) => o[k], copy)[last];
+    return copy;
+  };
+
+  it("test_DW_6_1_parse_status_rejects_each_missing_field_naming_it", () => {
+    for (const field of [
+      "entitlement_source", "activating", "billing", "billing.interval", "billing.would_charge", "billing.past_due",
+      "price.month_cents", "stats_state", "kv", "kv.drift", "wipe_job", "wipe_job.last_result", "jwt_issuer",
+    ]) {
+      expect(() => parseDataStatus(without(field))).toThrow(`Missing or invalid field: ${field}.`);
+    }
+  });
+
+  it("test_DW_6_1_parse_status_rejects_wrong_types_and_enums", () => {
+    const patched = (patch: Record<string, unknown>) => ({ ...enabledStatus, ...patch });
+    expect(() => parseDataStatus(patched({ billing: { ...enabledStatus.billing, would_charge: "yes" } }))).toThrow("billing.would_charge");
+    expect(() => parseDataStatus(patched({ billing: { ...enabledStatus.billing, interval: "week" } }))).toThrow("billing.interval");
+    expect(() => parseDataStatus(patched({ stats_state: "slow" }))).toThrow("stats_state");
+    expect(() => parseDataStatus(patched({ kv: { drift: "weird", checked_at: null } }))).toThrow("kv.drift");
+    expect(() => parseDataStatus(patched({ price: { month_cents: 2.5, year_cents: null } }))).toThrow("price.month_cents");
+    expect(() => parseDataStatus(patched({ jwt_issuer: [] }))).toThrow("jwt_issuer");
+    expect(() => parseDataStatus(patched({ collections: [] }))).toThrow("collections");
+  });
+
+  it("test_DW_6_1_parse_status_rejects_malformed_collection_entries", () => {
+    const votes = enabledStatus.collections["votes"]!;
+    expect(() => parseDataStatus({ ...enabledStatus, collections: { votes: { config: { ...votes.config, sites: "x" }, stats: null } } })).toThrow("collections.votes.config.sites");
+    expect(() => parseDataStatus({ ...enabledStatus, collections: { votes: { stats: null } } })).toThrow("collections.votes.config");
+    expect(() => parseDataStatus({ ...enabledStatus, collections: { votes: { config: votes.config } } })).toThrow("collections.votes.stats");
+  });
+
+  it("test_DW_6_3_parse_status_accepts_would_charge_fixture_and_reads_flag", () => {
+    expect(parseDataStatus(wouldCharge).billing.would_charge).toBe(true);
+    expect(parseDataStatus(enabledStatus).billing.would_charge).toBe(false);
+  });
+
+  it("test_DW_6_1_status_malformed_body_fails_with_clear_error_not_typeerror", async () => {
+    const { client } = makeClient(serveStatus(without("billing")));
+    await expect(runData(client, NS, { action: "status" })).rejects.toThrow("Unexpected response from the site data status endpoint. Missing or invalid field: billing.");
   });
 });
 
@@ -77,8 +125,21 @@ describe("DW-6.1: data enable (consent gate)", () => {
       state: "consent_needed",
       price: { month_cents: 200, year_cents: 2000 },
       interval: "month",
+      wouldCharge: false,
     });
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
+  });
+
+  it("test_DW_6_3_enable_without_consent_reports_would_charge_true_and_never_posts", async () => {
+    const { client, calls } = makeClient(serveStatus(wouldCharge));
+    expect(await runData(client, NS, { action: "enable" })).toMatchObject({ state: "consent_needed", wouldCharge: true, interval: null });
+    expect(calls.some((c) => c.method === "POST")).toBe(false);
+  });
+
+  it("test_DW_6_3_enable_not_charged_account_still_needs_explicit_accept_charge", async () => {
+    const { client, calls } = makeClient(serveStatus(unentitled));
+    expect(await runData(client, NS, { action: "enable", accept_charge: undefined })).toMatchObject({ state: "consent_needed", wouldCharge: false });
+    expect(calls.some((c) => c.method === "POST")).toBe(false);
   });
 
   it("test_DW_6_1_enable_accept_charge_false_is_not_consent", async () => {

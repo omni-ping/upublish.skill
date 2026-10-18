@@ -100,6 +100,21 @@ describe("DW-6.1: site data tool registration and schemas", () => {
     for (const b of bad) expect(s.safeParse(b).success).toBe(false);
   });
 
+  test("test_DW_6_1_schema_claim_key_length_capped_at_contract_limit", () => {
+    const { tools } = setup(() => undefined);
+    const s = tools["data_collection"]!.inputSchema;
+    const withKey = (k: string) => ({ action: "set", collection: "votes", write_claims: [{ kind: "jwt", claims: { [k]: "v" } }] });
+    expect(s.safeParse(withKey("k".repeat(64))).success).toBe(true);
+    expect(s.safeParse(withKey("k".repeat(65))).success).toBe(false);
+    expect(s.safeParse(withKey("")).success).toBe(false);
+    expect(s.safeParse({ ...withKey("k"), admin_claims: [{ kind: "jwt", claims: { ["k".repeat(65)]: true } }] }).success).toBe(false);
+  });
+
+  test("test_DW_6_1_data_rows_author_wording_points_at_the_author_line_not_the_label", () => {
+    const { tools } = setup(() => undefined);
+    expect(tools["data_rows"]!.description).toContain("'author:' value from list");
+  });
+
   test("test_DW_6_1_schema_rows_limit_and_import_bounds", () => {
     const { tools } = setup(() => undefined);
     const s = tools["data_rows"]!.inputSchema;
@@ -140,8 +155,27 @@ describe("DW-6.1: data tool", () => {
   });
 
   test("test_DW_6_1_tool_data_enable_without_consent_echoes_price_and_does_not_charge", async () => {
-    const noItem = { ...status, entitled: false, billing: { item_present: false, interval: null } };
+    const noItem = { ...status, entitled: false, billing: { ...(status as { billing: object }).billing, item_present: false, interval: null, would_charge: true } };
     const { call, calls } = setup(() => jsonResponse(200, noItem));
+    const r = await call("data", { action: "enable" });
+    expect(text(r)).toContain("$2.00/month or $20.00/year");
+    expect(text(r)).toContain("NOTHING HAS BEEN CHARGED");
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
+  });
+
+  test("test_DW_6_3_tool_data_enable_not_charged_account_says_no_charge_and_still_never_posts_without_accept_charge", async () => {
+    const free = { ...status, entitled: false }; // fixture 'enabled' carries would_charge:false
+    const { call, calls } = setup(() => jsonResponse(200, free));
+    const r = await call("data", { action: "enable" });
+    expect(text(r)).toContain("will not charge this account");
+    expect(text(r)).not.toContain("$2.00");
+    expect(text(r)).toContain("accept_charge: true");
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
+  });
+
+  test("test_DW_6_3_tool_data_enable_would_charge_fixture_keeps_price_and_nothing_charged_wording", async () => {
+    const wc = fixtureResponse(loadRoute("api.status"), "not entitled: enabling would charge").body;
+    const { call, calls } = setup(() => jsonResponse(200, wc));
     const r = await call("data", { action: "enable" });
     expect(text(r)).toContain("$2.00/month or $20.00/year");
     expect(text(r)).toContain("NOTHING HAS BEEN CHARGED");
@@ -251,7 +285,7 @@ describe("DW-6.1: data_rows tool", () => {
       if (req.method === "DELETE") return jsonResponse(200, { deleted: true });
       return jsonResponse(req.method === "POST" ? 201 : 200, row);
     });
-    expect(text(await call("data_rows", { action: "list", collection: "votes", limit: 5 }))).toContain("item-17  by passcode:p1 (her)");
+    expect(text(await call("data_rows", { action: "list", collection: "votes", limit: 5 }))).toContain("item-17  2026-10-18T12:00:00.000Z\n  author: passcode:p1\n  label: her");
     expect(text(await call("data_rows", { action: "create", collection: "votes", data: { a: 1 } }))).toContain("Created row");
     expect(text(await call("data_rows", { action: "put", collection: "votes", id: "item-17", data: { a: 1 } }))).toContain("Saved row");
     expect(text(await call("data_rows", { action: "archive", collection: "votes" }))).toContain("Archived 2");

@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect } from "bun:test";
+import { runDataRows } from "./site-data-rows.ts";
 import { runDataCollection } from "./site-data-collections.ts";
 import { SiteDataError } from "./site-data-errors.ts";
 import type { CollectionView } from "./site-data-types.ts";
@@ -12,6 +13,8 @@ import { NS, SITE_FOR_HER, SITE_RESULTS, fixtureResponse, jsonResponse, loadRout
 const BASE = `/api/ns/${NS.id}/data/collections`;
 const view = fixtureResponse(loadRoute("api.get_collection"), "found").body as CollectionView;
 const notFound = () => jsonResponse(404, { error: "No such collection.", code: "collection_not_found" });
+
+const SHARED_NAME_ERROR = (n: string) => `Invalid collection name '${n}': use 1-40 lowercase letters, digits and hyphens (no leading/trailing hyphen).`;
 
 describe("DW-6.1: data_collection list/get/delete", () => {
   it("test_DW_6_1_collection_list_returns_slugged_views", async () => {
@@ -31,6 +34,14 @@ describe("DW-6.1: data_collection list/get/delete", () => {
     await expect(runDataCollection(client, NS, { action: "get", collection: "../x" })).rejects.toThrow("Invalid collection name '../x'");
     await expect(runDataCollection(client, NS, { action: "delete", collection: "_me" })).rejects.toThrow("Invalid collection name");
     expect(calls).toHaveLength(0);
+  });
+
+  it("test_DW_6_1_collection_name_error_text_is_the_shared_message", async () => {
+    const { client } = makeClient(() => undefined);
+    const err = await runDataCollection(client, NS, { action: "get", collection: "Bad_Name" }).catch((e: Error) => e);
+    expect((err as Error).message).toBe(SHARED_NAME_ERROR("Bad_Name"));
+    const rowsErr = await runDataRows(client, NS, { action: "list", collection: "Bad_Name" }).catch((e: Error) => e);
+    expect((rowsErr as Error).message).toBe((err as Error).message);
   });
 
   it("test_DW_6_1_collection_get_missing_is_collection_not_found", async () => {

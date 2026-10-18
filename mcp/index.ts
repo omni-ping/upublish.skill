@@ -1229,7 +1229,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
   const claimMatcher = z.object({
     kind: z.enum(["passcode", "jwt"]),
     claims: z
-      .record(z.union([z.string().min(1).max(128), z.boolean()]))
+      .record(z.string().min(1).max(SITE_DATA_LIMITS.maxClaimKeyLength), z.union([z.string().min(1).max(128), z.boolean()]))
       .refine((c) => Object.keys(c).length >= 1 && Object.keys(c).length <= SITE_DATA_LIMITS.maxClaimsPerMatcher, {
         message: `1 to ${SITE_DATA_LIMITS.maxClaimsPerMatcher} claims`,
       }),
@@ -1361,7 +1361,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         "  list    — Page of rows (limit, cursor, author, include_archived)\n" +
         "  export  — Stream every row, including archived, to a local NDJSON file (path); handles large collections\n" +
         "  archive — Reset: move all active rows to history (not deleted; there is no un-archive)\n" +
-        "  delete  — Delete one row by id. For 'own-rows' collections also pass author (the row's 'kind:subject', e.g. 'passcode:<id>' as shown by list)\n" +
+        "  delete  — Delete one row by id. For 'own-rows' collections also pass author (the row's 'author:' value from list, e.g. 'passcode:<id>', without the label)\n" +
         "  create  — Add a row with a generated id (data)\n" +
         "  put     — Create or replace a row by id (id, data)\n" +
         "  import  — Owner only: up to 500 rows per call with explicit authors and timestamps; existing ids are skipped",
@@ -1372,7 +1372,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
         data: z.record(z.unknown()).optional().describe("The row's data object (create, put). Sent as-is."),
         limit: z.number().int().min(1).max(SITE_DATA_LIMITS.maxPageSize).optional().describe("list: page size (default 50, max 100)."),
         cursor: z.string().optional().describe("list: next_cursor from the previous page."),
-        author: z.string().optional().describe("list/delete: a row author's 'kind:subject'."),
+        author: z.string().optional().describe("list/delete: a row's 'author:' value exactly as list prints it ('kind:subject', e.g. 'passcode:<id>'); never the label."),
         include_archived: z.boolean().optional().describe("list: also return archived rows."),
         path: z.string().optional().describe("export: file to write (e.g. /tmp/votes.ndjson)."),
         rows: z.array(importRow).max(SITE_DATA_LIMITS.maxImportRowsPerCall).optional().describe("import: the rows to import."),

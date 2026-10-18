@@ -15,7 +15,7 @@ import { pipeline } from "node:stream/promises";
 import type { ApiClient } from "./api-client.ts";
 import { guard, requireArg } from "./site-data-errors.ts";
 import { dataBase } from "./site-data.ts";
-import { isValidCollectionName, isValidRowId, SITE_DATA_LIMITS } from "./site-data-types.ts";
+import { assertCollectionName, isValidRowId, SITE_DATA_LIMITS } from "./site-data-types.ts";
 import type { AdminRow, ImportResponse, ImportRow, JsonObject, RowList } from "./site-data-types.ts";
 import type { Namespace } from "./types.ts";
 
@@ -55,11 +55,8 @@ export type DataRowsResult =
 // ─── Validation ──────────────────────────────────────────────────────────────
 
 /** Collection and row ids go into URL paths unescaped by encodeURIComponent (dots), so validate them first. */
-function validCollection(args: DataRowsArgs): string {
-  const name = requireArg(args.collection, "collection", args.action);
-  if (!isValidCollectionName(name)) throw new Error(`Invalid collection name '${name}'.`);
-  return name;
-}
+const validCollection = (args: DataRowsArgs): string =>
+  assertCollectionName(requireArg(args.collection, "collection", args.action));
 
 function validRowId(id: string): string {
   if (!isValidRowId(id)) {

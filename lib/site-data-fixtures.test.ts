@@ -18,7 +18,7 @@ import { runData, runDataJwt } from "./site-data.ts";
 import { runDataCollection } from "./site-data-collections.ts";
 import { runDataRows } from "./site-data-rows.ts";
 import { SiteDataError } from "./site-data-errors.ts";
-import type { ImportRow, JsonObject, SiteDataErrorCode } from "./site-data-types.ts";
+import type { DataStatus, ImportRow, JsonObject, SiteDataErrorCode } from "./site-data-types.ts";
 import {
   NS, fixtureResponse, fromFixture, jsonResponse, loadRoute, makeClient, withSites,
   type Handler, type RouteFixture,
@@ -52,7 +52,11 @@ const CASES: Case[] = [
     route: "api.status",
     call: (c) => runData(c, NS, { action: "status" }),
     prelude: withSites(() => undefined),
-    onSuccess: (r) => expect(r).toHaveProperty("action", "status"),
+    onSuccess: (r, body) => {
+      expect(r).toHaveProperty("action", "status");
+      const b = body as DataStatus;
+      if (b.available) expect((r as { status: DataStatus }).status.billing.would_charge).toBe(b.billing.would_charge);
+    },
   },
   {
     route: "api.enable",
@@ -187,6 +191,14 @@ function serve(fx: RouteFixture, name: string, prelude?: Handler): Handler {
     return prelude?.(req);
   };
 }
+
+describe("DW-6.3: contract amendment 45f6dd0 (billing.would_charge)", () => {
+  it("test_DW_6_3_status_fixture_has_a_would_charge_true_scenario_and_every_status_body_has_the_flag", () => {
+    const responses = statusFixture.responses.filter((r) => r.status === 200);
+    expect(responses.some((r) => (r.body as DataStatus).billing.would_charge === true)).toBe(true);
+    for (const r of responses) expect(typeof (r.body as DataStatus).billing.would_charge).toBe("boolean");
+  });
+});
 
 describe("DW-6.1: contract fixtures replayed against every api.* route", () => {
   it("test_DW_6_1_fixture_replay_covers_all_18_api_routes", () => {

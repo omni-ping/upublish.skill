@@ -20,7 +20,8 @@
           "enabled_at": "2026-10-18T12:00:00.000Z",
           "disabled_at": null,
           "wipe_after": null,
-          "wiped_at": null
+          "wiped_at": null,
+          "would_charge": false
         },
         "price": {
           "month_cents": 200,
@@ -81,6 +82,41 @@
       }
     },
     {
+      "name": "not entitled: enabling would charge",
+      "status": 200,
+      "body": {
+        "available": true,
+        "entitled": false,
+        "entitlement_source": null,
+        "activating": false,
+        "billing": {
+          "item_present": false,
+          "interval": null,
+          "past_due": false,
+          "enabled_at": null,
+          "disabled_at": null,
+          "wipe_after": null,
+          "wiped_at": null,
+          "would_charge": true
+        },
+        "price": {
+          "month_cents": 200,
+          "year_cents": 2000
+        },
+        "collections": {},
+        "stats_state": "ok",
+        "kv": {
+          "drift": "none",
+          "checked_at": "2026-10-18T12:05:00.000Z"
+        },
+        "wipe_job": {
+          "last_run_at": "2026-10-18T12:00:00.000Z",
+          "last_result": "ok"
+        },
+        "jwt_issuer": null
+      }
+    },
+    {
       "name": "dark launch: hidden",
       "status": 200,
       "body": {
@@ -95,7 +131,8 @@
           "enabled_at": null,
           "disabled_at": null,
           "wipe_after": null,
-          "wiped_at": null
+          "wiped_at": null,
+          "would_charge": false
         },
         "price": {
           "month_cents": 200,

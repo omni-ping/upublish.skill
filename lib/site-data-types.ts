@@ -2,10 +2,10 @@
  * Wire types for the site data add-on (server REST `/api/ns/:nsId/data/*`).
  *
  * Mirrored by hand from the frozen contract (`@upublish/shared/site-data`,
- * backend commit bb7374d: `api.ts`, `kv.ts`, `store.ts`, `errors.ts`,
+ * backend commit 45f6dd0: `api.ts`, `kv.ts`, `store.ts`, `errors.ts`,
  * `limits.ts`, `identity.ts`) so the skill repo stays self-contained, the same
  * way `lib/types.ts` mirrors `@upublish/shared`. Types and constants only; no
- * behavior beyond two pure name validators. If the contract changes, refresh
+ * behavior beyond the pure name validators. If the contract changes, refresh
  * `tests/fixtures/site-data/` and update this file together.
  */
 
@@ -16,6 +16,7 @@ export const SITE_DATA_LIMITS = {
   maxCollectionNameLength: 40,
   maxSitesPerCollection: 20,
   maxClaimMatchers: 4,
+  maxClaimKeyLength: 64,
   maxClaimsPerMatcher: 4,
   maxRowsCeiling: 100_000,
   maxRowBytesCeiling: 65_536,
@@ -34,6 +35,14 @@ const ROW_ID_RE = /^[A-Za-z0-9._~-]+$/;
 /** Collection names: lowercase alphanumerics and hyphens, 1..40 chars, never start with `_`. */
 export const isValidCollectionName = (s: string): boolean =>
   s.length >= 1 && s.length <= SITE_DATA_LIMITS.maxCollectionNameLength && COLLECTION_NAME_RE.test(s);
+
+/** Throws the one user-facing error for a bad collection name; returns the name when valid. */
+export function assertCollectionName(name: string): string {
+  if (!isValidCollectionName(name)) {
+    throw new Error(`Invalid collection name '${name}': use 1-${SITE_DATA_LIMITS.maxCollectionNameLength} lowercase letters, digits and hyphens (no leading/trailing hyphen).`);
+  }
+  return name;
+}
 
 /** Row ids: URL-unreserved characters, 1..128 chars, not `.` or `..`. */
 export const isValidRowId = (s: string): boolean =>
@@ -139,6 +148,8 @@ export interface DataStatus {
     disabled_at: string | null;
     wipe_after: string | null;
     wiped_at: string | null;
+    /** Enabling now would add a paid Stripe item (paid Pro/Max owner, not yet entitled). false for admin-role owners and already-entitled spaces. */
+    would_charge: boolean;
   };
   price: { month_cents: number | null; year_cents: number | null };
   collections: Record<string, { config: CollectionConfig; stats: CollectionStats | null }>;
