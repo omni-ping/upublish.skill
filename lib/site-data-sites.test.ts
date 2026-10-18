@@ -90,3 +90,10 @@ describe("DW-6.1: config translation", () => {
     expect(out.write_claims).toEqual([passcode("for-her")]);
   });
 });
+
+describe("review R-2: unknown-site error escapes server slugs", () => {
+  it("test_R2_sites_unknown_ref_escapes_control_characters_in_known_slugs", () => {
+    const dir = { idBySlug: new Map([["a\nb", "id1"]]), slugById: new Map([["id1", "a\nb"]]) };
+    expect(() => resolveSiteRef(dir, "zzz")).toThrow('"a\\nb"');
+  });
+});

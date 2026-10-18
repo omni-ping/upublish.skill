@@ -9,6 +9,7 @@
  */
 
 import { ApiError } from "./api-client.ts";
+import { safeText } from "./site-data-text.ts";
 import type { ApiRole, SiteDataErrorCode } from "./site-data-types.ts";
 
 /** An actionable site-data failure. `code` is null when the body carried none. */
@@ -67,9 +68,9 @@ export function toSiteDataError(err: unknown, role: ApiRole): unknown {
   const body = err.rawBodyData as { error?: unknown; code?: unknown } | null;
   const code = typeof body?.code === "string" ? (body.code as SiteDataErrorCode) : null;
   if (code === null) return err; // unstructured (e.g. a gateway 5xx): keep the original message
-  const text = code === "not_available" ? NOT_AVAILABLE_TEXT : typeof body?.error === "string" ? body.error : "";
+  const text = code === "not_available" ? NOT_AVAILABLE_TEXT : typeof body?.error === "string" ? safeText(body.error) : "";
   const hint = hintFor(code, role);
-  const parts = [text, `[${code}]`, hint === text ? undefined : hint].filter(Boolean);
+  const parts = [text, `[${safeText(code)}]`, hint === text ? undefined : hint].filter(Boolean);
   return new SiteDataError(code, err.status, parts.join(" "));
 }
 

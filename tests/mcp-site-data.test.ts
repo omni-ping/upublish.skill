@@ -285,7 +285,7 @@ describe("DW-6.1: data_rows tool", () => {
       if (req.method === "DELETE") return jsonResponse(200, { deleted: true });
       return jsonResponse(req.method === "POST" ? 201 : 200, row);
     });
-    expect(text(await call("data_rows", { action: "list", collection: "votes", limit: 5 }))).toContain("item-17  2026-10-18T12:00:00.000Z\n  author: passcode:p1\n  label: her");
+    expect(text(await call("data_rows", { action: "list", collection: "votes", limit: 5 }))).toContain("item-17  2026-10-18T12:00:00.000Z\n  author: passcode:p1\n  label: \"her\"");
     expect(text(await call("data_rows", { action: "create", collection: "votes", data: { a: 1 } }))).toContain("Created row");
     expect(text(await call("data_rows", { action: "put", collection: "votes", id: "item-17", data: { a: 1 } }))).toContain("Saved row");
     expect(text(await call("data_rows", { action: "archive", collection: "votes" }))).toContain("Archived 2");

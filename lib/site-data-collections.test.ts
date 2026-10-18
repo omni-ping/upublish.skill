@@ -138,3 +138,40 @@ describe("DW-6.1: data_collection set", () => {
     expect(calls.some((c) => c.method === "PATCH")).toBe(false);
   });
 });
+
+describe("review R-1: collection responses are validated with the shared shape check", () => {
+  const bad = (patch: Record<string, unknown>) => ({ ...view, ...patch });
+  const serve = (method: string, path: string, body: unknown): Handler =>
+    withSites((req) => (req.method === method && req.path === path ? jsonResponse(200, body) : undefined));
+
+  it("test_R1_collection_get_rejects_drifted_config_and_metadata", async () => {
+    for (const [patch, field] of [
+      [{ rule: "bogus" }, "rule"], [{ sites: [1] }, "sites"], [{ max_rows: undefined }, "max_rows"],
+      [{ per_identity_limit: undefined }, "per_identity_limit"], [{ created_at: "garbage" }, "created_at"], [{ name: 7 }, "name"],
+    ] as const) {
+      const { client } = makeClient(serve("GET", `${BASE}/votes`, bad(patch)));
+      await expect(runDataCollection(client, NS, { action: "get", collection: "votes" })).rejects.toThrow(`Missing or invalid field: ${field}.`);
+    }
+  });
+
+  it("test_R1_collection_list_names_the_bad_element", async () => {
+    const { client } = makeClient(serve("GET", BASE, { collections: [view, bad({ write_claims: [5] })] }));
+    await expect(runDataCollection(client, NS, { action: "list" })).rejects.toThrow("collections[1].write_claims");
+    const { client: c2 } = makeClient(serve("GET", BASE, { nope: [] }));
+    await expect(runDataCollection(c2, NS, { action: "list" })).rejects.toThrow("Missing or invalid field: collections.");
+  });
+
+  it("test_R1_collection_set_validates_patch_and_create_responses", async () => {
+    const { client } = makeClient(serve("PATCH", `${BASE}/votes`, bad({ rule: "bogus" })));
+    await expect(runDataCollection(client, NS, { action: "set", collection: "votes", max_rows: 5 })).rejects.toThrow("Missing or invalid field: rule.");
+    const create: Handler = withSites((req) =>
+      req.method === "PATCH" ? notFound() : req.method === "POST" && req.path === BASE ? jsonResponse(201, bad({ writers: ["x"] })) : undefined);
+    const { client: c2 } = makeClient(create);
+    await expect(runDataCollection(c2, NS, { action: "set", collection: "votes", rule: "inbox", sites: ["results"], writers: ["anonymous"] })).rejects.toThrow("Missing or invalid field: writers.");
+  });
+
+  it("test_R1_collection_non_object_body_is_rejected", async () => {
+    const { client } = makeClient(serve("GET", `${BASE}/votes`, "oops"));
+    await expect(runDataCollection(client, NS, { action: "get", collection: "votes" })).rejects.toThrow("Missing or invalid field: (body).");
+  });
+});

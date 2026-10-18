@@ -184,7 +184,7 @@ const canVote = me.collections["votes"]?.write === true;
 | `data_plane_disabled` | 503 | The service is switched off | Retry later |
 | `unavailable` | 503 | Other store failure | Retry with backoff |
 
-Treat any 5xx, a network failure, `invalid_token` (after refreshing) and `data_unavailable` as retryable, and any other 4xx as permanent for that request. The `bad_signature`, `stale_timestamp` and `replayed_nonce` (401) codes belong to the server-to-edge channel and never reach page code. `unauthenticated`, `not_available`, `upgrade_required`, `no_subscription`, `consent_required`, `addon_not_enabled`, `collection_exists`, `collection_not_found`, `limit_exceeded` and `admin_channel_failed` are owner-side (tool) errors; the tools explain them.
+Treat a network failure, any 5xx, `invalid_token` (after refreshing), `data_unavailable` and `rate_limited` (429, only after waiting `Retry-After` seconds) as retryable. Every other 4xx is permanent for that request, so do not retry or queue it: `invalid_request`, `forbidden`, `csrf_blocked`, `not_found`, `method_not_allowed`, `exists`, `identity_limit_reached`, `collection_full`, `site_moved` and `row_too_large`. The `bad_signature`, `stale_timestamp` and `replayed_nonce` (401) codes belong to the server-to-edge channel and never reach page code. `unauthenticated`, `not_available`, `upgrade_required`, `no_subscription`, `consent_required`, `addon_not_enabled`, `collection_exists`, `collection_not_found`, `limit_exceeded` and `admin_channel_failed` are owner-side (tool) errors; the tools explain them.
 
 ## Worked example: a one-vote poll with a results page
 

@@ -4,77 +4,30 @@
  *   data      status | enable | disable | wipe
  *   data_jwt  set | clear   (bring-your-own JWT issuer for visitor identity)
  *
- * Enabling is a paid action, so `enable` never charges on its own: it reads
+ * Enabling is a paid action, so `enable` never charges on its own. It reads
  * the status first and, without `accept_charge: true`, returns the price for
  * the AI to confirm with the user (or, when the server says this account would
- * not be charged, that fact). The POST still needs an explicit `accept_charge: true`. Every function takes an authenticated
- * ApiClient and a resolved Namespace (core.ts wires both) and throws
- * `SiteDataError` on API failure.
+ * not be charged, that fact). The POST still needs an explicit
+ * `accept_charge: true`.
+ *
+ * Every function takes an authenticated ApiClient and a resolved Namespace
+ * (core.ts wires both) and throws `SiteDataError` on API failure.
  */
 
 import type { ApiClient } from "./api-client.ts";
 import { guard, requireArg, SiteDataError } from "./site-data-errors.ts";
+import { parseDataStatus } from "./site-data-shape.ts";
 import { loadSiteDirectoryForDisplay, slugifyConfig } from "./site-data-sites.ts";
 import type {
   BillingInterval, DataStatus, DisableResponse, EnableResponse, JwtAlgorithm, JwtIssuerConfig, WipeResponse,
 } from "./site-data-types.ts";
 import type { Namespace } from "./types.ts";
 
+/** Re-exported: the status parser lives in site-data-shape.ts with the other contract validators. */
+export { parseDataStatus };
+
 /** Base path of every site-data route for a namespace. */
 export const dataBase = (nsId: string): string => `/api/ns/${nsId}/data`;
-
-// ─── Status parser ───────────────────────────────────────────────────────────
-
-type Check = (v: unknown) => boolean;
-const isObj: Check = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-const isBool: Check = (v) => typeof v === "boolean";
-const isStr: Check = (v) => typeof v === "string";
-const isInt: Check = (v) => Number.isInteger(v);
-const isArr: Check = (v) => Array.isArray(v);
-const nullable = (c: Check): Check => (v) => v === null || c(v);
-const oneOf = (...allowed: unknown[]): Check => (v) => allowed.includes(v);
-
-/** Every field of `DataStatus` that formatters and the enable flow read, parents before children. */
-const STATUS_SHAPE: Array<[path: string, check: Check]> = [
-  ["available", isBool], ["entitled", isBool], ["entitlement_source", nullable(oneOf("paid", "comped", "admin"))],
-  ["activating", isBool],
-  ["billing", isObj], ["billing.item_present", isBool], ["billing.interval", nullable(oneOf("month", "year"))],
-  ["billing.past_due", isBool], ["billing.enabled_at", nullable(isStr)], ["billing.disabled_at", nullable(isStr)],
-  ["billing.wipe_after", nullable(isStr)], ["billing.wiped_at", nullable(isStr)], ["billing.would_charge", isBool],
-  ["price", isObj], ["price.month_cents", nullable(isInt)], ["price.year_cents", nullable(isInt)],
-  ["collections", isObj],
-  ["stats_state", oneOf("ok", "unavailable")],
-  ["kv", isObj], ["kv.drift", oneOf("none", "missing", "stale", "unknown")], ["kv.checked_at", nullable(isStr)],
-  ["wipe_job", isObj], ["wipe_job.last_run_at", nullable(isStr)], ["wipe_job.last_result", nullable(oneOf("ok", "error"))],
-  ["jwt_issuer", nullable(isObj)],
-];
-
-/** Per-collection fields read when rendering or resolving site slugs. */
-const COLLECTION_SHAPE: Array<[path: string, check: Check]> = [
-  ["config", isObj], ["config.rule", isStr], ["config.sites", isArr], ["config.writers", isArr],
-  ["config.write_claims", isArr], ["config.admin_claims", isArr], ["stats", nullable(isObj)],
-];
-
-const at = (root: unknown, path: string): unknown =>
-  path.split(".").reduce<unknown>((v, k) => (isObj(v) ? (v as Record<string, unknown>)[k] : undefined), root);
-
-/**
- * Validates the whole `DataStatus` shape that this module and the formatters
- * rely on and returns the body typed. A server that answers with something
- * else (an older/newer contract) fails here, naming the first bad field,
- * instead of producing `undefined` deep in a formatter.
- */
-export function parseDataStatus(raw: unknown): DataStatus {
-  const bad = (field: string): never => {
-    throw new Error(`Unexpected response from the site data status endpoint. Missing or invalid field: ${field}.`);
-  };
-  if (!isObj(raw)) return bad("(body)");
-  for (const [path, check] of STATUS_SHAPE) if (!check(at(raw, path))) bad(path);
-  for (const [name, entry] of Object.entries((raw as { collections: object }).collections)) {
-    for (const [path, check] of COLLECTION_SHAPE) if (!check(at(entry, path))) bad(`collections.${name}.${path}`);
-  }
-  return raw as unknown as DataStatus;
-}
 
 // ─── Args / results ──────────────────────────────────────────────────────────
 

@@ -248,3 +248,67 @@ describe("DW-6.1: data_jwt", () => {
     expect(calls[0]).toMatchObject({ method: "DELETE", path: `${STATUS_PATH}/jwt-issuer` });
   });
 });
+
+describe("review R-1: parseDataStatus enforces the contract's nested shapes", () => {
+  const votes = enabledStatus.collections["votes"]!;
+  const withCollection = (patch: { config?: Record<string, unknown>; stats?: unknown }) => ({
+    ...enabledStatus,
+    collections: { votes: { config: { ...votes.config, ...patch.config }, stats: "stats" in patch ? patch.stats : votes.stats } },
+  });
+  const dropConfig = (field: string) => {
+    const config: Record<string, unknown> = { ...votes.config };
+    delete config[field];
+    return { ...enabledStatus, collections: { votes: { config, stats: votes.stats } } };
+  };
+  const issuer = { issuer: "https://i", jwks_uri: "https://i/jwks", audience: "a", algorithms: ["ES256"] };
+  const rejects = (body: unknown, field: string) =>
+    expect(() => parseDataStatus(body)).toThrow(`Missing or invalid field: ${field}.`);
+
+  it("test_R1_stats_object_must_carry_its_counters", () => {
+    rejects(withCollection({ stats: {} }), "collections.votes.stats.rows");
+    rejects(withCollection({ stats: { rows: 1, archived_rows: 0, bytes: "9", last_write_at: null } }), "collections.votes.stats.bytes");
+    rejects(withCollection({ stats: { rows: 1, archived_rows: 0, bytes: 9, last_write_at: "yesterday" } }), "collections.votes.stats.last_write_at");
+    expect(parseDataStatus(withCollection({ stats: { rows: 1, archived_rows: 0, bytes: 9, last_write_at: null } })).collections["votes"]!.stats!.rows).toBe(1);
+  });
+
+  it("test_R1_jwt_issuer_object_must_carry_its_fields", () => {
+    rejects({ ...enabledStatus, jwt_issuer: {} }, "jwt_issuer.issuer");
+    rejects({ ...enabledStatus, jwt_issuer: { ...issuer, audience: 5 } }, "jwt_issuer.audience");
+    rejects({ ...enabledStatus, jwt_issuer: { ...issuer, algorithms: "ES256" } }, "jwt_issuer.algorithms");
+    rejects({ ...enabledStatus, jwt_issuer: { ...issuer, algorithms: [1] } }, "jwt_issuer.algorithms");
+    expect(parseDataStatus({ ...enabledStatus, jwt_issuer: issuer }).jwt_issuer!.issuer).toBe("https://i");
+    expect(parseDataStatus({ ...enabledStatus, jwt_issuer: null }).jwt_issuer).toBeNull();
+  });
+
+  it("test_R1_config_enums_and_element_types", () => {
+    rejects(withCollection({ config: { rule: "bogus" } }), "collections.votes.config.rule");
+    rejects(withCollection({ config: { writers: ["everyone"] } }), "collections.votes.config.writers");
+    rejects(withCollection({ config: { sites: [1] } }), "collections.votes.config.sites");
+    rejects(withCollection({ config: { write_claims: [5] } }), "collections.votes.config.write_claims");
+    rejects(withCollection({ config: { admin_claims: [{ kind: "cookie", claims: {} }] } }), "collections.votes.config.admin_claims");
+    rejects(withCollection({ config: { admin_claims: [{ kind: "jwt", claims: { a: 1 } }] } }), "collections.votes.config.admin_claims");
+    rejects(withCollection({ config: { admin_claims: [{ kind: "jwt" }] } }), "collections.votes.config.admin_claims");
+    expect(parseDataStatus(withCollection({ config: { admin_claims: [{ kind: "jwt", claims: { admin: true, team: "x" } }] } })).entitled).toBe(true);
+  });
+
+  it("test_R1_config_limit_fields", () => {
+    for (const f of ["max_rows", "max_row_bytes", "writes_per_min", "per_identity_limit"]) rejects(dropConfig(f), `collections.votes.config.${f}`);
+    rejects(withCollection({ config: { max_rows: "100" } }), "collections.votes.config.max_rows");
+    rejects(withCollection({ config: { writes_per_min: 1.5 } }), "collections.votes.config.writes_per_min");
+    rejects(withCollection({ config: { per_identity_limit: "1" } }), "collections.votes.config.per_identity_limit");
+    expect(parseDataStatus(withCollection({ config: { per_identity_limit: null } })).entitled).toBe(true);
+  });
+
+  it("test_R1_every_timestamp_field_must_be_iso", () => {
+    const bill = (f: string) => ({ ...enabledStatus, billing: { ...enabledStatus.billing, [f]: "garbage" } });
+    for (const f of ["enabled_at", "disabled_at", "wipe_after", "wiped_at"]) rejects(bill(f), `billing.${f}`);
+    rejects({ ...enabledStatus, kv: { drift: "none", checked_at: "2026-10-18" } }, "kv.checked_at");
+    rejects({ ...enabledStatus, wipe_job: { last_run_at: "soon", last_result: null } }, "wipe_job.last_run_at");
+    expect(parseDataStatus({ ...enabledStatus, billing: { ...enabledStatus.billing, wipe_after: "2026-11-17T00:00:00.000Z" } }).billing.wipe_after).toBe("2026-11-17T00:00:00.000Z");
+  });
+
+  it("test_R1_status_flow_rejects_drifted_body_before_any_formatting", async () => {
+    const { client } = makeClient(serveStatus({ ...enabledStatus, jwt_issuer: {} }));
+    await expect(runData(client, NS, { action: "status" })).rejects.toThrow("jwt_issuer.issuer");
+  });
+});

@@ -13,6 +13,7 @@
 import type { ApiClient } from "./api-client.ts";
 import { guard, requireArg, SiteDataError } from "./site-data-errors.ts";
 import { dataBase } from "./site-data.ts";
+import { parseCollectionBody, parseCollectionList } from "./site-data-shape.ts";
 import {
   loadSiteDirectory, loadSiteDirectoryForDisplay, resolveConfigSites, slugifyConfig,
 } from "./site-data-sites.ts";
@@ -63,7 +64,7 @@ async function setCollection(apiClient: ApiClient, ns: Namespace, args: DataColl
   const resolved = resolveConfigSites(dir, patch);
   const base = `${dataBase(ns.id)}/collections`;
   try {
-    const view = await guard("owner", () => apiClient.patch<CollectionView>(`${base}/${name}`, resolved));
+    const view = await guard("owner", async () => parseCollectionBody(await apiClient.patch<unknown>(`${base}/${name}`, resolved)));
     return { action: "set", created: false, collection: slugifyConfig(dir, view) };
   } catch (err) {
     if (!(err instanceof SiteDataError) || err.code !== "collection_not_found") throw err;
@@ -73,7 +74,7 @@ async function setCollection(apiClient: ApiClient, ns: Namespace, args: DataColl
     throw new Error(`Collection '${name}' does not exist; creating it requires ${missing.join(", ")}.`);
   }
   const input = { name, ...resolved } as CollectionInput;
-  const view = await guard("owner", () => apiClient.post<CollectionView>(base, input));
+  const view = await guard("owner", async () => parseCollectionBody(await apiClient.post<unknown>(base, input)));
   return { action: "set", created: true, collection: slugifyConfig(dir, view) };
 }
 
@@ -89,13 +90,13 @@ export async function runDataCollection(
   const base = `${dataBase(ns.id)}/collections`;
   switch (args.action) {
     case "list": {
-      const res = await guard("admin", () => apiClient.get<{ collections: CollectionView[] }>(base));
+      const list = await guard("admin", async () => parseCollectionList(await apiClient.get<unknown>(base)));
       const dir = await loadSiteDirectoryForDisplay(apiClient, ns.id);
-      return { action: "list", collections: res.collections.map((c) => slugifyConfig(dir, c)) };
+      return { action: "list", collections: list.map((c) => slugifyConfig(dir, c)) };
     }
     case "get": {
       const name = validName(args);
-      const view = await guard("admin", () => apiClient.get<CollectionView>(`${base}/${name}`));
+      const view = await guard("admin", async () => parseCollectionBody(await apiClient.get<unknown>(`${base}/${name}`)));
       const dir = await loadSiteDirectoryForDisplay(apiClient, ns.id);
       return { action: "get", collection: slugifyConfig(dir, view) };
     }

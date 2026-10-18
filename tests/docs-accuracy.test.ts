@@ -205,3 +205,32 @@ describe("DW-6.2: references/site-data.md matches the frozen contract", () => {
     }
   });
 });
+
+describe("review R-3: guide retry prose is exact and consistent with the table and queue code", () => {
+  const guide = readDoc("references/site-data.md");
+  const prose = guide.split("\n").find((l) => l.startsWith("Treat a network failure"))!;
+  const [retryable, permanent] = prose.split("Every other 4xx");
+  // 4xx codes visitor code can see, from the contract's section 6.
+  const CODES_4XX = [
+    "invalid_request", "invalid_token", "forbidden", "csrf_blocked", "data_unavailable", "not_found", "method_not_allowed",
+    "exists", "identity_limit_reached", "collection_full", "site_moved", "row_too_large", "rate_limited",
+  ];
+
+  test("test_R3_rate_limited_is_retryable_after_retry_after_not_permanent", () => {
+    expect(prose).toBeDefined();
+    expect(retryable).toContain("`rate_limited` (429");
+    expect(retryable).toContain("Retry-After");
+    expect(permanent).not.toContain("rate_limited");
+  });
+
+  test("test_R3_every_4xx_code_is_classified_exactly_once", () => {
+    for (const c of CODES_4XX) {
+      const inRetry = retryable!.includes(`\`${c}\``);
+      const inPermanent = permanent!.includes(`\`${c}\``);
+      expect(inRetry !== inPermanent, c).toBe(true);
+    }
+    // The queue code in the worked example retries exactly the codes the prose calls retryable.
+    expect(guide).toContain('e.code === "invalid_token" || e.code === "data_unavailable"');
+    expect(guide).toContain('e.code === "rate_limited"');
+  });
+});

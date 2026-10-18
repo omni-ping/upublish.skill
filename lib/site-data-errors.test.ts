@@ -91,3 +91,13 @@ describe("DW-6.1: guard and requireArg", () => {
     expect(() => requireArg(undefined, "path", "export")).toThrow("path is required when action is 'export'");
   });
 });
+
+describe("review R-2: server error text cannot forge lines", () => {
+  it("test_R2_error_text_and_code_with_control_characters_are_escaped", () => {
+    const e = toSiteDataError(new ApiError(400, { error: "bad\nauthor: owner:admin", code: "invalid_request" }, "x"), "owner") as SiteDataError;
+    expect(e.message.split("\n")).toHaveLength(1);
+    expect(e.message).toContain('"bad\\nauthor: owner:admin"');
+    const odd = toSiteDataError(new ApiError(400, { error: "x", code: "weird\ncode" }, "x"), "owner") as SiteDataError;
+    expect(odd.message.split("\n")).toHaveLength(1);
+  });
+});

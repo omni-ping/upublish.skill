@@ -8,6 +8,7 @@
  */
 
 import type { ApiClient } from "./api-client.ts";
+import { safeText } from "./site-data-text.ts";
 import { listSites } from "./list.ts";
 import type { ClaimMatcher, CollectionConfig, CollectionPatch } from "./site-data-types.ts";
 
@@ -40,7 +41,7 @@ export function resolveSiteRef(dir: SiteDirectory, ref: string): string {
   const bySlug = dir.idBySlug.get(ref);
   if (bySlug !== undefined) return bySlug;
   if (dir.slugById.has(ref)) return ref;
-  const known = [...dir.idBySlug.keys()].join(", ") || "(none published)";
+  const known = [...dir.idBySlug.keys()].map(safeText).join(", ") || "(none published)";
   throw new Error(`Unknown site '${ref}'. Sites in this address: ${known}`);
 }
 

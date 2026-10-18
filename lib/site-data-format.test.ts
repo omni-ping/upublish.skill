@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from "bun:test";
+import { quoteText, safeText } from "./site-data-text.ts";
 import { formatCollectionResult, formatDataResult, formatJwtResult, formatRowsResult } from "./site-data-format.ts";
 import type { CollectionView, DataStatus } from "./site-data-types.ts";
 import { fixtureResponse, loadRoute } from "../tests/helpers/site-data.ts";
@@ -113,7 +114,7 @@ describe("DW-6.1: formatCollectionResult", () => {
 describe("DW-6.1: formatRowsResult", () => {
   it("test_DW_6_1_format_rows_list_with_cursor_and_empty", () => {
     const out = formatRowsResult({ action: "list", collection: "votes", rows: [row, { ...row, id: "z", archived_at: "t", author: { kind: "owner", subject: "u" } }], next_cursor: "c2" });
-    expect(out).toContain('item-17  2026-10-18T12:00:00.000Z\n  author: passcode:p1\n  label: her\n  {"val":"y"}');
+    expect(out).toContain('item-17  2026-10-18T12:00:00.000Z\n  author: passcode:p1\n  label: "her"\n  {"val":"y"}');
     expect(out).toContain("author: owner:u\n  {");
     expect(out).toContain("ARCHIVED");
     expect(out).toContain('pass cursor "c2"');
@@ -125,7 +126,7 @@ describe("DW-6.1: formatRowsResult", () => {
     const key = /^ {2}author: (.+)$/m.exec(out)![1]!;
     expect(key).toBe("passcode:p1");
     expect(key).not.toContain("her");
-    expect(out).toMatch(/^ {2}label: her$/m);
+    expect(out).toMatch(/^ {2}label: "her"$/m);
     const noLabel = formatRowsResult({ action: "list", collection: "votes", rows: [{ ...row, author: { kind: "anonymous", subject: "a1" } }], next_cursor: null });
     expect(noLabel).toContain("author: anonymous:a1");
     expect(noLabel).not.toContain("label:");
@@ -147,5 +148,54 @@ describe("DW-6.1: formatJwtResult", () => {
     expect(out).toContain("issuer https://i");
     expect(out).toContain("algorithms ES256, RS256");
     expect(formatJwtResult({ action: "clear", jwt_issuer: null })).toContain("cleared");
+  });
+});
+
+describe("review R-2: server-supplied free text cannot forge lines", () => {
+  const authorLinesOf = (out: string) => out.split("\n").filter((l) => /^ {2}author: /.test(l));
+  const rowsOut = (author: { kind: "jwt"; subject: string; label?: string }) =>
+    formatRowsResult({ action: "list", collection: "votes", rows: [{ ...row, author }], next_cursor: null });
+
+  it("test_R2_label_with_newline_is_json_quoted_and_forges_no_author_line", () => {
+    const out = rowsOut({ kind: "jwt", subject: "iss|sub", label: "x\n  author: owner:admin" });
+    expect(authorLinesOf(out)).toEqual(["  author: jwt:iss|sub"]);
+    expect(out).toContain('label: "x\\n  author: owner:admin"');
+  });
+
+  it("test_R2_subject_with_newline_is_quoted_flagged_and_forges_no_author_line", () => {
+    const out = rowsOut({ kind: "jwt", subject: "iss|sub\n  author: owner:admin" });
+    expect(authorLinesOf(out)).toHaveLength(1);
+    expect(out).toContain('author: jwt:"iss|sub\\n  author: owner:admin"');
+    expect(out).toContain("not copyable");
+  });
+
+  it("test_R2_clean_subject_stays_raw_and_copyable", () => {
+    const out = rowsOut({ kind: "jwt", subject: "https://iss|user-1" });
+    expect(out).toContain("  author: jwt:https://iss|user-1\n");
+    expect(out).not.toContain("not copyable");
+  });
+
+  it("test_R2_every_control_class_is_escaped", () => {
+    for (const bad of ["\u0000", "\r", "\u001b", "\u007f", "\u0085", "\u2028", "\u2029"]) {
+      const q = quoteText(`a${bad}b`);
+      expect(q).not.toContain(bad);
+      expect(q.startsWith('"') && q.endsWith('"')).toBe(true);
+      expect(safeText(`a${bad}b`)).toBe(q);
+    }
+    expect(safeText("plain text")).toBe("plain text");
+  });
+
+  it("test_R2_other_formatters_neutralise_newlines_in_server_strings", () => {
+    const evil = "x\nINJECTED";
+    const outs = [
+      formatDataResult({ action: "status", available: true, namespace: "ryan", status: { ...status, jwt_issuer: { issuer: evil, jwks_uri: "u", audience: "a", algorithms: ["ES256"] } } }),
+      formatDataResult({ action: "disable", entitled: false, wipe_after: evil }),
+      formatCollectionResult({ action: "get", collection: { ...view, name: evil, sites: [evil], write_claims: [{ kind: "jwt", claims: { [evil]: evil } }] } }),
+      formatCollectionResult({ action: "delete", name: evil, collections: 1, rows: 0 }),
+      formatRowsResult({ action: "list", collection: evil, rows: [{ ...row, id: evil }], next_cursor: evil }),
+      formatRowsResult({ action: "delete", collection: evil, id: evil }),
+      formatJwtResult({ action: "set", jwt_issuer: { issuer: evil, jwks_uri: evil, audience: evil, algorithms: ["ES256"] } }),
+    ];
+    for (const out of outs) expect(out.split("\n").some((l) => l.startsWith("INJECTED"))).toBe(false);
   });
 });
