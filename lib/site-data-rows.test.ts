@@ -550,3 +550,35 @@ describe("DW-6.7: export only deletes the partial it created", () => {
   });
 });
 
+
+describe("DW-6.8: leading-underscore row ids are refused before any request", () => {
+  const imp = (id: string): ImportRow => ({ id, author: { kind: "passcode", subject: "p1", label: "her" }, data: { v: 1 }, created_at: "2026-10-18T12:00:00.000Z" });
+
+  it("test_DW_6_8_rows_delete_and_put_refuse_leading_underscore_with_a_clear_message", async () => {
+    const { client, calls } = makeClient(() => undefined);
+    for (const id of ["_x", "_archive"]) {
+      await expect(runDataRows(client, NS, { action: "delete", collection: "votes", id })).rejects.toThrow(/Invalid row id .*a leading '_' is reserved/);
+      await expect(runDataRows(client, NS, { action: "put", collection: "votes", id, data: { v: 1 } })).rejects.toThrow(/Invalid row id .*a leading '_' is reserved/);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("test_DW_6_8_rows_import_refuses_a_leading_underscore_id_anywhere_in_the_batch", async () => {
+    const { client, calls } = makeClient(() => undefined);
+    await expect(runDataRows(client, NS, { action: "import", collection: "votes", rows: [imp("ok"), imp("_archive")] })).rejects.toThrow("Invalid row id");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("test_DW_6_8_rows_delete_and_put_accept_inner_and_trailing_underscores", async () => {
+    const del = makeClient(() => jsonResponse(200, { deleted: true }));
+    await runDataRows(del.client, NS, { action: "delete", collection: "votes", id: "a_b" });
+    await runDataRows(del.client, NS, { action: "delete", collection: "votes", id: "x_" });
+    expect(del.calls.map((c) => c.path)).toEqual([`${ROWS}/a_b`, `${ROWS}/x_`]);
+  });
+
+  it("test_DW_6_8_row_response_with_a_leading_underscore_id_is_a_malformed_body", async () => {
+    const row = { id: "_archive", author: { kind: "owner", subject: "u" }, data: { v: 1 }, created_at: "2026-10-18T12:00:00.000Z", updated_at: "2026-10-18T12:00:00.000Z", archived_at: null };
+    const { client } = makeClient(() => jsonResponse(200, row));
+    await expect(runDataRows(client, NS, { action: "put", collection: "votes", id: "ok", data: { v: 1 } })).rejects.toThrow();
+  });
+});

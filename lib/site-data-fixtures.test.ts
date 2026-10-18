@@ -245,3 +245,21 @@ describe("DW-6.6: contract amendment 745e2e6 (archived delete, fixture notes)", 
     expect(`${calls[0]!.path}&archived=true`).toBe(f.request.path);
   });
 });
+
+describe("DW-6.8: vendored visitor.archive fixture (a visitor route, not replayed through tools)", () => {
+  it("test_DW_6_8_visitor_archive_fixture_is_present_and_has_the_documented_shape", () => {
+    const fx = loadRoute("visitor.archive");
+    expect(fx.request.method).toBe("POST");
+    expect(fx.request.path).toBe("/_data/votes/_archive");
+    expect(fx.request.body).toEqual({});
+    expect(fx.responses.map((r) => `${r.status} ${(r.body as { code?: string }).code ?? "ok"}`)).toEqual(["200 ok", "403 csrf_blocked", "403 forbidden"]);
+    expect(fx.responses[0]!.body).toEqual({ archived: 42 });
+  });
+
+  it("test_DW_6_8_visitor_archive_response_matches_the_owner_archive_shape", () => {
+    const visitor = loadRoute("visitor.archive").responses[0]!.body as { archived: number };
+    const owner = loadRoute("api.archive").responses[0]!.body as { archived: number };
+    expect(Object.keys(visitor)).toEqual(Object.keys(owner));
+    expect(Number.isInteger(visitor.archived)).toBe(true);
+  });
+});

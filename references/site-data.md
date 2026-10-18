@@ -32,7 +32,7 @@ Do not put files in a `_data` directory, at any depth (`_data/`, `assets/_data/`
 | `owner-only` | nothing (only admin claims and the owner write) | everyone who can open the site | admins edit and delete |
 
 - `writers`: which identity kinds may write: `anonymous`, `passcode`, `jwt`.
-- `write_claims`: writers must match one matcher. `admin_claims`: visitors matching one get admin powers (read all rows, delete, `?author=`). A matcher is `{kind:"passcode", claims:{site:"<slug>", label:"<passcode label>"}}`; passcode matchers must include `site`, and that site must be in `sites`. Matchers in a list are OR; claims inside one are AND.
+- `write_claims`: writers must match one matcher. `admin_claims`: visitors matching one get admin powers (read all rows, delete, `?author=`, and reset with `POST /_data/{collection}/_archive`). A matcher is `{kind:"passcode", claims:{site:"<slug>", label:"<passcode label>"}}`; passcode matchers must include `site`, and that site must be in `sites`. Matchers in a list are OR; claims inside one are AND.
 - `sites`: only pages on these sites can reach the collection (a results page on another slug must be listed too).
 - `per_identity_limit`: max active rows one visitor owns (1 = one vote each).
 - Defaults: `max_rows` 10,000 (ceiling 100,000), `max_row_bytes` 16,384 (ceiling 65,536), `writes_per_min` 60 per identity (ceiling 600). Up to 20 collections per address; names are lowercase letters, digits, hyphens.
@@ -54,6 +54,7 @@ The calls are same origin only. Build every URL from one constant, `SITE_PATH`, 
 | `GET /_data/{collection}/{id}` | 200 | One row. Query `author` (admins only) |
 | `PUT /_data/{collection}/{id}` | 200 or 201 | Create or replace by client-chosen id (idempotent retries) |
 | `DELETE /_data/{collection}/{id}` | 204 | Delete (admins, or the author in `own-rows`). Query `author` (admins) |
+| `POST /_data/{collection}/_archive` | 200 | Reset: archive every active row. Body `{}`. Collection admins only (`admin_claims`), on every preset. Response `{ "archived": <count> }` |
 
 (Each path is under the site address: `SITE_PATH` + `_data/...`.) Rules that cause most failures:
 
@@ -61,7 +62,8 @@ The calls are same origin only. Build every URL from one constant, `SITE_PATH`, 
 - The body is the row's `data` object **directly**: `JSON.stringify({ choice: "blue" })`, not `{ data: {...} }`. It must be a JSON object, at most `max_row_bytes` (default 16 KB), nesting at most 16.
 - DELETE has **no body** and no Content-Type.
 - Writes are checked for same origin. A browser sends `Origin` automatically. A non-browser script (Node, curl, a test harness) **must send `Origin`** equal to the site's origin, or the write is refused with `csrf_blocked`.
-- Row ids: 1..128 characters from `A-Za-z0-9._~-`, not `.` or `..`. They go into the URL raw; never percent-encode them (any `%` is `invalid_request`).
+- Row ids: 1..128 characters from `A-Za-z0-9._~-`, not `.` or `..`, and **never starting with `_`** (that prefix is reserved for `_archive`; the `data_rows` tool refuses such ids before sending anything). They go into the URL raw; never percent-encode them (any `%` is `invalid_request`).
+- `POST /_data/{collection}/_archive` is the visitor-side reset. Send the body `{}` with `Content-Type: application/json`; the same-origin rule above applies. Only identities matching the collection's `admin_claims` may call it, on every preset (`append-only`, `own-rows`, `inbox`, `owner-only`); anyone else gets 403 `forbidden`. Any other method on `_archive` is 405 `method_not_allowed`. Rows move to history (nothing is deleted), and `GET /_data/_me` tells the page up front whether the call will succeed: its per-collection `admin` flag is `true` for the current visitor. The owner resets with the `data_rows` `archive` tool instead.
 - Always handle non-2xx: the body is `{ "error": "...", "code": "..." }`; branch on `code`.
 
 ### Wire shapes
@@ -260,7 +262,39 @@ for (const r of rows) totals[r.data.choice] = (totals[r.data.choice] || 0) + 1;
 renderChart(totals);
 ```
 
-Why this works: `append-only` lets everyone read and nobody edit; the client-chosen id makes the retry idempotent (same body, 200); a second, different vote from the same browser is `exists`; clearing localStorage gives a new id but the same cookie identity, which hits `per_identity_limit: 1`. Reset for a new round with `data_rows` `archive` (history is kept, active rows go to zero).
+Why this works: `append-only` lets everyone read and nobody edit; the client-chosen id makes the retry idempotent (same body, 200); a second, different vote from the same browser is `exists`; clearing localStorage gives a new id but the same cookie identity, which hits `per_identity_limit: 1`. Reset for a new round with `data_rows` `archive` (history is kept, active rows go to zero), or let a trusted visitor do it from the results page (next section).
+
+### Reset votes from a passcode-protected results page
+
+Setup: the `results` site is passcode protected; give the founder a passcode labelled `founder` and add `admin_claims: [{kind:"passcode", claims:{site:"results", label:"founder"}}]` to the `votes` collection. Only visitors who entered that passcode are admins. The page checks the `admin` flag from `_me`, shows the button only to them, archives with `POST /_archive` through the same `api()` helper, then reloads the list:
+
+```js
+const me = await api("GET", "/_me");
+const isAdmin = me.collections["votes"]?.admin === true;
+const resetButton = document.getElementById("reset-votes");
+resetButton.hidden = !isAdmin;
+
+async function showTotals() {
+  const rows = await listAll("votes");
+  const totals = {};
+  for (const r of rows) totals[r.data.choice] = (totals[r.data.choice] || 0) + 1;
+  renderChart(totals);
+}
+
+resetButton.addEventListener("click", async () => {
+  if (!confirm("Reset all votes? They are archived, not deleted.")) return;
+  try {
+    const { archived } = await api("POST", "/votes/_archive", {});
+    show(`Archived ${archived} votes.`);
+    await showTotals(); // active rows are now zero
+  } catch (e) {
+    if (e.code === "forbidden") show("Only the founder can reset votes.");
+    else show("Could not reset, try again.");
+  }
+});
+
+await showTotals();
+```
 
 ## Owner operations on rows
 

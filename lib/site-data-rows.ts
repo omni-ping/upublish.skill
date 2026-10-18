@@ -66,7 +66,7 @@ const validCollection = (args: DataRowsArgs): string =>
 
 function validRowId(id: string): string {
   if (!isValidRowId(id)) {
-    throw new Error(`Invalid row id '${safeText(id)}': use 1-128 letters, digits and . _ ~ - (not '.' or '..').`);
+    throw new Error(`Invalid row id '${safeText(id)}': use 1-128 letters, digits and . _ ~ - (not '.' or '..'; a leading '_' is reserved).`);
   }
   return id;
 }

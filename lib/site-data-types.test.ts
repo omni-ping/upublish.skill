@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "bun:test";
-import { assertCollectionName, isValidCollectionName } from "./site-data-types.ts";
+import { assertCollectionName, isValidCollectionName, isValidRowId } from "./site-data-types.ts";
 
 describe("DW-6.1: assertCollectionName", () => {
   it("test_DW_6_1_assert_collection_name_returns_valid_names", () => {
@@ -16,5 +16,12 @@ describe("DW-6.1: assertCollectionName", () => {
       expect(isValidCollectionName(bad)).toBe(false);
       expect(() => assertCollectionName(bad)).toThrow(msg(bad));
     }
+  });
+});
+
+describe("DW-6.8: row ids may not start with an underscore", () => {
+  it("test_DW_6_8_row_id_leading_underscore_refused_inner_and_trailing_accepted", () => {
+    for (const bad of ["_x", "_archive", "_", "__a"]) expect(isValidRowId(bad), bad).toBe(false);
+    for (const ok of ["a_b", "x_", "a", "0_1"]) expect(isValidRowId(ok), ok).toBe(true);
   });
 });

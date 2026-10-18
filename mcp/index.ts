@@ -1351,7 +1351,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
   );
 
   const importRow = z.object({
-    id: z.string().describe("Row id (1-128 chars: letters, digits, . _ ~ -)."),
+    id: z.string().describe("Row id (1-128 chars: letters, digits, . _ ~ -; may not start with _)."),
     author: z.object({
       kind: z.enum(["anonymous", "passcode", "jwt", "owner"]),
       subject: z.string().min(1).max(600).describe("passcode: the passcode id; anonymous: any stable id; jwt: 'iss|sub'; owner: user id."),

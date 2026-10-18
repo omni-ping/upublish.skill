@@ -105,7 +105,7 @@ describe("DW-6.2: every doc surface lists the site data tools and routes to the 
 
   test("test_DW_6_2_vendored_fixtures_readme_names_source_and_commit", () => {
     const readme = readDoc("tests/fixtures/site-data/README.md");
-    expect(readme).toContain("ce2923d");
+    expect(readme).toContain("e1b3962");
     expect(readme).toContain("docs/site-data/fixtures/");
     expect(readme).toMatch(/read-only snapshot/i);
   });
@@ -472,9 +472,42 @@ describe("DW-6.7: final fix round (N1, N4, amendment 5) is documented", () => {
     expect(guide).toContain("also pass `archived: true`"); // still the same switch
   });
 
-  test("test_DW_6_7_amendment_5_contract_sha_is_ce2923d_in_the_types_header", () => {
-    expect(readDoc("lib/site-data-types.ts")).toContain("backend commit ce2923d");
-    expect(readDoc("tests/fixtures/site-data/README.md")).toContain("Source commit: `ce2923d`");
+  test("test_DW_6_8_contract_sha_is_e1b3962_in_the_types_header_and_fixtures_readme", () => {
+    expect(readDoc("lib/site-data-types.ts")).toContain("backend commit e1b3962");
+    expect(readDoc("tests/fixtures/site-data/README.md")).toContain("Source commit: `e1b3962`");
+  });
+
+  describe("DW-6.8: visitor _archive route and reserved row ids", () => {
+    const guide = readDoc("references/site-data.md");
+
+    test("test_DW_6_8_archive_route_documented_with_method_path_body_and_admin_only", () => {
+      expect(guide).toMatch(/\| `POST \/_data\/\{collection\}\/_archive` \| 200 \|[^\n]*Body `\{\}`[^\n]*admins only[^\n]*`\{ "archived"/);
+      expect(guide).toContain("`Content-Type: application/json`");
+      expect(guide).toMatch(/on every preset[^\n]*403 `forbidden`/);
+      expect(guide).toMatch(/Any other method on `_archive` is 405/);
+    });
+
+    test("test_DW_6_8_me_admin_flag_tells_the_page_whether_reset_will_succeed", () => {
+      expect(guide).toMatch(/`GET \/_data\/_me` tells the page up front whether the call will succeed: its per-collection `admin` flag/);
+    });
+
+    test("test_DW_6_8_results_page_example_checks_admin_posts_archive_and_reloads", () => {
+      expect(guide).toContain("### Reset votes from a passcode-protected results page");
+      const block = [...guide.matchAll(/```js\n([\s\S]*?)```/g)].map((m) => m[1]!).find((b) => b.includes('"/votes/_archive"'))!;
+      expect(block).toBeDefined();
+      expect(block.indexOf('.admin === true')).toBeGreaterThan(-1);
+      expect(block.indexOf('api("POST", "/votes/_archive", {})')).toBeGreaterThan(block.indexOf(".admin === true"));
+      expect(block.indexOf("await showTotals(); // active rows")).toBeGreaterThan(block.indexOf("/votes/_archive"));
+      expect(() => new Function(`return (async () => {\n${block}\n});`)).not.toThrow();
+    });
+
+    test("test_DW_6_8_leading_underscore_row_id_rule_documented", () => {
+      expect(guide).toMatch(/never starting with `_`\*\*[^\n]*reserved for `_archive`/);
+    });
+
+    test("test_DW_6_8_owner_vs_visitor_archive_split_and_admin_claims_mention_it", () => {
+      expect(guide).toContain("The owner resets with the `data_rows` `archive` tool instead.");
+      expect(guide).toContain("reset with `POST /_data/{collection}/_archive`");
+    });
   });
 });
-
