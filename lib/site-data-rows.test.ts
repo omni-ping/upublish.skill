@@ -9,6 +9,7 @@ import * as nodeFs from "node:fs";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Writable } from "node:stream";
 import { runDataRows } from "./site-data-rows.ts";
 import type { ImportRow } from "./site-data-types.ts";
 import { NS, jsonResponse, makeClient } from "../tests/helpers/site-data.ts";
@@ -453,6 +454,50 @@ describe("DW-6.7: export on filesystems without hard links", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it("test_DW_6_7_N3_fallback_copy_failure_leaves_neither_destination_nor_partial", async () => {
+    const dest = join(tmp, "nolink-copyfail.ndjson");
+    const bystander = join(tmp, "nolink-copyfail-bystander.ndjson");
+    writeFileSync(bystander, "keep me");
+    const realOpen = nodeFs.promises.open.bind(nodeFs.promises);
+    const linkSpy = spyOn(nodeFs.promises, "link").mockRejectedValue(errno("EXDEV"));
+    // The destination's exclusive open succeeds (creating the file) but its write stream dies midway.
+    const openSpy = spyOn(nodeFs.promises, "open").mockImplementation((async (p: string, ...rest: unknown[]) => {
+      const handle = await (realOpen as (...a: unknown[]) => Promise<nodeFs.promises.FileHandle>)(p, ...rest);
+      if (p === dest) {
+        handle.createWriteStream = (() =>
+          new Writable({ write(_c, _e, cb) { cb(new Error("disk full (simulated)")); } })) as never;
+      }
+      return handle;
+    }) as never);
+    try {
+      const { client } = makeClient(() => streamingResponse(['{"a":1}\n', '{"a":2}\n']));
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("disk full");
+      expect(existsSync(dest)).toBe(false);
+      expect(existsSync(`${dest}.partial`)).toBe(false);
+      expect(readFileSync(bystander, "utf-8")).toBe("keep me");
+    } finally {
+      openSpy.mockRestore();
+      linkSpy.mockRestore();
+    }
+  });
+
+  it("test_DW_6_7_exists_check_failure_other_than_ENOENT_is_rethrown_and_nothing_is_created_or_deleted", async () => {
+    const dest = join(tmp, "stat-denied.ndjson");
+    const bystander = join(tmp, "stat-denied-bystander.ndjson");
+    writeFileSync(bystander, "keep me");
+    const spy = spyOn(nodeFs.promises, "lstat").mockRejectedValue(errno("EACCES", "lstat"));
+    try {
+      const { client, calls } = makeClient(() => streamingResponse(["{}\n"]));
+      await expect(runDataRows(client, NS, { action: "export", collection: "votes", path: dest })).rejects.toThrow("EACCES");
+      expect(calls).toHaveLength(0); // failed before any request
+    } finally {
+      spy.mockRestore();
+    }
+    expect(existsSync(dest)).toBe(false);
+    expect(existsSync(`${dest}.partial`)).toBe(false);
+    expect(readFileSync(bystander, "utf-8")).toBe("keep me");
   });
 });
 
