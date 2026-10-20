@@ -34,6 +34,14 @@ export class ApiError extends Error {
   }
 }
 
+/** Header identifying this client build on every request to the upublish API. */
+export const CLIENT_HEADER = "X-Upublish-Client";
+
+/** `{ "X-Upublish-Client": "upublish-mcp/<v>" }` when a version is set, else `{}` (no default). */
+export function clientHeader(clientVersion?: string): Record<string, string> {
+  return clientVersion ? { [CLIENT_HEADER]: `upublish-mcp/${clientVersion}` } : {};
+}
+
 export class ApiClient {
   constructor(
     /** API base URL, e.g. https://api.upubli.sh */
@@ -42,12 +50,25 @@ export class ApiClient {
     private readonly tokenProvider: TokenProvider,
     /** Injectable fetch function (defaults to global fetch). */
     private readonly fetchFn: FetchFn = fetch,
+    /** When set, every request carries X-Upublish-Client: upublish-mcp/<clientVersion>. */
+    private readonly clientVersion?: string,
   ) {}
+
+  /** Single send point for API requests: adds the client-version header. */
+  private fetchApi(
+    path: string,
+    init: RequestInit & { headers: Record<string, string> },
+  ): Promise<Response> {
+    return this.fetchFn(`${this.baseUrl}${path}`, {
+      ...init,
+      headers: { ...init.headers, ...clientHeader(this.clientVersion) },
+    });
+  }
 
   /** GET request — returns parsed JSON body. */
   async get<T>(path: string): Promise<T> {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
+    const response = await this.fetchApi(path, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -65,7 +86,7 @@ export class ApiClient {
    */
   async getRaw(path: string): Promise<Response> {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
+    const response = await this.fetchApi(path, {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -76,7 +97,7 @@ export class ApiClient {
   /** POST request with a JSON body — returns parsed JSON body. */
   async post<T>(path: string, body: unknown): Promise<T> {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
+    const response = await this.fetchApi(path, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -92,7 +113,7 @@ export class ApiClient {
   /** PUT request with a JSON body — returns parsed JSON body. */
   async put<T>(path: string, body: unknown): Promise<T> {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
+    const response = await this.fetchApi(path, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -108,7 +129,7 @@ export class ApiClient {
   /** PATCH request with a JSON body — returns parsed JSON body. */
   async patch<T>(path: string, body: unknown): Promise<T> {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
+    const response = await this.fetchApi(path, {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -124,7 +145,7 @@ export class ApiClient {
   /** DELETE request — returns parsed JSON body. */
   async delete<T>(path: string): Promise<T> {
     const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
+    const response = await this.fetchApi(path, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${token}`,

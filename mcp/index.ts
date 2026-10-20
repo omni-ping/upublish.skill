@@ -61,6 +61,8 @@ import {
   formatJwtResult,
   JWT_ALGORITHMS,
   SITE_DATA_LIMITS,
+  checkForUpdate,
+  formatUpdateNote,
 } from "../lib/core.ts";
 import type {
   CoreDeps,
@@ -257,6 +259,46 @@ async function createCallbackServer(): Promise<CallbackServer> {
  */
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 15_000;
 
+/**
+ * Starts the out-of-date check (un-awaited, never blocks) and wraps
+ * server.registerTool so the first tool response produced after the check
+ * resolved `behind` carries a one-line update note, once per server instance.
+ * The check uses the raw injected fetch (never the API-header fetch); its cache
+ * lives beside an injected credentialsPath (tests) or in ~/.upublish.
+ */
+function installUpdateNote(server: McpServer, callerDeps?: CoreDeps): void {
+  let pendingNote: string | null = null;
+  void checkForUpdate(PACKAGE_VERSION, {
+    fetchFn: callerDeps?.fetchFn,
+    credentialsPath: callerDeps?.credentialsPath,
+  }).then(
+    (r) => {
+      if (r.status === "behind") pendingNote = formatUpdateNote(PACKAGE_VERSION, r.latest);
+    },
+    () => undefined,
+  );
+
+  const register = server.registerTool.bind(server) as (
+    name: string,
+    config: unknown,
+    cb: (...args: unknown[]) => unknown,
+  ) => unknown;
+  (server as { registerTool: unknown }).registerTool = (
+    name: string,
+    config: unknown,
+    cb: (...args: unknown[]) => unknown,
+  ) =>
+    register(name, config, async (...args: unknown[]) => {
+      const result = (await cb(...args)) as ToolResponse;
+      if (pendingNote !== null && Array.isArray(result?.content)) {
+        const text = pendingNote;
+        pendingNote = null;
+        return { ...result, content: [...result.content, { type: "text" as const, text }] };
+      }
+      return result;
+    });
+}
+
 /** Options accepted by createServer() beyond the CoreDeps bag. */
 export interface CreateServerOpts {
   /**
@@ -271,6 +313,18 @@ export interface CreateServerOpts {
    * actually launching a browser (and to simulate an open() rejection).
    */
   openBrowser?: (url: string) => Promise<void>;
+  /**
+   * Opt in to the out-of-date check (GitHub fetch, 24 h cache file, one-time
+   * note on a tool response). Defaults to OFF: the backend's hosted /mcp router
+   * calls createServer() per request and its users cannot /plugin update. Only
+   * the stdio entrypoint turns this on (see stdioServerOptions()).
+   */
+  updateCheck?: boolean;
+}
+
+/** Server options used by the stdio entrypoint (main()). */
+export function stdioServerOptions(): CreateServerOpts {
+  return { updateCheck: true };
 }
 
 /**
@@ -284,13 +338,17 @@ export interface CreateServerOpts {
  * @param opts     - Optional server-level configuration (heartbeat interval, etc.)
  * @returns Configured McpServer instance ready to connect to a transport
  */
-export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpServer {
+export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): McpServer {
+  // Every API request identifies this client build; a caller-supplied value wins.
+  const coreDeps: CoreDeps = { ...callerDeps, clientVersion: callerDeps?.clientVersion ?? PACKAGE_VERSION };
   const heartbeatIntervalMs = opts?.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
   const openBrowser = opts?.openBrowser ?? ((url: string) => open(url).then(() => undefined));
   const server = new McpServer({
     name: PACKAGE_NAME,
     version: PACKAGE_VERSION,
   });
+
+  if (opts?.updateCheck) installUpdateNote(server, callerDeps);
 
   server.registerTool(
     "publish",
@@ -2471,7 +2529,7 @@ export function createServer(coreDeps?: CoreDeps, opts?: CreateServerOpts): McpS
  * Credentials are read fresh per tool call; no startup credential read needed.
  */
 async function main(): Promise<void> {
-  const server = createServer();
+  const server = createServer(undefined, stdioServerOptions());
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

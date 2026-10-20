@@ -14,6 +14,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import * as fs from "node:fs";
 import type { FetchFn, TokenProvider } from "./types.ts";
+import { clientHeader } from "./api-client.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,8 @@ export interface LoginDeps {
    * the deps bag in tests with no real network.
    */
   fetchFn?: FetchFn;
+  /** When set, the token-exchange request carries X-Upublish-Client. */
+  clientVersion?: string;
 }
 
 export interface LoginResult {
@@ -72,6 +75,8 @@ interface TokenProviderOptions {
   apiBaseUrl: string;
   /** Injectable fetch function (defaults to global fetch). */
   fetchFn?: FetchFn;
+  /** When set, the refresh request carries X-Upublish-Client. */
+  clientVersion?: string;
 }
 
 interface RefreshResponse {
@@ -139,6 +144,7 @@ export function createTokenProvider(opts: TokenProviderOptions): TokenProvider {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        ...clientHeader(opts.clientVersion),
       },
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
@@ -247,6 +253,8 @@ export async function exchangeCodeForTokens(opts: {
   code: string;
   codeVerifier: string;
   fetchFn?: FetchFn;
+  /** When set, the exchange request carries X-Upublish-Client. */
+  clientVersion?: string;
 }): Promise<TokenResponse> {
   const fetchFn: FetchFn = opts.fetchFn ?? ((url, init) => fetch(url, init));
 
@@ -257,6 +265,7 @@ export async function exchangeCodeForTokens(opts: {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        ...clientHeader(opts.clientVersion),
       },
       body: JSON.stringify({ code: opts.code, code_verifier: opts.codeVerifier }),
     });
@@ -344,6 +353,7 @@ export async function login(deps: LoginDeps): Promise<LoginResult> {
     code,
     codeVerifier,
     fetchFn: deps.fetchFn,
+    clientVersion: deps.clientVersion,
   });
 
   // Store refresh token (owner read/write only).
