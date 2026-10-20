@@ -30,7 +30,9 @@ import {
 } from "./auth.ts";
 import type { LoginDeps, LoginResult, CallbackServer, TokenResponse } from "./auth.ts";
 
-import { ApiClient } from "./api-client.ts";
+import { ApiClient, clientHeader } from "./api-client.ts";
+export { checkForUpdate, formatUpdateNote } from "./update-check.ts";
+export type { UpdateStatus } from "./update-check.ts";
 import { listSites } from "./list.ts";
 import { publish as domainPublish } from "./publish.ts";
 import type { PublishResult, UploadProgress, HashProgress, FilenameWarnings } from "./publish.ts";
@@ -225,6 +227,13 @@ export interface CoreDeps {
    * When omitted, the stdio/disk default path is used unchanged.
    */
   tokenProvider?: TokenProvider;
+  /**
+   * Client build version. When set, every request to API_BASE_URL (ApiClient,
+   * token refresh/exchange, logout revoke) carries
+   * `X-Upublish-Client: upublish-mcp/<clientVersion>`. When absent, no header
+   * is sent (no default). Never applied to presigned R2 uploads or GitHub.
+   */
+  clientVersion?: string;
 }
 
 export interface PublishArgs {
@@ -368,7 +377,7 @@ async function buildApiClient(deps?: CoreDeps): Promise<ApiClient> {
       }
       return token;
     };
-    return new ApiClient(API_BASE_URL, guardedProvider, fetchFn ?? fetch);
+    return new ApiClient(API_BASE_URL, guardedProvider, fetchFn ?? fetch, deps.clientVersion);
   }
 
   // Disk-backed default path (stdio adapter, unchanged behavior).
@@ -383,9 +392,10 @@ async function buildApiClient(deps?: CoreDeps): Promise<ApiClient> {
     refreshToken,
     apiBaseUrl: API_BASE_URL,
     fetchFn,
+    clientVersion: deps?.clientVersion,
   });
 
-  return new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch);
+  return new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch, deps?.clientVersion);
 }
 
 // ─── Core operations ──────────────────────────────────────────────────────────
@@ -1124,6 +1134,7 @@ export async function login(
     ...loginDeps,
     ...(coreDeps?.credentialsPath ? { credentialsFilePath: coreDeps.credentialsPath } : {}),
     fetchFn: loginDeps.fetchFn ?? coreDeps?.fetchFn,
+    clientVersion: loginDeps.clientVersion ?? coreDeps?.clientVersion,
   };
 
   return authLogin(resolvedDeps);
@@ -1148,9 +1159,10 @@ export async function status(deps?: CoreDeps): Promise<StatusResult> {
     refreshToken,
     apiBaseUrl: API_BASE_URL,
     fetchFn,
+    clientVersion: deps?.clientVersion,
   });
 
-  const apiClient = new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch);
+  const apiClient = new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch, deps?.clientVersion);
 
   try {
     const result = await apiClient.get<{ username: string }>("/auth/me");
@@ -1203,6 +1215,7 @@ export async function logout(deps?: CoreDeps): Promise<LogoutResult> {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        ...clientHeader(deps?.clientVersion),
       },
       body: JSON.stringify({ refresh_token: refreshToken }),
     });

@@ -17,6 +17,17 @@ Run each command separately:
 /plugin install upublish@upublish.skill
 ```
 
+Turn on auto-update so new upublish versions install themselves. Run `/plugin`,
+open **Marketplaces**, select `upublish.skill`, and choose **Enable auto-update**.
+Claude Code does not enable this by default for third-party marketplaces.
+
+New versions load after `/reload-plugins` or a restart. To update by hand at any
+time, run:
+
+```sh
+/plugin update upublish@upublish.skill
+```
+
 Hitting `Permission denied (publickey)`? Update Claude Code, or use the full HTTPS URL `https://github.com/omni-ping/upublish.skill.git` — and run each command separately.
 
 ### Codex
@@ -26,16 +37,26 @@ codex plugin marketplace add omni-ping/upublish.skill
 codex plugin add upublish@upublish
 ```
 
+To update, reinstall with the install command above.
+
 ### Antigravity CLI
 
 ```sh
 agy plugin install https://github.com/omni-ping/upublish.skill
 ```
 
+To update, reinstall with the install command above.
+
 ### Gemini CLI
 
 ```sh
 gemini extensions install omni-ping/upublish.skill
+```
+
+To update, run:
+
+```sh
+gemini extensions update upublish
 ```
 
 ## Getting started
