@@ -23885,12 +23885,154 @@ function log(msg) {
 }
 
 // lib/core.ts
-import * as fs9 from "fs";
+import * as fs10 from "fs";
 
 // lib/auth.ts
 import * as path2 from "path";
 import * as os2 from "os";
 import * as fs6 from "fs";
+
+// lib/api-client.ts
+class ApiError extends Error {
+  status;
+  rawBodyData;
+  constructor(status, rawBodyData, message) {
+    super(message);
+    this.status = status;
+    this.rawBodyData = rawBodyData;
+    this.name = "ApiError";
+  }
+}
+var CLIENT_HEADER = "X-Upublish-Client";
+function clientHeader(clientVersion) {
+  return clientVersion ? { [CLIENT_HEADER]: `upublish-mcp/${clientVersion}` } : {};
+}
+
+class ApiClient {
+  baseUrl;
+  tokenProvider;
+  fetchFn;
+  clientVersion;
+  constructor(baseUrl, tokenProvider, fetchFn = fetch, clientVersion) {
+    this.baseUrl = baseUrl;
+    this.tokenProvider = tokenProvider;
+    this.fetchFn = fetchFn;
+    this.clientVersion = clientVersion;
+  }
+  fetchApi(path, init) {
+    return this.fetchFn(`${this.baseUrl}${path}`, {
+      ...init,
+      headers: { ...init.headers, ...clientHeader(this.clientVersion) }
+    });
+  }
+  async get(path) {
+    const token = await this.tokenProvider();
+    const response = await this.fetchApi(path, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json"
+      }
+    });
+    return this.parseResponse(response);
+  }
+  async getRaw(path) {
+    const token = await this.tokenProvider();
+    const response = await this.fetchApi(path, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok)
+      await this.throwApiError(response);
+    return response;
+  }
+  async post(path, body) {
+    const token = await this.tokenProvider();
+    const response = await this.fetchApi(path, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+    return this.parseResponse(response);
+  }
+  async put(path, body) {
+    const token = await this.tokenProvider();
+    const response = await this.fetchApi(path, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+    return this.parseResponse(response);
+  }
+  async patch(path, body) {
+    const token = await this.tokenProvider();
+    const response = await this.fetchApi(path, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+    return this.parseResponse(response);
+  }
+  async delete(path) {
+    const token = await this.tokenProvider();
+    const response = await this.fetchApi(path, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json"
+      }
+    });
+    return this.parseResponse(response);
+  }
+  async manifest(nsId, slug, body) {
+    const filesRecord = {};
+    for (const f of body.files) {
+      filesRecord[f.path] = { hash: f.hash, size: f.size };
+    }
+    const result = await this.post(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/manifest`, { ...body, files: filesRecord });
+    log(`[manifest] version=${result.version} session_id=${result.session_id} base_version=${result.base_version} needed=${result.needed.length}`);
+    return result;
+  }
+  async finalize(nsId, slug, sessionId) {
+    const result = await this.post(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/finalize`, { session_id: sessionId });
+    log(`[finalize] slug=${slug} url=${result.url} preview_url=${result.preview_url ?? "none"}`);
+    return result;
+  }
+  async parseResponse(response) {
+    if (response.ok) {
+      return response.json();
+    }
+    return this.throwApiError(response);
+  }
+  async throwApiError(response) {
+    let errorMessage;
+    let rawBody = "";
+    let parsedBody = null;
+    try {
+      rawBody = await response.text();
+      parsedBody = JSON.parse(rawBody);
+      errorMessage = parsedBody.error ?? response.statusText;
+    } catch {
+      errorMessage = response.statusText;
+    }
+    log(`[api] status=${response.status} body=${rawBody || response.statusText}`);
+    throw new ApiError(response.status, parsedBody, `API error ${response.status}: ${errorMessage}`);
+  }
+}
+
+// lib/auth.ts
 function defaultCredentialsPath() {
   return path2.join(os2.homedir(), ".upublish", "credentials");
 }
@@ -23919,7 +24061,8 @@ function createTokenProvider(opts) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Accept: "application/json"
+        Accept: "application/json",
+        ...clientHeader(opts.clientVersion)
       },
       body: JSON.stringify({ refresh_token: refreshToken })
     });
@@ -23969,7 +24112,8 @@ async function exchangeCodeForTokens(opts) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Accept: "application/json"
+        Accept: "application/json",
+        ...clientHeader(opts.clientVersion)
       },
       body: JSON.stringify({ code: opts.code, code_verifier: opts.codeVerifier })
     });
@@ -24012,7 +24156,8 @@ async function login(deps) {
     apiBaseUrl,
     code,
     codeVerifier,
-    fetchFn: deps.fetchFn
+    fetchFn: deps.fetchFn,
+    clientVersion: deps.clientVersion
   });
   await saveCredentials(credFile, tokens.refresh_token);
   log("");
@@ -24024,134 +24169,96 @@ async function login(deps) {
   };
 }
 
-// lib/api-client.ts
-class ApiError extends Error {
-  status;
-  rawBodyData;
-  constructor(status, rawBodyData, message) {
-    super(message);
-    this.status = status;
-    this.rawBodyData = rawBodyData;
-    this.name = "ApiError";
+// lib/update-check.ts
+import * as fs7 from "fs";
+import * as os3 from "os";
+import * as path3 from "path";
+var REMOTE_URL = "https://raw.githubusercontent.com/omni-ping/upublish.skill/main/plugin.json";
+var TTL_MS = 24 * 60 * 60 * 1000;
+var DEFAULT_TIMEOUT_MS = 3000;
+var MAX_BODY_CHARS = 64 * 1024;
+var SEMVER = /^\d+\.\d+\.\d+$/;
+function compareSemver(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0;i < 3; i++) {
+    if (pa[i] !== pb[i])
+      return pa[i] - pb[i];
+  }
+  return 0;
+}
+function readFreshCache(cachePath, nowMs) {
+  try {
+    const raw = JSON.parse(fs7.readFileSync(cachePath, "utf8"));
+    const { checkedAt, latest } = raw;
+    if (typeof checkedAt !== "number" || !Number.isFinite(checkedAt))
+      return null;
+    if (typeof latest !== "string" || !SEMVER.test(latest))
+      return null;
+    if (checkedAt > nowMs || nowMs - checkedAt >= TTL_MS)
+      return null;
+    return latest;
+  } catch {
+    return null;
   }
 }
-
-class ApiClient {
-  baseUrl;
-  tokenProvider;
-  fetchFn;
-  constructor(baseUrl, tokenProvider, fetchFn = fetch) {
-    this.baseUrl = baseUrl;
-    this.tokenProvider = tokenProvider;
-    this.fetchFn = fetchFn;
-  }
-  async get(path) {
-    const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json"
-      }
+function writeCache(cachePath, checkedAt, latest) {
+  try {
+    fs7.mkdirSync(path3.dirname(cachePath), { recursive: true });
+    fs7.writeFileSync(cachePath, JSON.stringify({ checkedAt, latest }));
+  } catch {}
+}
+async function fetchLatest(fetchFn, timeoutMs) {
+  let timer;
+  try {
+    const work = (async () => {
+      const res = await fetchFn(REMOTE_URL, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+      if (!res.ok)
+        return null;
+      const text = await res.text();
+      if (text.length > MAX_BODY_CHARS)
+        return null;
+      const version = JSON.parse(text)?.version;
+      return typeof version === "string" && SEMVER.test(version) ? version : null;
+    })();
+    const deadline = new Promise((resolve) => {
+      timer = setTimeout(() => resolve(null), timeoutMs);
     });
-    return this.parseResponse(response);
-  }
-  async getRaw(path) {
-    const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${token}` }
+    work.catch(() => {
+      return;
     });
-    if (!response.ok)
-      await this.throwApiError(response);
-    return response;
-  }
-  async post(path, body) {
-    const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json"
-      },
-      body: JSON.stringify(body)
-    });
-    return this.parseResponse(response);
-  }
-  async put(path, body) {
-    const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json"
-      },
-      body: JSON.stringify(body)
-    });
-    return this.parseResponse(response);
-  }
-  async patch(path, body) {
-    const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json"
-      },
-      body: JSON.stringify(body)
-    });
-    return this.parseResponse(response);
-  }
-  async delete(path) {
-    const token = await this.tokenProvider();
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json"
-      }
-    });
-    return this.parseResponse(response);
-  }
-  async manifest(nsId, slug, body) {
-    const filesRecord = {};
-    for (const f of body.files) {
-      filesRecord[f.path] = { hash: f.hash, size: f.size };
-    }
-    const result = await this.post(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/manifest`, { ...body, files: filesRecord });
-    log(`[manifest] version=${result.version} session_id=${result.session_id} base_version=${result.base_version} needed=${result.needed.length}`);
-    return result;
-  }
-  async finalize(nsId, slug, sessionId) {
-    const result = await this.post(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/finalize`, { session_id: sessionId });
-    log(`[finalize] slug=${slug} url=${result.url} preview_url=${result.preview_url ?? "none"}`);
-    return result;
-  }
-  async parseResponse(response) {
-    if (response.ok) {
-      return response.json();
-    }
-    return this.throwApiError(response);
-  }
-  async throwApiError(response) {
-    let errorMessage;
-    let rawBody = "";
-    let parsedBody = null;
-    try {
-      rawBody = await response.text();
-      parsedBody = JSON.parse(rawBody);
-      errorMessage = parsedBody.error ?? response.statusText;
-    } catch {
-      errorMessage = response.statusText;
-    }
-    log(`[api] status=${response.status} body=${rawBody || response.statusText}`);
-    throw new ApiError(response.status, parsedBody, `API error ${response.status}: ${errorMessage}`);
+    return await Promise.race([work, deadline]);
+  } catch {
+    return null;
+  } finally {
+    if (timer)
+      clearTimeout(timer);
   }
 }
-
+async function checkForUpdate(current, deps = {}) {
+  try {
+    if (!SEMVER.test(current))
+      return { status: "unknown" };
+    const now = deps.now ?? Date.now;
+    const cachePath = deps.cachePath ?? path3.join(deps.credentialsPath ? path3.dirname(deps.credentialsPath) : path3.join(os3.homedir(), ".upublish"), "update-check.json");
+    let latest = readFreshCache(cachePath, now());
+    if (latest === null) {
+      latest = await fetchLatest(deps.fetchFn ?? fetch, deps.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+      if (latest === null)
+        return { status: "unknown" };
+      writeCache(cachePath, now(), latest);
+    }
+    return compareSemver(latest, current) > 0 ? { status: "behind", latest } : { status: "current" };
+  } catch {
+    return { status: "unknown" };
+  }
+}
+function formatUpdateNote(current, latest) {
+  return `Note: the upublish plugin is out of date (installed ${current}, latest ${latest}). ` + `Tell the user to update: in Claude Code run /plugin, open Marketplaces, select upublish.skill and ` + `choose Enable auto-update (or run /plugin update upublish@upublish.skill), then /reload-plugins; ` + `on other hosts (Codex, Gemini CLI, Antigravity CLI) update the upublish plugin/extension.`;
+}
 // lib/list.ts
 async function listSites(apiClient, nsId) {
   const response = await apiClient.get(`/api/ns/${nsId}/sites`);
@@ -24165,11 +24272,11 @@ import {
   existsSync as existsSync2,
   openSync,
   readdirSync,
-  readFileSync as readFileSync2,
+  readFileSync as readFileSync3,
   readSync,
   statSync
 } from "fs";
-import { join as join3, relative } from "path";
+import { join as join4, relative } from "path";
 var STORAGE_APPROVAL_URL_FALLBACK = "https://upubli.sh/profile/settings?storage_request=1";
 var ANALYTICS_UPGRADE_URL = "https://upubli.sh/pricing";
 
@@ -24356,7 +24463,7 @@ async function hashFileChunkedYielding(fullPath, yieldEvery, bytesSinceYield) {
 function walkFiles(rootDir, currentDir, result, ignorePatterns) {
   const entries = readdirSync(currentDir, { withFileTypes: true });
   for (const entry of entries) {
-    const fullPath = join3(currentDir, entry.name);
+    const fullPath = join4(currentDir, entry.name);
     const relPath = relative(rootDir, fullPath);
     if (isDefaultExcluded(entry.name, entry.isDirectory())) {
       result.excluded.push(entry.isDirectory() ? `${relPath}/` : relPath);
@@ -24378,10 +24485,10 @@ function walkFiles(rootDir, currentDir, result, ignorePatterns) {
 }
 function listFiles(dirPath) {
   let ignorePatterns = [];
-  const ignoreFile = join3(dirPath, ".upublishignore");
+  const ignoreFile = join4(dirPath, ".upublishignore");
   try {
     if (existsSync2(ignoreFile)) {
-      ignorePatterns = parseIgnoreFile(readFileSync2(ignoreFile, "utf-8"));
+      ignorePatterns = parseIgnoreFile(readFileSync3(ignoreFile, "utf-8"));
     }
   } catch {}
   const result = { files: [], excluded: [], warnings: [] };
@@ -24788,8 +24895,8 @@ async function changeMemberRole(apiClient, nsId, username, role) {
 }
 
 // lib/qrcode.ts
-import * as fs7 from "fs";
-import * as path3 from "path";
+import * as fs8 from "fs";
+import * as path4 from "path";
 
 // node_modules/qrcode/lib/server.js
 var canPromise = require_can_promise();
@@ -24906,13 +25013,13 @@ async function qrCode(args, deps) {
     errorCorrectionLevel: "M"
   });
   const targetDir = outputDir ?? process.cwd();
-  const svgPath = path3.join(targetDir, "qr.svg");
-  const pngPath = path3.join(targetDir, "qr.png");
+  const svgPath = path4.join(targetDir, "qr.svg");
+  const pngPath = path4.join(targetDir, "qr.png");
   const svgContent = await $toString(encodedUrl, {
     type: "svg",
     errorCorrectionLevel: "M"
   });
-  await fs7.promises.writeFile(svgPath, svgContent, "utf-8");
+  await fs8.promises.writeFile(svgPath, svgContent, "utf-8");
   await $toFile(pngPath, encodedUrl, {
     errorCorrectionLevel: "M"
   });
@@ -25820,8 +25927,8 @@ async function runDataCollection(apiClient, ns, args) {
 }
 
 // lib/site-data-rows.ts
-import * as fs8 from "fs";
-import * as path4 from "path";
+import * as fs9 from "fs";
+import * as path5 from "path";
 import { Readable, Transform } from "stream";
 import { pipeline as pipeline2 } from "stream/promises";
 var validCollection = (args) => assertCollectionName(requireArg(args.collection, "collection", args.action));
@@ -25845,7 +25952,7 @@ function lineCounter() {
   return { stream, state };
 }
 var EXPORT_EXTENSION = /\.(ndjson|jsonl)$/i;
-var exists = async (p) => fs8.promises.lstat(p).then(() => true, (err) => {
+var exists = async (p) => fs9.promises.lstat(p).then(() => true, (err) => {
   if (err.code === "ENOENT")
     return false;
   throw err;
@@ -25855,23 +25962,23 @@ var LINK_UNSUPPORTED = new Set(["EXDEV", "EPERM", "ENOTSUP", "EOPNOTSUPP"]);
 var appearedError = (target) => new Error(`'${safeText(target)}' appeared during the export and was not replaced. Pass overwrite: true to replace it.`);
 async function publishWithoutOverwrite(partial, target) {
   try {
-    await fs8.promises.link(partial, target);
+    await fs9.promises.link(partial, target);
     return;
   } catch (err) {
     if (!LINK_UNSUPPORTED.has(err.code ?? ""))
       throw err;
   }
-  const dest = await fs8.promises.open(target, "wx", 384);
+  const dest = await fs9.promises.open(target, "wx", 384);
   try {
-    await pipeline2(fs8.createReadStream(partial), dest.createWriteStream());
+    await pipeline2(fs9.createReadStream(partial), dest.createWriteStream());
   } catch (err) {
     await dest.close().catch(() => {});
-    await fs8.promises.rm(target, { force: true });
+    await fs9.promises.rm(target, { force: true });
     throw err;
   }
 }
 async function exportRows(apiClient, ns, collection, dest, overwrite) {
-  const target = path4.resolve(dest);
+  const target = path5.resolve(dest);
   if (!EXPORT_EXTENSION.test(target)) {
     throw new Error(`export path must end in .ndjson or .jsonl (got '${safeText(dest)}'). Nothing was written.`);
   }
@@ -25887,7 +25994,7 @@ async function exportRows(apiClient, ns, collection, dest, overwrite) {
   const counter = lineCounter();
   let handle;
   try {
-    handle = await fs8.promises.open(partial, "wx", 384);
+    handle = await fs9.promises.open(partial, "wx", 384);
   } catch (err) {
     if (err.code === "EEXIST")
       throw partialExistsError(partial);
@@ -25896,16 +26003,16 @@ async function exportRows(apiClient, ns, collection, dest, overwrite) {
   try {
     await pipeline2(Readable.from(response.body, { objectMode: false }), counter.stream, handle.createWriteStream());
     if (overwrite) {
-      await fs8.promises.rename(partial, target);
+      await fs9.promises.rename(partial, target);
     } else {
       await publishWithoutOverwrite(partial, target).catch((err) => {
         throw err.code === "EEXIST" ? appearedError(target) : err;
       });
-      await fs8.promises.rm(partial);
+      await fs9.promises.rm(partial);
     }
   } catch (err) {
     await handle.close().catch(() => {});
-    await fs8.promises.rm(partial, { force: true });
+    await fs9.promises.rm(partial, { force: true });
     throw err;
   }
   const { lines, bytes, lastByte } = counter.state;
@@ -26146,7 +26253,7 @@ async function buildApiClient(deps) {
       }
       return token;
     };
-    return new ApiClient(API_BASE_URL, guardedProvider, fetchFn ?? fetch);
+    return new ApiClient(API_BASE_URL, guardedProvider, fetchFn ?? fetch, deps.clientVersion);
   }
   const credFile = deps?.credentialsPath ?? defaultCredentialsPath();
   const refreshToken = await readCredentials(credFile);
@@ -26156,9 +26263,10 @@ async function buildApiClient(deps) {
   const tokenProvider = createTokenProvider({
     refreshToken,
     apiBaseUrl: API_BASE_URL,
-    fetchFn
+    fetchFn,
+    clientVersion: deps?.clientVersion
   });
-  return new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch);
+  return new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch, deps?.clientVersion);
 }
 async function list2(namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
@@ -26405,7 +26513,8 @@ async function login2(loginDeps, coreDeps) {
   const resolvedDeps = {
     ...loginDeps,
     ...coreDeps?.credentialsPath ? { credentialsFilePath: coreDeps.credentialsPath } : {},
-    fetchFn: loginDeps.fetchFn ?? coreDeps?.fetchFn
+    fetchFn: loginDeps.fetchFn ?? coreDeps?.fetchFn,
+    clientVersion: loginDeps.clientVersion ?? coreDeps?.clientVersion
   };
   return login(resolvedDeps);
 }
@@ -26419,9 +26528,10 @@ async function status2(deps) {
   const tokenProvider = createTokenProvider({
     refreshToken,
     apiBaseUrl: API_BASE_URL,
-    fetchFn
+    fetchFn,
+    clientVersion: deps?.clientVersion
   });
-  const apiClient = new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch);
+  const apiClient = new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch, deps?.clientVersion);
   try {
     const result = await apiClient.get("/auth/me");
     let namespaces = [];
@@ -26451,13 +26561,14 @@ async function logout(deps) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Accept: "application/json"
+        Accept: "application/json",
+        ...clientHeader(deps?.clientVersion)
       },
       body: JSON.stringify({ refresh_token: refreshToken })
     });
   } catch {}
   try {
-    fs9.unlinkSync(credFile);
+    fs10.unlinkSync(credFile);
   } catch (err) {
     return { loggedOut: false, error: err.message };
   }
@@ -26466,7 +26577,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.34";
+var PACKAGE_VERSION = "0.12.35";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -26554,7 +26665,33 @@ async function createCallbackServer() {
   };
 }
 var DEFAULT_HEARTBEAT_INTERVAL_MS = 15000;
-function createServer(coreDeps, opts) {
+function installUpdateNote(server, callerDeps) {
+  let pendingNote = null;
+  checkForUpdate(PACKAGE_VERSION, {
+    fetchFn: callerDeps?.fetchFn,
+    credentialsPath: callerDeps?.credentialsPath
+  }).then((r) => {
+    if (r.status === "behind")
+      pendingNote = formatUpdateNote(PACKAGE_VERSION, r.latest);
+  }, () => {
+    return;
+  });
+  const register = server.registerTool.bind(server);
+  server.registerTool = (name, config, cb) => register(name, config, async (...args) => {
+    const result = await cb(...args);
+    if (pendingNote !== null && Array.isArray(result?.content)) {
+      const text = pendingNote;
+      pendingNote = null;
+      return { ...result, content: [...result.content, { type: "text", text }] };
+    }
+    return result;
+  });
+}
+function stdioServerOptions() {
+  return { updateCheck: true };
+}
+function createServer(callerDeps, opts) {
+  const coreDeps = { ...callerDeps, clientVersion: callerDeps?.clientVersion ?? PACKAGE_VERSION };
   const heartbeatIntervalMs = opts?.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
   const openBrowser = opts?.openBrowser ?? ((url) => open_default(url).then(() => {
     return;
@@ -26563,6 +26700,8 @@ function createServer(coreDeps, opts) {
     name: PACKAGE_NAME,
     version: PACKAGE_VERSION
   });
+  if (opts?.updateCheck)
+    installUpdateNote(server, callerDeps);
   server.registerTool("publish", {
     title: "Publish Site",
     description: "Publishes a local directory as a static website to upubli.sh. " + "Hashes files locally, uploads only changed files via presigned R2 URLs, " + "automatically excluding .git, node_modules, .env, .DS_Store, and other non-site files. " + "Add a .upublishignore file to the directory for custom exclusions. " + "The site will be available at a public URL immediately after upload. " + "If a site with the same slug already exists, it will be updated efficiently.",
@@ -27727,7 +27866,7 @@ ${lines.join(`
   return server;
 }
 async function main() {
-  const server = createServer();
+  const server = createServer(undefined, stdioServerOptions());
   const transport = new StdioServerTransport;
   await server.connect(transport);
 }
@@ -27741,5 +27880,6 @@ if (import.meta.main) {
 export {
   PACKAGE_NAME,
   PACKAGE_VERSION,
-  createServer
+  createServer,
+  stdioServerOptions
 };
