@@ -12,6 +12,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
       - run: bun install --frozen-lockfile
       # Full suite, not `bun test lib/`. The adapter tests in tests/ are the only
       # thing binding mcp/index.ts's rendering to its helpers — a lib-only run let
@@ -36,6 +38,8 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
       - run: bun install --frozen-lockfile
 
       - name: Bump patch version

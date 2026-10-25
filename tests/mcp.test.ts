@@ -15,6 +15,8 @@ import { describe, test, expect } from "bun:test";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as fs from "node:fs";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../mcp/index.ts";
 import type { CoreDeps } from "../lib/core.ts";
 
@@ -1972,5 +1974,81 @@ describe("DW-1.2: gate tool renders field objects as readable text", () => {
     expect(text).toContain("Fields: email, phone (optional)");
     expect(text).not.toContain("[object Object]");
     fs.unlinkSync(deps.credentialsPath!);
+  });
+});
+
+// ─── tools/list: rendered JSON Schemas ──────────────────────────────────────
+// Protocol-level guard on the JSON Schemas the SDK renders from the zod input
+// schemas. The rest of this file pokes the zod objects directly; this is the only
+// check on what an MCP client actually receives, so a zod or SDK upgrade that
+// changes the converter shows up here.
+
+type JsonSchema = {
+  type?: string;
+  required?: string[];
+  enum?: string[];
+  properties?: Record<string, JsonSchema>;
+  items?: JsonSchema;
+  additionalProperties?: boolean | JsonSchema;
+  propertyNames?: JsonSchema;
+};
+
+async function listTools(): Promise<Record<string, JsonSchema>> {
+  const server = createServer({
+    credentialsPath: "/nonexistent/upublish-credentials",
+    fetchFn: () => Promise.reject(new Error("tools/list must not hit the network")),
+  });
+  const client = new Client({ name: "mcp-tools-schema-test", version: "1.0.0" });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  try {
+    const { tools } = await client.listTools();
+    return Object.fromEntries(tools.map((t) => [t.name, t.inputSchema as JsonSchema]));
+  } finally {
+    await client.close();
+    await server.close();
+  }
+}
+
+describe("tools/list input schemas", () => {
+  test("test_DW_1_4_every_tool_lists_an_object_input_schema", async () => {
+    const schemas = await listTools();
+    // 26 always-on tools, plus 5 admin tools when UPUBLISH_ADMIN=1.
+    expect(Object.keys(schemas).length).toBe(process.env.UPUBLISH_ADMIN === "1" ? 31 : 26);
+    for (const [name, schema] of Object.entries(schemas)) {
+      expect({ name, type: schema.type }).toEqual({ name, type: "object" });
+      expect(schema.properties).toBeDefined();
+    }
+  });
+
+  test("required fields and enums survive conversion", async () => {
+    const schemas = await listTools();
+    expect(schemas["publish"]!.required).toEqual(["directory", "slug"]);
+    expect(schemas["data_rows"]!.required).toEqual(["action", "collection"]);
+    expect(schemas["data_rows"]!.properties!["action"]!.enum).toEqual([
+      "list", "export", "archive", "delete", "create", "put", "import",
+    ]);
+  });
+
+  test("z.record(z.string(), z.unknown()) renders as an open object", async () => {
+    const data = (await listTools())["data_rows"]!.properties!["data"]!;
+    expect(data.type).toBe("object");
+    expect(data.additionalProperties).toEqual({});
+  });
+
+  test("claim matcher record keeps its key bounds", async () => {
+    const writeClaims = (await listTools())["data_collection"]!.properties!["write_claims"]!;
+    const claims = writeClaims.items!.properties!["claims"]!;
+    expect(claims.type).toBe("object");
+    expect(claims.propertyNames).toMatchObject({ minLength: 1, maxLength: 64 });
+  });
+
+  test(".strict() object still forbids extra keys", async () => {
+    const expected = (await listTools())["data"]!.properties!["expected"]!;
+    expect(expected.additionalProperties).toBe(false);
+    expect(expected.required).toEqual([
+      "tier", "would_charge", "price_cents", "interval", "month_cents", "year_cents",
+    ]);
   });
 });
