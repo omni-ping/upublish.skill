@@ -42,7 +42,7 @@ const SAMPLE_URL = "https://testuser.upubli.sh/my-site/";
 
 /** Builds a standard publish fetchFn with 2 files needed. */
 function makePublishFetch(needed: Array<{ path: string; upload_url: string }> = []): typeof fetch {
-  return async (url: string | URL | Request, init?: RequestInit) => {
+  const fn = async (url: string | URL | Request, init?: RequestInit) => {
     const urlStr = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
     if (urlStr.includes("/manifest")) {
       return new Response(
@@ -66,6 +66,7 @@ function makePublishFetch(needed: Array<{ path: string; upload_url: string }> = 
     }
     return new Response("Not found", { status: 404 });
   };
+  return fn as unknown as typeof fetch; // test stub lacks fetch's `preconnect`
 }
 
 // ─── DW-1.1 + DW-1.2 + DW-1.5: publish() logging ────────────────────────────

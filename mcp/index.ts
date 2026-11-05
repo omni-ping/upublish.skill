@@ -18,6 +18,7 @@ import { z } from "zod";
 import open from "open";
 import { log } from "../lib/log.ts";
 import {
+  checkBunRuntime,
   list,
   publish,
   promote,
@@ -239,7 +240,7 @@ async function createCallbackServer(): Promise<CallbackServer> {
   });
 
   return {
-    port: server.port,
+    port: server.port as number, // always set once Bun.serve({ port: 0 }) is listening
     waitForCode: () => codePromise,
     close: async () => server.stop(),
   };
@@ -301,6 +302,32 @@ function installUpdateNote(server: McpServer, callerDeps?: CoreDeps): void {
     });
 }
 
+/**
+ * Prefixes the old-Bun warning to every tool response (not once: the user must
+ * act on it, unlike the update note). A null note (supported/unknown runtime)
+ * installs nothing. Composes with installUpdateNote: that note is appended, this
+ * one leads.
+ */
+function installRuntimeNote(server: McpServer, version: string | undefined): void {
+  const note = checkBunRuntime(version);
+  if (note === null) return;
+  const register = server.registerTool.bind(server) as (
+    name: string,
+    config: unknown,
+    cb: (...args: unknown[]) => unknown,
+  ) => unknown;
+  (server as { registerTool: unknown }).registerTool = (
+    name: string,
+    config: unknown,
+    cb: (...args: unknown[]) => unknown,
+  ) =>
+    register(name, config, async (...args: unknown[]) => {
+      const result = (await cb(...args)) as ToolResponse;
+      if (!Array.isArray(result?.content)) return result;
+      return { ...result, content: [{ type: "text" as const, text: note }, ...result.content] };
+    });
+}
+
 /** Options accepted by createServer() beyond the CoreDeps bag. */
 export interface CreateServerOpts {
   /**
@@ -316,6 +343,13 @@ export interface CreateServerOpts {
    */
   openBrowser?: (url: string) => Promise<void>;
   /**
+   * Opt in to the old-Bun warning: every tool response gets a leading note when
+   * `version` is older than the supported Bun (see checkBunRuntime). Defaults to
+   * OFF; the hosted /mcp router runs on the backend's own runtime, so the note
+   * would be wrong there. Only stdioServerOptions() sets it, from `Bun.version`.
+   */
+  runtimeCheck?: { version: string | undefined };
+  /**
    * Opt in to the out-of-date check (GitHub fetch, 24 h cache file, one-time
    * note on a tool response). Defaults to OFF: the backend's hosted /mcp router
    * calls createServer() per request and its users cannot /plugin update. Only
@@ -326,7 +360,7 @@ export interface CreateServerOpts {
 
 /** Server options used by the stdio entrypoint (main()). */
 export function stdioServerOptions(): CreateServerOpts {
-  return { updateCheck: true };
+  return { updateCheck: true, runtimeCheck: { version: typeof Bun !== "undefined" ? Bun.version : undefined } };
 }
 
 /**
@@ -351,6 +385,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
   });
 
   if (opts?.updateCheck) installUpdateNote(server, callerDeps);
+  if (opts?.runtimeCheck) installRuntimeNote(server, opts.runtimeCheck.version);
 
   server.registerTool(
     "publish",

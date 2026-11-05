@@ -11,6 +11,7 @@
 
 import { describe, test, expect, beforeEach } from "bun:test";
 import type { ApiClient } from "./api-client.ts";
+import type { AdminStatusResult, AdminUserInspect } from "./admin.ts";
 import {
   adminUser,
   adminSite,
@@ -393,16 +394,16 @@ describe("DW-7.3: suspend→inspect→reinstate integration loop", () => {
     } as unknown as ApiClient;
 
     // Step 1: suspend
-    const suspendResult = await adminUser(apiClient, { action: "suspend", userId: "user-1", reason: "Abuse report" });
+    const suspendResult = await adminUser(apiClient, { action: "suspend", userId: "user-1", reason: "Abuse report" }) as AdminStatusResult;
     expect(suspendResult.status).toBe("suspended");
     expect(suspendResult.status_reason).toBe("Abuse report");
 
     // Step 2: inspect (confirms suspended)
-    const inspectResult = await adminUser(apiClient, { action: "inspect", userId: "user-1" });
+    const inspectResult = await adminUser(apiClient, { action: "inspect", userId: "user-1" }) as AdminUserInspect;
     expect(inspectResult.user.status).toBe("suspended");
 
     // Step 3: reinstate
-    const reinstateResult = await adminUser(apiClient, { action: "reinstate", userId: "user-1" });
+    const reinstateResult = await adminUser(apiClient, { action: "reinstate", userId: "user-1" }) as AdminStatusResult;
     expect(reinstateResult.status).toBe("active");
 
     // Verify call sequence: patch(suspend), get(inspect), patch(reinstate)

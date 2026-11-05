@@ -493,7 +493,7 @@ describe("DW-2: manifest-wait heartbeat relabel", () => {
       // progress field reflects completedBytes (or completed when totalBytes===0).
       // The regression: a 100%-done snapshot carried "still hashing…". Assert that
       // every "still hashing…" note has progress < total (i.e. not at 100%).
-      expect(n.params.progress).toBeLessThan(n.params.total);
+      expect(n.params.progress).toBeLessThan(n.params.total as number);
     }
 
     // Separately, the manifest-wait heartbeat must have fired "preparing upload…"

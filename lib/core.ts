@@ -33,6 +33,7 @@ import type { LoginDeps, LoginResult, CallbackServer, TokenResponse } from "./au
 import { ApiClient, clientHeader } from "./api-client.ts";
 export { checkForUpdate, formatUpdateNote } from "./update-check.ts";
 export type { UpdateStatus } from "./update-check.ts";
+export { checkBunRuntime, MIN_BUN_VERSION } from "./runtime-check.ts";
 import { listSites } from "./list.ts";
 import { publish as domainPublish } from "./publish.ts";
 import type { PublishResult, UploadProgress, HashProgress, FilenameWarnings } from "./publish.ts";
