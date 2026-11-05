@@ -384,7 +384,7 @@ describe("publish() filename warnings — DW-2.1/2.2/2.4/2.5/2.6 wiring", () => 
     // Even an all-fragile tree publishes successfully — never rejected.
     const result = await publishTree(
       tmpDir,
-      { "a#b.html": "x", "c?d.html": "y" },
+      { "index.html": "z", "a#b.html": "x", "c?d.html": "y" },
       sentPaths,
     );
     expect(result.url).toBe(SAMPLE_URL);

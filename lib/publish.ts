@@ -22,10 +22,10 @@ import {
   readSync,
   statSync,
 } from "fs";
-import { join, relative } from "path";
+import { join, relative, sep } from "path";
 import type { ApiClient } from "./api-client.ts";
 import { ApiError } from "./api-client.ts";
-import type { FetchFn, Site, Visibility } from "./types.ts";
+import type { FetchFn, NamespaceRole, Site, Visibility } from "./types.ts";
 import { log } from "./log.ts";
 
 // ─── Storage pack approval error ──────────────────────────────────────────────
@@ -275,6 +275,20 @@ export interface PublishOpts {
    * (analytics ON — opt-out, not opt-in). Threaded into the manifest body.
    */
   analyticsEnabled?: boolean;
+  /** Publish as a single-page app (unknown paths serve index.html). Sent in the manifest body; pass on EVERY publish of an SPA. */
+  spa?: boolean;
+  /** Skip the "no top-level index.html" pre-flight block. */
+  allowNoIndex?: boolean;
+  /** Skip the "looks like a project folder" pre-flight block. */
+  allowProjectFiles?: boolean;
+  /** Keep `*.map` source maps (excluded by default). */
+  includeSourcemaps?: boolean;
+  /**
+   * The caller's role in the namespace. The plan-tier read (`GET /api/space`)
+   * returns the caller's OWN space, so for a member namespace (admin/user) it
+   * says nothing about the owner's plan and is skipped (neutral undo wording).
+   */
+  namespaceRole?: NamespaceRole;
   /**
    * Injectable fetch function for presigned R2 uploads.
    * Presigned URLs are self-authenticating — no Bearer token is needed.
@@ -307,6 +321,20 @@ export interface PublishResult {
   preview_url?: string;
   /** Full site object returned by the API. */
   site: Site;
+  /** The version number this publish created (live, or staging for a preview). */
+  version: number;
+  /**
+   * The manifest's `base_version`: the live version this publish replaced, or
+   * null for a first publish. For a preview it refers to the staging/live base,
+   * NOT a replaced live version, so renderers must key on `preview_url` first.
+   */
+  replacedVersion: number | null;
+  /**
+   * The caller's plan as far as undo is concerned: "free" (previous versions
+   * can't be restored), "paid", or null when unknown (tier read skipped or
+   * failed). Read only for a live republish.
+   */
+  planTier: "free" | "paid" | null;
   /** Suspicious files that were included but may not be site content. */
   warnings: string[];
   /**
@@ -465,12 +493,86 @@ export function isValidSlug(slug: string): boolean {
 const EXCLUDED_DIRS = new Set([".git", "node_modules", ".svn", ".hg"]);
 const EXCLUDED_FILES = new Set([".DS_Store", "Thumbs.db", ".upublishignore"]);
 
-function isDefaultExcluded(name: string, isDir: boolean): boolean {
-  if (isDir) return EXCLUDED_DIRS.has(name);
+// Credential/secret material that is never site content. Deliberately no opt-in
+// (source maps below are the only exception). Matched case-insensitively.
+const SECRET_DIRS = new Set([".ssh", ".aws"]);
+const SECRET_FILES = new Set([".envrc", ".npmrc", ".netrc", ".pypirc", "credentials.json"]);
+const SECRET_PREFIXES = ["id_rsa", "id_ed25519", "id_ecdsa", "id_dsa", "secrets."];
+const SECRET_SUFFIXES = [".p12", ".pfx"];
+
+function isSecretName(name: string, isDir: boolean): boolean {
+  const n = name.toLowerCase();
+  if (isDir) return SECRET_DIRS.has(n);
+  return (
+    SECRET_FILES.has(n) ||
+    SECRET_PREFIXES.some((p) => n.startsWith(p)) ||
+    SECRET_SUFFIXES.some((x) => n.endsWith(x))
+  );
+}
+
+function isDefaultExcluded(name: string, isDir: boolean, includeSourcemaps = false): boolean {
+  if (isDir) return EXCLUDED_DIRS.has(name) || isSecretName(name, true);
   if (EXCLUDED_FILES.has(name)) return true;
   if (name === ".env" || name.startsWith(".env.")) return true;
   if (name.endsWith(".pem") || name.endsWith(".key")) return true;
-  return false;
+  if (isSecretName(name, false)) return true;
+  return !includeSourcemaps && name.toLowerCase().endsWith(".map");
+}
+
+// ─── Pre-flight guard (wrong-folder detection) ──────────────────────────────
+
+/** Top-level names that mark a directory as a project/repo root rather than a built site. */
+const REPO_SIGNAL_FILES = new Set([
+  "package.json",
+  "tsconfig.json",
+  "package-lock.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "bun.lock",
+  "bun.lockb",
+  "Cargo.lock",
+  "Gemfile.lock",
+  "poetry.lock",
+  "composer.lock",
+  "go.sum",
+  "Dockerfile",
+]);
+const BUILD_DIRS = ["dist", "build", "out", "public", "_site"];
+
+/**
+ * Throws before anything is hashed or uploaded when `directory` looks like the
+ * wrong folder: two or more top-level repo signals (unless `allowProjectFiles`),
+ * or no top-level `index.html` (unless `allowNoIndex`). Both messages name any
+ * build dir that does contain an `index.html`. `files`/`excluded` are the
+ * {@link listFiles} output; `.git/` is default-excluded so it is read from `excluded`.
+ */
+export function preflightCheck(
+  files: FileEntry[],
+  excluded: string[],
+  opts: { allowNoIndex?: boolean; allowProjectFiles?: boolean },
+): void {
+  const paths = files.map((f) => f.relPath.split(sep).join("/"));
+  const topLevel = new Set(paths.map((p) => p.split("/")[0]!));
+  const buildDirs = BUILD_DIRS.filter((d) => paths.includes(`${d}/index.html`));
+  const hint = buildDirs.length > 0 ? ` Found ${buildDirs.map((d) => `'${d}/'`).join(", ")} with an index.html, which is probably what you want to publish.` : "";
+
+  const signals = [
+    ...[...topLevel].filter((n) => REPO_SIGNAL_FILES.has(n)),
+    ...(topLevel.has("src") && paths.some((p) => p.startsWith("src/")) ? ["src/"] : []),
+    ...(excluded.includes(".git/") ? [".git/"] : []),
+  ];
+  if (signals.length >= 2 && !opts.allowProjectFiles) {
+    throw new Error(
+      `This looks like a project folder, not a built site (found ${signals.join(", ")}). Publishing it would upload source files.${hint} ` +
+        `Publish the build output directory instead, or pass allow_project_files: true if you really mean to publish this folder.`,
+    );
+  }
+  if (!paths.includes("index.html") && !opts.allowNoIndex) {
+    throw new Error(
+      `No index.html at the top level of the folder, so the site would have no home page.${hint} ` +
+        `Publish the folder that contains index.html, or pass allow_no_index: true to publish anyway.`,
+    );
+  }
 }
 
 const SUSPICIOUS_NAMES = new Set([
@@ -751,6 +853,7 @@ function walkFiles(
   currentDir: string,
   result: ListFilesResult,
   ignorePatterns: string[],
+  includeSourcemaps: boolean,
 ): void {
   const entries = readdirSync(currentDir, { withFileTypes: true });
 
@@ -758,7 +861,7 @@ function walkFiles(
     const fullPath = join(currentDir, entry.name);
     const relPath = relative(rootDir, fullPath);
 
-    if (isDefaultExcluded(entry.name, entry.isDirectory())) {
+    if (isDefaultExcluded(entry.name, entry.isDirectory(), includeSourcemaps)) {
       result.excluded.push(entry.isDirectory() ? `${relPath}/` : relPath);
       continue;
     }
@@ -769,7 +872,7 @@ function walkFiles(
     }
 
     if (entry.isDirectory()) {
-      walkFiles(rootDir, fullPath, result, ignorePatterns);
+      walkFiles(rootDir, fullPath, result, ignorePatterns, includeSourcemaps);
     } else if (entry.isFile()) {
       if (isSuspicious(entry.name)) {
         result.warnings.push(relPath);
@@ -788,9 +891,10 @@ function walkFiles(
  * and the async {@link hashFiles}.
  *
  * @param dirPath - Root directory to walk.
+ * @param opts.includeSourcemaps - Keep `*.map` files (excluded by default).
  * @returns files (relPath, fullPath, stat size), excluded, warnings.
  */
-export function listFiles(dirPath: string): ListFilesResult {
+export function listFiles(dirPath: string, opts?: { includeSourcemaps?: boolean }): ListFilesResult {
   let ignorePatterns: string[] = [];
   const ignoreFile = join(dirPath, ".upublishignore");
   try {
@@ -802,7 +906,7 @@ export function listFiles(dirPath: string): ListFilesResult {
   }
 
   const result: ListFilesResult = { files: [], excluded: [], warnings: [] };
-  walkFiles(dirPath, dirPath, result, ignorePatterns);
+  walkFiles(dirPath, dirPath, result, ignorePatterns, opts?.includeSourcemaps === true);
   return result;
 }
 
@@ -1133,6 +1237,46 @@ function resolveDefaultTitle(
 }
 
 /**
+ * Reads the caller's plan for the undo note. Only a live republish by the
+ * namespace owner needs it; a member's `/api/space` is their own space, not the
+ * owner's. Never throws: any failure or unrecognized tier yields null so the
+ * publish (already finalized) is unaffected and the neutral wording is used.
+ */
+async function readPlanTier(
+  apiClient: ApiClient,
+  { replacesLive, namespaceRole }: { replacesLive: boolean; namespaceRole?: NamespaceRole },
+): Promise<"free" | "paid" | null> {
+  if (!replacesLive || (namespaceRole !== undefined && namespaceRole !== "owner")) return null;
+  try {
+    const res = await apiClient.get<{ space?: { tier?: unknown } }>("/api/space");
+    const tier = res?.space?.tier;
+    if (tier === "free") return "free";
+    return tier === "pro" || tier === "max" ? "paid" : null;
+  } catch (err) {
+    log(`[publish] plan tier read failed: ${(err as Error).message}`);
+    return null;
+  }
+}
+
+/**
+ * Renders the overwrite-awareness line (leading newline) for the publish output.
+ * Preview: live is untouched. First publish (null base): nothing. Otherwise the
+ * replaced/new versions plus undo guidance matching the plan: paid names the
+ * restore call, free says it can't be restored, unknown stays neutral.
+ */
+export function renderReplaceLine(
+  r: Pick<PublishResult, "preview_url" | "replacedVersion" | "version" | "planTier" | "site">,
+): string {
+  if (r.preview_url) return "\nLive site unchanged (preview)";
+  const base = r.replacedVersion;
+  if (base === null || base === undefined) return "";
+  const head = `\nReplaced live version v${base} → v${r.version}`;
+  if (r.planTier === "paid") return `${head}. Undo: versions_restore(${r.site.slug}, ${base})`;
+  if (r.planTier === "free") return `${head} (free plan: the previous version can't be restored)`;
+  return `${head} (restoring needs a paid plan)`;
+}
+
+/**
  * Publishes a directory via presigned-URL flow: hash files, diff against server
  * manifest, upload only changed files via presigned R2 URLs, then finalize.
  *
@@ -1159,6 +1303,11 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     preview,
     force,
     analyticsEnabled,
+    spa,
+    allowNoIndex,
+    allowProjectFiles,
+    includeSourcemaps,
+    namespaceRole,
     fetchFn = fetch,
     onProgress,
     onHashProgress,
@@ -1192,11 +1341,14 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
 
   // Enumerate files (stat-only), then hash them on the async, event-loop-yielding
   // path so progress can fire from the first file during the multi-minute hash.
-  const { files: fileList, excluded, warnings } = listFiles(directory);
+  const { files: fileList, excluded, warnings } = listFiles(directory, { includeSourcemaps });
 
   if (fileList.length === 0) {
     throw new Error("Directory is empty — no files to publish");
   }
+
+  // Wrong-folder / project-root guard: runs before any byte is hashed or sent.
+  preflightCheck(fileList, excluded, { allowNoIndex, allowProjectFiles });
 
   const collectedFiles = await hashFiles(fileList, { onHashProgress });
 
@@ -1225,6 +1377,8 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
         visibility === "passcode" ? (passcodeLabel ?? "default") : undefined,
       preview,
       analytics_enabled: analyticsEnabled,
+      // Omitted (undefined) unless set, so the body is unchanged for non-SPA publishes.
+      spa,
       // Omitted (undefined) when the caller doesn't pass pathPrefix — JSON.stringify
       // drops undefined properties, so the request body stays byte-identical to a
       // pre-nested-path-publishing publish. See PublishOpts.pathPrefix's doc comment.
@@ -1261,6 +1415,12 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     url: finalizeResult.url,
     preview_url: finalizeResult.preview_url,
     site: finalizeResult.site,
+    version: manifestResult.version,
+    replacedVersion: manifestResult.base_version ?? null,
+    planTier: await readPlanTier(apiClient, {
+      replacesLive: manifestResult.base_version != null && !preview,
+      namespaceRole,
+    }),
     warnings,
     excluded,
     uploadedFiles,

@@ -32,6 +32,7 @@ import {
   status,
   logout,
   addPasscode,
+  setVisibility,
   listPasscodes,
   revokePasscode,
   gate,
@@ -1092,11 +1093,9 @@ describe("DW-5.7: core.addPasscode()", () => {
     const deps: CoreDeps = {
       credentialsPath: credFile,
       fetchFn: mockFetchMulti([
-        {
-          match: "/passcodes",
-          status: 201,
-          body: { id: "pc-1", label: "Client A", created_at: "2026-01-01T00:00:00Z" },
-        },
+        // The new flow reads the site's visibility first (GET /sites), then POSTs.
+        { match: "/sites/my-site/passcodes", status: 201, body: { id: "pc-1", label: "Client A", created_at: "2026-01-01T00:00:00Z" } },
+        { match: "/sites", status: 200, body: { sites: [{ slug: "my-site", visibility: "passcode" }] } },
       ]),
     };
 
@@ -1328,11 +1327,72 @@ describe("DW-4.2/4.6: core.gate() action=remove", () => {
       ]),
     };
 
-    const result = await gate({ action: "remove", slug: "my-site" }, deps);
+    const result = await gate({ action: "remove", slug: "my-site", visibilityAfter: "public" }, deps);
     expect(result.action).toBe("remove");
     if (result.action === "remove") {
       expect(result.message).toBe("Gate removed");
     }
+  });
+});
+
+describe("DW-2.4/2.7: core.gate() action=remove visibilityAfter", () => {
+  it("test_DW_2_4_core_gate_remove_passcode_returns_echoed_visibility", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([{ match: "/gate?visibility=passcode", status: 200, body: { message: "Gate removed", visibility: "passcode" } }]),
+    };
+    const result = await gate({ action: "remove", slug: "my-site", visibilityAfter: "passcode" }, deps);
+    expect(result.action === "remove" && result.visibility).toBe("passcode");
+  });
+
+  it("test_DW_2_7_core_gate_remove_passcode_dropped_by_server_throws", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([{ match: "/gate", status: 200, body: { message: "Gate removed" } }]),
+    };
+    await expect(gate({ action: "remove", slug: "my-site", visibilityAfter: "passcode" }, deps)).rejects.toThrow(
+      "The server did not keep passcode protection",
+    );
+  });
+});
+
+describe("DW-2.1: core.setVisibility()", () => {
+  it("test_DW_2_1_core_set_visibility_dispatches_read_then_patch", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([
+        { match: "/visibility", status: 200, body: { site: { slug: "my-site", visibility: "public" } } },
+        { match: "/sites", status: 200, body: { sites: [{ slug: "my-site", visibility: "passcode" }] } },
+      ]),
+    };
+    const r = await setVisibility({ slug: "my-site", visibility: "public" }, deps);
+    expect(r).toMatchObject({ slug: "my-site", visibility: "public", previous: "passcode" });
+  });
+
+  it("test_DW_2_1_core_set_visibility_no_credentials_throws", async () => {
+    const deps: CoreDeps = { credentialsPath: "/does/not/exist/credentials" };
+    await expect(setVisibility({ slug: "my-site", visibility: "public" }, deps)).rejects.toThrow("Not authenticated");
+  });
+});
+
+describe("DW-2.3: core.addPasscode() refuses non-passcode sites", () => {
+  it("test_DW_2_3_core_add_passcode_public_site_refused", async () => {
+    const credFile = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(credFile);
+    const deps: CoreDeps = {
+      credentialsPath: credFile,
+      fetchFn: mockFetchMulti([
+        { match: "/sites/my-site/passcodes", status: 201, body: { id: "pc-1", label: "x", created_at: "t" } },
+        { match: "/sites", status: 200, body: { sites: [{ slug: "my-site", visibility: "public" }] } },
+      ]),
+    };
+    await expect(addPasscode("my-site", "mycode", "x", undefined, deps)).rejects.toThrow("is PUBLIC");
   });
 });
 

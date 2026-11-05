@@ -15,7 +15,7 @@ Write to a publish directory
     ↓
 Run pre-publish checklist  ← references/pre-publish-checklist.md
     ↓
-Publish via MCP tool or CLI
+Publish with the `publish` tool
 ```
 
 ## Wrapping markdown in HTML
@@ -152,7 +152,7 @@ Before publishing the generated output:
 Use the standard publish flow from `references/publishing.md`:
 
 ```
-mcp_upublish_publish(directory: "./my-brag-doc", slug: "project-brag-doc")
+publish(directory: "./my-brag-doc", slug: "project-brag-doc")
 ```
 
 Suggest a slug derived from the project name. Default visibility to `public` unless the user says otherwise.

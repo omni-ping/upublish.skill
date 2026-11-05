@@ -423,7 +423,7 @@ describe("DW-2: manifest-wait heartbeat relabel", () => {
     const credFile2 = writeTempCredentials(REFRESH_TOKEN);
     // Write 10 files so hashing emits 1..10 incremental events (each file triggers one callback).
     for (let i = 0; i < 10; i++) {
-      fs.writeFileSync(path.join(manyFilesDir, `file${i}.html`), `<p>content ${i}</p>`);
+      fs.writeFileSync(path.join(manyFilesDir, i === 0 ? "index.html" : `file${i}.html`), `<p>content ${i}</p>`);
     }
 
     const notifications: ProgressNotification[] = [];
@@ -493,7 +493,7 @@ describe("DW-2: manifest-wait heartbeat relabel", () => {
       // progress field reflects completedBytes (or completed when totalBytes===0).
       // The regression: a 100%-done snapshot carried "still hashing…". Assert that
       // every "still hashing…" note has progress < total (i.e. not at 100%).
-      expect(n.params.progress).toBeLessThan(n.params.total);
+      expect(n.params.progress).toBeLessThan(n.params.total as number);
     }
 
     // Separately, the manifest-wait heartbeat must have fired "preparing upload…"

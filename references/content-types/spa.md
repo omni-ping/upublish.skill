@@ -48,15 +48,23 @@ upublish serves sites at `https://{address}.upubli.sh/{slug}/`. Every bundler ne
 
 SPAs using the History API (the default in every modern framework) expect the server to return `index.html` for all paths. Without this, navigating directly to `/slug/dashboard` returns a 404 because no `dashboard.html` file exists.
 
-**Current upublish behavior:** upublish does not support SPA routing fallback. Direct links to client-side routes will 404.
+**upublish behavior:** publish with `spa: true` and deep links such as `/slug/dashboard` serve `index.html`. Requests for paths with a file extension (`/slug/assets/app.js`) still 404 normally when the file is missing.
 
-**Workarounds:**
+```
+publish(directory: "./dist", slug: "my-app", spa: true)
+```
+
+**Pass `spa: true` on every publish of the site.** A republish without it turns SPA mode off when it also sets a non-public visibility (a passcode republish does), and the deep links 404 again; a plain public republish leaves the flag alone. No tool switches SPA mode off on purpose, so there is never a reason to leave it out.
+
+With the fallback on, a router that uses the History API works. Keep the base path relative (step 1) so assets load from any depth: `/slug/a/b` must still find `./assets/app.js`. If an app can't get a relative base, use hash routing, which needs no server support:
 
 | Approach | Trade-off |
 |----------|-----------|
-| **Hash routing** (`#/path`) | URLs contain `#`; no server config needed; universally works. Enable in your router config. |
+| **`spa: true`** (recommended) | Clean URLs; every unknown extensionless path serves `index.html`, so the app must render its own "not found" view |
+| **Hash routing** (`#/path`) | URLs contain `#`; works with or without `spa`. Enable in your router config. |
 | **Pre-rendering** | Generate an HTML file for each route at build time. Works if routes are known ahead of time. Vite: `vite-plugin-ssr`, React: `react-snap`, Angular: `ng prerender` |
-| **404 fallback** | Create a `404.html` that's a copy of `index.html`. upublish does not currently serve custom 404 pages — this workaround **does not work** on upublish. Use hash routing or pre-rendering instead. |
+
+A `404.html` copy of `index.html` does **not** work; upublish does not serve custom 404 pages. Use `spa: true`.
 
 **Hash routing configuration:**
 
@@ -111,8 +119,8 @@ If the service worker isn't essential, consider removing it for hosted deploymen
 | Issue | Symptom | Fix |
 |-------|---------|-----|
 | Missing base path | CSS/JS 404, blank white page | Set `base`/`publicPath` to `./` |
-| Direct link 404 | Deep links return 404 | Switch to hash routing or pre-render |
+| Direct link 404 | Deep links return 404 | Publish with `spa: true` (on every publish), or use hash routing |
 | Chunk load failure | "Loading chunk failed" errors | Rebuild with correct base path |
 | Env vars wrong | API calls to wrong URL | Rebuild with correct env, or use runtime injection |
 | SW caching stale content | Users stuck on old version | Cache-bust sw.js, use skipWaiting |
-| Source maps exposed | `.map` files publicly accessible | Exclude from publish directory or accept the risk |
+| Source maps | `.map` files are not published by default | Pass `include_sourcemaps: true` only if you want them public |

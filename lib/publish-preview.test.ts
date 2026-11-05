@@ -113,7 +113,7 @@ describe("DW-3.2: preview flag included in manifest body", () => {
     });
 
     expect(capturedManifestBody).not.toBeNull();
-    expect((capturedManifestBody as Record<string, unknown>)["preview"]).toBe(true);
+    expect((capturedManifestBody as unknown as Record<string, unknown>)["preview"]).toBe(true);
   });
 
   it("test_DW_3_2_no_preview_flag_not_sent_in_manifest", async () => {
@@ -157,7 +157,7 @@ describe("DW-3.2: preview flag included in manifest body", () => {
 
     expect(capturedManifestBody).not.toBeNull();
     // preview field not in body when not specified
-    expect((capturedManifestBody as Record<string, unknown>)["preview"]).toBeUndefined();
+    expect((capturedManifestBody as unknown as Record<string, unknown>)["preview"]).toBeUndefined();
   });
 });
 

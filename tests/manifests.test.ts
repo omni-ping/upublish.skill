@@ -150,7 +150,7 @@ describe("DW-4.5 SKILL.md MCP-only bootstrap", () => {
   test("test_DW_4_5_skill_exists", () => {
     expect(fileExists("skills/upublish/SKILL.md")).toBe(true);
     const content = readText("skills/upublish/SKILL.md");
-    expect(content).toContain("mcp_upublish_publish");
+    expect(content).toContain("`publish`");
   });
 
   test("test_DW_4_5_skill_uses_mcp_auth", () => {
@@ -186,14 +186,14 @@ describe("DW-4.6 GEMINI.md complete context", () => {
 
   test("test_DW_4_6_references_mcp_login", () => {
     const content = readText("GEMINI.md");
-    expect(content).toContain("mcp_upublish_login");
+    expect(content).toContain("`login`");
   });
 
   test("test_DW_4_6_covers_core_tools", () => {
     const content = readText("GEMINI.md");
-    expect(content).toContain("mcp_upublish_publish");
-    expect(content).toContain("mcp_upublish_list");
-    expect(content).toContain("mcp_upublish_delete");
+    expect(content).toContain("`publish`");
+    expect(content).toContain("`list`");
+    expect(content).toContain("`delete`");
   });
 });
 

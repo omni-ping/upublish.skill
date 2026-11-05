@@ -8,8 +8,10 @@
  *   formatGateFields()  — renders a gate's field objects as readable text
  */
 
+import { ApiError } from "./api-client.ts";
 import type { ApiClient } from "./api-client.ts";
-import type { GateConfig, GateField, GateFieldType, GateSubmission } from "./types.ts";
+import { asVisibility } from "./types.ts";
+import type { GateConfig, GateField, GateFieldType, GateSubmission, Visibility } from "./types.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -23,11 +25,21 @@ export interface GetGateResult {
 export interface SetGateResult {
   /** The updated gate configuration. */
   gate: GateConfig;
+  /**
+   * The site's visibility BEFORE the gate was set. Absent when the server
+   * predates the field. "passcode" means passcode protection was just replaced.
+   */
+  previous_visibility?: Visibility;
 }
+
+/** What `removeGate` can leave the site as. */
+export type GateRemoveVisibility = "public" | "passcode";
 
 export interface RemoveGateResult {
   /** Confirmation message from the API. */
   message: string;
+  /** The site's visibility after removal, from the server's echo (public when an old server omits it). */
+  visibility: Visibility;
 }
 
 export interface GetSubmissionsResult {
@@ -47,10 +59,12 @@ interface GetGateResponse {
 
 interface SetGateResponse {
   gate: GateConfig;
+  previous_visibility?: unknown;
 }
 
 interface RemoveGateResponse {
   message: string;
+  visibility?: unknown;
 }
 
 interface GetSubmissionsResponse {
@@ -124,29 +138,64 @@ export async function setGate(
     `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/gate`,
     body,
   );
-  return { gate: response.gate };
+  return { gate: response.gate, previous_visibility: asVisibility(response.previous_visibility) };
 }
 
 // ─── Remove ───────────────────────────────────────────────────────────────────
 
 /**
- * Removes the form gate from a site.
+ * Removes the form gate and sets what the site becomes, atomically on the server.
+ *
+ * Removing a gate used to silently make the site public. The caller must now
+ * say what the site should be afterwards; the result reports what the server
+ * says it IS, never what we asked for.
  *
  * @param apiClient - Authenticated API client.
  * @param nsId - The namespace ID the site belongs to.
  * @param slug - The site slug.
- * @returns Confirmation message from the API.
+ * @param visibilityAfter - "public" or "passcode" (passcode needs >= 1 passcode).
+ * @returns Confirmation message and the resulting visibility.
+ * @throws Error if visibilityAfter is not public/passcode (no request is issued).
+ * @throws Error if "passcode" was requested but the server did not keep it (site is now PUBLIC).
+ * @throws Error with guidance on 409 no_passcodes (the gate is left in place).
  * @throws Error on API failure (propagated from ApiClient).
  */
 export async function removeGate(
   apiClient: ApiClient,
   nsId: string,
   slug: string,
+  visibilityAfter: GateRemoveVisibility,
 ): Promise<RemoveGateResult> {
-  const response = await apiClient.delete<RemoveGateResponse>(
-    `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/gate`,
-  );
-  return { message: response.message };
+  if (visibilityAfter !== "public" && visibilityAfter !== "passcode") {
+    throw new Error(`visibility_after must be "public" or "passcode" (got "${String(visibilityAfter)}")`);
+  }
+
+  let response: RemoveGateResponse;
+  try {
+    response = await apiClient.delete<RemoveGateResponse>(
+      `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/gate?visibility=${visibilityAfter}`,
+    );
+  } catch (err) {
+    const body = err instanceof ApiError ? (err.rawBodyData as { code?: unknown } | null) : null;
+    if (err instanceof ApiError && err.status === 409 && body?.code === "no_passcodes") {
+      throw new Error(
+        `Site "${slug}" has no passcodes, so it cannot stay passcode-protected after the gate is removed. ` +
+        `The gate was NOT removed. Run visibility(slug, "passcode", passcode: "<code>") first ` +
+        `(it works on a gated site), then retry with visibility_after "passcode" — or use visibility_after "public".`,
+        { cause: err },
+      );
+    }
+    throw err;
+  }
+
+  // An old server ignores ?visibility= and always reverts to public.
+  const visibility = asVisibility(response.visibility) ?? "public";
+  if (visibilityAfter === "passcode" && visibility !== "passcode") {
+    throw new Error(
+      `The server did not keep passcode protection — "${slug}" is now PUBLIC. Run visibility(slug, "passcode") now.`,
+    );
+  }
+  return { message: response.message, visibility };
 }
 
 // ─── Get Submissions ──────────────────────────────────────────────────────────

@@ -1,5 +1,88 @@
 # Changelog
 
+## [0.12.37] — 2026-11-05
+
+Access control that tells the truth, a publish guard against wrong folders and secrets, and
+guidance that matches the tools. The backend half (`DELETE /gate?visibility=` and
+`previous_visibility` on `PUT /gate`) ships first.
+
+### Added
+
+- `visibility` tool: switch a published site between `public` and `passcode` without
+  republishing ("make it private", "make it public again"). Passing `passcode` adds it before
+  the switch, so a site is never locked with zero codes. It is refused with a passcode for
+  `public`, and with no passcode when the site has none.
+- `publish` takes `spa` for single-page apps. Pass it on every publish of the site: a
+  republish without it turns SPA mode off when it also sets a non-public visibility (for example a passcode).
+- `publish` takes `allow_no_index`, `allow_project_files` and `include_sourcemaps` to opt out
+  of the new guards below.
+- Republish output names what it replaced: `Replaced live version vB → vN. Undo:
+  versions_restore(slug, B)` on paid plans, a "previous version can't be restored" note on
+  the free plan, and `Live site unchanged (preview)` for previews.
+- The stdio server prefixes every tool response with an upgrade note when it runs on Bun
+  older than 1.4.4. `bun run typecheck` is clean and runs in CI.
+- `LICENSE` (MIT) and `"license": "MIT"` in `package.json` and the Claude and Codex manifests.
+- README: Bun requirement, `codex plugin marketplace upgrade`, and a "What this plugin sends
+  where" section.
+
+### Changed
+
+- `publish` refuses a folder with no top-level `index.html` or one that looks like a project
+  root (two or more of `package.json`, `src/`, lockfiles, `Dockerfile`, `.git/`), before
+  anything uploads, and names the build folder it found.
+- `publish` now also skips `.envrc`, `.npmrc`, `.netrc`, `.pypirc`, `credentials.json`,
+  `secrets.*`, `id_rsa*`/`id_ed25519*` style keys, `*.p12`, `*.pfx`, `.aws/`, `.ssh/`, and
+  source maps (`*.map`).
+- `passcode_add` refuses unless the site is already `passcode`, instead of reporting success
+  on a site that stayed public. It points to `visibility`.
+- `gate` `remove` requires `visibility_after` (`public` or `passcode`) and reports the
+  resulting visibility. `gate set` says when it replaces passcode protection.
+- SKILL.md and GEMINI.md use short tool names (no `mcp_upublish_` prefix), list all 27 tools,
+  route domain, undo, private/public, home page, SPA, QR, analytics, preview/promote and
+  rename, flag the paid features, and tell the agent to confirm the address and any
+  overwrite of a slug the user didn't name.
+- References refreshed: `visibility.md`, `content-types/spa.md`, `troubleshooting.md`
+  (auth routes now 404, the real empty-directory message, 402 storage approval, 100 MB free
+  total), `publishing.md` (slug 1-255, free plan has no undo), `managing.md` (domain, rename,
+  QR, analytics, preview, members), a shorter `pre-publish-checklist.md`, and
+  `generate-pipeline.md` (no CLI).
+
+## [0.12.36] — 2026-10-25
+
+### Security
+
+- Pinned Bun 1.4.4 (`.bun-version`, `engines.bun >=1.4.4`), the first release with the
+  Brotli decoder fix (CVE-2026-111497).
+- `@modelcontextprotocol/sdk` ^1.32.2 and `zod` ^4.6.7 clear 53 `bun audit` advisories.
+
+### Changed
+
+- Tool input schemas render through the SDK's zod 4 converter, which omits top-level
+  `additionalProperties: false`. Unknown keys are still stripped at runtime.
+
+## [0.12.35] — 2026-10-20
+
+### Added
+
+- Out-of-date note: the local MCP server checks `plugin.json` on GitHub `main` at most once a
+  day and, when behind, adds one note to the first tool response telling the AI how to
+  update on each host.
+- Every request to the upublish API carries `X-Upublish-Client: upublish-mcp/<version>`.
+
+### Changed
+
+- README explains how to turn on auto-update and how to update on each host.
+
+## [0.12.34] — 2026-10-19
+
+### Added
+
+- Site data add-on tools: `data` (status, enable with a two-step price consent, disable,
+  wipe), `data_collection`, `data_rows` (including NDJSON export and import) and `data_jwt`,
+  plus the AI-facing guide `references/site-data.md`.
+- Row data is visitor-written, so it is fenced and labelled as untrusted in tool output and
+  export files.
+
 ## [0.12.33] — 2026-10-10
 
 ### Fixed

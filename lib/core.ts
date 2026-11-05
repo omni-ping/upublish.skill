@@ -33,10 +33,11 @@ import type { LoginDeps, LoginResult, CallbackServer, TokenResponse } from "./au
 import { ApiClient, clientHeader } from "./api-client.ts";
 export { checkForUpdate, formatUpdateNote } from "./update-check.ts";
 export type { UpdateStatus } from "./update-check.ts";
+export { checkBunRuntime, MIN_BUN_VERSION } from "./runtime-check.ts";
 import { listSites } from "./list.ts";
 import { publish as domainPublish } from "./publish.ts";
 import type { PublishResult, UploadProgress, HashProgress, FilenameWarnings } from "./publish.ts";
-import { StorageApprovalError, renderFilenameWarning } from "./publish.ts";
+import { StorageApprovalError, renderFilenameWarning, renderReplaceLine } from "./publish.ts";
 import { deleteSite } from "./delete.ts";
 import { log } from "./log.ts";
 import type { DeleteResult } from "./delete.ts";
@@ -57,6 +58,8 @@ import type {
 } from "./versions.ts";
 import { setAnalyticsEnabled as domainSetAnalyticsEnabled } from "./analytics.ts";
 import type { SetAnalyticsResult } from "./analytics.ts";
+import { setVisibility as domainSetVisibility } from "./visibility.ts";
+import type { SetVisibilityResult } from "./visibility.ts";
 import {
   addPasscode as domainAddPasscode,
   listPasscodes as domainListPasscodes,
@@ -80,6 +83,7 @@ import type {
   GetGateResult,
   SetGateResult,
   RemoveGateResult,
+  GateRemoveVisibility,
   GetSubmissionsResult,
   ClearSubmissionsResult,
 } from "./gate.ts";
@@ -155,12 +159,13 @@ import { JWT_ALGORITHMS, SITE_DATA_LIMITS } from "./site-data-types.ts";
 // don't have to reach into lib/auth.ts or other submodules.
 export type { LoginDeps, LoginResult, CallbackServer, TokenResponse };
 export type { PublishResult, UploadProgress, HashProgress, FilenameWarnings };
-export { StorageApprovalError, renderFilenameWarning };
+export { StorageApprovalError, renderFilenameWarning, renderReplaceLine };
 export type { DeleteResult };
 export type { PromoteResult };
 export type { ListVersionsResult, DeleteVersionResult, RestoreVersionResult, SetVersionsLimitResult, SiteVersion };
 export type { SetAnalyticsResult };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
+export type { SetVisibilityResult, GateRemoveVisibility };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
 export { formatGateFields };
 export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, ChangeMemberRoleResult };
@@ -283,6 +288,14 @@ export interface PublishArgs {
    * script disabled ("publish … no analytics"). Omit to keep the default ON.
    */
   analyticsEnabled?: boolean;
+  /** Publish as a single-page app. Pass on every publish of an SPA. */
+  spa?: boolean;
+  /** Publish even without a top-level index.html. */
+  allowNoIndex?: boolean;
+  /** Publish even when the folder looks like a project root. */
+  allowProjectFiles?: boolean;
+  /** Keep `*.map` source maps (excluded by default). */
+  includeSourcemaps?: boolean;
   /**
    * Optional synchronous progress callback fired during the upload phase.
    * Threaded down to uploadChangedFiles(). Must be synchronous and
@@ -486,6 +499,11 @@ export async function publish(
     preview: args.preview,
     force: args.force,
     analyticsEnabled: args.analyticsEnabled,
+    spa: args.spa,
+    allowNoIndex: args.allowNoIndex,
+    allowProjectFiles: args.allowProjectFiles,
+    includeSourcemaps: args.includeSourcemaps,
+    namespaceRole: ns.role,
     // Pass fetchFn so presigned R2 uploads use the injected fetch in tests
     fetchFn: deps?.fetchFn,
     // Thread progress callbacks down (adapter supplies them)
@@ -642,7 +660,8 @@ export async function analytics(
 }
 
 /**
- * Adds a passcode to a site.
+ * Adds a passcode to a passcode-protected site. Refuses (no POST) when the site
+ * is public/gated — use setVisibility to make it private.
  * Throws "Not authenticated" if no credentials are stored.
  *
  * @param slug - The site slug.
@@ -661,6 +680,23 @@ export async function addPasscode(
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
   return domainAddPasscode(apiClient, ns.id, slug, code, label);
+}
+
+/**
+ * Switches a site between public and passcode-protected (see lib/visibility.ts).
+ * With `passcode`, the code is added BEFORE the switch so the site is never
+ * passcode-locked with zero codes. Throws "Not authenticated" if no credentials.
+ *
+ * @param args - slug, target visibility, optional passcode/label/namespace.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function setVisibility(
+  args: { slug: string; visibility: "public" | "passcode"; passcode?: string; label?: string; namespace?: string },
+  deps?: CoreDeps,
+): Promise<SetVisibilityResult> {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, args.namespace);
+  return domainSetVisibility(apiClient, ns.id, args);
 }
 
 /**
@@ -734,7 +770,7 @@ export async function revokePasscode(
 export type GateArgs =
   | { action: "get"; slug: string; namespace?: string }
   | { action: "set"; slug: string; fields: GateFieldType[]; namespace?: string }
-  | { action: "remove"; slug: string; namespace?: string }
+  | { action: "remove"; slug: string; visibilityAfter: GateRemoveVisibility; namespace?: string }
   | { action: "submissions"; slug: string; namespace?: string }
   | { action: "clear"; slug: string; namespace?: string };
 
@@ -773,7 +809,7 @@ export async function gate(args: GateArgs, deps?: CoreDeps): Promise<GateResult>
       return { action: "set", ...result };
     }
     case "remove": {
-      const result = await domainRemoveGate(apiClient, ns.id, args.slug);
+      const result = await domainRemoveGate(apiClient, ns.id, args.slug, args.visibilityAfter);
       return { action: "remove", ...result };
     }
     case "submissions": {

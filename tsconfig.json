@@ -8,6 +8,8 @@
     "skipLibCheck": true,
     "outDir": "dist",
     "declaration": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "types": ["bun"]
   },
   "include": ["lib/**/*.ts", "bin/**/*.ts", "mcp/**/*.ts", "tests/**/*.ts"]

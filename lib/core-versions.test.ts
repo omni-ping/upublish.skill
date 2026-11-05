@@ -303,7 +303,7 @@ describe("DW-3.1: core.setSiteVersionsLimit()", () => {
 
 describe("DW-3.4: version bump", () => {
   it("test_DW_3_4_version_bumped_from_0_10_3", async () => {
-    const pkgJson = await import("../package.json", { assert: { type: "json" } });
+    const pkgJson = await import("../package.json", { with: { type: "json" } });
     const version: string = pkgJson.default.version;
     const [major, minor] = version.split(".").map(Number);
     // Must be a minor bump: 0.11.x or higher

@@ -8,6 +8,7 @@
   },
   "homepage": "https://upubli.sh",
   "repository": "https://github.com/omni-ping/upublish.skill",
+  "license": "MIT",
   "keywords": [
     "publishing",
     "static-sites",
