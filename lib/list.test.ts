@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "bun:test";
-import { listSites } from "./list.ts";
+import { listSites, readSiteVisibility } from "./list.ts";
 import { ApiClient } from "./api-client.ts";
 
 const BASE_URL = "https://api.example.com";
@@ -117,5 +117,40 @@ describe("DW-1.3: listSites", () => {
 
     const result = await listSites(apiClient, "ns-test");
     expect(result.sites[0].visibility).toBe("public");
+  });
+});
+
+describe("readSiteVisibility", () => {
+  it("test_DW_2_8_returns_the_named_sites_visibility_among_several", async () => {
+    const api = new ApiClient(
+      BASE_URL,
+      staticTokenProvider,
+      mockFetch(200, { sites: [{ slug: "a", visibility: "public" }, { slug: "b", visibility: "gated" }] }),
+    );
+    expect(await readSiteVisibility(api, "ns-test", "b")).toBe("gated");
+  });
+
+  it("test_DW_2_8_missing_slug_says_not_found_and_couldnt_read", async () => {
+    const api = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, { sites: [] }));
+    const err = (await readSiteVisibility(api, "ns-test", "x").catch((e: Error) => e)) as Error;
+    expect(err.message).toContain("not found");
+    expect(err.message).toContain("couldn't read the site's current visibility");
+  });
+
+  it("test_DW_2_8_missing_or_unknown_visibility_field_refuses_instead_of_guessing", async () => {
+    for (const site of [{ slug: "x" }, { slug: "x", visibility: "banana" }, { slug: "x", visibility: null }]) {
+      const api = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, { sites: [site] }));
+      await expect(readSiteVisibility(api, "ns-test", "x")).rejects.toThrow("couldn't read the site's current visibility");
+    }
+  });
+
+  it("test_response_without_sites_array_is_treated_as_not_found", async () => {
+    const api = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, {}));
+    await expect(readSiteVisibility(api, "ns-test", "x")).rejects.toThrow("not found");
+  });
+
+  it("test_api_failure_propagates", async () => {
+    const api = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(500, { error: "down" }));
+    await expect(readSiteVisibility(api, "ns-test", "x")).rejects.toThrow("API error 500");
   });
 });

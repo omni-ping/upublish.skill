@@ -35,6 +35,7 @@ import {
   StorageApprovalError,
   domain,
   addPasscode,
+  setVisibility,
   listPasscodes,
   revokePasscode,
   gate,
@@ -1016,9 +1017,11 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
     {
       title: "Add Passcode",
       description:
-        "Adds a passcode to a passcode-protected site on upubli.sh. " +
+        "Adds a passcode to a site that is ALREADY passcode-protected on upubli.sh. " +
         "Each passcode can have a unique label for identification (e.g. 'Client A'). " +
-        "The site must already have visibility set to 'passcode'.",
+        "This does NOT make a site private: on a public or gated site the tool refuses " +
+        "(nothing is added) because the passcode would not be enforced. To make a public " +
+        "site private, use the `visibility` tool with visibility 'passcode' and a passcode.",
       inputSchema: {
         slug: z
           .string()
@@ -1054,6 +1057,77 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           `ID:    ${result.passcode.id}\n` +
           `Label: ${result.passcode.label}`,
         );
+      } catch (err) {
+        return errResponse(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "visibility",
+    {
+      title: "Set Site Visibility",
+      description:
+        "Switches a site on upubli.sh between PUBLIC (anyone with the link) and PASSCODE (visitors need a code). " +
+        "This is the only tool that changes a site's visibility.\n\n" +
+        "Side effects:\n" +
+        "  - 'passcode' needs at least one passcode. Pass `passcode` to add one in the same call: the code is " +
+        "added FIRST, then visibility is changed, so the site is never locked with zero codes. With no `passcode` " +
+        "and no existing codes the call is refused and nothing changes. Passcode protection needs a paid plan.\n" +
+        "  - 'public' makes the site visible to everyone. Stored passcodes are kept but not enforced while public.\n" +
+        "  - On a form-gated site, either switch succeeds but the form gate stops being enforced; its settings " +
+        "and submissions remain until you run `gate` with action 'remove'.\n" +
+        "  - If the code is added but the switch then fails, the error says the code was added and what the " +
+        "visibility still is.",
+      inputSchema: {
+        slug: z.string().describe("The URL-safe identifier of the site."),
+        visibility: z
+          .enum(["public", "passcode"])
+          .describe("The visibility to switch to: 'public' or 'passcode'."),
+        passcode: z
+          .string()
+          .optional()
+          .describe(
+            "A passcode to add before switching to 'passcode' (min 4 characters). " +
+            "Required when the site has no passcodes yet. Not allowed with 'public'.",
+          ),
+        label: z
+          .string()
+          .optional()
+          .describe("Label for the added passcode (e.g. 'Client A'). Defaults to 'default'."),
+        namespace: z
+          .string()
+          .optional()
+          .describe("Address name the site belongs to. When omitted, the default address is used."),
+      },
+    },
+    async ({ slug, visibility, passcode, label, namespace }) => {
+      try {
+        const r = await setVisibility(
+          {
+            slug: slug as string,
+            visibility: visibility as "public" | "passcode",
+            passcode: passcode as string | undefined,
+            label: label as string | undefined,
+            namespace: namespace as string | undefined,
+          },
+          coreDeps,
+        );
+        const lines = [
+          `Visibility of "${r.slug}" is now ${r.visibility.toUpperCase()} (was ${r.previous.toUpperCase()}).` +
+            (r.visibility === "passcode" ? ` Active passcodes: ${r.activePasscodes}.` : ""),
+        ];
+        if (r.addedPasscode) lines.push(`Added passcode "${r.addedPasscode.label}" (id ${r.addedPasscode.id}).`);
+        if (r.visibility === "public") {
+          lines.push("Anyone with the link can now view it. Stored passcodes are kept but not enforced while public.");
+        }
+        if (r.previous === "gated") {
+          lines.push(
+            "The form gate is no longer enforced, but its settings and submissions remain. " +
+            "Run `gate` with action 'remove' (and visibility_after) to clear them.",
+          );
+        }
+        return okResponse(lines.join("\n"));
       } catch (err) {
         return errResponse(err);
       }
@@ -1165,9 +1239,12 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         "before accessing the site. Use this tool to set up, inspect, remove, " +
         "view submissions from, or clear submissions for a gate.\n\n" +
         "Actions:\n" +
-        "  set         — Create or update a form gate with the given fields\n" +
+        "  set         — Create or update a form gate with the given fields. SIDE EFFECT: the site's " +
+        "visibility becomes 'gated'; this REPLACES passcode protection (the result says so when it did)\n" +
         "  get         — Get the current gate config and submission count\n" +
-        "  remove      — Remove the gate from a site\n" +
+        "  remove      — Remove the gate. REQUIRES visibility_after ('public' or 'passcode'): " +
+        "without it nothing is changed. 'public' makes the site visible to everyone; 'passcode' keeps it " +
+        "private and needs at least one passcode (the result states the resulting visibility)\n" +
         "  submissions — List visitor submissions captured by the gate\n" +
         "  clear       — Delete all submissions for a gate",
       inputSchema: {
@@ -1176,7 +1253,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           .describe(
             "The gate operation to perform: " +
             "'set' to create/update, 'get' to retrieve config, " +
-            "'remove' to delete the gate, 'submissions' to list visitor data, " +
+            "'remove' to delete the gate (needs visibility_after), 'submissions' to list visitor data, " +
             "'clear' to delete all submissions.",
           ),
         slug: z
@@ -1190,6 +1267,13 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             "Valid values: 'email', 'name', 'company', 'phone'. " +
             "Every field is set as required.",
           ),
+        visibility_after: z
+          .enum(["public", "passcode"])
+          .optional()
+          .describe(
+            "Required when action is 'remove': what the site becomes once the gate is gone. " +
+            "'public' = visible to everyone; 'passcode' = stays private (needs >= 1 passcode).",
+          ),
         namespace: z
           .string()
           .optional()
@@ -1198,7 +1282,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ action, slug, fields, namespace }) => {
+    async ({ action, slug, fields, visibility_after, namespace }) => {
       try {
         const actionStr = action as "set" | "get" | "remove" | "submissions" | "clear";
         const slugStr = slug as string;
@@ -1214,8 +1298,12 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           );
           if (result.action !== "set") return errResponse(new Error("Unexpected result"));
           const fieldsList = formatGateFields(result.gate.fields);
+          const replaced =
+            result.previous_visibility === "passcode"
+              ? `\nWarning: passcode protection replaced by form gate (was: passcode)`
+              : "";
           return okResponse(
-            `Gate set for '${slugStr}'\nFields: ${fieldsList}`,
+            `Gate set for '${slugStr}'\nFields: ${fieldsList}${replaced}`,
           );
         }
 
@@ -1232,12 +1320,25 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         }
 
         if (actionStr === "remove") {
+          const after = visibility_after as "public" | "passcode" | undefined;
+          if (after !== "public" && after !== "passcode") {
+            return errResponse(
+              new Error(
+                `Nothing was changed. Removing a gate must say what the site becomes: call gate again with ` +
+                `action "remove" and visibility_after "public" (visible to everyone) or "passcode" ` +
+                `(stays private; needs at least one passcode).`,
+              ),
+            );
+          }
           const result = await gate(
-            { action: "remove", slug: slugStr, namespace: namespace as string | undefined },
+            { action: "remove", slug: slugStr, visibilityAfter: after, namespace: namespace as string | undefined },
             coreDeps,
           );
           if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
-          return okResponse(result.message);
+          return okResponse(
+            `${result.message}\nSite is now ${result.visibility.toUpperCase()}.` +
+            (result.visibility === "public" ? " Anyone with the link can view it." : ""),
+          );
         }
 
         if (actionStr === "submissions") {

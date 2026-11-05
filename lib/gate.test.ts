@@ -28,7 +28,7 @@ import {
   clearSubmissions,
   formatGateFields,
 } from "./gate.ts";
-import { ApiClient } from "./api-client.ts";
+import { ApiClient, ApiError } from "./api-client.ts";
 import type { GateConfig, GateFieldType, GateSubmission } from "./types.ts";
 
 const BASE_URL = "https://api.example.com";
@@ -319,9 +319,10 @@ describe("DW-4.1/4.6: removeGate", () => {
     };
 
     const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
-    const result = await removeGate(apiClient, NS_ID, SLUG);
+    const result = await removeGate(apiClient, NS_ID, SLUG, "public");
 
-    expect(capturedUrl).toBe(`${BASE_URL}/api/ns/${NS_ID}/sites/${SLUG}/gate`);
+    // The new flow always names the resulting visibility on the wire.
+    expect(capturedUrl).toBe(`${BASE_URL}/api/ns/${NS_ID}/sites/${SLUG}/gate?visibility=public`);
     expect(capturedMethod).toBe("DELETE");
     expect(result.message).toBe("Gate removed");
   });
@@ -332,7 +333,7 @@ describe("DW-4.1/4.6: removeGate", () => {
       staticTokenProvider,
       mockFetch(404, { error: "Gate not found" }),
     );
-    await expect(removeGate(apiClient, NS_ID, SLUG)).rejects.toThrow("API error 404");
+    await expect(removeGate(apiClient, NS_ID, SLUG, "public")).rejects.toThrow("API error 404");
   });
 });
 
@@ -424,5 +425,85 @@ describe("DW-4.1/4.8: clearSubmissions", () => {
       mockFetch(404, { error: "Gate not found" }),
     );
     await expect(clearSubmissions(apiClient, NS_ID, SLUG)).rejects.toThrow("API error 404");
+  });
+});
+
+// ─── Phase 2 (skill-refresh): truthful gate removal + set ────────────────────
+
+function recordingFetch(status: number, body: unknown, seen: { url?: string; method?: string; n: number }) {
+  return async (url: string, init?: RequestInit) => {
+    seen.url = url;
+    seen.method = init?.method;
+    seen.n++;
+    return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  };
+}
+
+describe("DW-2.4/2.7: removeGate visibility_after", () => {
+  it("test_DW_2_4_passcode_sends_query_and_renders_echoed_visibility", async () => {
+    const seen = { n: 0 } as { url?: string; method?: string; n: number };
+    const api = new ApiClient(BASE_URL, staticTokenProvider, recordingFetch(200, { message: "Gate removed", visibility: "passcode" }, seen));
+    const r = await removeGate(api, NS_ID, SLUG, "passcode");
+    expect(seen.url).toBe(`${BASE_URL}/api/ns/${NS_ID}/sites/${SLUG}/gate?visibility=passcode`);
+    expect(seen.method).toBe("DELETE");
+    expect(r).toEqual({ message: "Gate removed", visibility: "passcode" });
+  });
+
+  it("test_DW_2_4_public_with_no_visibility_in_response_is_public_old_server", async () => {
+    const seen = { n: 0 } as { url?: string; method?: string; n: number };
+    const api = new ApiClient(BASE_URL, staticTokenProvider, recordingFetch(200, { message: "Gate removed" }, seen));
+    const r = await removeGate(api, NS_ID, SLUG, "public");
+    expect(r.visibility).toBe("public");
+  });
+
+  it("test_DW_2_7_passcode_requested_but_response_has_no_visibility_throws_exact_text", async () => {
+    const api = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, { message: "Gate removed" }));
+    await expect(removeGate(api, NS_ID, SLUG, "passcode")).rejects.toThrow(
+      `The server did not keep passcode protection — "${SLUG}" is now PUBLIC. Run visibility(slug, "passcode") now.`,
+    );
+  });
+
+  it("test_DW_2_7_passcode_requested_but_response_says_public_throws", async () => {
+    const api = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, { message: "Gate removed", visibility: "public" }));
+    await expect(removeGate(api, NS_ID, SLUG, "passcode")).rejects.toThrow("The server did not keep passcode protection");
+  });
+
+  it("test_DW_2_4_409_no_passcodes_gives_actionable_guidance_gate_untouched", async () => {
+    const api = new ApiClient(
+      BASE_URL,
+      staticTokenProvider,
+      mockFetch(409, { error: "Site has no passcodes; add one before keeping it passcode-protected", code: "no_passcodes" }),
+    );
+    const err = (await removeGate(api, NS_ID, SLUG, "passcode").catch((e: Error) => e)) as Error;
+    expect(err.message).toContain("NOT removed");
+    expect(err.message).toContain('visibility(slug, "passcode", passcode: "<code>")');
+    expect(err.cause).toBeInstanceOf(ApiError);
+  });
+
+  it("test_DW_2_4_other_409_is_not_rewritten", async () => {
+    const api = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(409, { error: "conflict" }));
+    await expect(removeGate(api, NS_ID, SLUG, "public")).rejects.toThrow("API error 409: conflict");
+  });
+
+  it("test_DW_2_4_invalid_visibility_after_throws_without_a_request", async () => {
+    const seen = { n: 0 } as { url?: string; method?: string; n: number };
+    const api = new ApiClient(BASE_URL, staticTokenProvider, recordingFetch(200, {}, seen));
+    await expect(removeGate(api, NS_ID, SLUG, undefined as unknown as "public")).rejects.toThrow("visibility_after must be");
+    expect(seen.n).toBe(0);
+  });
+});
+
+describe("DW-2.5: setGate previous_visibility", () => {
+  it("test_DW_2_5_set_gate_returns_previous_visibility_when_present", async () => {
+    const api = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, { gate: GATE_CONFIG, previous_visibility: "passcode" }));
+    const r = await setGate(api, NS_ID, SLUG, ["email"]);
+    expect(r.previous_visibility).toBe("passcode");
+  });
+
+  it("test_DW_2_5_set_gate_old_server_or_garbage_previous_visibility_is_undefined", async () => {
+    for (const body of [{ gate: GATE_CONFIG }, { gate: GATE_CONFIG, previous_visibility: "banana" }]) {
+      const api = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, body));
+      expect((await setGate(api, NS_ID, SLUG, ["email"])).previous_visibility).toBeUndefined();
+    }
   });
 });

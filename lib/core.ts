@@ -57,6 +57,8 @@ import type {
 } from "./versions.ts";
 import { setAnalyticsEnabled as domainSetAnalyticsEnabled } from "./analytics.ts";
 import type { SetAnalyticsResult } from "./analytics.ts";
+import { setVisibility as domainSetVisibility } from "./visibility.ts";
+import type { SetVisibilityResult } from "./visibility.ts";
 import {
   addPasscode as domainAddPasscode,
   listPasscodes as domainListPasscodes,
@@ -80,6 +82,7 @@ import type {
   GetGateResult,
   SetGateResult,
   RemoveGateResult,
+  GateRemoveVisibility,
   GetSubmissionsResult,
   ClearSubmissionsResult,
 } from "./gate.ts";
@@ -161,6 +164,7 @@ export type { PromoteResult };
 export type { ListVersionsResult, DeleteVersionResult, RestoreVersionResult, SetVersionsLimitResult, SiteVersion };
 export type { SetAnalyticsResult };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
+export type { SetVisibilityResult, GateRemoveVisibility };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
 export { formatGateFields };
 export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, ChangeMemberRoleResult };
@@ -642,7 +646,8 @@ export async function analytics(
 }
 
 /**
- * Adds a passcode to a site.
+ * Adds a passcode to a passcode-protected site. Refuses (no POST) when the site
+ * is public/gated — use setVisibility to make it private.
  * Throws "Not authenticated" if no credentials are stored.
  *
  * @param slug - The site slug.
@@ -661,6 +666,23 @@ export async function addPasscode(
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
   return domainAddPasscode(apiClient, ns.id, slug, code, label);
+}
+
+/**
+ * Switches a site between public and passcode-protected (see lib/visibility.ts).
+ * With `passcode`, the code is added BEFORE the switch so the site is never
+ * passcode-locked with zero codes. Throws "Not authenticated" if no credentials.
+ *
+ * @param args - slug, target visibility, optional passcode/label/namespace.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function setVisibility(
+  args: { slug: string; visibility: "public" | "passcode"; passcode?: string; label?: string; namespace?: string },
+  deps?: CoreDeps,
+): Promise<SetVisibilityResult> {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, args.namespace);
+  return domainSetVisibility(apiClient, ns.id, args);
 }
 
 /**
@@ -734,7 +756,7 @@ export async function revokePasscode(
 export type GateArgs =
   | { action: "get"; slug: string; namespace?: string }
   | { action: "set"; slug: string; fields: GateFieldType[]; namespace?: string }
-  | { action: "remove"; slug: string; namespace?: string }
+  | { action: "remove"; slug: string; visibilityAfter: GateRemoveVisibility; namespace?: string }
   | { action: "submissions"; slug: string; namespace?: string }
   | { action: "clear"; slug: string; namespace?: string };
 
@@ -773,7 +795,7 @@ export async function gate(args: GateArgs, deps?: CoreDeps): Promise<GateResult>
       return { action: "set", ...result };
     }
     case "remove": {
-      const result = await domainRemoveGate(apiClient, ns.id, args.slug);
+      const result = await domainRemoveGate(apiClient, ns.id, args.slug, args.visibilityAfter);
       return { action: "remove", ...result };
     }
     case "submissions": {

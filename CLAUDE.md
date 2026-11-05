@@ -19,11 +19,11 @@ There is no build step for development — Bun runs TypeScript directly. The `di
 ## Architecture
 
 ```
-mcp/index.ts       MCP server adapter — registers 26 always-on tools plus 5 env-gated admin tools:
+mcp/index.ts       MCP server adapter — registers 27 always-on tools plus 5 env-gated admin tools:
                    • auth/account: login, status, logout, namespace_create, domain, rename, upgrade
                    • sites: publish, list, delete, promote, qrcode, analytics
                    • versions: versions_list, versions_delete, versions_restore, versions_limit
-                   • access: passcode_add, passcode_list, passcode_revoke (now three tools, not one), gate, members
+                   • access: visibility, passcode_add, passcode_list, passcode_revoke (now three tools, not one), gate, members
                    • site data add-on (paid; shared data for published sites): data (status/enable/disable/wipe),
                      data_collection (list/get/set/delete), data_rows (list/export/archive/delete/create/put/import),
                      data_jwt (set/clear)

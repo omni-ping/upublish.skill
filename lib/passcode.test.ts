@@ -8,14 +8,37 @@
  */
 
 import { describe, it, expect } from "bun:test";
-import { addPasscode, listPasscodes, revokePasscode } from "./passcode.ts";
-import { ApiClient } from "./api-client.ts";
+import { addPasscode, createPasscode, withPaidPlanHint, listPasscodes, revokePasscode } from "./passcode.ts";
+import { ApiClient, ApiError } from "./api-client.ts";
 
 const BASE_URL = "https://api.example.com";
 const TOKEN = "test-token";
 const staticTokenProvider = async () => TOKEN;
 const NS_ID = "ns-test";
 const SLUG = "my-site";
+
+/** Routes by method+path; records every call so order and absence can be asserted. */
+function routedFetch(
+  routes: Record<string, { status: number; body: unknown }>,
+  calls: string[] = [],
+): (url: string, init?: RequestInit) => Promise<Response> {
+  return async (url: string, init?: RequestInit) => {
+    const key = `${init?.method ?? "GET"} ${url.replace(BASE_URL, "")}`;
+    calls.push(key);
+    const r = routes[key] ?? { status: 404, body: { error: `unrouted ${key}` } };
+    return new Response(JSON.stringify(r.body), {
+      status: r.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+}
+
+const LIST_KEY = `GET /api/ns/${NS_ID}/sites`;
+const POST_KEY = `POST /api/ns/${NS_ID}/sites/${SLUG}/passcodes`;
+const siteList = (visibility: unknown) => ({
+  status: 200,
+  body: { sites: [{ slug: SLUG, ...(visibility === undefined ? {} : { visibility }) }] },
+});
 
 function mockFetch(
   status: number,
@@ -37,6 +60,13 @@ describe("DW-5.3: addPasscode", () => {
     let capturedBody: unknown = null;
 
     const fetchFn = async (url: string, init?: RequestInit) => {
+      // New flow: the site's visibility is read (GET /sites) before the POST.
+      if (url.endsWith(`/api/ns/${NS_ID}/sites`)) {
+        return new Response(
+          JSON.stringify({ sites: [{ slug: SLUG, visibility: "passcode" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
       capturedUrl = url;
       capturedMethod = init?.method ?? "";
       capturedBody = init?.body ? JSON.parse(init.body as string) : null;
@@ -60,7 +90,10 @@ describe("DW-5.3: addPasscode", () => {
     const apiClient = new ApiClient(
       BASE_URL,
       staticTokenProvider,
-      mockFetch(403, { error: "Tier limit reached" }),
+      routedFetch({
+        [LIST_KEY]: siteList("passcode"),
+        [POST_KEY]: { status: 403, body: { error: "Tier limit reached" } },
+      }),
     );
 
     await expect(addPasscode(apiClient, NS_ID, SLUG, "code", "label")).rejects.toThrow("API error 403");
@@ -178,5 +211,124 @@ describe("DW-5.5: revokePasscode", () => {
     );
 
     await expect(revokePasscode(apiClient, NS_ID, SLUG, "pc-99")).rejects.toThrow("API error 404");
+  });
+});
+
+// ─── Phase 2 (skill-refresh): addPasscode refuses to "protect" a non-passcode site ──
+
+describe("DW-2.3: addPasscode guards on current visibility", () => {
+  it("test_DW_2_3_public_site_refused_with_exact_text_and_no_post", async () => {
+    const calls: string[] = [];
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, routedFetch({ [LIST_KEY]: siteList("public") }, calls));
+    await expect(addPasscode(apiClient, NS_ID, SLUG, "abcd", "x")).rejects.toThrow(
+      `Site "${SLUG}" is PUBLIC — adding a passcode does not protect it. ` +
+      `To make it private, call visibility(slug, "passcode", passcode: "<code>").`,
+    );
+    expect(calls).toEqual([LIST_KEY]);
+  });
+
+  it("test_DW_2_3_gated_site_refused_explains_form_gate_replaces_passcodes_no_post", async () => {
+    const calls: string[] = [];
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, routedFetch({ [LIST_KEY]: siteList("gated") }, calls));
+    const err = await addPasscode(apiClient, NS_ID, SLUG, "abcd", "x").catch((e: Error) => e);
+    expect((err as Error).message).toContain("GATED");
+    expect((err as Error).message).toContain("form gate replaces passcodes");
+    expect(calls).toEqual([LIST_KEY]);
+  });
+
+  it("test_DW_2_3_signed_and_identity_sites_refused_no_post", async () => {
+    for (const v of ["signed", "identity"]) {
+      const calls: string[] = [];
+      const apiClient = new ApiClient(BASE_URL, staticTokenProvider, routedFetch({ [LIST_KEY]: siteList(v) }, calls));
+      await expect(addPasscode(apiClient, NS_ID, SLUG, "abcd", "x")).rejects.toThrow(v.toUpperCase());
+      expect(calls).toEqual([LIST_KEY]);
+    }
+  });
+
+  it("test_DW_2_3_passcode_site_still_posts_after_one_site_read", async () => {
+    const calls: string[] = [];
+    const apiClient = new ApiClient(
+      BASE_URL,
+      staticTokenProvider,
+      routedFetch(
+        {
+          [LIST_KEY]: siteList("passcode"),
+          [POST_KEY]: { status: 201, body: { id: "pc-9", label: "x", created_at: "t" } },
+        },
+        calls,
+      ),
+    );
+    const r = await addPasscode(apiClient, NS_ID, SLUG, "abcd", "x");
+    expect(r.passcode.id).toBe("pc-9");
+    expect(calls).toEqual([LIST_KEY, POST_KEY]);
+  });
+
+  it("test_DW_2_8_missing_visibility_field_refused_no_post", async () => {
+    const calls: string[] = [];
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, routedFetch({ [LIST_KEY]: siteList(undefined) }, calls));
+    await expect(addPasscode(apiClient, NS_ID, SLUG, "abcd", "x")).rejects.toThrow(
+      "couldn't read the site's current visibility",
+    );
+    expect(calls).toEqual([LIST_KEY]);
+  });
+
+  it("test_DW_2_3_unrecognised_visibility_value_refused_not_guessed", async () => {
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, routedFetch({ [LIST_KEY]: siteList("weird") }));
+    await expect(addPasscode(apiClient, NS_ID, SLUG, "abcd", "x")).rejects.toThrow(
+      "couldn't read the site's current visibility",
+    );
+  });
+
+  it("test_DW_2_3_unknown_slug_says_not_found_no_post", async () => {
+    const calls: string[] = [];
+    const apiClient = new ApiClient(
+      BASE_URL,
+      staticTokenProvider,
+      routedFetch({ [LIST_KEY]: { status: 200, body: { sites: [{ slug: "other", visibility: "passcode" }] } } }, calls),
+    );
+    await expect(addPasscode(apiClient, NS_ID, SLUG, "abcd", "x")).rejects.toThrow("not found");
+    expect(calls).toEqual([LIST_KEY]);
+  });
+
+  it("test_DW_2_3_empty_code_rejected_before_any_request", async () => {
+    const calls: string[] = [];
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, routedFetch({}, calls));
+    await expect(addPasscode(apiClient, NS_ID, SLUG, "", "x")).rejects.toThrow("code is required");
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("DW-2.2: createPasscode / withPaidPlanHint", () => {
+  it("test_DW_2_2_create_passcode_posts_without_reading_visibility", async () => {
+    const calls: string[] = [];
+    const apiClient = new ApiClient(
+      BASE_URL,
+      staticTokenProvider,
+      routedFetch({ [POST_KEY]: { status: 201, body: { id: "p", label: "l", created_at: "t" } } }, calls),
+    );
+    await createPasscode(apiClient, NS_ID, SLUG, "abcd", "l");
+    expect(calls).toEqual([POST_KEY]);
+  });
+
+  it("test_DW_2_2_free_tier_403_carries_upgrade_hint_and_stays_an_ApiError", async () => {
+    const apiClient = new ApiClient(
+      BASE_URL,
+      staticTokenProvider,
+      routedFetch({ [POST_KEY]: { status: 403, body: { error: "Passcode-protected sites require a paid plan" } } }),
+    );
+    const err = await createPasscode(apiClient, NS_ID, SLUG, "abcd", "l").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(403);
+    expect((err as Error).message).toContain("paid plan");
+    expect((err as Error).message).toContain("`upgrade`");
+  });
+
+  it("test_DW_2_2_non_tier_errors_get_no_hint", () => {
+    const other = new ApiError(403, { error: "Insufficient permissions" }, "API error 403: Insufficient permissions");
+    expect(withPaidPlanHint(other)).toBe(other);
+    const notFound = new ApiError(404, null, "API error 404: paid plan");
+    expect(withPaidPlanHint(notFound)).toBe(notFound);
+    const plain = new Error("boom");
+    expect(withPaidPlanHint(plain)).toBe(plain);
   });
 });

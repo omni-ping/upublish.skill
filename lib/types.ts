@@ -5,8 +5,20 @@
  * repo must be self-contained for standalone installations.
  */
 
-/** Site visibility mode. */
-export type Visibility = "public" | "passcode";
+/**
+ * Site visibility mode as the platform reports it. `publish` and the
+ * `visibility` tool only ever SET public/passcode; gated/signed/identity are
+ * produced by other flows (form gate, site-data) and must be read truthfully.
+ */
+export type Visibility = "public" | "passcode" | "gated" | "signed" | "identity";
+
+/** Every value the platform can report, for runtime validation of API responses. */
+export const VISIBILITIES: readonly Visibility[] = ["public", "passcode", "gated", "signed", "identity"];
+
+/** Narrows an untrusted API value to a known Visibility (never guesses). */
+export function asVisibility(v: unknown): Visibility | undefined {
+  return VISIBILITIES.find((x) => x === v);
+}
 
 /** Per-namespace role granted to the authenticated caller. */
 export type NamespaceRole = "owner" | "admin" | "user";
