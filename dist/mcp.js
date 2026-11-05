@@ -26717,10 +26717,46 @@ async function checkForUpdate(current, deps = {}) {
 function formatUpdateNote(current, latest) {
   return `Note: the upublish plugin is out of date (installed ${current}, latest ${latest}). ` + `Tell the user to update: in Claude Code run /plugin, open Marketplaces, select upublish.skill and ` + `choose Enable auto-update (or run /plugin update upublish@upublish.skill), then /reload-plugins; ` + `on other hosts (Codex, Gemini CLI, Antigravity CLI) update the upublish plugin/extension.`;
 }
+// lib/runtime-check.ts
+var MIN_BUN_VERSION = "1.4.4";
+function parseVersion(v) {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)/.exec(v.trim());
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+function checkBunRuntime(version) {
+  const have = version === undefined ? null : parseVersion(version);
+  const min = parseVersion(MIN_BUN_VERSION);
+  if (!have || !min)
+    return null;
+  for (let i = 0;i < 3; i++) {
+    if (have[i] !== min[i]) {
+      return have[i] > min[i] ? null : `Note: this upublish server is running on Bun ${version}, older than the required ${MIN_BUN_VERSION}. Run \`bun upgrade\` and restart your AI tool.`;
+    }
+  }
+  return null;
+}
+// lib/types.ts
+var VISIBILITIES = ["public", "passcode", "gated", "signed", "identity"];
+function asVisibility(v) {
+  return VISIBILITIES.find((x) => x === v);
+}
+
 // lib/list.ts
 async function listSites(apiClient, nsId) {
   const response = await apiClient.get(`/api/ns/${nsId}/sites`);
   return { sites: response.sites };
+}
+async function readSiteVisibility(apiClient, nsId, slug) {
+  const { sites } = await listSites(apiClient, nsId);
+  const site = (sites ?? []).find((s) => s.slug === slug);
+  if (!site) {
+    throw new Error(`Nothing was changed: site "${slug}" not found in this address, so I couldn't read the site's current visibility.`);
+  }
+  const visibility = asVisibility(site.visibility);
+  if (!visibility) {
+    throw new Error(`Nothing was changed: couldn't read the site's current visibility for "${slug}" (the site list had no recognised visibility).`);
+  }
+  return visibility;
 }
 
 // lib/publish.ts
@@ -26734,7 +26770,7 @@ import {
   readSync,
   statSync
 } from "fs";
-import { join as join4, relative } from "path";
+import { join as join4, relative, sep } from "path";
 var STORAGE_APPROVAL_URL_FALLBACK = "https://upubli.sh/profile/settings?storage_request=1";
 var ANALYTICS_UPGRADE_URL = "https://upubli.sh/pricing";
 
@@ -26784,16 +26820,61 @@ function isValidSlug(slug) {
 }
 var EXCLUDED_DIRS = new Set([".git", "node_modules", ".svn", ".hg"]);
 var EXCLUDED_FILES = new Set([".DS_Store", "Thumbs.db", ".upublishignore"]);
-function isDefaultExcluded(name, isDir) {
+var SECRET_DIRS = new Set([".ssh", ".aws"]);
+var SECRET_FILES = new Set([".envrc", ".npmrc", ".netrc", ".pypirc", "credentials.json"]);
+var SECRET_PREFIXES = ["id_rsa", "id_ed25519", "id_ecdsa", "id_dsa", "secrets."];
+var SECRET_SUFFIXES = [".p12", ".pfx"];
+function isSecretName(name, isDir) {
+  const n = name.toLowerCase();
   if (isDir)
-    return EXCLUDED_DIRS.has(name);
+    return SECRET_DIRS.has(n);
+  return SECRET_FILES.has(n) || SECRET_PREFIXES.some((p) => n.startsWith(p)) || SECRET_SUFFIXES.some((x) => n.endsWith(x));
+}
+function isDefaultExcluded(name, isDir, includeSourcemaps = false) {
+  if (isDir)
+    return EXCLUDED_DIRS.has(name) || isSecretName(name, true);
   if (EXCLUDED_FILES.has(name))
     return true;
   if (name === ".env" || name.startsWith(".env."))
     return true;
   if (name.endsWith(".pem") || name.endsWith(".key"))
     return true;
-  return false;
+  if (isSecretName(name, false))
+    return true;
+  return !includeSourcemaps && name.toLowerCase().endsWith(".map");
+}
+var REPO_SIGNAL_FILES = new Set([
+  "package.json",
+  "tsconfig.json",
+  "package-lock.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "bun.lock",
+  "bun.lockb",
+  "Cargo.lock",
+  "Gemfile.lock",
+  "poetry.lock",
+  "composer.lock",
+  "go.sum",
+  "Dockerfile"
+]);
+var BUILD_DIRS = ["dist", "build", "out", "public", "_site"];
+function preflightCheck(files, excluded, opts) {
+  const paths = files.map((f) => f.relPath.split(sep).join("/"));
+  const topLevel = new Set(paths.map((p) => p.split("/")[0]));
+  const buildDirs = BUILD_DIRS.filter((d) => paths.includes(`${d}/index.html`));
+  const hint = buildDirs.length > 0 ? ` Found ${buildDirs.map((d) => `'${d}/'`).join(", ")} with an index.html, which is probably what you want to publish.` : "";
+  const signals = [
+    ...[...topLevel].filter((n) => REPO_SIGNAL_FILES.has(n)),
+    ...topLevel.has("src") && paths.some((p) => p.startsWith("src/")) ? ["src/"] : [],
+    ...excluded.includes(".git/") ? [".git/"] : []
+  ];
+  if (signals.length >= 2 && !opts.allowProjectFiles) {
+    throw new Error(`This looks like a project folder, not a built site (found ${signals.join(", ")}). Publishing it would upload source files.${hint} ` + `Publish the build output directory instead, or pass allow_project_files: true if you really mean to publish this folder.`);
+  }
+  if (!paths.includes("index.html") && !opts.allowNoIndex) {
+    throw new Error(`No index.html at the top level of the folder, so the site would have no home page.${hint} ` + `Publish the folder that contains index.html, or pass allow_no_index: true to publish anyway.`);
+  }
 }
 var SUSPICIOUS_NAMES = new Set([
   "nginx.conf",
@@ -26918,12 +26999,12 @@ async function hashFileChunkedYielding(fullPath, yieldEvery, bytesSinceYield) {
     closeSync(fd);
   }
 }
-function walkFiles(rootDir, currentDir, result, ignorePatterns) {
+function walkFiles(rootDir, currentDir, result, ignorePatterns, includeSourcemaps) {
   const entries = readdirSync(currentDir, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = join4(currentDir, entry.name);
     const relPath = relative(rootDir, fullPath);
-    if (isDefaultExcluded(entry.name, entry.isDirectory())) {
+    if (isDefaultExcluded(entry.name, entry.isDirectory(), includeSourcemaps)) {
       result.excluded.push(entry.isDirectory() ? `${relPath}/` : relPath);
       continue;
     }
@@ -26932,7 +27013,7 @@ function walkFiles(rootDir, currentDir, result, ignorePatterns) {
       continue;
     }
     if (entry.isDirectory()) {
-      walkFiles(rootDir, fullPath, result, ignorePatterns);
+      walkFiles(rootDir, fullPath, result, ignorePatterns, includeSourcemaps);
     } else if (entry.isFile()) {
       if (isSuspicious(entry.name)) {
         result.warnings.push(relPath);
@@ -26941,7 +27022,7 @@ function walkFiles(rootDir, currentDir, result, ignorePatterns) {
     }
   }
 }
-function listFiles(dirPath) {
+function listFiles(dirPath, opts) {
   let ignorePatterns = [];
   const ignoreFile = join4(dirPath, ".upublishignore");
   try {
@@ -26950,7 +27031,7 @@ function listFiles(dirPath) {
     }
   } catch {}
   const result = { files: [], excluded: [], warnings: [] };
-  walkFiles(dirPath, dirPath, result, ignorePatterns);
+  walkFiles(dirPath, dirPath, result, ignorePatterns, opts?.includeSourcemaps === true);
   return result;
 }
 async function hashFiles(list, opts) {
@@ -27061,6 +27142,35 @@ function resolveDefaultTitle(slug, namespaceName, existingTitle) {
   }
   return namespaceName ?? slug;
 }
+async function readPlanTier(apiClient, { replacesLive, namespaceRole }) {
+  if (!replacesLive || namespaceRole !== undefined && namespaceRole !== "owner")
+    return null;
+  try {
+    const res = await apiClient.get("/api/space");
+    const tier = res?.space?.tier;
+    if (tier === "free")
+      return "free";
+    return tier === "pro" || tier === "max" ? "paid" : null;
+  } catch (err) {
+    log(`[publish] plan tier read failed: ${err.message}`);
+    return null;
+  }
+}
+function renderReplaceLine(r) {
+  if (r.preview_url)
+    return `
+Live site unchanged (preview)`;
+  const base = r.replacedVersion;
+  if (base === null || base === undefined)
+    return "";
+  const head = `
+Replaced live version v${base} \u2192 v${r.version}`;
+  if (r.planTier === "paid")
+    return `${head}. Undo: versions_restore(${r.site.slug}, ${base})`;
+  if (r.planTier === "free")
+    return `${head} (free plan: the previous version can't be restored)`;
+  return `${head} (restoring needs a paid plan)`;
+}
 async function publish(opts) {
   const {
     apiClient,
@@ -27077,6 +27187,11 @@ async function publish(opts) {
     preview,
     force,
     analyticsEnabled,
+    spa,
+    allowNoIndex,
+    allowProjectFiles,
+    includeSourcemaps,
+    namespaceRole,
     fetchFn = fetch,
     onProgress,
     onHashProgress
@@ -27098,10 +27213,11 @@ async function publish(opts) {
   if (visibility === "passcode" && !passcode) {
     throw new Error("passcode is required when visibility is 'passcode'");
   }
-  const { files: fileList, excluded, warnings } = listFiles(directory);
+  const { files: fileList, excluded, warnings } = listFiles(directory, { includeSourcemaps });
   if (fileList.length === 0) {
     throw new Error("Directory is empty \u2014 no files to publish");
   }
+  preflightCheck(fileList, excluded, { allowNoIndex, allowProjectFiles });
   const collectedFiles = await hashFiles(fileList, { onHashProgress });
   const files = Object.entries(collectedFiles).map(([path, file]) => ({
     path,
@@ -27120,6 +27236,7 @@ async function publish(opts) {
       passcode_label: visibility === "passcode" ? passcodeLabel ?? "default" : undefined,
       preview,
       analytics_enabled: analyticsEnabled,
+      spa,
       path_prefix: pathPrefix
     });
   } catch (err) {
@@ -27141,6 +27258,12 @@ async function publish(opts) {
     url: finalizeResult.url,
     preview_url: finalizeResult.preview_url,
     site: finalizeResult.site,
+    version: manifestResult.version,
+    replacedVersion: manifestResult.base_version ?? null,
+    planTier: await readPlanTier(apiClient, {
+      replacesLive: manifestResult.base_version != null && !preview,
+      namespaceRole
+    }),
     warnings,
     excluded,
     uploadedFiles,
@@ -27262,15 +27385,89 @@ async function setAnalyticsEnabled(apiClient, nsId, slug, enabled) {
   }
 }
 
+// lib/upgrade.ts
+var VALID_PLANS = ["pro", "max"];
+var VALID_INTERVALS = ["month", "year"];
+var DEFAULT_PLAN = "pro";
+var DEFAULT_INTERVAL = "month";
+var UPGRADE_HINT = "To lift this limit, run the `upgrade` tool to open the checkout page in your browser.";
+function isValidPlan(v) {
+  return VALID_PLANS.includes(v);
+}
+function isValidInterval(v) {
+  return VALID_INTERVALS.includes(v);
+}
+async function startUpgrade(deps, args = {}) {
+  const plan = args.plan ?? DEFAULT_PLAN;
+  if (!isValidPlan(plan)) {
+    return {
+      ok: false,
+      error: `Invalid plan '${plan}'. Choose one of: ${VALID_PLANS.join(", ")}.`
+    };
+  }
+  const interval = args.interval ?? DEFAULT_INTERVAL;
+  if (!isValidInterval(interval)) {
+    return {
+      ok: false,
+      error: `Invalid interval '${interval}'. Choose one of: ${VALID_INTERVALS.join(", ")}.`
+    };
+  }
+  let url;
+  try {
+    const res = await deps.apiClient.post("/api/billing/checkout", { plan, interval });
+    if (!res || typeof res.url !== "string" || res.url.length === 0) {
+      return { ok: false, error: "Checkout did not return a URL. Please try again." };
+    }
+    url = res.url;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+  try {
+    await deps.openBrowser(url);
+  } catch {
+    return { ok: false, url, error: "Could not open a browser automatically." };
+  }
+  return { ok: true, url };
+}
+function isFreeTierLimit403(err) {
+  if (!(err instanceof ApiError) || err.status !== 403)
+    return false;
+  const body = err.rawBodyData;
+  if (body === null || typeof body !== "object")
+    return false;
+  const b = body;
+  if ("code" in b && b.code !== undefined && b.code !== null)
+    return false;
+  return b.limit !== undefined && b.usage !== undefined;
+}
+function appendUpgradeHint(message, err) {
+  return isFreeTierLimit403(err) ? `${message} ${UPGRADE_HINT}` : message;
+}
+
 // lib/passcode.ts
-async function addPasscode(apiClient, nsId, slug, code, label) {
+function withPaidPlanHint(err) {
+  if (!(err instanceof ApiError) || err.status !== 403)
+    return err;
+  if (!/paid plan/i.test(err.message))
+    return err;
+  return new ApiError(err.status, err.rawBodyData, `${err.message} ${UPGRADE_HINT}`);
+}
+function assertPasscodeInput(code, label) {
   if (!code || code.trim().length === 0) {
     throw new Error("code is required");
   }
   if (!label || label.trim().length === 0) {
     throw new Error("label is required");
   }
-  const result = await apiClient.post(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/passcodes`, { code, label });
+}
+async function createPasscode(apiClient, nsId, slug, code, label) {
+  assertPasscodeInput(code, label);
+  let result;
+  try {
+    result = await apiClient.post(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/passcodes`, { code, label });
+  } catch (err) {
+    throw withPaidPlanHint(err);
+  }
   return {
     passcode: {
       id: result.id,
@@ -27278,6 +27475,23 @@ async function addPasscode(apiClient, nsId, slug, code, label) {
       created_at: result.created_at
     }
   };
+}
+function passcodeRefusal(slug, visibility) {
+  if (visibility === "public") {
+    return `Site "${slug}" is PUBLIC \u2014 adding a passcode does not protect it. ` + `To make it private, call visibility(slug, "passcode", passcode: "<code>").`;
+  }
+  if (visibility === "gated") {
+    return `Site "${slug}" is GATED \u2014 the form gate replaces passcodes, so a passcode would not be enforced. ` + `To switch it to passcode protection, call visibility(slug, "passcode", passcode: "<code>"); ` + `the form gate's settings and submissions remain until you run gate remove.`;
+  }
+  return `Site "${slug}" is ${visibility.toUpperCase()} \u2014 passcodes only apply to passcode-protected sites. ` + `To switch it, call visibility(slug, "passcode", passcode: "<code>").`;
+}
+async function addPasscode(apiClient, nsId, slug, code, label) {
+  assertPasscodeInput(code, label);
+  const visibility = await readSiteVisibility(apiClient, nsId, slug);
+  if (visibility !== "passcode") {
+    throw new Error(passcodeRefusal(slug, visibility));
+  }
+  return createPasscode(apiClient, nsId, slug, code, label);
 }
 async function listPasscodes(apiClient, nsId, slug) {
   const response = await apiClient.get(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/passcodes`);
@@ -27289,6 +27503,49 @@ async function revokePasscode(apiClient, nsId, slug, id) {
   }
   const result = await apiClient.delete(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/passcodes/${encodeURIComponent(id)}`);
   return { message: result.message };
+}
+
+// lib/visibility.ts
+async function setVisibility(apiClient, nsId, args) {
+  const { slug, visibility, passcode } = args;
+  const label = args.label ?? "default";
+  if (visibility !== "public" && visibility !== "passcode") {
+    throw new Error(`visibility must be "public" or "passcode" (got "${String(visibility)}")`);
+  }
+  if (passcode !== undefined) {
+    if (visibility !== "passcode") {
+      throw new Error(`passcode can only be supplied with visibility "passcode"; "public" would ignore it.`);
+    }
+    assertPasscodeInput(passcode, label);
+  }
+  const previous = await readSiteVisibility(apiClient, nsId, slug);
+  const base = `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}`;
+  let existing = 0;
+  if (visibility === "passcode") {
+    existing = (await listPasscodes(apiClient, nsId, slug)).passcodes.length;
+    if (passcode === undefined && existing === 0) {
+      throw new Error(`Site "${slug}" has no passcodes, so switching it to passcode protection would lock everyone out. ` + `Pass passcode: "<code>" to add one in the same call. Visibility is unchanged (${previous.toUpperCase()}).`);
+    }
+  }
+  const added = passcode !== undefined ? (await createPasscode(apiClient, nsId, slug, passcode, label)).passcode : undefined;
+  let response;
+  try {
+    response = await apiClient.patch(`${base}/visibility`, { visibility });
+  } catch (err) {
+    const reason = withPaidPlanHint(err).message;
+    throw new Error((added ? `Passcode "${added.label}" (id ${added.id}) WAS added to "${slug}", but ` : ``) + `setting visibility to ${visibility.toUpperCase()} failed: ${reason}. ` + `Site "${slug}" is still ${previous.toUpperCase()}.`, { cause: err });
+  }
+  const echoed = asVisibility(response?.site?.visibility);
+  if (echoed !== undefined && echoed !== visibility) {
+    throw new Error(`The server reports "${slug}" is ${echoed.toUpperCase()}, not ${visibility.toUpperCase()}. ` + `Check the site's visibility before relying on it.`);
+  }
+  return {
+    slug,
+    visibility: echoed ?? visibility,
+    previous,
+    activePasscodes: visibility === "passcode" ? existing + (added ? 1 : 0) : 0,
+    ...added ? { addedPasscode: added } : {}
+  };
 }
 
 // lib/gate.ts
@@ -27304,11 +27561,27 @@ async function setGate(apiClient, nsId, slug, fields) {
     fields: fields.map((type) => ({ type, required: true }))
   };
   const response = await apiClient.put(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/gate`, body);
-  return { gate: response.gate };
+  return { gate: response.gate, previous_visibility: asVisibility(response.previous_visibility) };
 }
-async function removeGate(apiClient, nsId, slug) {
-  const response = await apiClient.delete(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/gate`);
-  return { message: response.message };
+async function removeGate(apiClient, nsId, slug, visibilityAfter) {
+  if (visibilityAfter !== "public" && visibilityAfter !== "passcode") {
+    throw new Error(`visibility_after must be "public" or "passcode" (got "${String(visibilityAfter)}")`);
+  }
+  let response;
+  try {
+    response = await apiClient.delete(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/gate?visibility=${visibilityAfter}`);
+  } catch (err) {
+    const body = err instanceof ApiError ? err.rawBodyData : null;
+    if (err instanceof ApiError && err.status === 409 && body?.code === "no_passcodes") {
+      throw new Error(`Site "${slug}" has no passcodes, so it cannot stay passcode-protected after the gate is removed. ` + `The gate was NOT removed. Run visibility(slug, "passcode", passcode: "<code>") first ` + `(it works on a gated site), then retry with visibility_after "passcode" \u2014 or use visibility_after "public".`, { cause: err });
+    }
+    throw err;
+  }
+  const visibility = asVisibility(response.visibility) ?? "public";
+  if (visibilityAfter === "passcode" && visibility !== "passcode") {
+    throw new Error(`The server did not keep passcode protection \u2014 "${slug}" is now PUBLIC. Run visibility(slug, "passcode") now.`);
+  }
+  return { message: response.message, visibility };
 }
 async function getSubmissions(apiClient, nsId, slug) {
   const response = await apiClient.get(`/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/gate/submissions`);
@@ -27569,65 +27842,6 @@ async function adminDomains(apiClient, args) {
       return apiClient.delete(`/api/admin/domains/${args.domainId}`);
     }
   }
-}
-
-// lib/upgrade.ts
-var VALID_PLANS = ["pro", "max"];
-var VALID_INTERVALS = ["month", "year"];
-var DEFAULT_PLAN = "pro";
-var DEFAULT_INTERVAL = "month";
-var UPGRADE_HINT = "To lift this limit, run the `upgrade` tool to open the checkout page in your browser.";
-function isValidPlan(v) {
-  return VALID_PLANS.includes(v);
-}
-function isValidInterval(v) {
-  return VALID_INTERVALS.includes(v);
-}
-async function startUpgrade(deps, args = {}) {
-  const plan = args.plan ?? DEFAULT_PLAN;
-  if (!isValidPlan(plan)) {
-    return {
-      ok: false,
-      error: `Invalid plan '${plan}'. Choose one of: ${VALID_PLANS.join(", ")}.`
-    };
-  }
-  const interval = args.interval ?? DEFAULT_INTERVAL;
-  if (!isValidInterval(interval)) {
-    return {
-      ok: false,
-      error: `Invalid interval '${interval}'. Choose one of: ${VALID_INTERVALS.join(", ")}.`
-    };
-  }
-  let url;
-  try {
-    const res = await deps.apiClient.post("/api/billing/checkout", { plan, interval });
-    if (!res || typeof res.url !== "string" || res.url.length === 0) {
-      return { ok: false, error: "Checkout did not return a URL. Please try again." };
-    }
-    url = res.url;
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-  try {
-    await deps.openBrowser(url);
-  } catch {
-    return { ok: false, url, error: "Could not open a browser automatically." };
-  }
-  return { ok: true, url };
-}
-function isFreeTierLimit403(err) {
-  if (!(err instanceof ApiError) || err.status !== 403)
-    return false;
-  const body = err.rawBodyData;
-  if (body === null || typeof body !== "object")
-    return false;
-  const b = body;
-  if ("code" in b && b.code !== undefined && b.code !== null)
-    return false;
-  return b.limit !== undefined && b.usage !== undefined;
-}
-function appendUpgradeHint(message, err) {
-  return isFreeTierLimit403(err) ? `${message} ${UPGRADE_HINT}` : message;
 }
 
 // lib/namespace.ts
@@ -28760,6 +28974,11 @@ async function publish2(args, deps) {
     preview: args.preview,
     force: args.force,
     analyticsEnabled: args.analyticsEnabled,
+    spa: args.spa,
+    allowNoIndex: args.allowNoIndex,
+    allowProjectFiles: args.allowProjectFiles,
+    includeSourcemaps: args.includeSourcemaps,
+    namespaceRole: ns.role,
     fetchFn: deps?.fetchFn,
     onProgress: args.onProgress,
     onHashProgress: args.onHashProgress
@@ -28805,6 +29024,11 @@ async function addPasscode2(slug, code, label, namespaceName, deps) {
   const ns = await resolveNamespace(apiClient, namespaceName);
   return addPasscode(apiClient, ns.id, slug, code, label);
 }
+async function setVisibility2(args, deps) {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, args.namespace);
+  return setVisibility(apiClient, ns.id, args);
+}
 async function listPasscodes2(slug, namespaceName, deps) {
   const apiClient = await buildApiClient(deps);
   const ns = await resolveNamespace(apiClient, namespaceName);
@@ -28840,7 +29064,7 @@ async function gate(args, deps) {
       return { action: "set", ...result };
     }
     case "remove": {
-      const result = await removeGate(apiClient, ns.id, args.slug);
+      const result = await removeGate(apiClient, ns.id, args.slug, args.visibilityAfter);
       return { action: "remove", ...result };
     }
     case "submissions": {
@@ -29035,7 +29259,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.36";
+var PACKAGE_VERSION = "0.12.37";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -29145,8 +29369,20 @@ function installUpdateNote(server, callerDeps) {
     return result;
   });
 }
+function installRuntimeNote(server, version) {
+  const note = checkBunRuntime(version);
+  if (note === null)
+    return;
+  const register = server.registerTool.bind(server);
+  server.registerTool = (name, config, cb) => register(name, config, async (...args) => {
+    const result = await cb(...args);
+    if (!Array.isArray(result?.content))
+      return result;
+    return { ...result, content: [{ type: "text", text: note }, ...result.content] };
+  });
+}
 function stdioServerOptions() {
-  return { updateCheck: true };
+  return { updateCheck: true, runtimeCheck: { version: typeof Bun !== "undefined" ? Bun.version : undefined } };
 }
 function createServer(callerDeps, opts) {
   const coreDeps = { ...callerDeps, clientVersion: callerDeps?.clientVersion ?? PACKAGE_VERSION };
@@ -29160,9 +29396,11 @@ function createServer(callerDeps, opts) {
   });
   if (opts?.updateCheck)
     installUpdateNote(server, callerDeps);
+  if (opts?.runtimeCheck)
+    installRuntimeNote(server, opts.runtimeCheck.version);
   server.registerTool("publish", {
     title: "Publish Site",
-    description: "Publishes a local directory as a static website to upubli.sh. " + "Hashes files locally, uploads only changed files via presigned R2 URLs, " + "automatically excluding .git, node_modules, .env, .DS_Store, and other non-site files. " + "Add a .upublishignore file to the directory for custom exclusions. " + "The site will be available at a public URL immediately after upload. " + "If a site with the same slug already exists, it will be updated efficiently.",
+    description: "Publishes a local directory as a static website to upubli.sh. " + "Hashes files locally, uploads only changed files via presigned R2 URLs, " + "automatically excluding .git, node_modules, .env, SSH/AWS keys, .npmrc and other credential files, " + "source maps (*.map), .DS_Store, and other non-site files. " + "Add a .upublishignore file to the directory for custom exclusions. " + "Publish the BUILD OUTPUT folder (the one with index.html), not a repo root: a folder with no top-level " + "index.html, or one that looks like a project (package.json, src/, lockfiles, Dockerfile, .git), is refused " + "before anything is uploaded (override with allow_no_index / allow_project_files). " + "A new site is live at its URL right after upload, with the visibility you set (public by default). " + "Publishing to an existing slug REPLACES the live version immediately; the output reports the replaced and new " + "version, and on paid plans the previous version can be restored with versions_restore (free plans cannot restore). " + 'visibility:"public" never removes protection from an existing passcode-protected site; use the visibility tool ' + "to change a site's access. For a single-page app pass spa:true on EVERY publish of it " + "(a republish without spa that also sets a non-public visibility, such as a passcode, clears SPA mode).",
     inputSchema: {
       directory: string2().describe("Path to the directory containing the files to publish. " + "Can be absolute or relative to the current working directory."),
       slug: string2().describe("URL-safe identifier for the site. Must be 1-255 characters: " + "lowercase letters, numbers, and hyphens only, starting and ending " + "with a letter or number. Use '_root' to publish at the " + "address/domain root (e.g. vibeandscribe.xyz/)."),
@@ -29173,9 +29411,13 @@ function createServer(callerDeps, opts) {
       namespace: string2().optional().describe("Address name to publish into. When omitted, the default address is used."),
       preview: boolean2().optional().describe("When true, publishes as a staging preview instead of going live immediately. " + "The response includes a preview_url where the staging version can be reviewed. " + "Use the promote tool to promote the staging version to live."),
       force: boolean2().optional().describe("When true, uploads all files regardless of whether they changed. " + "Use this to force a full re-upload when the site is broken or out of sync."),
+      spa: boolean2().optional().describe("Single-page app mode: unknown paths serve index.html. Pass true on EVERY publish of an SPA; " + "a republish without it that also sets a non-public visibility (such as a passcode) turns SPA mode off."),
+      allow_no_index: boolean2().optional().describe("Publish even though the directory has no top-level index.html. Only for folders that are intentionally not a web page (e.g. downloads)."),
+      allow_project_files: boolean2().optional().describe("Publish even though the directory looks like a project root (two or more of package.json, tsconfig.json, lockfiles, Dockerfile, src/, .git/). Usually you want the build output folder instead."),
+      include_sourcemaps: boolean2().optional().describe("Include *.map source maps, which are excluded by default."),
       analytics_enabled: boolean2().optional().describe("Per-site analytics. Defaults to on. Set false to publish WITHOUT the " + 'analytics script (e.g. "publish ... with no analytics"). To toggle ' + "analytics on an already-published site without republishing, use the " + "analytics tool instead.")
     }
-  }, async ({ directory, slug, path_prefix, title, visibility, passcode, namespace, preview, force, analytics_enabled }, extra) => {
+  }, async ({ directory, slug, path_prefix, title, visibility, passcode, namespace, preview, force, analytics_enabled, spa, allow_no_index, allow_project_files, include_sourcemaps }, extra) => {
     log(`[publish] tool entry slug=${slug} dir=${directory}`);
     const progressToken = extra?._meta?.progressToken;
     let lastProgress = null;
@@ -29243,12 +29485,17 @@ function createServer(callerDeps, opts) {
         preview,
         force,
         analyticsEnabled: analytics_enabled,
+        spa,
+        allowNoIndex: allow_no_index,
+        allowProjectFiles: allow_project_files,
+        includeSourcemaps: include_sourcemaps,
         onProgress,
         onHashProgress
       }, coreDeps);
       const site = result.site;
       const visibilityLine = visibility && visibility !== "public" ? `
 Visibility: ${visibility}` : "";
+      const replaceLine = renderReplaceLine(result);
       const excludedLine = result.excluded.length > 0 ? `
 Excluded: ${result.excluded.length} file(s) (${result.excluded.join(", ")})` : "";
       const warningLine = result.warnings.length > 0 ? `
@@ -29272,7 +29519,7 @@ Uploaded: ${result.uploadedFiles.length} file(s), skipped ${result.skippedFiles.
 ` + `Preview URL: ${result.preview_url}
 ` + `Slug: ${site.slug}
 ` + `Files: ${site.file_count}
-` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + filenameWarningLine + incrementalLine + storageOverageLine + `
+` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + replaceLine + excludedLine + warningLine + filenameWarningLine + incrementalLine + storageOverageLine + `
 Use the promote tool to make this preview live.`);
       }
       log(`[publish] tool done slug=${site.slug} url=${result.url}`);
@@ -29280,7 +29527,7 @@ Use the promote tool to make this preview live.`);
 ` + `URL: ${result.url}
 ` + `Slug: ${site.slug}
 ` + `Files: ${site.file_count}
-` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + excludedLine + warningLine + filenameWarningLine + incrementalLine + storageOverageLine);
+` + `Size: ${formatBytes(site.total_size)}` + visibilityLine + replaceLine + excludedLine + warningLine + filenameWarningLine + incrementalLine + storageOverageLine);
     } catch (err) {
       log(`[publish] tool error slug=${slug} err=${err.message}`);
       if (err instanceof StorageApprovalError) {
@@ -29449,7 +29696,7 @@ No republish was needed \u2014 this took effect immediately.`);
   });
   server.registerTool("passcode_add", {
     title: "Add Passcode",
-    description: "Adds a passcode to a passcode-protected site on upubli.sh. " + "Each passcode can have a unique label for identification (e.g. 'Client A'). " + "The site must already have visibility set to 'passcode'.",
+    description: "Adds a passcode to a site that is ALREADY passcode-protected on upubli.sh. " + "Each passcode can have a unique label for identification (e.g. 'Client A'). " + "This does NOT make a site private: on a public or gated site the tool refuses " + "(nothing is added) because the passcode would not be enforced. To make a public " + "site private, use the `visibility` tool with visibility 'passcode' and a passcode.",
     inputSchema: {
       slug: string2().describe("The URL-safe identifier of the site to add a passcode to."),
       code: string2().describe("The passcode string that visitors will use to access the site."),
@@ -29462,6 +29709,47 @@ No republish was needed \u2014 this took effect immediately.`);
       return okResponse(`Passcode added to ${slug}
 ` + `ID:    ${result.passcode.id}
 ` + `Label: ${result.passcode.label}`);
+    } catch (err) {
+      return errResponse(err);
+    }
+  });
+  server.registerTool("visibility", {
+    title: "Set Site Visibility",
+    description: "Switches a site on upubli.sh between PUBLIC (anyone with the link) and PASSCODE (visitors need a code). " + `This is the only tool that changes a site's visibility.
+
+` + `Side effects:
+` + "  - 'passcode' needs at least one passcode. Pass `passcode` to add one in the same call: the code is " + "added FIRST, then visibility is changed, so the site is never locked with zero codes. With no `passcode` " + `and no existing codes the call is refused and nothing changes. Passcode protection needs a paid plan.
+` + `  - 'public' makes the site visible to everyone. Stored passcodes are kept but not enforced while public.
+` + "  - On a form-gated site, either switch succeeds but the form gate stops being enforced; its settings " + "and submissions remain until you run `gate` with action 'remove'.\n" + "  - If the code is added but the switch then fails, the error says the code was added and what the " + "visibility still is.",
+    inputSchema: {
+      slug: string2().describe("The URL-safe identifier of the site."),
+      visibility: _enum(["public", "passcode"]).describe("The visibility to switch to: 'public' or 'passcode'."),
+      passcode: string2().optional().describe("A passcode to add before switching to 'passcode' (min 4 characters). " + "Required when the site has no passcodes yet. Not allowed with 'public'."),
+      label: string2().optional().describe("Label for the added passcode (e.g. 'Client A'). Defaults to 'default'."),
+      namespace: string2().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
+    }
+  }, async ({ slug, visibility, passcode, label, namespace }) => {
+    try {
+      const r = await setVisibility2({
+        slug,
+        visibility,
+        passcode,
+        label,
+        namespace
+      }, coreDeps);
+      const lines = [
+        `Visibility of "${r.slug}" is now ${r.visibility.toUpperCase()} (was ${r.previous.toUpperCase()}).` + (r.visibility === "passcode" ? ` Active passcodes: ${r.activePasscodes}.` : "")
+      ];
+      if (r.addedPasscode)
+        lines.push(`Added passcode "${r.addedPasscode.label}" (id ${r.addedPasscode.id}).`);
+      if (r.visibility === "public") {
+        lines.push("Anyone with the link can now view it. Stored passcodes are kept but not enforced while public.");
+      }
+      if (r.previous === "gated") {
+        lines.push("The form gate is no longer enforced, but its settings and submissions remain. " + "Run `gate` with action 'remove' (and visibility_after) to clear them.");
+      }
+      return okResponse(lines.join(`
+`));
     } catch (err) {
       return errResponse(err);
     }
@@ -29518,18 +29806,19 @@ ${result.message}`);
     description: "Manages a form gate for a site on upubli.sh. " + "A form gate prompts visitors to submit information (email, name, etc.) " + "before accessing the site. Use this tool to set up, inspect, remove, " + `view submissions from, or clear submissions for a gate.
 
 ` + `Actions:
-` + `  set         \u2014 Create or update a form gate with the given fields
+` + "  set         \u2014 Create or update a form gate with the given fields. SIDE EFFECT: the site's " + `visibility becomes 'gated'; this REPLACES passcode protection (the result says so when it did)
 ` + `  get         \u2014 Get the current gate config and submission count
-` + `  remove      \u2014 Remove the gate from a site
+` + "  remove      \u2014 Remove the gate. REQUIRES visibility_after ('public' or 'passcode'): " + "without it nothing is changed. 'public' makes the site visible to everyone; 'passcode' keeps it " + `private and needs at least one passcode (the result states the resulting visibility)
 ` + `  submissions \u2014 List visitor submissions captured by the gate
 ` + "  clear       \u2014 Delete all submissions for a gate",
     inputSchema: {
-      action: _enum(["set", "get", "remove", "submissions", "clear"]).describe("The gate operation to perform: " + "'set' to create/update, 'get' to retrieve config, " + "'remove' to delete the gate, 'submissions' to list visitor data, " + "'clear' to delete all submissions."),
+      action: _enum(["set", "get", "remove", "submissions", "clear"]).describe("The gate operation to perform: " + "'set' to create/update, 'get' to retrieve config, " + "'remove' to delete the gate (needs visibility_after), 'submissions' to list visitor data, " + "'clear' to delete all submissions."),
       slug: string2().describe("The URL-safe identifier of the site."),
       fields: array(_enum(["email", "name", "company", "phone"])).optional().describe("Fields to collect from visitors. Required when action is 'set'. " + "Valid values: 'email', 'name', 'company', 'phone'. " + "Every field is set as required."),
+      visibility_after: _enum(["public", "passcode"]).optional().describe("Required when action is 'remove': what the site becomes once the gate is gone. " + "'public' = visible to everyone; 'passcode' = stays private (needs >= 1 passcode)."),
       namespace: string2().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
-  }, async ({ action, slug, fields, namespace }) => {
+  }, async ({ action, slug, fields, visibility_after, namespace }) => {
     try {
       const actionStr = action;
       const slugStr = slug;
@@ -29542,8 +29831,10 @@ ${result.message}`);
         if (result.action !== "set")
           return errResponse(new Error("Unexpected result"));
         const fieldsList = formatGateFields(result.gate.fields);
+        const replaced = result.previous_visibility === "passcode" ? `
+Warning: passcode protection replaced by form gate (was: passcode)` : "";
         return okResponse(`Gate set for '${slugStr}'
-Fields: ${fieldsList}`);
+Fields: ${fieldsList}${replaced}`);
       }
       if (actionStr === "get") {
         const result = await gate({ action: "get", slug: slugStr, namespace }, coreDeps);
@@ -29555,10 +29846,15 @@ Fields: ${fieldsList}
 Submissions: ${result.submission_count}`);
       }
       if (actionStr === "remove") {
-        const result = await gate({ action: "remove", slug: slugStr, namespace }, coreDeps);
+        const after = visibility_after;
+        if (after !== "public" && after !== "passcode") {
+          return errResponse(new Error(`Nothing was changed. Removing a gate must say what the site becomes: call gate again with ` + `action "remove" and visibility_after "public" (visible to everyone) or "passcode" ` + `(stays private; needs at least one passcode).`));
+        }
+        const result = await gate({ action: "remove", slug: slugStr, visibilityAfter: after, namespace }, coreDeps);
         if (result.action !== "remove")
           return errResponse(new Error("Unexpected result"));
-        return okResponse(result.message);
+        return okResponse(`${result.message}
+Site is now ${result.visibility.toUpperCase()}.` + (result.visibility === "public" ? " Anyone with the link can view it." : ""));
       }
       if (actionStr === "submissions") {
         const result = await gate({ action: "submissions", slug: slugStr, namespace }, coreDeps);
