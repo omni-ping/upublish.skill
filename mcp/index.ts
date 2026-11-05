@@ -51,6 +51,7 @@ import {
   displayMsg,
   appendUpgradeHint,
   renderFilenameWarning,
+  renderReplaceLine,
   formatGateFields,
   data,
   dataCollection,
@@ -358,10 +359,18 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
       description:
         "Publishes a local directory as a static website to upubli.sh. " +
         "Hashes files locally, uploads only changed files via presigned R2 URLs, " +
-        "automatically excluding .git, node_modules, .env, .DS_Store, and other non-site files. " +
+        "automatically excluding .git, node_modules, .env, SSH/AWS keys, .npmrc and other credential files, " +
+        "source maps (*.map), .DS_Store, and other non-site files. " +
         "Add a .upublishignore file to the directory for custom exclusions. " +
-        "The site will be available at a public URL immediately after upload. " +
-        "If a site with the same slug already exists, it will be updated efficiently.",
+        "Publish the BUILD OUTPUT folder (the one with index.html), not a repo root: a folder with no top-level " +
+        "index.html, or one that looks like a project (package.json, src/, lockfiles, Dockerfile, .git), is refused " +
+        "before anything is uploaded (override with allow_no_index / allow_project_files). " +
+        "A new site is live at its URL right after upload, with the visibility you set (public by default). " +
+        "Publishing to an existing slug REPLACES the live version immediately; the output reports the replaced and new " +
+        "version, and on paid plans the previous version can be restored with versions_restore (free plans cannot restore). " +
+        "visibility:\"public\" never removes protection from an existing passcode-protected site; use the visibility tool " +
+        "to change a site's access. For a single-page app pass spa:true on EVERY publish of it " +
+        "(a republish without spa clears SPA mode).",
       inputSchema: {
         directory: z
           .string()
@@ -429,6 +438,29 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             "When true, uploads all files regardless of whether they changed. " +
             "Use this to force a full re-upload when the site is broken or out of sync.",
           ),
+        spa: z
+          .boolean()
+          .optional()
+          .describe(
+            "Single-page app mode: unknown paths serve index.html. Pass true on EVERY publish of an SPA; " +
+            "a republish without it turns SPA mode off.",
+          ),
+        allow_no_index: z
+          .boolean()
+          .optional()
+          .describe(
+            "Publish even though the directory has no top-level index.html. Only for folders that are intentionally not a web page (e.g. downloads).",
+          ),
+        allow_project_files: z
+          .boolean()
+          .optional()
+          .describe(
+            "Publish even though the directory looks like a project root (two or more of package.json, tsconfig.json, lockfiles, Dockerfile, src/, .git/). Usually you want the build output folder instead.",
+          ),
+        include_sourcemaps: z
+          .boolean()
+          .optional()
+          .describe("Include *.map source maps, which are excluded by default."),
         analytics_enabled: z
           .boolean()
           .optional()
@@ -440,7 +472,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ directory, slug, path_prefix, title, visibility, passcode, namespace, preview, force, analytics_enabled }, extra) => {
+    async ({ directory, slug, path_prefix, title, visibility, passcode, namespace, preview, force, analytics_enabled, spa, allow_no_index, allow_project_files, include_sourcemaps }, extra) => {
       log(`[publish] tool entry slug=${slug as string} dir=${directory as string}`);
 
       // Only emit MCP progress when the client supplied a progressToken in _meta.
@@ -565,6 +597,10 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             preview: preview as boolean | undefined,
             force: force as boolean | undefined,
             analyticsEnabled: analytics_enabled as boolean | undefined,
+            spa: spa as boolean | undefined,
+            allowNoIndex: allow_no_index as boolean | undefined,
+            allowProjectFiles: allow_project_files as boolean | undefined,
+            includeSourcemaps: include_sourcemaps as boolean | undefined,
             onProgress,
             onHashProgress,
           },
@@ -576,6 +612,8 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           visibility && visibility !== "public"
             ? `\nVisibility: ${visibility as string}`
             : "";
+
+        const replaceLine = renderReplaceLine(result);
 
         const excludedLine =
           result.excluded.length > 0
@@ -619,6 +657,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             `Files: ${site.file_count}\n` +
             `Size: ${formatBytes(site.total_size)}` +
             visibilityLine +
+            replaceLine +
             excludedLine +
             warningLine +
             filenameWarningLine +
@@ -636,6 +675,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           `Files: ${site.file_count}\n` +
           `Size: ${formatBytes(site.total_size)}` +
           visibilityLine +
+          replaceLine +
           excludedLine +
           warningLine +
           filenameWarningLine +

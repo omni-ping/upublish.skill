@@ -36,7 +36,7 @@ export type { UpdateStatus } from "./update-check.ts";
 import { listSites } from "./list.ts";
 import { publish as domainPublish } from "./publish.ts";
 import type { PublishResult, UploadProgress, HashProgress, FilenameWarnings } from "./publish.ts";
-import { StorageApprovalError, renderFilenameWarning } from "./publish.ts";
+import { StorageApprovalError, renderFilenameWarning, renderReplaceLine } from "./publish.ts";
 import { deleteSite } from "./delete.ts";
 import { log } from "./log.ts";
 import type { DeleteResult } from "./delete.ts";
@@ -158,7 +158,7 @@ import { JWT_ALGORITHMS, SITE_DATA_LIMITS } from "./site-data-types.ts";
 // don't have to reach into lib/auth.ts or other submodules.
 export type { LoginDeps, LoginResult, CallbackServer, TokenResponse };
 export type { PublishResult, UploadProgress, HashProgress, FilenameWarnings };
-export { StorageApprovalError, renderFilenameWarning };
+export { StorageApprovalError, renderFilenameWarning, renderReplaceLine };
 export type { DeleteResult };
 export type { PromoteResult };
 export type { ListVersionsResult, DeleteVersionResult, RestoreVersionResult, SetVersionsLimitResult, SiteVersion };
@@ -287,6 +287,14 @@ export interface PublishArgs {
    * script disabled ("publish … no analytics"). Omit to keep the default ON.
    */
   analyticsEnabled?: boolean;
+  /** Publish as a single-page app. Pass on every publish of an SPA. */
+  spa?: boolean;
+  /** Publish even without a top-level index.html. */
+  allowNoIndex?: boolean;
+  /** Publish even when the folder looks like a project root. */
+  allowProjectFiles?: boolean;
+  /** Keep `*.map` source maps (excluded by default). */
+  includeSourcemaps?: boolean;
   /**
    * Optional synchronous progress callback fired during the upload phase.
    * Threaded down to uploadChangedFiles(). Must be synchronous and
@@ -490,6 +498,11 @@ export async function publish(
     preview: args.preview,
     force: args.force,
     analyticsEnabled: args.analyticsEnabled,
+    spa: args.spa,
+    allowNoIndex: args.allowNoIndex,
+    allowProjectFiles: args.allowProjectFiles,
+    includeSourcemaps: args.includeSourcemaps,
+    namespaceRole: ns.role,
     // Pass fetchFn so presigned R2 uploads use the injected fetch in tests
     fetchFn: deps?.fetchFn,
     // Thread progress callbacks down (adapter supplies them)

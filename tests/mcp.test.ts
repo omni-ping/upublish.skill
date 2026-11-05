@@ -530,8 +530,8 @@ describe("publish emits byte-based progress notifications", () => {
     // Two empty files => totalBytes 0. The byte-based bar would divide by zero,
     // so the adapter must fall back to file counts for progress/total.
     const { result, notes } = await runPublishCapturingProgress(
-      { "a.html": "", "b.html": "" },
-      ["a.html", "b.html"],
+      { "index.html": "", "b.html": "" },
+      ["index.html", "b.html"],
     );
 
     expect(result.isError).toBeUndefined();
@@ -1775,8 +1775,8 @@ describe("Phase 3: hashing phase MCP progress notifications", () => {
   test("test_DW_3_2_T3_3_totalBytes_zero_uses_file_count_fallback", async () => {
     // Two empty files: totalBytes=0 for hashing → must use file-count fallback.
     const { result, notes } = await runCapturing(
-      { "a.html": "", "b.html": "" },
-      ["a.html", "b.html"],
+      { "index.html": "", "b.html": "" },
+      ["index.html", "b.html"],
     );
 
     expect(result.isError).toBeUndefined();

@@ -178,6 +178,8 @@ export class ApiClient {
       passcode_label?: string;
       preview?: boolean;
       analytics_enabled?: boolean;
+      /** SPA mode. Must be re-sent on every publish of an SPA (a republish without it clears it server-side). */
+      spa?: boolean;
       /**
        * Optional multi-segment path prefix — the site publishes at
        * `{path_prefix}/{slug}` instead of the namespace root. Omit for
