@@ -405,7 +405,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         "version, and on paid plans the previous version can be restored with versions_restore (free plans cannot restore). " +
         "visibility:\"public\" never removes protection from an existing passcode-protected site; use the visibility tool " +
         "to change a site's access. For a single-page app pass spa:true on EVERY publish of it " +
-        "(a republish without spa clears SPA mode).",
+        "(a republish without spa that also sets a non-public visibility, such as a passcode, clears SPA mode).",
       inputSchema: {
         directory: z
           .string()
@@ -478,7 +478,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           .optional()
           .describe(
             "Single-page app mode: unknown paths serve index.html. Pass true on EVERY publish of an SPA; " +
-            "a republish without it turns SPA mode off.",
+            "a republish without it that also sets a non-public visibility (such as a passcode) turns SPA mode off.",
           ),
         allow_no_index: z
           .boolean()

@@ -54,7 +54,7 @@ SPAs using the History API (the default in every modern framework) expect the se
 publish(directory: "./dist", slug: "my-app", spa: true)
 ```
 
-**Pass `spa: true` on every publish of the site.** Some republishes without it turn SPA mode off (a passcode republish does), and the deep links 404 again. No tool switches SPA mode off on purpose, so there is never a reason to leave it out.
+**Pass `spa: true` on every publish of the site.** A republish without it turns SPA mode off when it also sets a non-public visibility (a passcode republish does), and the deep links 404 again; a plain public republish leaves the flag alone. No tool switches SPA mode off on purpose, so there is never a reason to leave it out.
 
 With the fallback on, a router that uses the History API works. Keep the base path relative (step 1) so assets load from any depth: `/slug/a/b` must still find `./assets/app.js`. If an app can't get a relative base, use hash routing, which needs no server support:
 

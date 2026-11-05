@@ -46,7 +46,7 @@ Needs Pro or Max. A connected domain becomes its own address, so sites serve at 
 
 ## Address home page
 
-`publish(slug: "_root")` publishes the address's own page (`you.upubli.sh/`, no slug). Republishing `_root` replaces it with no warning, and `delete` of `_root` is blocked.
+`publish(slug: "_root")` publishes the address's own page (`you.upubli.sh/`, no slug). Republishing `_root` replaces the live home page like any other republish (the output names the replaced and new version), and `delete` of `_root` is refused: the home page goes only with its address.
 
 ## Renaming
 

@@ -817,3 +817,27 @@ describe("DW-5.5: CHANGELOG and README", () => {
     expect(c).toContain("short names");
   });
 });
+
+describe("Phase 5 fix-forward: docs match backend behaviour", () => {
+  test("spa_md_states_clearing_is_tied_to_non_public_visibility", () => {
+    const s = readDoc("references/content-types/spa.md");
+    expect(s).toContain("Pass `spa: true` on every publish of the site.");
+    expect(s).toContain("when it also sets a non-public visibility");
+    expect(s).not.toContain("Some republishes without it");
+  });
+
+  test("publish_tool_descriptions_state_the_same_spa_rule", async () => {
+    const src = readDoc("mcp/index.ts");
+    expect(src).toContain("pass spa:true on EVERY publish of it");
+    expect(src).toContain("that also sets a non-public visibility, such as a passcode, clears SPA mode");
+    expect(src).toContain("that also sets a non-public visibility (such as a passcode) turns SPA mode off");
+    expect(src).not.toContain("(a republish without spa clears SPA mode)");
+  });
+
+  test("managing_md_root_claims_match_backend", () => {
+    const m = readDoc("references/managing.md");
+    expect(m).not.toContain("with no warning");
+    expect(m).toContain("names the replaced and new version");
+    expect(m).toContain("`delete` of `_root` is refused");
+  });
+});

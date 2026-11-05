@@ -13,7 +13,7 @@ guidance that matches the tools. The backend half (`DELETE /gate?visibility=` an
   the switch, so a site is never locked with zero codes. It is refused with a passcode for
   `public`, and with no passcode when the site has none.
 - `publish` takes `spa` for single-page apps. Pass it on every publish of the site: a
-  republish without it can turn SPA mode off.
+  republish without it turns SPA mode off when it also sets a non-public visibility (for example a passcode).
 - `publish` takes `allow_no_index`, `allow_project_files` and `include_sourcemaps` to opt out
   of the new guards below.
 - Republish output names what it replaced: `Replaced live version vB → vN. Undo:
