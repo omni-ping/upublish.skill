@@ -5,6 +5,7 @@
   "author": {
     "name": "omni-ping"
   },
+  "license": "MIT",
   "mcpServers": {
     "upublish": {
       "command": "sh",

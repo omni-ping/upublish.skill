@@ -209,7 +209,7 @@ describe("DW-2.7 SKILL.md no CLI commands", () => {
 
   test("test_DW_2_7_has_mcp_publish_tool", () => {
     const content = readText("skills/upublish/SKILL.md");
-    expect(content).toContain("mcp_upublish_publish");
+    expect(content).toContain("`publish`");
   });
 });
 
@@ -233,17 +233,17 @@ describe("DW-2.8 GEMINI.md no CLI commands", () => {
 
   test("test_DW_2_8_has_login_tool", () => {
     const content = readText("GEMINI.md");
-    expect(content).toContain("mcp_upublish_login");
+    expect(content).toContain("`login`");
   });
 
   test("test_DW_2_8_has_status_tool", () => {
     const content = readText("GEMINI.md");
-    expect(content).toContain("mcp_upublish_status");
+    expect(content).toContain("`status`");
   });
 
   test("test_DW_2_8_has_passcode_tools", () => {
     const content = readText("GEMINI.md");
-    expect(content).toContain("mcp_upublish_passcode");
+    expect(content).toContain("`passcode_add`");
   });
 });
 

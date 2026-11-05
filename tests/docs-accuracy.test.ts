@@ -2,13 +2,15 @@
  * Tests for documentation accuracy after Phase 5 corrections.
  *
  * DW-5.3: Docs state 10 MB free / 1 GB paid; no "25 MB" claims remain.
+ * DW-5.1 .. DW-5.6 (skill refresh): short tool names, all tools listed, routes,
+ *         paid flags, no stale phrases, LICENSE, CHANGELOG, README sections.
  * DW-6.2: Site data docs: every doc surface lists the four tools and routes to
  *         references/site-data.md; the guide matches the frozen contract; the
  *         tool count in CLAUDE.md matches what the server registers.
  */
 
 import { describe, test, expect } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "../mcp/index.ts";
@@ -68,13 +70,13 @@ describe("DW-6.2: every doc surface lists the site data tools and routes to the 
 
   test("test_DW_6_2_skill_md_lists_tools_and_routes_to_guide", () => {
     const skill = readDoc("skills/upublish/SKILL.md");
-    for (const t of SITE_DATA_TOOLS) expect(skill).toContain(`\`mcp_upublish_${t}\``);
+    for (const t of SITE_DATA_TOOLS) expect(skill).toContain(`\`${t}\``);
     expect(skill).toContain("../../references/site-data.md");
   });
 
   test("test_DW_6_2_gemini_md_lists_tools_and_routes_to_guide", () => {
     const gemini = readDoc("GEMINI.md");
-    for (const t of SITE_DATA_TOOLS) expect(gemini).toContain(`\`mcp_upublish_${t}\``);
+    for (const t of SITE_DATA_TOOLS) expect(gemini).toContain(`\`${t}\``);
     expect(gemini).toContain("`references/site-data.md`");
   });
 
@@ -509,5 +511,309 @@ describe("DW-6.7: final fix round (N1, N4, amendment 5) is documented", () => {
       expect(guide).toContain("The owner resets with the `data_rows` `archive` tool instead.");
       expect(guide).toContain("reset with `POST /_data/{collection}/_archive`");
     });
+  });
+});
+
+// ─── Skill refresh (Phase 5): guidance + repo docs ───────────────────────────
+
+const SKILL = "skills/upublish/SKILL.md";
+const GEMINI = "GEMINI.md";
+
+/** Every non-test markdown/json doc an agent or a user reads, as [relPath, text]. */
+function shippedDocs(): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  const walk = (rel: string) => {
+    for (const name of readdirSync(join(REPO_ROOT, rel))) {
+      const r = join(rel, name);
+      if (statSync(join(REPO_ROOT, r)).isDirectory()) walk(r);
+      else if (r.endsWith(".md")) out.push([r, readDoc(r)]);
+    }
+  };
+  walk("references");
+  walk("skills");
+  for (const f of [GEMINI, "README.md", "CHANGELOG.md"]) out.push([f, readDoc(f)]);
+  return out;
+}
+
+describe("DW-5.1: short tool names; every registered tool is named in SKILL.md and GEMINI.md", () => {
+  test("test_DW_5_1_every_registered_tool_named_in_skill_and_gemini", () => {
+    const names = registeredToolNames();
+    expect(names.length).toBe(27);
+    for (const doc of [SKILL, GEMINI]) {
+      const text = readDoc(doc);
+      for (const t of names) expect(text, `${doc} is missing \`${t}\``).toContain(`\`${t}\``);
+    }
+  });
+
+  test("test_DW_5_1_no_old_prefix_in_tables_lists_or_examples", () => {
+    for (const doc of [SKILL, GEMINI]) {
+      const hits = readDoc(doc).split("\n").filter((l) => l.includes("mcp_upublish_"));
+      // At most one bootstrap sentence may name the Gemini prefix; no table row, list item or call example.
+      expect(hits.length).toBeLessThanOrEqual(1);
+      for (const l of hits) expect(l).not.toMatch(/^\s*([|\-*]|\d+\.)/);
+      expect(readDoc(doc)).not.toMatch(/mcp_upublish_\w+\(/);
+    }
+  });
+
+  test("test_DW_5_1_references_use_short_names", () => {
+    for (const [rel, text] of shippedDocs()) {
+      if (rel === "CHANGELOG.md" || rel === SKILL || rel === GEMINI) continue; // those two may name the prefix once, in the bootstrap
+      expect(text, rel).not.toContain("mcp_upublish_");
+    }
+  });
+
+  test("test_DW_5_1_bootstrap_is_client_neutral", () => {
+    const skill = readDoc(SKILL);
+    expect(skill).toContain("exact name varies by client");
+    expect(skill).toContain("mcp__plugin_upublish_upublish__publish");
+  });
+
+  test("test_DW_5_1_no_test_expects_the_old_prefix_in_docs", () => {
+    const dir = join(REPO_ROOT, "tests");
+    for (const f of readdirSync(dir).filter((n) => n.endsWith(".test.ts"))) {
+      const src = readFileSync(join(dir, f), "utf-8");
+      expect(src, f).not.toMatch(/expect\([^)\n]*\)\.toContain\([^)\n]*mcp_upublish_/);
+    }
+  });
+});
+
+describe("DW-5.2: SKILL.md routes and confirmations", () => {
+  const skill = readDoc(SKILL);
+  const gemini = readDoc(GEMINI);
+
+  test("test_DW_5_2_route_custom_domain", () => {
+    expect(skill).toMatch(/`domain add`[^\n]*`domain status`[^\n]*`publish\(namespace: "<hostname>"\)`/);
+    expect(gemini).toMatch(/`domain add`[^\n]*`domain status`[^\n]*`publish\(namespace: "<hostname>"\)`/);
+  });
+
+  test("test_DW_5_2_route_undo", () => {
+    expect(skill).toMatch(/Undo[^\n]*`versions_list`[^\n]*`versions_restore\(slug, version\)`/);
+  });
+
+  test("test_DW_5_2_route_private_public_to_visibility", () => {
+    expect(skill).toMatch(/Make a site private, or public again[^\n]*`visibility`/);
+    expect(skill).toContain("make it private");
+  });
+
+  test("test_DW_5_2_route_home_page_to_root", () => {
+    expect(skill).toMatch(/home page[^\n]*`publish\(slug: "_root"\)`/);
+  });
+
+  test("test_DW_5_2_route_spa", () => {
+    expect(skill).toMatch(/client-side routes[^\n]*`spa: true`/);
+    expect(skill).toContain("**every** publish");
+  });
+
+  test("test_DW_5_2_routes_qr_analytics_preview_rename", () => {
+    expect(skill).toMatch(/QR code[^\n]*`qrcode\(slug\)`/);
+    expect(skill).toMatch(/analytics[^\n]*`analytics\(slug, enabled\)`/);
+    expect(skill).toMatch(/`publish\(preview: true\)`, then `promote\(slug\)`/);
+    expect(skill).toMatch(/Rename[^\n]*`rename`/);
+  });
+
+  test("test_DW_5_2_frontmatter_keeps_old_triggers_and_adds_new", () => {
+    const fm = skill.split("---")[1]!;
+    for (const p of ["publish this site", "make this live", "put this on the web", "passcode protect", "what sites do I have", "make it private", "put it on my domain", "undo"]) {
+      expect(fm).toContain(`"${p}"`);
+    }
+  });
+
+  test("test_DW_5_2_confirm_address_when_status_shows_more_than_one", () => {
+    expect(skill).toContain("If `status` shows more than one address, confirm the address with the user before the first publish.");
+    expect(gemini).toContain("If `status` shows more than one address, confirm the address with the user");
+  });
+
+  test("test_DW_5_2_confirm_before_overwriting_unnamed_slug", () => {
+    const sentence = "If the slug already exists in `list` and the user didn't name it, confirm before publishing.";
+    expect(skill).toContain(sentence);
+    expect(gemini).toContain(sentence);
+  });
+
+  test("test_DW_5_2_access_control_guardrail_says_passcode_add_does_not_make_private", () => {
+    expect(skill).toContain("`passcode_add` does not make a public site private");
+  });
+});
+
+describe("DW-5.6: SKILL.md flags paid features", () => {
+  const FLAGS = [
+    "**Passcode protection** is a paid plan feature",
+    "**Restoring a version** (`versions_restore`) needs a paid plan",
+    "**Custom domain** needs Pro or Max",
+    "**Turning analytics off** needs a paid plan",
+    "**Form gate** needs the Max plan",
+  ];
+  for (const flag of FLAGS) {
+    test(`test_DW_5_6_flag_${flag.replace(/[^a-z]+/gi, "_").slice(0, 40)}`, () => {
+      expect(readDoc(SKILL)).toContain(flag);
+      expect(readDoc(GEMINI)).toContain(flag);
+    });
+  }
+
+  test("test_DW_5_6_visibility_reference_says_passcode_paid_gate_max", () => {
+    const v = readDoc("references/visibility.md");
+    expect(v).toMatch(/`passcode`[^\n]*\*\*Paid\*\*/);
+    expect(v).toMatch(/`gated`[^\n]*\*\*Max\*\*/);
+  });
+});
+
+describe("DW-5.3: no stale phrases in shipped docs", () => {
+  const STALE = [
+    "does not support SPA",
+    "410 upgrade_required",
+    "upgrade_required",
+    "Archive contains no files",
+    "maximum 63",
+    "republish with the new visibility",
+    "via MCP tool or CLI",
+  ];
+  for (const phrase of STALE) {
+    test(`test_DW_5_3_no_${phrase.replace(/[^a-z0-9]+/gi, "_")}`, () => {
+      for (const [rel, text] of shippedDocs()) {
+        if (rel === "references/site-data.md") continue; // owner-side `upgrade_required` is a live site-data error code
+        if (rel === "CHANGELOG.md") continue; // history may quote retired wording
+        expect(text, `${rel} contains "${phrase}"`).not.toContain(phrase);
+      }
+    });
+  }
+
+  test("test_DW_5_3_visibility_md_says_how_to_change_visibility_instead", () => {
+    const v = readDoc("references/visibility.md");
+    expect(v).toContain("`visibility(slug, \"public\")`");
+    expect(v).toContain("`visibility(slug, \"passcode\", passcode:");
+  });
+
+  test("test_DW_5_3_troubleshooting_has_the_real_messages", () => {
+    const t = readDoc("references/troubleshooting.md");
+    expect(t).toContain("Directory is empty — no files to publish");
+    expect(t).toContain("Storage pack approval required");
+    expect(t).toMatch(/\b402\b/);
+    expect(t).toMatch(/\*\*100 MB\*\*/);
+    expect(t).toContain("No index.html at the top level of the folder");
+    expect(t).toContain("This looks like a project folder");
+  });
+
+  test("test_DW_5_3_publishing_md_slug_range_and_no_undo_on_free", () => {
+    const p = readDoc("references/publishing.md");
+    expect(p).toContain("maximum 255");
+    expect(p).toMatch(/Free plans have no undo/);
+    expect(p).toContain("100 MB");
+  });
+
+  test("test_DW_5_3_spa_md_documents_spa_true_on_every_publish", () => {
+    const s = readDoc("references/content-types/spa.md");
+    expect(s).toContain("publish(directory: \"./dist\", slug: \"my-app\", spa: true)");
+    expect(s).toContain("Pass `spa: true` on every publish of the site.");
+  });
+
+  test("test_DW_5_3_generate_pipeline_has_no_cli_and_short_name", () => {
+    const g = readDoc("skills/upublish/references/generate-pipeline.md");
+    expect(g).toContain("Publish with the `publish` tool");
+    expect(g).toContain('publish(directory: "./my-brag-doc"');
+  });
+
+  test("test_DW_5_3_checklist_is_proportional_code_covers_secrets_and_entry_file", () => {
+    const c = readDoc("references/pre-publish-checklist.md");
+    expect(c).toContain("Covered by `publish`");
+    expect(c).toContain("Refuses a folder with no top-level `index.html`");
+    expect(c).not.toContain("Block publish");
+  });
+
+  test("test_DW_5_3_managing_md_covers_domain_rename_qr_analytics_preview_members", () => {
+    const m = readDoc("references/managing.md");
+    for (const h of ["## Preview and promote", "## Custom domain", "## Address home page", "## Renaming", "## QR codes and analytics", "## Team members"]) {
+      expect(m).toContain(h);
+    }
+    expect(m).toContain('publish(directory, slug, namespace: "yourname.com")');
+  });
+});
+
+describe("DW-5.4: LICENSE and license fields", () => {
+  const readJson = (rel: string) => JSON.parse(readDoc(rel)) as Record<string, unknown>;
+
+  test("test_DW_5_4_license_file_is_mit_with_copyright_line", () => {
+    const l = readDoc("LICENSE");
+    expect(l.startsWith("MIT License")).toBe(true);
+    expect(l).toContain("Copyright (c) 2026 omni-ping");
+    expect(l).toContain("Permission is hereby granted, free of charge");
+  });
+
+  test("test_DW_5_4_license_fields_set_where_the_schema_allows", () => {
+    for (const f of ["package.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json"]) {
+      expect(readJson(f).license, f).toBe("MIT");
+    }
+  });
+
+  test("test_DW_5_4_manifests_stay_in_ci_bump_format_so_the_bump_adds_no_diff", () => {
+    // ci.yml rewrites each manifest with JSON.stringify(obj, null, 2) + "\n".
+    for (const f of ["package.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "gemini-extension.json", "plugin.json"]) {
+      const raw = readDoc(f);
+      expect(raw, f).toBe(JSON.stringify(JSON.parse(raw), null, 2) + "\n");
+    }
+  });
+
+  test("test_DW_5_4_ci_bump_preserves_the_license_field", () => {
+    // Mirror the ci.yml step: parse, set .version, stringify.
+    for (const f of ["package.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json"]) {
+      const obj = JSON.parse(readDoc(f)) as Record<string, unknown>;
+      obj.version = "9.9.9";
+      expect(JSON.parse(JSON.stringify(obj, null, 2)).license, f).toBe("MIT");
+    }
+    expect(readDoc(".github/workflows/ci.yml")).toContain("JSON.stringify(pkg, null, 2)");
+  });
+
+  test("test_DW_5_4_versions_unchanged_by_the_docs_phase", () => {
+    const v = (JSON.parse(readDoc("package.json")) as { version: string }).version;
+    expect(readDoc("plugin.json")).toContain(`"version": "${v}"`);
+    expect(existsSync(join(REPO_ROOT, "LICENSE"))).toBe(true);
+  });
+});
+
+describe("DW-5.5: CHANGELOG and README", () => {
+  test("test_DW_5_5_changelog_has_0_12_34_to_0_12_37_in_order", () => {
+    const c = readDoc("CHANGELOG.md");
+    const heads = ["0.12.37", "0.12.36", "0.12.35", "0.12.34", "0.12.33"].map((v) => c.indexOf(`## [${v}]`));
+    for (const i of heads) expect(i).toBeGreaterThanOrEqual(0);
+    expect([...heads].sort((a, b) => a - b)).toEqual(heads);
+  });
+
+  test("test_DW_5_5_changelog_0_12_37_names_the_shipped_changes", () => {
+    const c = readDoc("CHANGELOG.md");
+    const entry = c.slice(c.indexOf("## [0.12.37]"), c.indexOf("## [0.12.36]"));
+    for (const w of ["`visibility` tool", "`spa`", "`passcode_add` refuses", "`visibility_after`", "Bun", "LICENSE"]) expect(entry).toContain(w);
+  });
+
+  test("test_DW_5_5_readme_has_bun_requirement_with_link", () => {
+    const r = readDoc("README.md");
+    expect(r).toContain("## Requirements");
+    expect(r).toContain("[Bun](https://bun.sh) 1.4.4 or newer");
+  });
+
+  test("test_DW_5_5_readme_codex_update_uses_marketplace_upgrade", () => {
+    const r = readDoc("README.md");
+    expect(r).toContain("codex plugin marketplace upgrade upublish");
+    const codex = r.slice(r.indexOf("### Codex"), r.indexOf("### Antigravity"));
+    expect(codex).not.toContain("reinstall");
+  });
+
+  test("test_DW_5_5_readme_sends_where_section_lists_every_host", () => {
+    const r = readDoc("README.md");
+    const section = r.slice(r.indexOf("## What this plugin sends where"));
+    for (const h of ["api.upubli.sh", "Cloudflare R2", "Google, GitHub, Microsoft, Discord or GitLab", "raw.githubusercontent.com", "X-Upublish-Client"]) {
+      expect(section).toContain(h);
+    }
+  });
+
+  test("test_DW_5_5_readme_opening_leads_with_the_address_and_does_not_oversell_free", () => {
+    const first = readDoc("README.md").split("\n").slice(0, 4).join("\n");
+    expect(first).toContain("permanent home on the web");
+    expect(first).toContain("you.upubli.sh/thing");
+    // Passcodes and rollback are paid; the opening must not call them free.
+    expect(first).toContain("Passcodes, version rollback and custom domains come with a paid plan");
+  });
+
+  test("test_DW_5_5_claude_md_documents_license_and_short_name_rule", () => {
+    const c = readDoc("CLAUDE.md");
+    expect(c).toContain("MIT (`LICENSE`)");
+    expect(c).toContain("short names");
   });
 });

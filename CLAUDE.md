@@ -66,7 +66,11 @@ The repo ships plugin configs for four platforms:
 - `gemini-extension.json` + `GEMINI.md` — Gemini CLI
 - `plugin.json` + `mcp_config.json` — Antigravity CLI
 
-`references/` contains markdown docs that the skill and GEMINI.md route users to (publishing, visibility, managing, troubleshooting, site-data). `references/site-data.md` is the AI-facing guide for the site data add-on: tool setup plus the browser code (same-origin `/_data` fetch, upsert-by-id, offline queue, identity per kind, error codes). Its contract is frozen; `tests/fixtures/site-data/` is a read-only snapshot of the contract fixtures (see its README) that the site-data parsers and tools are tested against.
+`references/` contains markdown docs that the skill and GEMINI.md route users to (publishing, visibility, managing, troubleshooting, site-data). SKILL.md and GEMINI.md name tools by their short names (`publish`, not a client-specific prefix); `tests/docs-accuracy.test.ts` derives the tool list from `createServer` and fails if a registered tool is missing from either file. `references/site-data.md` is the AI-facing guide for the site data add-on: tool setup plus the browser code (same-origin `/_data` fetch, upsert-by-id, offline queue, identity per kind, error codes). Its contract is frozen; `tests/fixtures/site-data/` is a read-only snapshot of the contract fixtures (see its README) that the site-data parsers and tools are tested against.
+
+## License
+
+MIT (`LICENSE`). `package.json`, `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` carry `"license": "MIT"`; `gemini-extension.json` and the root `plugin.json` do not (no documented field). Manifests must stay in `JSON.stringify(_, null, 2)` + trailing-newline form so CI's version bump produces no extra diff.
 
 ## Version tracking
 

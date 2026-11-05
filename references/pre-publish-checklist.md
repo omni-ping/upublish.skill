@@ -1,136 +1,58 @@
 # Pre-publish checklist
 
-Run through every item below **before** calling `mcp_upublish_publish`. Fix any issues found — do not publish until all checks pass.
+`publish` already enforces the expensive parts in code, before anything uploads:
+
+| Covered by `publish` | How |
+|---|---|
+| Entry file | Refuses a folder with no top-level `index.html` |
+| Wrong folder | Refuses a repo root (two or more of `package.json`, `src/`, lockfiles, `Dockerfile`, `.git/`) and names the build folder it found |
+| Secret and junk files | Skips `.git`, `node_modules`, `.env*`, private keys, `.npmrc`, `.netrc`, `.pypirc`, `.envrc`, `.aws/`, `.ssh/`, `credentials.json`, `secrets.*`, `*.p12`/`*.pfx`, source maps, OS files |
+
+So do not re-check those by hand. What code cannot see is what is **inside** the files. Run the five checks below on the folder you are about to publish, in one pass. If it is fresh build output from a framework you configured with a relative base (see `references/content-types/spa.md`), checks 1 and 3 are usually clean and you can skip straight to 2 and 4.
 
 ## 1. Asset paths are relative
 
-Sites are served at `https://{address}.upubli.sh/{slug}/`. Absolute paths like `/styles.css` resolve to the domain root, not the slug directory, causing 404s.
+Sites are served at `https://{address}.upubli.sh/{slug}/`. Absolute paths like `/styles.css` resolve to the domain root, not the slug directory, and 404. (A site published to `slug: "_root"` or a custom domain's root is served at `/`, where absolute paths work.)
 
-**Check:** Scan all HTML files for `src`, `href`, and inline `url()` references. Flag any path that starts with `/` (but not `//` — those are protocol-relative URLs and are fine).
-
-**Fix:** Convert absolute paths to relative ones:
-- `/styles.css` → `./styles.css`
-- `/js/app.js` → `./js/app.js`
-- `/images/logo.png` → `./images/logo.png`
-
-Also check CSS files for `url()` references with absolute paths and fix them the same way.
-
-**Common patterns to scan for:**
-```
-src="/
-href="/
-url("/
-url('/
-url(/
+```bash
+grep -rnE "(src|href)=[\"']/[^/]|url\(['\"]?/[^/]" <dir> --include='*.html' --include='*.css'
 ```
 
-**Exceptions — do NOT change these:**
-- Protocol-relative URLs: `//cdn.example.com/...`
-- Full URLs: `https://...`, `http://...`
-- Data URIs: `data:...`
-- Anchor links: `#section`
-- mailto/tel links: `mailto:`, `tel:`
+**Fix:** make them relative: `/styles.css` → `./styles.css`, `/js/app.js` → `./js/app.js`. Leave alone: `//cdn...`, `https://...`, `data:`, `#anchors`, `mailto:`, `tel:`.
 
 ## 2. Referenced files exist
 
-**Check:** For each CSS, JS, image, or font file referenced in HTML, verify the file actually exists in the publish directory at the expected relative path.
+For each CSS, JS, image or font referenced in the HTML, confirm the file exists at that relative path in the folder. Fix the path or add the file; if a file is truly missing, tell the user.
 
-**Fix:** Either correct the path or add the missing file. If a file is genuinely missing (not just a wrong path), tell the user.
-
-## 3. Entry point exists
-
-**Check:** The directory must contain an `index.html` at the root level. Without it, visitors to `https://{address}.upubli.sh/{slug}/` will get a 404 or directory listing.
-
-**Fix:** If there's an HTML file with a different name, ask the user if it should be renamed to `index.html`. If there's no HTML file at all, something is wrong — ask the user.
-
-## 4. Base tag compatibility
-
-**Check:** If any HTML file contains a `<base href="...">` tag, verify the href value is compatible with being served at `/{slug}/`. A `<base href="/">` will break all relative URLs on the page.
-
-**Fix:** Remove the `<base>` tag or set it to `./` unless the user has a specific reason for it.
-
-## 5. Local dev server references
-
-**Check:** Scan all files for references to `localhost`, `127.0.0.1`, or non-standard ports (e.g., `http://localhost:3000/`). These will not resolve on the published site.
-
-**Fix:** Remove or replace with the appropriate production URL or relative path. Tell the user about any you find.
-
-## Running the checklist
-
-Use `find` and `grep` on the publish directory to perform these checks efficiently. Example:
+## 3. Base tag
 
 ```bash
-# Check for absolute asset paths in HTML files
-grep -rn 'src="\/' /path/to/dir --include="*.html"
-grep -rn 'href="\/' /path/to/dir --include="*.html"
-grep -rn "src='\/" /path/to/dir --include="*.html"
-grep -rn "href='\/" /path/to/dir --include="*.html"
-
-# Check for absolute url() in CSS
-grep -rn 'url("\/' /path/to/dir --include="*.css"
-grep -rn "url('\/" /path/to/dir --include="*.css"
-grep -rn 'url(\/' /path/to/dir --include="*.css"
-
-# Check for localhost references
-grep -rn 'localhost\|127\.0\.0\.1' /path/to/dir --include="*.html" --include="*.css" --include="*.js"
-
-# Check for index.html
-ls /path/to/dir/index.html
-
-# Check for base tag
-grep -rn '<base' /path/to/dir --include="*.html"
+grep -rn '<base' <dir> --include='*.html'
 ```
 
-Report what you found and fixed. If everything passes, proceed to the security scan.
+A `<base href="/">` breaks every relative URL at `/{slug}/`. Remove it or set it to `./`, unless the user has a specific reason.
 
-## 6. Security scan
-
-Scan for files and patterns that should never be published to a public URL.
-
-### Dangerous files
+## 4. Local dev references
 
 ```bash
-# Files that should never ship
-find <dir> -name '.env' -o -name '.env.*' -o -name 'credentials' -o -name '*.pem' -o -name '*.key'
-find <dir> -name '.git' -type d
-find <dir> -name 'node_modules' -type d
-find <dir> -name '.DS_Store' -o -name 'Thumbs.db'
-find <dir> -name '*.map' -type f
+grep -rn 'localhost\|127\.0\.0\.1' <dir> --include='*.html' --include='*.css' --include='*.js'
 ```
 
-| File/pattern | Risk | Action |
-|-------------|------|--------|
-| `.env`, `.env.*` | API keys, secrets | **Block publish.** Tell the user. |
-| `.git/` | Full repo history, credentials | **Remove.** Never publish a `.git` directory. |
-| `node_modules/` | Massive, may contain native binaries | **Remove.** Publish the build output, not the source tree. |
-| `.DS_Store`, `Thumbs.db` | OS metadata, no harm but unprofessional | Remove silently. |
-| `*.map` (source maps) | Exposes original source code | Flag to user — remove unless they want debuggability. |
-| `*.pem`, `*.key` | Private keys | **Block publish.** Tell the user immediately. |
+These will not resolve on the published site. Replace them with the production URL or a relative path and tell the user.
 
-### Secrets in source code
+## 5. Secrets inside the files
+
+`publish` skips secret *files* but does not read file *contents*. Scan scripts and pages for keys:
 
 ```bash
-# Scan for common API key patterns in HTML/CSS/JS files
-grep -rn 'sk-[a-zA-Z0-9]' <dir> --include='*.html' --include='*.js'
-grep -rn 'AKIA[A-Z0-9]' <dir> --include='*.html' --include='*.js'
-grep -rn 'api[_-]key\|apikey\|secret[_-]key\|password' <dir> --include='*.html' --include='*.js' -i
+grep -rnE 'sk-[a-zA-Z0-9]{20,}|AKIA[A-Z0-9]{16}' <dir> --include='*.html' --include='*.js'
+grep -rniE 'api[_-]?key|secret[_-]?key|password' <dir> --include='*.html' --include='*.js'
 ```
 
-| Pattern | What it likely is |
-|---------|------------------|
-| `sk-` followed by 40+ chars | OpenAI API key |
-| `AKIA` followed by 16 uppercase chars | AWS access key ID |
-| `api_key`, `apikey`, `secret_key` | Generic API credentials |
-| `password` in JS (not HTML labels) | Hardcoded credential |
+If a match looks like a real secret (not a placeholder or a form label), **stop and warn the user** before publishing.
 
-If any match looks like a real secret (not a placeholder or label), **stop and warn the user** before publishing. Don't publish files containing secrets.
+Server-side files (`.php`, `.py`, `.rb`) will not run on upublish; if you see them, ask whether this is the right folder.
 
-### Server-side code
+## Then publish
 
-```bash
-find <dir> -name '*.php' -o -name '*.py' -o -name '*.rb' -o -name '*.asp' -o -name '*.jsp'
-```
-
-These won't execute on upublish (static hosting only) but their presence suggests the user is publishing the wrong directory. Flag it.
-
-After the security scan passes, proceed to publish.
+Report what you found and fixed, then call `publish`. A single HTML file is fine: put it in its own folder as `index.html`.

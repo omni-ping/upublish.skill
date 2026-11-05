@@ -5,7 +5,7 @@
  *   DW-5.3 — the namespace_create MCP tool is registered and returns the new
  *            namespace id + domain (success) / an actionable error (failure).
  *   DW-5.4 — SKILL.md documents signup-on-first-login + the namespace tool;
- *            references/troubleshooting.md covers the 410 upgrade_required path;
+ *            references/troubleshooting.md covers the retired auth routes (404, not 410);
  *            repo CLAUDE.md tool list is current.
  *   DW-5.5 — adapters (mcp/index.ts) import only from lib/core.ts.
  */
@@ -128,7 +128,7 @@ describe("DW-5.5: adapters import only core.ts", () => {
 
 // ─── DW-5.4: documentation ────────────────────────────────────────────────────
 
-describe("Phase5-DW-5.4: docs document signup-on-first-login + namespace tool + 410", () => {
+describe("Phase5-DW-5.4: docs document signup-on-first-login + namespace tool + retired-route 404", () => {
   test("test_DW_5_4_skill_md_documents_signup_on_first_login", () => {
     const content = readRepoFile("skills/upublish/SKILL.md").toLowerCase();
     // The skill must set the expectation that first-time users finish setup in
@@ -142,10 +142,13 @@ describe("Phase5-DW-5.4: docs document signup-on-first-login + namespace tool + 
     expect(content).toContain("namespace_create");
   });
 
-  test("test_DW_5_4_troubleshooting_covers_410_upgrade_required", () => {
+  test("test_DW_5_4_troubleshooting_covers_retired_auth_routes_as_404", () => {
     const content = readRepoFile("references/troubleshooting.md");
-    expect(content).toContain("upgrade_required");
-    expect(content).toMatch(/410/);
+    // Legacy auth routes were removed (404), not left as 410 upgrade_required stubs.
+    expect(content).toMatch(/plain \*\*404\*\*/);
+    expect(content).toContain("Update the upublish plugin");
+    expect(content).not.toContain("upgrade_required");
+    expect(content).not.toMatch(/\b410\b/);
   });
 
   test("test_DW_5_4_repo_claude_md_lists_namespace_tool", () => {
