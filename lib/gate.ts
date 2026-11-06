@@ -156,7 +156,7 @@ export async function setGate(
  * @param visibilityAfter - "public" or "passcode" (passcode needs >= 1 passcode).
  * @returns Confirmation message and the resulting visibility.
  * @throws Error if visibilityAfter is not public/passcode (no request is issued).
- * @throws Error if "passcode" was requested but the server did not keep it (site is now PUBLIC).
+ * @throws Error if "passcode" was requested but the server did not keep it (site is now in the echoed state, PUBLIC when the server echoed none).
  * @throws Error with guidance on 409 no_passcodes (the gate is left in place).
  * @throws Error on API failure (propagated from ApiClient).
  */
@@ -192,7 +192,7 @@ export async function removeGate(
   const visibility = asVisibility(response.visibility) ?? "public";
   if (visibilityAfter === "passcode" && visibility !== "passcode") {
     throw new Error(
-      `The server did not keep passcode protection — "${slug}" is now PUBLIC. Run visibility(slug, "passcode") now.`,
+      `The server did not keep passcode protection — "${slug}" is now ${visibility.toUpperCase()}. Run visibility(slug, "passcode") now.`,
     );
   }
   return { message: response.message, visibility };

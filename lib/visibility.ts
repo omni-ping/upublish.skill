@@ -13,7 +13,7 @@
 
 import type { ApiClient } from "./api-client.ts";
 import { readSiteVisibility } from "./list.ts";
-import { assertPasscodeInput, createPasscode, listPasscodes, withPaidPlanHint } from "./passcode.ts";
+import { assertPasscodeInput, createPasscode, listPasscodes, normalizeLabel, withPaidPlanHint } from "./passcode.ts";
 import type { SitePasscode } from "./passcode.ts";
 import { asVisibility } from "./types.ts";
 import type { Visibility } from "./types.ts";
@@ -68,7 +68,7 @@ export async function setVisibility(
   args: SetVisibilityArgs,
 ): Promise<SetVisibilityResult> {
   const { slug, visibility, passcode } = args;
-  const label = args.label ?? "default";
+  const label = normalizeLabel(args.label);
 
   if (visibility !== "public" && visibility !== "passcode") {
     throw new Error(`visibility must be "public" or "passcode" (got "${String(visibility)}")`);

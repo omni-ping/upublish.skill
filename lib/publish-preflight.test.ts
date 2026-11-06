@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join, dirname } from "path";
 import { tmpdir } from "os";
-import { publish, preflightCheck, listFiles, renderReplaceLine } from "./publish.ts";
+import { publish, preflightCheck, listFiles, renderReplaceLine, readPlanTier } from "./publish.ts";
 import type { PublishResult } from "./publish.ts";
 import { ApiClient } from "./api-client.ts";
 
@@ -111,6 +111,24 @@ describe("DW-3.2: project-folder block", () => {
     tree({ "index.html": "x", "yarn.lock": "l", ".git/HEAD": "ref" });
     const { files, excluded } = listFiles(dir);
     expect(() => preflightCheck(files, excluded, {})).toThrow(/\.git\//);
+  });
+  it("test_DW_1_2_dot_git_file_excluded_at_any_depth_dir_unchanged", () => {
+    tree({ "index.html": "x", ".git": "gitdir: /x/.git/worktrees/w", "sub/.git": "gitdir: /y", "sub/a.html": "a" });
+    const { files, excluded } = listFiles(dir);
+    expect(files.map((f) => f.relPath).sort()).toEqual(["index.html", "sub/a.html"]);
+    expect(excluded).toContain(".git");
+    expect(excluded).toContain("sub/.git");
+    rmSync(dir, { recursive: true, force: true });
+    dir = mkdtempSync(join(tmpdir(), "upublish-preflight-"));
+    tree({ "index.html": "x", ".git/HEAD": "ref" });
+    expect(listFiles(dir).excluded).toContain(".git/");
+  });
+  it("test_DW_1_2_dot_git_file_plus_package_json_trips_project_guard", async () => {
+    tree({ "index.html": "x", "package.json": "{}", ".git": "gitdir: /x" });
+    const { files, excluded } = listFiles(dir);
+    expect(() => preflightCheck(files, excluded, {})).toThrow(/project folder.*\.git/);
+    expect(() => preflightCheck(files, excluded, { allowProjectFiles: true })).not.toThrow();
+    expect((await harness().run({ allowProjectFiles: true })).excluded).toContain(".git");
   });
   it("test_preflight_src_signal_needs_files_under_src", () => {
     tree({ "index.html": "x", "package.json": "{}", "srcfile.txt": "y" });
@@ -226,5 +244,48 @@ describe("DW-3.5: replaced-version result + line", () => {
     const r = await h.run({ preview: true });
     expect(h.urls.some((u) => u.endsWith("/api/space"))).toBe(false);
     expect(renderReplaceLine({ ...r, preview_url: "https://p/@v2/" })).toBe("\nLive site unchanged (preview)");
+  });
+});
+
+describe("DW-1.3: readPlanTier timeout", () => {
+  const client = (get: () => Promise<unknown>) => ({ get } as unknown as ApiClient);
+
+  it("test_DW_1_3_never_resolving_space_read_yields_null_within_timeout", async () => {
+    const t0 = Date.now();
+    const tier = await readPlanTier(client(() => new Promise(() => {})), { replacesLive: true }, 30);
+    expect(tier).toBeNull();
+    expect(Date.now() - t0).toBeLessThan(1000);
+  });
+
+  it("test_DW_1_3_late_rejection_after_timeout_is_swallowed", async () => {
+    let unhandled = 0;
+    const onUnhandled = () => { unhandled++; };
+    process.on("unhandledRejection", onUnhandled);
+    const late = () => new Promise((_, reject) => setTimeout(() => reject(new Error("late")), 60));
+    expect(await readPlanTier(client(late), { replacesLive: true }, 10)).toBeNull();
+    await new Promise((r) => setTimeout(r, 120));
+    process.off("unhandledRejection", onUnhandled);
+    expect(unhandled).toBe(0);
+  });
+
+  it("test_DW_1_3_success_returns_tier_and_clears_timer", async () => {
+    const realClear = globalThis.clearTimeout;
+    let cleared = 0;
+    globalThis.clearTimeout = ((id?: Parameters<typeof clearTimeout>[0]) => { cleared++; return realClear(id); }) as typeof clearTimeout;
+    try {
+      expect(await readPlanTier(client(async () => ({ space: { tier: "pro" } })), { replacesLive: true })).toBe("paid");
+      expect(await readPlanTier(client(async () => ({ space: { tier: "free" } })), { replacesLive: true })).toBe("free");
+    } finally {
+      globalThis.clearTimeout = realClear;
+    }
+    expect(cleared).toBe(2);
+  });
+
+  it("test_DW_1_3_skipped_reads_do_not_call_api", async () => {
+    let calls = 0;
+    const c = client(async () => { calls++; return {}; });
+    expect(await readPlanTier(c, { replacesLive: false })).toBeNull();
+    expect(await readPlanTier(c, { replacesLive: true, namespaceRole: "member" as never })).toBeNull();
+    expect(calls).toBe(0);
   });
 });

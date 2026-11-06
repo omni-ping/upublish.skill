@@ -148,6 +148,43 @@ describe("DW-2.8: visibility on gated / unreadable sites", () => {
   });
 });
 
+describe("DW-1.1: passcode_add label optional", () => {
+  test("test_DW_1_1_omitted_empty_and_blank_label_all_succeed", async () => {
+    const { tools, calls, cleanup } = setup({ [SITES]: sites("passcode"), [POST]: created });
+    for (const label of [undefined, "", "   "]) {
+      const r = await tools["passcode_add"]!.handler({ slug: "my-site", code: "abcd", label });
+      expect(r.isError).toBeUndefined();
+    }
+    expect(calls.filter((c) => c === POST)).toHaveLength(3);
+    cleanup();
+  });
+
+  test("test_DW_1_1_whitespace_label_posts_default_body", async () => {
+    const sent: unknown[] = [];
+    const credFile = path.join(os.tmpdir(), `mcp-vis-creds-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    fs.writeFileSync(credFile, "test-refresh-token", { mode: 0o600 });
+    const json = (status: number, body: unknown) =>
+      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
+      if (url.includes("/auth/token/refresh")) return json(200, { access_token: "t", expires_in: 3600 });
+      if (url.endsWith("/api/space")) return json(200, { space: { id: "sp1", default_namespace_id: NS, tier: "pro" } });
+      if (/\/api\/ns$/.test(url)) return json(200, { namespaces: [{ id: NS, name: "default", domain: "user.upubli.sh" }] });
+      if (init?.method === "POST") { sent.push(JSON.parse(init.body as string)); return json(201, { id: "n", label: "default", created_at: "t" }); }
+      return json(200, { sites: [{ slug: "my-site", visibility: "passcode" }] });
+    };
+    const tools = (createServer({ credentialsPath: credFile, fetchFn } as CoreDeps) as unknown as InternalServer)._registeredTools;
+    await tools["passcode_add"]!.handler({ slug: "my-site", code: "abcd", label: "   " });
+    await tools["passcode_add"]!.handler({ slug: "my-site", code: "abcd" });
+    await tools["passcode_add"]!.handler({ slug: "my-site", code: "abcd", label: "Client A" });
+    expect(sent).toEqual([
+      { code: "abcd", label: "default" },
+      { code: "abcd", label: "default" },
+      { code: "abcd", label: "Client A" },
+    ]);
+    fs.unlinkSync(credFile);
+  });
+});
+
 describe("DW-2.3: passcode_add guard", () => {
   const REFUSAL =
     'Site "my-site" is PUBLIC — adding a passcode does not protect it. ' +

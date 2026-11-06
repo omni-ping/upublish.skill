@@ -66,6 +66,14 @@ export function withPaidPlanHint(err: unknown): unknown {
   return new ApiError(err.status, err.rawBodyData, `${err.message} ${UPGRADE_HINT}`);
 }
 
+/** Label used when a caller omits one (matches the server default). */
+export const DEFAULT_PASSCODE_LABEL = "default";
+
+/** Defaults an omitted, empty or whitespace-only label; an explicit label passes through unchanged. */
+export function normalizeLabel(label?: string): string {
+  return label === undefined || label.trim().length === 0 ? DEFAULT_PASSCODE_LABEL : label;
+}
+
 /** Validates passcode inputs before any request is issued. */
 export function assertPasscodeInput(code: string, label: string): void {
   if (!code || code.trim().length === 0) {
@@ -143,9 +151,9 @@ function passcodeRefusal(slug: string, visibility: Visibility): string {
  * @param nsId - The namespace ID the site belongs to.
  * @param slug - The site slug.
  * @param code - The passcode string.
- * @param label - Human-readable label for the passcode.
+ * @param label - Optional label; omitted/blank defaults to "default".
  * @returns The newly created passcode record.
- * @throws Error if code or label is empty.
+ * @throws Error if code is empty.
  * @throws Error if the site is not passcode-protected or its visibility can't be read.
  * @throws Error on API failure (propagated from ApiClient).
  */
@@ -154,8 +162,9 @@ export async function addPasscode(
   nsId: string,
   slug: string,
   code: string,
-  label: string,
+  rawLabel?: string,
 ): Promise<AddPasscodeResult> {
+  const label = normalizeLabel(rawLabel);
   assertPasscodeInput(code, label);
   const visibility = await readSiteVisibility(apiClient, nsId, slug);
   if (visibility !== "passcode") {

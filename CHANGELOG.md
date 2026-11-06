@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- `passcode_add`: `label` is optional (omitted, empty or whitespace-only becomes `default`, as in `visibility`).
+- `publish`: a `.git` file (git worktree or submodule pointer) is never uploaded and counts as a repo signal in the project-folder guard.
+- `publish`: the plan-tier read after a live republish times out after 3 s instead of hanging.
+- `gate` remove: when the server keeps a non-passcode state other than public, the error names that state instead of always saying PUBLIC.
+- Plugin icon (`.claude-plugin/icon.png`) added; clears the `claude plugin validate` ICON_MISSING warning.
+
 ## [0.12.37] — 2026-11-05
 
 Access control that tells the truth, a publish guard against wrong folders and secrets, and

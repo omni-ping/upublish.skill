@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "bun:test";
-import { addPasscode, createPasscode, withPaidPlanHint, listPasscodes, revokePasscode } from "./passcode.ts";
+import { addPasscode, createPasscode, normalizeLabel, withPaidPlanHint, listPasscodes, revokePasscode } from "./passcode.ts";
 import { ApiClient, ApiError } from "./api-client.ts";
 
 const BASE_URL = "https://api.example.com";
@@ -104,9 +104,27 @@ describe("DW-5.3: addPasscode", () => {
     await expect(addPasscode(apiClient, NS_ID, SLUG, "", "label")).rejects.toThrow("code is required");
   });
 
-  it("test_DW_5_3_add_passcode_requires_label", async () => {
-    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, {}));
-    await expect(addPasscode(apiClient, NS_ID, SLUG, "code", "")).rejects.toThrow("label is required");
+  it("test_DW_1_1_label_omitted_empty_or_blank_defaults_to_default_explicit_unchanged", async () => {
+    for (const [input, expected] of [[undefined, "default"], ["", "default"], ["   ", "default"], ["Client A", "Client A"]] as const) {
+      const bodies: unknown[] = [];
+      const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
+        const method = init?.method ?? "GET";
+        if (method === "POST") {
+          bodies.push(JSON.parse(init!.body as string));
+          return new Response(JSON.stringify({ id: "p", label: expected, created_at: "t" }), { status: 201, headers: { "Content-Type": "application/json" } });
+        }
+        return new Response(JSON.stringify({ sites: [{ slug: SLUG, visibility: "passcode" }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+      };
+      const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn as typeof fetch);
+      await addPasscode(apiClient, NS_ID, SLUG, "code", input);
+      expect(bodies).toEqual([{ code: "code", label: expected }]);
+    }
+  });
+
+  it("test_DW_1_1_normalizeLabel", () => {
+    expect(normalizeLabel()).toBe("default");
+    expect(normalizeLabel(" \t")).toBe("default");
+    expect(normalizeLabel(" x ")).toBe(" x ");
   });
 });
 

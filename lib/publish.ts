@@ -512,7 +512,8 @@ function isSecretName(name: string, isDir: boolean): boolean {
 
 function isDefaultExcluded(name: string, isDir: boolean, includeSourcemaps = false): boolean {
   if (isDir) return EXCLUDED_DIRS.has(name) || isSecretName(name, true);
-  if (EXCLUDED_FILES.has(name)) return true;
+  // A `.git` FILE is a worktree/submodule `gitdir:` pointer; never site content.
+  if (name === ".git" || EXCLUDED_FILES.has(name)) return true;
   if (name === ".env" || name.startsWith(".env.")) return true;
   if (name.endsWith(".pem") || name.endsWith(".key")) return true;
   if (isSecretName(name, false)) return true;
@@ -544,7 +545,7 @@ const BUILD_DIRS = ["dist", "build", "out", "public", "_site"];
  * wrong folder: two or more top-level repo signals (unless `allowProjectFiles`),
  * or no top-level `index.html` (unless `allowNoIndex`). Both messages name any
  * build dir that does contain an `index.html`. `files`/`excluded` are the
- * {@link listFiles} output; `.git/` is default-excluded so it is read from `excluded`.
+ * {@link listFiles} output; `.git/` (or a `.git` pointer file) is default-excluded so it is read from `excluded`.
  */
 export function preflightCheck(
   files: FileEntry[],
@@ -559,7 +560,7 @@ export function preflightCheck(
   const signals = [
     ...[...topLevel].filter((n) => REPO_SIGNAL_FILES.has(n)),
     ...(topLevel.has("src") && paths.some((p) => p.startsWith("src/")) ? ["src/"] : []),
-    ...(excluded.includes(".git/") ? [".git/"] : []),
+    ...(excluded.includes(".git/") ? [".git/"] : excluded.includes(".git") ? [".git"] : []),
   ];
   if (signals.length >= 2 && !opts.allowProjectFiles) {
     throw new Error(
@@ -1236,25 +1237,37 @@ function resolveDefaultTitle(
   return namespaceName ?? slug;
 }
 
+/** Upper bound on the post-finalize plan-tier read; a hung call must not delay a finished publish. */
+const PLAN_TIER_TIMEOUT_MS = 3000;
+
 /**
  * Reads the caller's plan for the undo note. Only a live republish by the
  * namespace owner needs it; a member's `/api/space` is their own space, not the
  * owner's. Never throws: any failure or unrecognized tier yields null so the
  * publish (already finalized) is unaffected and the neutral wording is used.
  */
-async function readPlanTier(
+export async function readPlanTier(
   apiClient: ApiClient,
   { replacesLive, namespaceRole }: { replacesLive: boolean; namespaceRole?: NamespaceRole },
+  timeoutMs = PLAN_TIER_TIMEOUT_MS,
 ): Promise<"free" | "paid" | null> {
   if (!replacesLive || (namespaceRole !== undefined && namespaceRole !== "owner")) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const res = await apiClient.get<{ space?: { tier?: unknown } }>("/api/space");
+    const read = apiClient.get<{ space?: { tier?: unknown } }>("/api/space");
+    read.catch(() => {}); // a rejection after the timeout must not surface as unhandled
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`timed out after ${timeoutMs}ms`)), timeoutMs);
+    });
+    const res = await Promise.race([read, timeout]);
     const tier = res?.space?.tier;
     if (tier === "free") return "free";
     return tier === "pro" || tier === "max" ? "paid" : null;
   } catch (err) {
     log(`[publish] plan tier read failed: ${(err as Error).message}`);
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

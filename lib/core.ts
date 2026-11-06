@@ -666,14 +666,14 @@ export async function analytics(
  *
  * @param slug - The site slug.
  * @param code - The passcode string.
- * @param label - Human-readable label for the passcode.
+ * @param label - Optional label for the passcode; omitted/blank defaults to "default".
  * @param namespaceName - Optional namespace name. Defaults to the user's default namespace.
  * @param deps - Optional CoreDeps for test injection.
  */
 export async function addPasscode(
   slug: string,
   code: string,
-  label: string,
+  label?: string,
   namespaceName?: string,
   deps?: CoreDeps,
 ): Promise<AddPasscodeResult> {
