@@ -26833,7 +26833,7 @@ function isSecretName(name, isDir) {
 function isDefaultExcluded(name, isDir, includeSourcemaps = false) {
   if (isDir)
     return EXCLUDED_DIRS.has(name) || isSecretName(name, true);
-  if (EXCLUDED_FILES.has(name))
+  if (name === ".git" || EXCLUDED_FILES.has(name))
     return true;
   if (name === ".env" || name.startsWith(".env."))
     return true;
@@ -26867,7 +26867,7 @@ function preflightCheck(files, excluded, opts) {
   const signals = [
     ...[...topLevel].filter((n) => REPO_SIGNAL_FILES.has(n)),
     ...topLevel.has("src") && paths.some((p) => p.startsWith("src/")) ? ["src/"] : [],
-    ...excluded.includes(".git/") ? [".git/"] : []
+    ...excluded.includes(".git/") ? [".git/"] : excluded.includes(".git") ? [".git"] : []
   ];
   if (signals.length >= 2 && !opts.allowProjectFiles) {
     throw new Error(`This looks like a project folder, not a built site (found ${signals.join(", ")}). Publishing it would upload source files.${hint} ` + `Publish the build output directory instead, or pass allow_project_files: true if you really mean to publish this folder.`);
@@ -27142,11 +27142,18 @@ function resolveDefaultTitle(slug, namespaceName, existingTitle) {
   }
   return namespaceName ?? slug;
 }
-async function readPlanTier(apiClient, { replacesLive, namespaceRole }) {
+var PLAN_TIER_TIMEOUT_MS = 3000;
+async function readPlanTier(apiClient, { replacesLive, namespaceRole }, timeoutMs = PLAN_TIER_TIMEOUT_MS) {
   if (!replacesLive || namespaceRole !== undefined && namespaceRole !== "owner")
     return null;
+  let timer;
   try {
-    const res = await apiClient.get("/api/space");
+    const read = apiClient.get("/api/space");
+    read.catch(() => {});
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`timed out after ${timeoutMs}ms`)), timeoutMs);
+    });
+    const res = await Promise.race([read, timeout]);
     const tier = res?.space?.tier;
     if (tier === "free")
       return "free";
@@ -27154,6 +27161,8 @@ async function readPlanTier(apiClient, { replacesLive, namespaceRole }) {
   } catch (err) {
     log(`[publish] plan tier read failed: ${err.message}`);
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 function renderReplaceLine(r) {
@@ -27452,6 +27461,10 @@ function withPaidPlanHint(err) {
     return err;
   return new ApiError(err.status, err.rawBodyData, `${err.message} ${UPGRADE_HINT}`);
 }
+var DEFAULT_PASSCODE_LABEL = "default";
+function normalizeLabel(label) {
+  return label === undefined || label.trim().length === 0 ? DEFAULT_PASSCODE_LABEL : label;
+}
 function assertPasscodeInput(code, label) {
   if (!code || code.trim().length === 0) {
     throw new Error("code is required");
@@ -27485,7 +27498,8 @@ function passcodeRefusal(slug, visibility) {
   }
   return `Site "${slug}" is ${visibility.toUpperCase()} \u2014 passcodes only apply to passcode-protected sites. ` + `To switch it, call visibility(slug, "passcode", passcode: "<code>").`;
 }
-async function addPasscode(apiClient, nsId, slug, code, label) {
+async function addPasscode(apiClient, nsId, slug, code, rawLabel) {
+  const label = normalizeLabel(rawLabel);
   assertPasscodeInput(code, label);
   const visibility = await readSiteVisibility(apiClient, nsId, slug);
   if (visibility !== "passcode") {
@@ -27508,7 +27522,7 @@ async function revokePasscode(apiClient, nsId, slug, id) {
 // lib/visibility.ts
 async function setVisibility(apiClient, nsId, args) {
   const { slug, visibility, passcode } = args;
-  const label = args.label ?? "default";
+  const label = normalizeLabel(args.label);
   if (visibility !== "public" && visibility !== "passcode") {
     throw new Error(`visibility must be "public" or "passcode" (got "${String(visibility)}")`);
   }
@@ -27579,7 +27593,7 @@ async function removeGate(apiClient, nsId, slug, visibilityAfter) {
   }
   const visibility = asVisibility(response.visibility) ?? "public";
   if (visibilityAfter === "passcode" && visibility !== "passcode") {
-    throw new Error(`The server did not keep passcode protection \u2014 "${slug}" is now PUBLIC. Run visibility(slug, "passcode") now.`);
+    throw new Error(`The server did not keep passcode protection \u2014 "${slug}" is now ${visibility.toUpperCase()}. Run visibility(slug, "passcode") now.`);
   }
   return { message: response.message, visibility };
 }
@@ -29259,7 +29273,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.37";
+var PACKAGE_VERSION = "0.12.38";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -29696,11 +29710,11 @@ No republish was needed \u2014 this took effect immediately.`);
   });
   server.registerTool("passcode_add", {
     title: "Add Passcode",
-    description: "Adds a passcode to a site that is ALREADY passcode-protected on upubli.sh. " + "Each passcode can have a unique label for identification (e.g. 'Client A'). " + "This does NOT make a site private: on a public or gated site the tool refuses " + "(nothing is added) because the passcode would not be enforced. To make a public " + "site private, use the `visibility` tool with visibility 'passcode' and a passcode.",
+    description: "Adds a passcode to a site that is ALREADY passcode-protected on upubli.sh. " + "Each passcode can have a label for identification (e.g. 'Client A'); it defaults to 'default' when omitted. " + "This does NOT make a site private: on a public or gated site the tool refuses " + "(nothing is added) because the passcode would not be enforced. To make a public " + "site private, use the `visibility` tool with visibility 'passcode' and a passcode.",
     inputSchema: {
       slug: string2().describe("The URL-safe identifier of the site to add a passcode to."),
       code: string2().describe("The passcode string that visitors will use to access the site."),
-      label: string2().describe("Human-readable label for this passcode (e.g. 'Client A', 'Team B'). " + "Used to identify and revoke specific passcodes."),
+      label: string2().optional().describe("Human-readable label for this passcode (e.g. 'Client A', 'Team B'). " + "Used to identify and revoke specific passcodes. Defaults to 'default' when omitted or blank."),
       namespace: string2().optional().describe("Address name the site belongs to. When omitted, the default address is used.")
     }
   }, async ({ slug, code, label, namespace }) => {
