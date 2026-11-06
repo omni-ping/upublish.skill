@@ -33,11 +33,11 @@ When visibility is `passcode`, `passcode` is **required** on the first publish. 
 
 ## Passcodes
 
-A site can have several passcodes, each with a label (`Client A`, `Team B`) so one can be revoked without affecting the rest.
+A site can have several passcodes, each with a label (`Client A`, `Team B`) so one can be revoked without affecting the rest. The label is optional and defaults to `default`; several passcodes may share it, and `passcode_revoke` by label removes the first match (revoke by id to be exact).
 
 | Tool | Use |
 |---|---|
-| `passcode_add(slug, code, label?)` | Add a code to a site that is **already** `passcode`. On a public or gated site it refuses and adds nothing, because the code would not be enforced. It points you to `visibility`. |
+| `passcode_add(slug, code, label?)` | Add a code (label defaults to `default` when omitted or blank) to a site that is **already** `passcode`. On a public or gated site it refuses and adds nothing, because the code would not be enforced. It points you to `visibility`. |
 | `passcode_list(slug)` | Show each code's id, label and creation date |
 | `passcode_revoke(slug, id or label)` | Remove one code |
 

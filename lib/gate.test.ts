@@ -463,6 +463,15 @@ describe("DW-2.4/2.7: removeGate visibility_after", () => {
     );
   });
 
+  it("test_DW_1_4_echo_gated_or_signed_names_that_state_missing_echo_says_public", async () => {
+    for (const [echo, word] of [["gated", "GATED"], ["signed", "SIGNED"], ["identity", "IDENTITY"]] as const) {
+      const api = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, { message: "Gate removed", visibility: echo }));
+      await expect(removeGate(api, NS_ID, SLUG, "passcode")).rejects.toThrow(`"${SLUG}" is now ${word}.`);
+    }
+    const missing = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, { message: "Gate removed" }));
+    await expect(removeGate(missing, NS_ID, SLUG, "passcode")).rejects.toThrow(`"${SLUG}" is now PUBLIC.`);
+  });
+
   it("test_DW_2_7_passcode_requested_but_response_says_public_throws", async () => {
     const api = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(200, { message: "Gate removed", visibility: "public" }));
     await expect(removeGate(api, NS_ID, SLUG, "passcode")).rejects.toThrow("The server did not keep passcode protection");

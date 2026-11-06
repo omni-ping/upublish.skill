@@ -1093,7 +1093,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
       title: "Add Passcode",
       description:
         "Adds a passcode to a site that is ALREADY passcode-protected on upubli.sh. " +
-        "Each passcode can have a unique label for identification (e.g. 'Client A'). " +
+        "Each passcode can have a label for identification (e.g. 'Client A'); it defaults to 'default' when omitted. " +
         "This does NOT make a site private: on a public or gated site the tool refuses " +
         "(nothing is added) because the passcode would not be enforced. To make a public " +
         "site private, use the `visibility` tool with visibility 'passcode' and a passcode.",
@@ -1106,9 +1106,10 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           .describe("The passcode string that visitors will use to access the site."),
         label: z
           .string()
+          .optional()
           .describe(
             "Human-readable label for this passcode (e.g. 'Client A', 'Team B'). " +
-            "Used to identify and revoke specific passcodes.",
+            "Used to identify and revoke specific passcodes. Defaults to 'default' when omitted or blank.",
           ),
         namespace: z
           .string()
@@ -1123,7 +1124,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         const result = await addPasscode(
           slug as string,
           code as string,
-          label as string,
+          label as string | undefined,
           namespace as string | undefined,
           coreDeps,
         );
