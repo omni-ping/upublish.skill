@@ -79,7 +79,8 @@ gemini extensions update upublish
 
 - `skills/upublish/` provides the guided workflow and reference documentation.
 - `dist/mcp.js` provides login, publishing, site management, addresses,
-  passcodes, visibility, versions, previews, promotion, custom domains, and member-management tools.
+  passcodes, visibility, versions, previews, promotion, custom domains, and member-management tools, plus the site data and user backends
+  add-ons (`publish_backend`, `backend`, `backend_secret`, `backend_logs`; guide: `references/backends.md`).
 - `.claude-plugin/`, `.codex-plugin/`, `.agents/plugins/marketplace.json`,
   `.mcp.json`, `gemini-extension.json`, `plugin.json`, and `mcp_config.json` adapt the same implementation to
   Claude Code, Codex, Gemini CLI, and Antigravity CLI.

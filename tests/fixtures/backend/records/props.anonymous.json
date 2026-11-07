@@ -1,0 +1,13 @@
+{
+  "upublish": {
+    "site": {
+      "id": "5b0e3c1a-0000-4000-8000-00000000b001",
+      "address": "contact",
+      "namespace": "alice.upubli.sh"
+    },
+    "identity": {
+      "kind": "anonymous",
+      "subject": "7f3c1d2e-0000-4000-8000-00000000d001"
+    }
+  }
+}

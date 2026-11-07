@@ -1,0 +1,90 @@
+{
+  "route": "backend.deploy",
+  "request": {
+    "method": "POST",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/sites/contact/backend",
+    "body": {
+      "source": "export default { async fetch(request, env, ctx) { return Response.json({ ok: true, site: ctx.props.upublish.site.address }); } };",
+      "access": "site",
+      "vars": {
+        "PUBLIC_CONTACT_TO": "hello@example.com"
+      }
+    }
+  },
+  "responses": [
+    {
+      "name": "deployed",
+      "status": 201,
+      "body": {
+        "version": 2,
+        "deployed_at": "2026-11-06T12:05:00.000Z",
+        "access": "site",
+        "bundle_bytes": 129,
+        "bundle_sha256": "aec4ce54666297f94032d800cf736b1a612245d425e9af84150ed113f0e35863",
+        "warnings": []
+      }
+    },
+    {
+      "name": "with-warning",
+      "status": 201,
+      "body": {
+        "version": 3,
+        "deployed_at": "2026-11-06T12:05:00.000Z",
+        "access": "public",
+        "bundle_bytes": 129,
+        "bundle_sha256": "aec4ce54666297f94032d800cf736b1a612245d425e9af84150ed113f0e35863",
+        "warnings": [
+          "Bundle mentions 'password'; backends must not collect credentials"
+        ]
+      }
+    },
+    {
+      "name": "addon-off",
+      "status": 402,
+      "body": {
+        "error": "Enable the Backend add-on first",
+        "code": "addon_not_enabled"
+      }
+    },
+    {
+      "name": "too-large",
+      "status": 413,
+      "body": {
+        "error": "Bundle exceeds 1048576 bytes",
+        "code": "bundle_too_large"
+      }
+    },
+    {
+      "name": "rejected",
+      "status": 422,
+      "body": {
+        "error": "Bundle is not a single ES module with a default export",
+        "code": "bundle_rejected"
+      }
+    },
+    {
+      "name": "too-many-backends",
+      "status": 409,
+      "body": {
+        "error": "This namespace already has 5 backends",
+        "code": "backend_limit_exceeded"
+      }
+    },
+    {
+      "name": "too-fast",
+      "status": 429,
+      "body": {
+        "error": "Too many deploys; try again later",
+        "code": "deploy_rate_limited"
+      }
+    },
+    {
+      "name": "cloudflare-down",
+      "status": 502,
+      "body": {
+        "error": "Upload failed; the previous version is still live",
+        "code": "upstream_failed"
+      }
+    }
+  ]
+}

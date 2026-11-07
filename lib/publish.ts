@@ -626,6 +626,13 @@ export interface FilenameWarnings {
    * they are still published.
    */
   reserved?: string[];
+  /**
+   * Paths with any `_api` segment at any depth (any case; a file named exactly
+   * `_api` counts too), present only when non-empty. `{site}/_api/*` belongs to
+   * the site's backend (user backends), so these files would be shadowed and
+   * never served. Warn-only: they are still published.
+   */
+  reservedApi?: string[];
 }
 
 /** Max filenames listed per bucket before the message summarizes the remainder. */
@@ -647,6 +654,7 @@ export function classifyFilenames(paths: string[]): FilenameWarnings {
   const fyi: string[] = [];
   // Independent of the fragile/fyi buckets: a reserved path may also be listed in one of them.
   const reserved = paths.filter((p) => p.split("/").some((seg) => seg.toLowerCase() === "_data"));
+  const reservedApi = paths.filter((p) => p.split("/").some((seg) => seg.toLowerCase() === "_api"));
 
   for (const path of paths) {
     // Classify by the basename — `/` separators and dir names never qualify.
@@ -673,7 +681,9 @@ export function classifyFilenames(paths: string[]): FilenameWarnings {
     else if (isFyi) fyi.push(path);
   }
 
-  return reserved.length > 0 ? { fragile, fyi, reserved } : { fragile, fyi };
+  return {
+    fragile, fyi, ...(reserved.length > 0 ? { reserved } : {}), ...(reservedApi.length > 0 ? { reservedApi } : {}),
+  };
 }
 
 /**
@@ -690,7 +700,8 @@ export function renderFilenameWarning(fw: FilenameWarnings | undefined): string 
   const fragile = fw.fragile ?? [];
   const fyi = fw.fyi ?? [];
   const reserved = fw.reserved ?? [];
-  if (fragile.length === 0 && fyi.length === 0 && reserved.length === 0) return "";
+  const reservedApi = fw.reservedApi ?? [];
+  if (fragile.length === 0 && fyi.length === 0 && reserved.length === 0 && reservedApi.length === 0) return "";
 
   // Cap the listed names so a large flagged tree stays readable; summarize the rest.
   const summarize = (names: string[]): string => {
@@ -704,6 +715,11 @@ export function renderFilenameWarning(fw: FilenameWarnings | undefined): string 
     out +=
       `\nWarning: ${reserved.length} file(s) have a '_data' path segment (a '_data' directory at any depth is reserved): ${summarize(reserved)}` +
       `\n  '_data' is reserved for the site data add-on, so these files will NOT be served. Rename the '_data' directory.`;
+  }
+  if (reservedApi.length > 0) {
+    out +=
+      `\nWarning: ${reservedApi.length} file(s) have an '_api' path segment (an '_api' directory at any depth is reserved): ${summarize(reservedApi)}` +
+      `\n  '_api' is reserved for the site's backend, so these files will NOT be served. Rename the '_api' directory.`;
   }
   if (fragile.length > 0) {
     out +=
@@ -1450,7 +1466,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   // a successful finalize) and never renames a file or alters the manifest.
   // Attached only when something qualifies, so a clean tree omits the field.
   const filenameWarnings = classifyFilenames(files.map((f) => f.path));
-  if (filenameWarnings.fragile.length > 0 || filenameWarnings.fyi.length > 0 || filenameWarnings.reserved) {
+  if (filenameWarnings.fragile.length > 0 || filenameWarnings.fyi.length > 0 || filenameWarnings.reserved || filenameWarnings.reservedApi) {
     result.filenameWarnings = filenameWarnings;
   }
 

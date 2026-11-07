@@ -5,7 +5,10 @@
  * Covers DW-1.9: tested with injectable deps (no real network calls).
  */
 
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { ApiClient, ApiError } from "./api-client.ts";
 
 const BASE_URL = "https://api.example.com";
@@ -100,6 +103,44 @@ describe("DW-1.7: ApiClient", () => {
       expect(capturedMethod).toBe("PUT");
       expect(capturedContentType).toBe("application/json");
       expect(JSON.parse(capturedBody)).toEqual({ fields: ["email"] });
+    });
+  });
+
+  describe("put with a sensitive body", () => {
+    // The client logs to ~/.upublish/publish.log: use a temp HOME so this never touches the real one.
+    const realHome = process.env.HOME;
+    let tempHome = "";
+    beforeAll(() => {
+      tempHome = mkdtempSync(join(tmpdir(), "api-client-home-"));
+      process.env.HOME = tempHome;
+    });
+    afterAll(() => {
+      if (realHome === undefined) delete process.env.HOME;
+      else process.env.HOME = realHome;
+      rmSync(tempHome, { recursive: true, force: true });
+    });
+    const logFile = () => join(process.env.HOME!, ".upublish", "publish.log");
+    const size = () => (existsSync(logFile()) ? statSync(logFile()).size : 0);
+    const tail = (from: number) => (existsSync(logFile()) ? readFileSync(logFile()).subarray(from).toString("utf-8") : "");
+
+    it("test_DW_6_1_sensitive_put_error_body_is_not_logged_but_the_error_still_carries_it", async () => {
+      const MARK = "SENSITIVE-ECHO-7c2d";
+      const client = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(400, { error: MARK, code: "invalid_request" }));
+      const from = size();
+      const err = await client.put("/x", { value: "v" }, { sensitive: true }).catch((e: ApiError) => e);
+      expect(err).toBeInstanceOf(ApiError);
+      expect((err as ApiError).status).toBe(400);
+      expect((err as ApiError).message).toContain(MARK); // callers redact; the client only withholds the log
+      expect(tail(from)).toContain("[api] status=400 body=<omitted: request carried a secret>");
+      expect(tail(from)).not.toContain(MARK);
+    });
+
+    it("a default put still logs the error body", async () => {
+      const MARK = "DEFAULT-LOGGED-3f9a";
+      const client = new ApiClient(BASE_URL, staticTokenProvider, mockFetch(400, { error: MARK }));
+      const from = size();
+      await client.put("/x", {}).catch(() => undefined);
+      expect(tail(from)).toContain(MARK);
     });
   });
 

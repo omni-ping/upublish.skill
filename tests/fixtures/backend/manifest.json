@@ -1,0 +1,31 @@
+{
+  "algorithm": "sha256",
+  "files": {
+    "records/kv-config-backend-plane.json": "142c803b4e0ac753f23c10a11a138c2ec056dd802894d82003fd1b16589c80cd",
+    "records/kv-site-backend.disabled.json": "f394ffdce9d2e772f435f35aaa2e946d68e8a2edb5827abbbd7da57ec128e793",
+    "records/kv-site-backend.invalid-script-derived-from-site.json": "5b6cfdde7947200ff9c6daab489db8896d11447e7fff4fc0b7b2f421f28009d0",
+    "records/kv-site-backend.public-max.json": "1dd41b711f22898f0678787be791b8e4c991320bd93c5d692d96dde31659891f",
+    "records/kv-site-backend.unsupported-version.json": "9f3a49318ec5a9afad9cb65711267b0b21c0183c9efd1efcd8122cda560c9178",
+    "records/kv-site-backend.valid.json": "de3b9582fc65548cf2d5a6464ebfbbd54d4a2f2da442c12aedabe7f133098bf2",
+    "records/props.anonymous.json": "9db18be84ed342eb709e6b30027e22d24051405d39017b0cb03029e734bd2b86",
+    "records/props.jwt.json": "1523b8951d5c7cda1d85b42c343b1f3f42c9f64492e9192d0b0618e0f6b56eb3",
+    "records/props.no-identity.json": "1e238771b57e0c43bed9a9416ecae926b783c3c5e8051e7234eb6a36ed2d7e4b",
+    "records/props.passcode.json": "2af7c90ba87f65d4d0563df4f4fec75bc95f4ab0d10f9a4aad91492082549ed5",
+    "records/response-policy.json": "64ded16c076051f67073b04ed39eda1639d6fb2ed43a4d1a27ac69c44188517b",
+    "records/upload-policy.json": "a9ba34e18bdf82567cc9c856212baa75d4982c3dfd67aa32506fe18e83b6f7aa",
+    "records/usage-data-point.json": "64c6ff5d9a44a900f3b772bac451cb50d4a570f8041f544e34f57bf4f2e92cc8",
+    "routes/addon.disable.json": "724774e378c921c241ba09909700454f9c5eaa6684c847cafcd5cad9d3cfa829",
+    "routes/addon.enable.json": "f02046be13d528faec11b0b07e3ab717e3b9135fcef00426d7df96d01e9c65b6",
+    "routes/addon.status.json": "bf3d243050f22b070cdbae1d1983b98c3c3272dc3745291c809983b0c68831e3",
+    "routes/backend.delete.json": "3b5951ef05c8bd4a9ccee4d005b27ee9438144763b4458e83efaf27988d7dcf0",
+    "routes/backend.deploy.json": "025042375eb4f41ffb9d52c269f91d94e168664af388cfa5af61ddde8094d338",
+    "routes/backend.logs.json": "c31b1f374fcc08cbfd581d7961258216c9572ecc9812e82efab2ccb67dce0250",
+    "routes/backend.rollback.json": "cd2fe9163c8573110b96b70d4108c8b9c27e0532177063f40baa2a416440222a",
+    "routes/backend.secret_delete.json": "e617c14f5bb4735f5dd7714534271095fd54ff004664bb4bc0208fee56b29473",
+    "routes/backend.secret_set.json": "d0825917583adf353c1860f8cf36f07b473034df7e8300e881b29f26edd8bafe",
+    "routes/backend.secrets_list.json": "4ce6eed2469c13e867f4c565d7bf51a29d5f3f6bc597ebfbfb28cb8bc14bbd1a",
+    "routes/backend.status.json": "8e484bf41fa6bf24a77ff749288e9451395d5106b1e8b550dd2c9c4e0b2e0a0c",
+    "routes/backend.update.json": "bdd1357882596da4f01f30516f65b8ca70e9b43737ddee376f07f5f132f719d3",
+    "routes/backend.versions.json": "ea7902f03f7ccdce0b91a2f6814d0547b7942ee5b8cfe5a7fa53ae0d8247afdf"
+  }
+}

@@ -19,7 +19,7 @@ There is no build step for development — Bun runs TypeScript directly. The `di
 ## Architecture
 
 ```
-mcp/index.ts       MCP server adapter — registers 27 always-on tools plus 5 env-gated admin tools:
+mcp/index.ts       MCP server adapter — registers 31 always-on tools plus 5 env-gated admin tools:
                    • auth/account: login, status, logout, namespace_create, domain, rename, upgrade
                    • sites: publish, list, delete, promote, qrcode, analytics
                    • versions: versions_list, versions_delete, versions_restore, versions_limit
@@ -27,6 +27,9 @@ mcp/index.ts       MCP server adapter — registers 27 always-on tools plus 5 en
                    • site data add-on (paid; shared data for published sites): data (status/enable/disable/wipe),
                      data_collection (list/get/set/delete), data_rows (list/export/archive/delete/create/put/import),
                      data_jwt (set/clear)
+                   • user backends (paid add-on; server-side handler at {site}/_api/*): publish_backend (bundles an entry file
+                     or inline code locally with Bun.build, deploys it), backend (status/versions/rollback/enable/disable/access/
+                     delete/addon_status/addon_enable/addon_disable), backend_secret (set/list/delete), backend_logs
                    • admin (only when UPUBLISH_ADMIN=1): admin_user, admin_site, admin_stats, admin_storage, admin_domains
 lib/core.ts        Facade — all user-facing operations, wires credentials + ApiClient per call
 lib/auth.ts        Unified OAuth login (PKCE auth-code + token exchange), token refresh, credential read/write (~/.upublish/credentials)
@@ -39,6 +42,9 @@ lib/types.ts       Shared types (Site, Visibility, FetchFn, TokenProvider)
 lib/site-data*.ts  Site data add-on: -types (wire mirrors of the frozen contract), -errors (code -> actionable
                    message), -sites (slug <-> site_id), site-data.ts (status/enable consent/disable/wipe/jwt),
                    -collections, -rows (incl. streamed NDJSON export), -format (result -> text)
+lib/backend*.ts    User backends: -shape (wire mirrors + validating parsers of the frozen contract), -errors (code -> actionable
+                   message, secret redaction), -bundle (Bun.build, 1 MB / default-export / compiler-error preflight), backend.ts
+                   (publish, status/versions/rollback/access, add-on consent flow, secrets, logs), -format (result -> text)
 ```
 
 **Sign-in is one unified flow.** `login` opens `{SITE}/login?flow=local` — the
@@ -66,7 +72,7 @@ The repo ships plugin configs for four platforms:
 - `gemini-extension.json` + `GEMINI.md` — Gemini CLI
 - `plugin.json` + `mcp_config.json` — Antigravity CLI
 
-`references/` contains markdown docs that the skill and GEMINI.md route users to (publishing, visibility, managing, troubleshooting, site-data). SKILL.md and GEMINI.md name tools by their short names (`publish`, not a client-specific prefix); `tests/docs-accuracy.test.ts` derives the tool list from `createServer` and fails if a registered tool is missing from either file. `references/site-data.md` is the AI-facing guide for the site data add-on: tool setup plus the browser code (same-origin `/_data` fetch, upsert-by-id, offline queue, identity per kind, error codes). Its contract is frozen; `tests/fixtures/site-data/` is a read-only snapshot of the contract fixtures (see its README) that the site-data parsers and tools are tested against.
+`references/` contains markdown docs that the skill and GEMINI.md route users to (publishing, visibility, managing, troubleshooting, site-data, backends). SKILL.md and GEMINI.md name tools by their short names (`publish`, not a client-specific prefix); `tests/docs-accuracy.test.ts` derives the tool list from `createServer` and fails if a registered tool is missing from either file. `references/site-data.md` is the AI-facing guide for the site data add-on: tool setup plus the browser code (same-origin `/_data` fetch, upsert-by-id, offline queue, identity per kind, error codes). Its contract is frozen; `tests/fixtures/site-data/` is a read-only snapshot of the contract fixtures (see its README) that the site-data parsers and tools are tested against. `references/backends.md` is the AI-facing guide for user backends (handler shape, forwarded path, props and identity kinds, access modes, `SiteDataApi`, no-HTML rule, limits, error codes) and embeds `references/backend-template.ts` (a tested contact-form starter; a docs test keeps the two identical). `tests/fixtures/backend/` is the same kind of read-only snapshot of the backend contract fixtures; `lib/backend-fixtures.test.ts` pins every file's hash against the vendored `manifest.json` and replays each route. Secret values (`backend_secret set`) pass through the tool once and are never echoed, logged or written locally.
 
 ## License
 

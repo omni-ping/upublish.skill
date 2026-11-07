@@ -110,8 +110,12 @@ export class ApiClient {
     return this.parseResponse<T>(response);
   }
 
-  /** PUT request with a JSON body — returns parsed JSON body. */
-  async put<T>(path: string, body: unknown): Promise<T> {
+  /**
+   * PUT request with a JSON body — returns parsed JSON body.
+   * `sensitive: true` marks a body that carries a secret value: a non-2xx response's body is then NOT written to
+   * the publish log (a misbehaving server could echo the value back), only its status.
+   */
+  async put<T>(path: string, body: unknown, opts: { sensitive?: boolean } = {}): Promise<T> {
     const token = await this.tokenProvider();
     const response = await this.fetchApi(path, {
       method: "PUT",
@@ -123,7 +127,7 @@ export class ApiClient {
       body: JSON.stringify(body),
     });
 
-    return this.parseResponse<T>(response);
+    return this.parseResponse<T>(response, opts.sensitive);
   }
 
   /** PATCH request with a JSON body — returns parsed JSON body. */
@@ -257,15 +261,15 @@ export class ApiClient {
   }
 
   /** Parses a fetch Response, throwing a descriptive Error on non-2xx. */
-  private async parseResponse<T>(response: Response): Promise<T> {
+  private async parseResponse<T>(response: Response, sensitive = false): Promise<T> {
     if (response.ok) {
       return response.json() as Promise<T>;
     }
-    return this.throwApiError(response);
+    return this.throwApiError(response, sensitive);
   }
 
-  /** Reads a non-2xx response's body and throws it as an ApiError. */
-  private async throwApiError(response: Response): Promise<never> {
+  /** Reads a non-2xx response's body and throws it as an ApiError. `sensitive` keeps the body out of the log. */
+  private async throwApiError(response: Response, sensitive = false): Promise<never> {
     let errorMessage: string;
     let rawBody = "";
     let parsedBody: unknown = null;
@@ -277,7 +281,7 @@ export class ApiClient {
       errorMessage = response.statusText;
     }
 
-    log(`[api] status=${response.status} body=${rawBody || response.statusText}`);
+    log(`[api] status=${response.status} body=${sensitive ? "<omitted: request carried a secret>" : rawBody || response.statusText}`);
     throw new ApiError(response.status, parsedBody, `API error ${response.status}: ${errorMessage}`);
   }
 }

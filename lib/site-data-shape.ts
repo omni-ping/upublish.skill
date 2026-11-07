@@ -18,23 +18,23 @@ import type {
   AdminRow, CollectionView, DataStatus, DisableResponse, EnableResponse, ImportResponse, JwtIssuerConfig, RowList, WipeResponse,
 } from "./site-data-types.ts";
 
-type Check = (v: unknown) => boolean;
+export type Check = (v: unknown) => boolean;
 /** `[dotted path, check]` pairs, parents before children. */
-type Shape = ReadonlyArray<readonly [path: string, check: Check]>;
+export type Shape = ReadonlyArray<readonly [path: string, check: Check]>;
 
-const isObj: Check = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-const isBool: Check = (v) => typeof v === "boolean";
-const isStr: Check = (v) => typeof v === "string";
-const isArr: Check = (v) => Array.isArray(v);
-const intMin = (min: number): Check => (v) => Number.isInteger(v) && (v as number) >= min;
-const nullable = (c: Check): Check => (v) => v === null || c(v);
-const optionalOf = (c: Check): Check => (v) => v === undefined || c(v);
-const oneOf = (...allowed: readonly unknown[]): Check => (v) => allowed.includes(v);
-const arrOf = (c: Check): Check => (v) => Array.isArray(v) && v.every(c);
+export const isObj: Check = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+export const isBool: Check = (v) => typeof v === "boolean";
+export const isStr: Check = (v) => typeof v === "string";
+export const isArr: Check = (v) => Array.isArray(v);
+export const intMin = (min: number): Check => (v) => Number.isInteger(v) && (v as number) >= min;
+export const nullable = (c: Check): Check => (v) => v === null || c(v);
+export const optionalOf = (c: Check): Check => (v) => v === undefined || c(v);
+export const oneOf = (...allowed: readonly unknown[]): Check => (v) => allowed.includes(v);
+export const arrOf = (c: Check): Check => (v) => Array.isArray(v) && v.every(c);
 
 /** Canonical contract timestamp: ISO-8601 UTC with milliseconds (`isoTime` in schema.ts). */
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-const isoTime: Check = (v) => typeof v === "string" && ISO_RE.test(v) && !Number.isNaN(Date.parse(v));
+export const isoTime: Check = (v) => typeof v === "string" && ISO_RE.test(v) && !Number.isNaN(Date.parse(v));
 
 const isClaimMatcher: Check = (v) =>
   isObj(v) &&
@@ -42,7 +42,7 @@ const isClaimMatcher: Check = (v) =>
   isObj((v as { claims: unknown }).claims) &&
   Object.values((v as { claims: Record<string, unknown> }).claims).every((x) => isStr(x) || isBool(x));
 
-const under = (prefix: string, shape: Shape): Shape => shape.map(([p, c]) => [`${prefix}.${p}`, c] as const);
+export const under = (prefix: string, shape: Shape): Shape => shape.map(([p, c]) => [`${prefix}.${p}`, c] as const);
 
 /** `CollectionConfig`. */
 const CONFIG_SHAPE: Shape = [
@@ -99,7 +99,7 @@ function underNull(root: unknown, path: string): boolean {
 }
 
 /** The first path in `shape` whose value fails its check, or null when the whole shape holds. */
-function firstInvalid(root: unknown, shape: Shape): string | null {
+export function firstInvalid(root: unknown, shape: Shape): string | null {
   for (const [path, check] of shape) {
     if (!underNull(root, path) && !check(at(root, path))) return path;
   }

@@ -1,0 +1,56 @@
+{
+  "route": "backend.logs",
+  "request": {
+    "method": "GET",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/sites/contact/backend/logs",
+    "query": "limit=50"
+  },
+  "responses": [
+    {
+      "name": "lines",
+      "status": 200,
+      "body": {
+        "lines": [
+          {
+            "timestamp": "2026-11-06T12:05:00.000Z",
+            "level": "info",
+            "message": "GET https://alice.upubli.sh/contact/_api/submit",
+            "status": 200,
+            "outcome": "ok"
+          },
+          {
+            "timestamp": "2026-11-06T12:05:00.000Z",
+            "level": "error",
+            "message": "TypeError: cannot read properties of undefined",
+            "status": 502,
+            "outcome": "exception"
+          },
+          {
+            "timestamp": "2026-11-06T12:00:00.000Z",
+            "level": "log",
+            "message": "form submitted",
+            "status": null,
+            "outcome": null
+          }
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "name": "empty",
+      "status": 200,
+      "body": {
+        "lines": [],
+        "truncated": false
+      }
+    },
+    {
+      "name": "bad-limit",
+      "status": 400,
+      "body": {
+        "error": "limit must be 1..100",
+        "code": "invalid_request"
+      }
+    }
+  ]
+}

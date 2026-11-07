@@ -1,0 +1,80 @@
+{
+  "route": "backend.status",
+  "request": {
+    "method": "GET",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/sites/contact/backend"
+  },
+  "responses": [
+    {
+      "name": "deployed",
+      "status": 200,
+      "body": {
+        "deployed": true,
+        "site": {
+          "id": "5b0e3c1a-0000-4000-8000-00000000b001",
+          "address": "contact"
+        },
+        "version": 2,
+        "access": "site",
+        "disabled": false,
+        "tier": "pro",
+        "limits": {
+          "cpu_ms": 50,
+          "subrequests": 10
+        },
+        "deployed_at": "2026-11-06T12:05:00.000Z",
+        "bundle_bytes": 129,
+        "bundle_sha256": "aec4ce54666297f94032d800cf736b1a612245d425e9af84150ed113f0e35863",
+        "vars": [
+          "PUBLIC_CONTACT_TO"
+        ],
+        "secrets": [
+          "RESEND_API_KEY"
+        ],
+        "usage": {
+          "period_start": "2026-11-01T00:00:00.000Z",
+          "calls": 1234,
+          "cap": 1000000
+        },
+        "kv": {
+          "drift": "none",
+          "checked_at": "2026-11-06T12:05:00.000Z"
+        }
+      }
+    },
+    {
+      "name": "not-deployed",
+      "status": 200,
+      "body": {
+        "deployed": false,
+        "site": {
+          "id": "5b0e3c1a-0000-4000-8000-00000000b001",
+          "address": "contact"
+        },
+        "version": null,
+        "access": "site",
+        "disabled": false,
+        "tier": null,
+        "limits": null,
+        "deployed_at": null,
+        "bundle_bytes": null,
+        "bundle_sha256": null,
+        "vars": [],
+        "secrets": [],
+        "usage": null,
+        "kv": {
+          "drift": "none",
+          "checked_at": null
+        }
+      }
+    },
+    {
+      "name": "unknown-site",
+      "status": 404,
+      "body": {
+        "error": "Site not found",
+        "code": "not_found"
+      }
+    }
+  ]
+}

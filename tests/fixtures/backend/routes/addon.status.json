@@ -1,0 +1,138 @@
+{
+  "route": "addon.status",
+  "request": {
+    "method": "GET",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/backend-addon"
+  },
+  "responses": [
+    {
+      "name": "enabled",
+      "status": 200,
+      "body": {
+        "available": true,
+        "entitled": true,
+        "entitlement_source": "paid",
+        "activating": false,
+        "billing": {
+          "item_present": true,
+          "interval": "month",
+          "past_due": false,
+          "enabled_at": "2026-11-06T12:00:00.000Z",
+          "disabled_at": null,
+          "delete_after": null,
+          "deleted_at": null,
+          "would_charge": false,
+          "converts_data_addon": false
+        },
+        "price": {
+          "month_cents": 300,
+          "year_cents": 3000
+        },
+        "includes_site_data": true,
+        "backends": {
+          "count": 1,
+          "max": 5
+        }
+      }
+    },
+    {
+      "name": "not-yet-launched",
+      "status": 200,
+      "body": {
+        "available": false,
+        "entitled": false,
+        "entitlement_source": null,
+        "activating": false,
+        "billing": {
+          "item_present": false,
+          "interval": null,
+          "past_due": false,
+          "enabled_at": null,
+          "disabled_at": null,
+          "delete_after": null,
+          "deleted_at": null,
+          "would_charge": false,
+          "converts_data_addon": false
+        },
+        "price": {
+          "month_cents": 300,
+          "year_cents": 3000
+        },
+        "includes_site_data": true,
+        "backends": {
+          "count": 0,
+          "max": 5
+        }
+      }
+    },
+    {
+      "name": "disabled-awaiting-deletion",
+      "status": 200,
+      "body": {
+        "available": true,
+        "entitled": false,
+        "entitlement_source": "paid",
+        "activating": false,
+        "billing": {
+          "item_present": false,
+          "interval": null,
+          "past_due": false,
+          "enabled_at": "2026-11-06T12:00:00.000Z",
+          "disabled_at": "2026-11-06T12:00:00.000Z",
+          "delete_after": "2026-12-06T12:00:00.000Z",
+          "deleted_at": null,
+          "would_charge": false,
+          "converts_data_addon": false
+        },
+        "price": {
+          "month_cents": 300,
+          "year_cents": 3000
+        },
+        "includes_site_data": true,
+        "backends": {
+          "count": 1,
+          "max": 5
+        }
+      }
+    },
+    {
+      "name": "paused",
+      "status": 200,
+      "body": {
+        "available": true,
+        "entitled": false,
+        "entitlement_source": "paid",
+        "activating": false,
+        "billing": {
+          "item_present": true,
+          "interval": "month",
+          "past_due": false,
+          "enabled_at": "2026-11-06T12:00:00.000Z",
+          "disabled_at": null,
+          "delete_after": null,
+          "deleted_at": null,
+          "would_charge": false,
+          "converts_data_addon": false,
+          "paused": true
+        },
+        "price": {
+          "month_cents": 300,
+          "year_cents": 3000
+        },
+        "includes_site_data": true,
+        "backends": {
+          "count": 1,
+          "max": 5
+        }
+      }
+    },
+    {
+      "name": "unknown-namespace",
+      "status": 404,
+      "body": {
+        "error": "Namespace not found",
+        "code": "not_found"
+      }
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "key": "config:backend_plane",
+  "cases": [
+    {
+      "raw": null,
+      "enabled": false,
+      "note": "absent: the plane ships dark"
+    },
+    {
+      "raw": "{\"enabled\":true}",
+      "enabled": true,
+      "note": "the only on value"
+    },
+    {
+      "raw": "{\"enabled\":false}",
+      "enabled": false,
+      "note": "explicitly off"
+    },
+    {
+      "raw": "not json",
+      "enabled": false,
+      "note": "non-JSON"
+    },
+    {
+      "raw": "true",
+      "enabled": false,
+      "note": "wrong shape"
+    },
+    {
+      "raw": "[]",
+      "enabled": false,
+      "note": "wrong shape"
+    },
+    {
+      "raw": "{\"enabled\":\"true\"}",
+      "enabled": false,
+      "note": "non-boolean"
+    },
+    {
+      "raw": "{\"enabled\":1}",
+      "enabled": false,
+      "note": "non-boolean"
+    },
+    {
+      "raw": "{}",
+      "enabled": false,
+      "note": "missing enabled"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "binding_types": [
+    "secret_text",
+    "plain_text"
+  ],
+  "compatibility_date": "2024-07-25",
+  "compatibility_flags": [],
+  "main_module": "worker.js",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "limits": {
+    "pro": {
+      "cpu_ms": 50,
+      "subrequests": 10
+    },
+    "max": {
+      "cpu_ms": 100,
+      "subrequests": 20
+    }
+  },
+  "tags": {
+    "input": {
+      "userId": "u-1234abcd",
+      "nsId": "5b0e3c1a-0000-4000-8000-00000000a001",
+      "siteId": "5b0e3c1a-0000-4000-8000-00000000b001",
+      "tier": "pro"
+    },
+    "expected": [
+      "user:u-1234abcd",
+      "ns:5b0e3c1a-0000-4000-8000-00000000a001",
+      "site:5b0e3c1a-0000-4000-8000-00000000b001",
+      "tier:pro"
+    ],
+    "user_tag_filter": "user:u-1234abcd:yes"
+  }
+}

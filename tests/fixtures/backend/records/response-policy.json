@@ -1,0 +1,95 @@
+{
+  "forced_headers": {
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "sandbox; default-src 'none'",
+    "Cache-Control": "no-store"
+  },
+  "stripped_response_headers": [
+    "Service-Worker-Allowed",
+    "Clear-Site-Data",
+    "Access-Control-Allow-Credentials"
+  ],
+  "stripped_request_header_prefix": "x-upublish-",
+  "content_types": {
+    "allowed": [
+      "application/json",
+      "application/json; charset=utf-8",
+      "text/plain",
+      "text/csv",
+      "application/problem+json",
+      "image/png"
+    ],
+    "denied": [
+      "text/html",
+      "TEXT/HTML; charset=utf-8",
+      "image/svg+xml",
+      "application/xhtml+xml",
+      "text/xml",
+      "application/xml",
+      "text/javascript",
+      "application/javascript",
+      "application/wasm",
+      "text/css",
+      "application/pdf",
+      "text/html, application/json",
+      "application/json; a=b, text/html",
+      "application/json, text/html",
+      "application/json; a=\"x,y\"",
+      null,
+      ""
+    ]
+  },
+  "set_cookie": {
+    "site_path": "/code-report/contact",
+    "cases": [
+      {
+        "cookie": "sid=abc; Path=/code-report/contact; HttpOnly; Secure; SameSite=Lax",
+        "ok": true
+      },
+      {
+        "cookie": "sid=abc",
+        "ok": true
+      },
+      {
+        "cookie": "sid=abc; Domain=upubli.sh",
+        "ok": false,
+        "reason": "domain_attribute"
+      },
+      {
+        "cookie": "sid=abc; Path=/",
+        "ok": false,
+        "reason": "path_outside_site"
+      },
+      {
+        "cookie": "sid=abc; Path=/code-report/contact/../other",
+        "ok": false,
+        "reason": "path_outside_site"
+      },
+      {
+        "cookie": "__upublish_access_alice_contact=forged; Path=/code-report/contact",
+        "ok": false,
+        "reason": "reserved_name"
+      },
+      {
+        "cookie": "__Host-upublish_did=forged",
+        "ok": false,
+        "reason": "reserved_name"
+      },
+      {
+        "cookie": "no-equals-sign",
+        "ok": false,
+        "reason": "malformed"
+      }
+    ]
+  },
+  "request_cookie_strip": [
+    {
+      "header": "a=1; __upublish_access_x_y=v2:abc; b=2; __Host-upublish_did=z",
+      "result": "a=1; b=2"
+    },
+    {
+      "header": "__upublish_gate_x_y=1",
+      "result": null
+    }
+  ]
+}

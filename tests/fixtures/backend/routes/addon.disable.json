@@ -1,0 +1,25 @@
+{
+  "route": "addon.disable",
+  "request": {
+    "method": "POST",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/backend-addon/disable"
+  },
+  "responses": [
+    {
+      "name": "disabled",
+      "status": 200,
+      "body": {
+        "entitled": false,
+        "delete_after": "2026-12-06T12:00:00.000Z"
+      }
+    },
+    {
+      "name": "not-owner",
+      "status": 403,
+      "body": {
+        "error": "Only the namespace owner can change the add-on",
+        "code": "forbidden"
+      }
+    }
+  ]
+}

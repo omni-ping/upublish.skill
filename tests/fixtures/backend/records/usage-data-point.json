@@ -1,0 +1,30 @@
+{
+  "dataset": "upublish_backend_calls",
+  "record": {
+    "script": "b-3f9a1c0de4b25a77c8d10e6b92f4a5c1",
+    "ns_id": "5b0e3c1a-0000-4000-8000-00000000a001",
+    "site_id": "5b0e3c1a-0000-4000-8000-00000000b001",
+    "status": 200,
+    "cpu_bucket": "10-50"
+  },
+  "data_point": {
+    "indexes": [
+      "b-3f9a1c0de4b25a77c8d10e6b92f4a5c1"
+    ],
+    "blobs": [
+      "b-3f9a1c0de4b25a77c8d10e6b92f4a5c1",
+      "5b0e3c1a-0000-4000-8000-00000000a001",
+      "5b0e3c1a-0000-4000-8000-00000000b001",
+      "200",
+      "10-50"
+    ],
+    "doubles": []
+  },
+  "columns": {
+    "script": "blob1",
+    "ns_id": "blob2",
+    "site_id": "blob3",
+    "status": "blob4",
+    "cpu_bucket": "blob5"
+  }
+}

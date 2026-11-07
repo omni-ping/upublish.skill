@@ -1,0 +1,72 @@
+{
+  "route": "addon.enable",
+  "request": {
+    "method": "POST",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/backend-addon/enable",
+    "body": {
+      "accept_charge": true
+    }
+  },
+  "responses": [
+    {
+      "name": "charged",
+      "status": 200,
+      "body": {
+        "entitled": true,
+        "activating": true,
+        "charge": {
+          "interval": "month",
+          "price_cents": 300
+        },
+        "converted_data_addon": false
+      }
+    },
+    {
+      "name": "converted-from-site-data",
+      "status": 200,
+      "body": {
+        "entitled": true,
+        "activating": true,
+        "charge": {
+          "interval": "month",
+          "price_cents": 100
+        },
+        "converted_data_addon": true
+      }
+    },
+    {
+      "name": "comped",
+      "status": 200,
+      "body": {
+        "entitled": true,
+        "activating": true,
+        "charge": null,
+        "converted_data_addon": false
+      }
+    },
+    {
+      "name": "no-consent",
+      "status": 402,
+      "body": {
+        "error": "Enabling the Backend add-on requires accept_charge: true",
+        "code": "consent_required"
+      }
+    },
+    {
+      "name": "free-tier",
+      "status": 402,
+      "body": {
+        "error": "The Backend add-on needs a Pro or Max plan",
+        "code": "upgrade_required"
+      }
+    },
+    {
+      "name": "not-launched",
+      "status": 404,
+      "body": {
+        "error": "Not available",
+        "code": "not_available"
+      }
+    }
+  ]
+}

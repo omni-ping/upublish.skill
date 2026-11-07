@@ -15,6 +15,7 @@
  *   status()    — check authentication state against the API
  *   logout()    — revoke refresh token server-side and delete local credentials
  *   data(), dataCollection(), dataRows(), dataJwt() — site data add-on (lib/site-data*.ts)
+ *   publishBackend(), backend(), backendSecret(), backendLogs() — user backends (lib/backend*.ts)
  *
  * All functions accept an optional CoreDeps for test injection:
  *   credentialsPath  — override credentials file location
@@ -152,6 +153,14 @@ import type { DataRowsArgs, DataRowsResult } from "./site-data-rows.ts";
 import { formatDataResult, formatCollectionResult, formatRowsResult, formatJwtResult } from "./site-data-format.ts";
 import { SiteDataError, sanitizeErrors } from "./site-data-errors.ts";
 import { JWT_ALGORITHMS, SITE_DATA_LIMITS } from "./site-data-types.ts";
+import { runPublishBackend, runBackend, runBackendSecret, runBackendLogs } from "./backend.ts";
+import type {
+  PublishBackendArgs, PublishBackendResult, BackendArgs, BackendResult, BackendSecretArgs, BackendSecretResult,
+  BackendLogsArgs, BackendLogsResult, AddonExpectation,
+} from "./backend.ts";
+import { formatPublishBackend, formatBackendResult, formatBackendSecret, formatBackendLogs } from "./backend-format.ts";
+import { BackendError } from "./backend-errors.ts";
+import { BACKEND_LIMITS, BACKEND_ACCESS, BINDING_NAME_RE } from "./backend-shape.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
 
@@ -190,6 +199,11 @@ export { appendUpgradeHint };
 export { displayMsg };
 export type { DataArgs, DataResult, DataJwtArgs, DataJwtResult, DataCollectionArgs, DataCollectionResult, DataRowsArgs, DataRowsResult };
 export { formatDataResult, formatCollectionResult, formatRowsResult, formatJwtResult, SiteDataError, JWT_ALGORITHMS, SITE_DATA_LIMITS };
+export type {
+  PublishBackendArgs, PublishBackendResult, BackendArgs, BackendResult, BackendSecretArgs, BackendSecretResult,
+  BackendLogsArgs, BackendLogsResult, AddonExpectation,
+};
+export { formatPublishBackend, formatBackendResult, formatBackendSecret, formatBackendLogs, BackendError, BACKEND_LIMITS, BACKEND_ACCESS, BINDING_NAME_RE };
 export type {
   AdminUserArgs,
   AdminSiteArgs,
@@ -860,6 +874,46 @@ export async function dataJwt(args: DataJwtArgs, deps?: CoreDeps): Promise<DataJ
   return sanitizeErrors(async () => {
     const apiClient = await buildApiClient(deps);
     return runDataJwt(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+  });
+}
+
+// ─── User backends ────────────────────────────────────────────────────────────
+
+/**
+ * Bundles an entry file (or inline code) locally and deploys it as the backend of a site (`{site}/_api/*`).
+ * A bundling failure is a result (`state: "bundle_failed"`), not a throw: nothing was uploaded.
+ *
+ * @throws Error "Not authenticated" if no credentials are stored.
+ * @throws BackendError on an API failure, with an actionable message.
+ */
+export async function publishBackend(args: PublishBackendArgs, deps?: CoreDeps): Promise<PublishBackendResult> {
+  return sanitizeErrors(async () => {
+    const apiClient = await buildApiClient(deps);
+    return runPublishBackend(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+  });
+}
+
+/** Backend operations: status, versions, rollback, enable, disable, access, and the add-on (consent-gated enable). */
+export async function backend(args: BackendArgs, deps?: CoreDeps): Promise<BackendResult> {
+  return sanitizeErrors(async () => {
+    const apiClient = await buildApiClient(deps);
+    return runBackend(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+  });
+}
+
+/** Backend secrets: set, list names, delete. A value is sent once and never returned, logged or stored. */
+export async function backendSecret(args: BackendSecretArgs, deps?: CoreDeps): Promise<BackendSecretResult> {
+  return sanitizeErrors(async () => {
+    const apiClient = await buildApiClient(deps);
+    return runBackendSecret(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+  });
+}
+
+/** The last log lines of a site's backend. */
+export async function backendLogs(args: BackendLogsArgs, deps?: CoreDeps): Promise<BackendLogsResult> {
+  return sanitizeErrors(async () => {
+    const apiClient = await buildApiClient(deps);
+    return runBackendLogs(apiClient, await resolveNamespace(apiClient, args.namespace), args);
   });
 }
 

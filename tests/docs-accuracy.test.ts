@@ -538,7 +538,7 @@ function shippedDocs(): Array<[string, string]> {
 describe("DW-5.1: short tool names; every registered tool is named in SKILL.md and GEMINI.md", () => {
   test("test_DW_5_1_every_registered_tool_named_in_skill_and_gemini", () => {
     const names = registeredToolNames();
-    expect(names.length).toBe(27);
+    expect(names.length).toBe(31);
     for (const doc of [SKILL, GEMINI]) {
       const text = readDoc(doc);
       for (const t of names) expect(text, `${doc} is missing \`${t}\``).toContain(`\`${t}\``);
@@ -669,7 +669,7 @@ describe("DW-5.3: no stale phrases in shipped docs", () => {
   for (const phrase of STALE) {
     test(`test_DW_5_3_no_${phrase.replace(/[^a-z0-9]+/gi, "_")}`, () => {
       for (const [rel, text] of shippedDocs()) {
-        if (rel === "references/site-data.md") continue; // owner-side `upgrade_required` is a live site-data error code
+        if (rel === "references/site-data.md" || rel === "references/backends.md") continue; // owner-side `upgrade_required` is a live site-data / backend error code
         if (rel === "CHANGELOG.md") continue; // history may quote retired wording
         expect(text, `${rel} contains "${phrase}"`).not.toContain(phrase);
       }
@@ -839,5 +839,184 @@ describe("Phase 5 fix-forward: docs match backend behaviour", () => {
     expect(m).not.toContain("with no warning");
     expect(m).toContain("names the replaced and new version");
     expect(m).toContain("`delete` of `_root` is refused");
+  });
+});
+
+// ─── DW-6.2 (user backends): every doc surface lists the tools and routes to the guide ──────
+
+const BACKEND_TOOLS = ["publish_backend", "backend", "backend_secret", "backend_logs"] as const;
+
+describe("DW-6.2: every doc surface lists the backend tools and routes to the guide", () => {
+  test("test_DW_6_2_backend_tools_are_registered", () => {
+    const names = registeredToolNames();
+    for (const t of BACKEND_TOOLS) expect(names).toContain(t);
+  });
+
+  test("test_DW_6_2_backend_skill_md_lists_tools_and_routes_to_guide", () => {
+    const skill = readDoc("skills/upublish/SKILL.md");
+    for (const t of BACKEND_TOOLS) expect(skill).toContain(`\`${t}\``);
+    expect(skill).toContain("../../references/backends.md");
+  });
+
+  test("test_DW_6_2_backend_gemini_md_lists_tools_and_routes_to_guide", () => {
+    const gemini = readDoc("GEMINI.md");
+    for (const t of BACKEND_TOOLS) expect(gemini).toContain(`\`${t}\``);
+    expect(gemini).toContain("`references/backends.md`");
+  });
+
+  test("test_DW_6_2_backend_claude_md_lists_tools_and_mentions_guide", () => {
+    const claude = readDoc("CLAUDE.md");
+    expect(claude).toMatch(/publish_backend \(/);
+    expect(claude).toMatch(/backend \(status\/versions\/rollback\/enable\/disable\/access\//);
+    expect(claude).toMatch(/backend_secret \(set\/list\/delete\)/);
+    expect(claude).toMatch(/backend_logs/);
+    expect(claude).toContain("references/backends.md");
+    expect(claude).toContain("tests/fixtures/backend/");
+  });
+
+  test("test_DW_6_2_backend_readme_lists_tools_and_routes_to_guide", () => {
+    const readme = readDoc("README.md");
+    for (const t of BACKEND_TOOLS) expect(readme).toContain(`\`${t}\``);
+    expect(readme).toContain("references/backends.md");
+  });
+
+  test("test_DW_6_2_skill_and_gemini_describe_the_consent_echo_and_site_data", () => {
+    for (const rel of ["skills/upublish/SKILL.md", GEMINI]) {
+      const doc = readDoc(rel);
+      expect(doc).toContain("WITHOUT `accept_charge`");
+      expect(doc).toContain("`expected`");
+      expect(doc).toContain("includes Site data");
+    }
+  });
+
+  test("test_DW_6_2_vendored_backend_fixtures_readme_names_source_and_manifest", () => {
+    const readme = readDoc("tests/fixtures/backend/README.md");
+    expect(readme).toContain("docs/backend/fixtures/");
+    expect(readme).toMatch(/read-only snapshot/i);
+    expect(readme).toContain("manifest.json");
+    expect(readme).toMatch(/`[0-9a-f]{7}`/);
+  });
+});
+
+describe("DW-6.2: references/backends.md matches the frozen contract", () => {
+  const guide = readDoc("references/backends.md");
+
+  // code -> status, copied from the contract's section 10 for the codes a /_api caller can see.
+  const VISITOR_ERRORS: Record<string, number> = {
+    request_headers_too_large: 431, backend_plane_disabled: 503, backend_not_found: 404, backend_not_deployed: 404,
+    backend_disabled: 403, access_denied: 403, invalid_token: 401, backend_rate_limited: 429, backend_limit: 503,
+    content_type_not_allowed: 502, backend_error: 502, unavailable: 503,
+    egress_denied: 403, egress_private_address: 403, egress_scheme_denied: 403, egress_rate_limited: 429,
+  };
+  for (const [code, status] of Object.entries(VISITOR_ERRORS)) {
+    test(`test_DW_6_2_guide_error_table_${code}_${status}`, () => {
+      expect(guide).toMatch(new RegExp(`\\| \`${code}\` \\| ${status} \\|`));
+    });
+  }
+
+  test("test_DW_6_2_guide_names_the_tool_side_codes", () => {
+    for (const c of [
+      "unauthenticated", "forbidden", "not_available", "not_found", "invalid_request", "upgrade_required", "no_subscription", "consent_required",
+      "addon_not_enabled", "backend_limit_exceeded", "deploy_rate_limited", "bundle_too_large", "bundle_rejected", "version_not_found", "conflict", "upstream_failed",
+    ]) expect(guide).toContain(`\`${c}\``);
+  });
+
+  test("test_DW_6_2_guide_explains_the_forwarded_path", () => {
+    expect(guide).toContain("/contact/_api/submit?x=1");
+    expect(guide).toContain("arrives as `/submit?x=1`");
+    expect(guide).toContain("`/contact/_api` and `/contact/_api/` arrive as `/`");
+  });
+
+  test("test_DW_6_2_guide_props_shape_and_identity_kinds", () => {
+    expect(guide).toContain("ctx.props.upublish");
+    expect(guide).toContain("site:     { id, address, namespace }");
+    expect(guide).toContain("identity: { kind, subject, claims?, label? } | null");
+    for (const kind of ["`anonymous`", "`passcode`", "`jwt`", "`null`"]) expect(guide).toContain(`| ${kind} |`);
+    expect(guide).toContain("never gives a first-time visitor an anonymous identity");
+    expect(guide).toContain("Forms must post from the site's own origin");
+    expect(guide).toContain("passes through to your code untouched");
+  });
+
+  test("test_DW_6_2_guide_access_modes", () => {
+    expect(guide).toMatch(/\| `site` \(default on the first deploy\) \|/);
+    expect(guide).toMatch(/\| `public` \|/);
+    expect(guide).toContain("`backend` action `access`");
+  });
+
+  test("test_DW_6_2_guide_site_data_api", () => {
+    for (const m of ["me()", "list(collection", "get(collection, id)", "create(collection, data)", "put(collection, id, data)", "delete(collection, id)"]) expect(guide).toContain(m);
+    for (const c of ["data_unavailable", "data_plane_disabled", "exists", "identity_limit_reached", "collection_full", "row_too_large", "rate_limited", "overloaded"]) expect(guide).toContain(`\`${c}\``);
+    expect(guide).toContain("`{ ok: true, value }` or `{ ok: false, code, error }`");
+  });
+
+  test("test_DW_6_2_guide_no_html_rule_and_response_policy", () => {
+    expect(guide).toContain("JSON, never HTML");
+    for (const t of ["application/json", "application/x-ndjson", "text/plain", "text/csv", "text/markdown", "image/png", "image/webp", "image/avif"]) expect(guide).toContain(`\`${t}\``);
+    expect(guide).toContain("`text/html`");
+    expect(guide).toContain("`502 content_type_not_allowed`");
+    expect(guide).toContain("Cache-Control: no-store");
+    expect(guide).toContain("Access-Control-Allow-Credentials");
+  });
+
+  test("test_DW_6_2_guide_no_node_builtins", () => {
+    expect(guide).toContain("no Node built-ins");
+    expect(guide).toContain("nodejs_compat");
+  });
+
+  test("test_DW_6_2_guide_limits_match_the_contract", () => {
+    expect(guide).toContain("1 MB (1,048,576 bytes)");
+    expect(guide).toContain("5 per address, 1 per site");
+    expect(guide).toContain("64 secrets and 32 vars");
+    expect(guide).toContain("up to 64 characters");
+    expect(guide).toContain("each value up to 5 KB");
+    expect(guide).toContain("10 per backend");
+    expect(guide).toContain("30 per address per hour");
+    expect(guide).toContain("Pro: 50 ms and 10; Max: 100 ms and 20");
+    expect(guide).toContain("1,000,000 per backend per month");
+    expect(guide).toContain("300 requests per minute per site");
+    expect(guide).toContain("the last 100 lines");
+    expect(guide).toContain("30 days");
+    expect(guide).toContain("600 requests per minute per address");
+  });
+
+  test("test_DW_6_2_guide_consent_flow_and_lifecycle", () => {
+    expect(guide).toContain("NOTHING HAS BEEN CHARGED");
+    expect(guide).toContain("$3.00/month or $30.00/year");
+    expect(guide).toContain("**includes Site data**");
+    expect(guide).toContain("`accept_charge: true`");
+    expect(guide).toContain("moves that item to the Backend price");
+    expect(guide).toContain("`409 conflict`");
+    expect(guide).toContain("`deployed: false`");
+    expect(guide).toContain("rollback");
+  });
+
+  test("test_DW_6_2_delete_is_documented_on_every_surface", () => {
+    for (const rel of ["skills/upublish/SKILL.md", GEMINI]) {
+      const doc = readDoc(rel);
+      expect(doc).toContain("`delete` (DESTRUCTIVE");
+      expect(doc).toContain("`confirm_site`");
+    }
+    expect(readDoc("CLAUDE.md")).toMatch(/access\/\s+delete\/addon_status/);
+    const guide = readDoc("references/backends.md");
+    expect(guide).toContain("`backend` action `delete` with `confirm_site` equal to the site slug");
+    expect(guide).toContain("frees one of the 5 slots");
+  });
+
+  test("test_DW_6_2_guide_template_works_for_anonymous_visitors_and_explains_site_data_forbidden", () => {
+    expect(guide).toContain("first-time anonymous visitor");
+    expect(guide).toContain("`TURNSTILE_SECRET`");
+    expect(guide).toContain("`CONTACT_WEBHOOK_URL`");
+    expect(guide).toContain("### Optional: store the message in Site data (visitors with an identity only)");
+    expect(guide).toContain("gets `forbidden` from `data`");
+  });
+
+  test("test_DW_6_2_guide_secrets_never_in_vars_or_code", () => {
+    expect(guide).toContain("Never put a secret in the code, in `vars`");
+    expect(guide).toContain("names only");
+  });
+
+  test("test_DW_6_2_guide_embeds_the_starter_template_verbatim", () => {
+    const template = readDoc("references/backend-template.ts").trimEnd();
+    expect(guide).toContain("```ts\n" + template + "\n```");
   });
 });

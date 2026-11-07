@@ -1,0 +1,22 @@
+{
+  "upublish": {
+    "site": {
+      "id": "5b0e3c1a-0000-4000-8000-00000000b001",
+      "address": "contact",
+      "namespace": "alice.upubli.sh"
+    },
+    "identity": {
+      "kind": "jwt",
+      "subject": "https://abc.supabase.co/auth/v1|user-42",
+      "claims": {
+        "sub": "user-42",
+        "iss": "https://abc.supabase.co/auth/v1",
+        "email": "her@example.com",
+        "email_verified": true,
+        "roles": [
+          "member"
+        ]
+      }
+    }
+  }
+}

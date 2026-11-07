@@ -1,0 +1,36 @@
+{
+  "route": "backend.rollback",
+  "request": {
+    "method": "POST",
+    "path": "/api/ns/5b0e3c1a-0000-4000-8000-00000000a001/sites/contact/backend/rollback",
+    "body": {
+      "version": 1
+    }
+  },
+  "responses": [
+    {
+      "name": "rolled-back",
+      "status": 200,
+      "body": {
+        "version": 1,
+        "deployed_at": "2026-11-06T12:05:00.000Z"
+      }
+    },
+    {
+      "name": "no-such-version",
+      "status": 404,
+      "body": {
+        "error": "Version 9 does not exist or was pruned",
+        "code": "version_not_found"
+      }
+    },
+    {
+      "name": "conflict",
+      "status": 409,
+      "body": {
+        "error": "A deploy is in progress",
+        "code": "conflict"
+      }
+    }
+  ]
+}
