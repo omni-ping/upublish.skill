@@ -886,10 +886,10 @@ export async function dataJwt(args: DataJwtArgs, deps?: CoreDeps): Promise<DataJ
  * @throws Error "Not authenticated" if no credentials are stored.
  * @throws BackendError on an API failure, with an actionable message.
  */
-export async function publishBackend(args: PublishBackendArgs, deps?: CoreDeps): Promise<PublishBackendResult> {
+export async function publishBackend(args: PublishBackendArgs, deps?: CoreDeps, opts?: { allowEntry?: boolean }): Promise<PublishBackendResult> {
   return sanitizeErrors(async () => {
     const apiClient = await buildApiClient(deps);
-    return runPublishBackend(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+    return runPublishBackend(apiClient, await resolveNamespace(apiClient, args.namespace), args, { allowEntry: opts?.allowEntry });
   });
 }
 

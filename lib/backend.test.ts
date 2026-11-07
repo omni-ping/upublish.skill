@@ -90,14 +90,21 @@ describe("DW-6.1: runPublishBackend", () => {
 
   it("a missing entry file is a result, not a throw", async () => {
     const { client, calls } = makeClient(() => undefined);
-    expect(await runPublishBackend(client, NS, { site: SLUG, entry: "/definitely/not/here.ts" })).toMatchObject({ state: "bundle_failed", kind: "entry_not_found" });
+    expect(await runPublishBackend(client, NS, { site: SLUG, entry: "/definitely/not/here.ts" }, { allowEntry: true })).toMatchObject({ state: "bundle_failed", kind: "entry_not_found" });
     expect(calls).toEqual([]);
   });
 
   it("bundles an entry file relative to the given cwd", async () => {
     const { client } = makeClient(echoDeploy);
-    const r = await runPublishBackend(client, NS, { site: SLUG, entry: "backend-template.ts" }, { cwd: `${import.meta.dir}/../references` });
+    const r = await runPublishBackend(client, NS, { site: SLUG, entry: "backend-template.ts" }, { cwd: `${import.meta.dir}/../references`, allowEntry: true });
     expect(r).toMatchObject({ state: "deployed" });
+  });
+
+  it("test_DW_6_1_entry_is_refused_unless_the_caller_opted_in_to_local_files (a hosted server must never read its own paths)", async () => {
+    const { client, calls } = makeClient(() => undefined);
+    await expect(runPublishBackend(client, NS, { site: SLUG, entry: "/etc/hosts" })).rejects.toThrow(/'entry' is not available on this server.*Pass the handler's source as 'code'/);
+    await expect(runPublishBackend(client, NS, { site: SLUG, entry: "/etc/hosts" }, { allowEntry: false })).rejects.toThrow(/not available on this server/);
+    expect(calls).toEqual([]);
   });
 
   it("requires exactly one of entry and code", async () => {

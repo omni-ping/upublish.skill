@@ -101,7 +101,7 @@ Your `fetch()` goes through an egress filter. It answers `{ error, code }`: `egr
 | Set a secret, list names, delete one | `backend_secret` actions `set`, `list`, `delete` |
 | See what the handler logged and how requests ended | `backend_logs` |
 
-`publish_backend` bundles locally, so a compiler error or a bundle over 1 MB is reported before anything is sent. Roles: the address owner enables or disables the add-on; the owner or an admin member deploys, sets secrets, rolls back and changes settings; any member can read the add-on status.
+`publish_backend` bundles locally, so a compiler error or a bundle over 1 MB is reported before anything is sent. Bundling is sandboxed: macros are off, and `entry` may import only files inside its project folder (the nearest folder with a package.json) and npm packages installed there. The hosted server cannot see your files, so there you pass `code`: one self-contained module that imports nothing except `cloudflare:*` (no relative, absolute, URL or npm imports; bundle first on your machine if you need packages). Roles: the address owner enables or disables the add-on; the owner or an admin member deploys, sets secrets, rolls back and changes settings; any member can read the add-on status.
 
 **Secrets.** Ask the user for the value and pass it to `backend_secret` `set`. It is sent once and never shown, logged or written to a local file; `list` returns names only. A secret persists across deploys and takes effect on the next request. Never put a secret in the code, in `vars`, or in a message back to the user.
 

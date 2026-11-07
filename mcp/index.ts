@@ -367,11 +367,17 @@ export interface CreateServerOpts {
    * the stdio entrypoint turns this on (see stdioServerOptions()).
    */
   updateCheck?: boolean;
+  /**
+   * Opt in to `publish_backend`'s `entry` (a path on this machine). Defaults to OFF: the hosted /mcp router
+   * runs createServer() on the backend's own host, where a path would name the SERVER's files. Only the stdio
+   * entrypoint turns this on (see stdioServerOptions()); hosted use passes inline `code`.
+   */
+  localFiles?: boolean;
 }
 
 /** Server options used by the stdio entrypoint (main()). */
 export function stdioServerOptions(): CreateServerOpts {
-  return { updateCheck: true, runtimeCheck: { version: typeof Bun !== "undefined" ? Bun.version : undefined } };
+  return { updateCheck: true, localFiles: true, runtimeCheck: { version: typeof Bun !== "undefined" ? Bun.version : undefined } };
 }
 
 /**
@@ -1698,8 +1704,8 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         "Redeploying replaces the live version at once; undo with `backend` action 'rollback'.",
       inputSchema: {
         site: siteArg,
-        entry: z.string().min(1).optional().describe("Path to the entry file (.ts, .js). Exactly one of entry / code."),
-        code: z.string().min(1).optional().describe("Inline source of the entry module. Exactly one of entry / code."),
+        entry: z.string().min(1).optional().describe("Path to the entry file (.ts, .js) on this machine; only available on a local server (the hosted server cannot see your files: use code). Exactly one of entry / code."),
+        code: z.string().min(1).optional().describe("Inline source of the entry module: ONE self-contained module (no relative, absolute, URL or npm imports; only cloudflare:*). Exactly one of entry / code."),
         access: accessArg.optional().describe("'site' (default on first deploy): the site's passcode / gate protects /_api too. 'public': anyone can call it (webhooks). Omit to keep the current value."),
         vars: z
           .record(z.string().regex(BINDING_NAME_RE), z.string().max(BACKEND_LIMITS.bindingValueBytes))
@@ -1711,7 +1717,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
     },
     async (args) => {
       try {
-        const result = await publishBackend(args, coreDeps);
+        const result = await publishBackend(args, coreDeps, { allowEntry: opts?.localFiles === true });
         const text = formatPublishBackend(result);
         // A bundle that could not be built means nothing was deployed: flag it as a failure.
         return result.state === "bundle_failed" ? errResponse(new Error(text)) : okResponse(text);

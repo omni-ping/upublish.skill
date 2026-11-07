@@ -23,6 +23,7 @@ const nameList = (names: string[]): string => (names.length > 0 ? names.map(t).j
 const BUNDLE_FAILURE_HINT: Record<Extract<PublishBackendResult, { state: "bundle_failed" }>["kind"], string> = {
   entry_not_found: "Check the path (relative paths resolve from the current directory).",
   compile: "Fix the errors above and run publish_backend again.",
+  forbidden_import: "Remove the import (macros, URLs, absolute paths and files outside the project folder are refused) and run publish_backend again.",
   node_builtin: "Replace them with Web APIs and run publish_backend again.",
   too_large: "Nothing was sent.",
   no_default_export: "Add a default export and run publish_backend again.",

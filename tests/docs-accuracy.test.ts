@@ -1010,6 +1010,12 @@ describe("DW-6.2: references/backends.md matches the frozen contract", () => {
     expect(guide).toContain("gets `forbidden` from `data`");
   });
 
+  test("test_DW_6_2_guide_documents_the_bundling_sandbox", () => {
+    expect(guide).toContain("Bundling is sandboxed: macros are off");
+    expect(guide).toContain("The hosted server cannot see your files");
+    expect(guide).toContain("imports nothing except `cloudflare:*`");
+  });
+
   test("test_DW_6_2_guide_secrets_never_in_vars_or_code", () => {
     expect(guide).toContain("Never put a secret in the code, in `vars`");
     expect(guide).toContain("names only");

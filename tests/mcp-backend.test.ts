@@ -10,7 +10,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { ZodTypeAny } from "zod";
-import { createServer } from "../mcp/index.ts";
+import { createServer, stdioServerOptions } from "../mcp/index.ts";
 import { backendSecret, type CoreDeps } from "../lib/core.ts";
 import { NS, SITES_BODY, jsonResponse, stackFetch, type Handler, type Recorded } from "./helpers/site-data.ts";
 import { backendResponse, loadBackendRoute, SLUG } from "./helpers/backend.ts";
@@ -35,14 +35,14 @@ afterAll(() => {
 const tmp: string[] = [];
 afterEach(() => { for (const f of tmp.splice(0)) fs.rmSync(f, { force: true, recursive: true }); });
 
-function setup(handler: Handler, opts: { credentials?: boolean } = {}) {
+function setup(handler: Handler, opts: { credentials?: boolean; serverOpts?: Parameters<typeof createServer>[1] } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-backend-"));
   tmp.push(dir);
   const file = path.join(dir, "credentials");
   if (opts.credentials !== false) fs.writeFileSync(file, "refresh-token", { mode: 0o600 });
   const { fetchFn, calls } = stackFetch(handler);
   const deps: CoreDeps = { credentialsPath: file, fetchFn };
-  const tools = (createServer(deps) as unknown as InternalServer)._registeredTools;
+  const tools = (createServer(deps, opts.serverOpts) as unknown as InternalServer)._registeredTools;
   return { tools, dir, file, calls, call: (name: string, args: Record<string, unknown>) => tools[name]!.handler(args) };
 }
 
@@ -168,6 +168,29 @@ describe("DW-6.1: publish_backend through the handler", () => {
     expect(r.isError).toBe(true);
     expect(text(r)).toContain("[addon_not_enabled]");
     expect(text(r)).toContain("addon_enable");
+  });
+
+  test("test_DW_6_1_hosted_server_refuses_entry_a_server_path_and_reads_no_file", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-entry-"));
+    tmp.push(dir);
+    const entry = path.join(dir, "h.ts");
+    fs.writeFileSync(entry, CODE);
+    // createServer() without opts is what the hosted router calls: no local files.
+    const hosted = setup(deploy);
+    const refused = await hosted.call("publish_backend", { site: SLUG, entry });
+    expect(refused.isError).toBe(true);
+    expect(text(refused)).toContain("'entry' is not available on this server");
+    expect(hosted.calls.filter((c) => c.path.includes("/sites/"))).toEqual([]);
+    // The stdio server opts in (stdioServerOptions sets localFiles) and the same call deploys.
+    expect(stdioServerOptions().localFiles).toBe(true);
+    const local = setup(deploy, { serverOpts: { localFiles: true } });
+    const ok = await local.call("publish_backend", { site: SLUG, entry });
+    expect(ok.isError).toBeUndefined();
+    expect(text(ok)).toContain("Backend deployed");
+    // Hosted inline code with an escaping import is refused by the sandbox, and nothing is sent.
+    const escape = await hosted.call("publish_backend", { site: SLUG, code: 'import t from "/etc/hosts" with { type: "text" }; export default { fetch() { return new Response(t); } };' });
+    expect(escape.isError).toBe(true);
+    expect(text(escape)).toContain("outside what a backend bundle may read");
   });
 
   test("both entry and code is an argument error", async () => {

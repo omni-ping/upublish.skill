@@ -106,14 +106,20 @@ async function apiUrlFor(apiClient: ApiClient, nsId: string, slug: string): Prom
 
 /**
  * Bundles and deploys a backend. Nothing is sent unless the bundle is valid.
- * @throws Error on bad arguments; BackendError on API failure.
+ * `opts.allowEntry` (default false) lets `entry` name a file on THIS machine; only a local stdio server sets it.
+ * @throws Error on bad arguments or a refused `entry`; BackendError on API failure.
  */
 export async function runPublishBackend(
-  apiClient: ApiClient, ns: Namespace, args: PublishBackendArgs, opts: { cwd?: string } = {},
+  apiClient: ApiClient, ns: Namespace, args: PublishBackendArgs, opts: { cwd?: string; allowEntry?: boolean } = {},
 ): Promise<PublishBackendResult> {
   const site = requireArg(args.site, "site", "publish_backend");
   if ((args.entry === undefined) === (args.code === undefined)) {
     throw new Error("Pass exactly one of 'entry' (a file path) or 'code' (inline source).");
+  }
+  if (args.entry !== undefined && opts.allowEntry !== true) {
+    // A server-side host (the hosted /mcp router) has no files of the caller's: an `entry` path would name the
+    // SERVER's files. Only a local stdio server opts in.
+    throw new Error("'entry' is not available on this server: it cannot see your files. Pass the handler's source as 'code' (one self-contained module, no imports except cloudflare:*).");
   }
   if (args.vars) validateVars(args.vars);
 

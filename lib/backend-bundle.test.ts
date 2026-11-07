@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, afterAll } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync, mkdirSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bundleBackend } from "./backend-bundle.ts";
@@ -157,5 +157,137 @@ describe("DW-6.1: bundleBackend", () => {
       const r = await bundleBackend({ code: `export default { fetch() { return new Response("${"é".repeat(600_000)}"); } };` });
       expect(r).toMatchObject({ ok: false, kind: "too_large" });
     });
+  });
+});
+
+// ─── Sandbox: the bundler must not execute attacker code or read files outside the project ─────────
+
+describe("DW-6.1: bundling is sandboxed (macros, file reads, URL imports)", () => {
+  const sbx = mkdtempSync(join(tmpdir(), "backend-sandbox-"));
+  afterAll(() => rmSync(sbx, { recursive: true, force: true }));
+  const file = (rel: string, body: string): string => {
+    const p = join(sbx, rel);
+    mkdirSync(join(p, ".."), { recursive: true });
+    writeFileSync(p, body);
+    return p;
+  };
+  const HANDLER = "export default { fetch() { return new Response(String(x)); } };";
+
+  // project/ has a package.json (its root); outside/ is beside it.
+  file("project/package.json", '{"name":"p"}');
+  file("outside/secret.ts", 'export const x = "TOP-SECRET-OUTSIDE";');
+  file("outside/secret.txt", "TOP-SECRET-TEXT");
+
+  it("test_DW_6_1_a_macro_import_fails_the_bundle_and_executes_nothing", async () => {
+    const sentinel = join(sbx, "SENTINEL-macro-ran");
+    file("project/macro.ts", `import { writeFileSync } from "node:fs"; export function x() { writeFileSync(${JSON.stringify(sentinel)}, "pwned"); return "v"; }`);
+    const entry = file("project/macro-entry.ts", `import { x } from "./macro" with { type: "macro" }; export default { fetch() { return new Response(x()); } };`);
+    const r = await bundleBackend({ entry });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.message).toContain("Macros are disabled");
+    expect(existsSync(sentinel)).toBe(false);
+  });
+
+  it("a macro import in inline code is refused too, and runs nothing", async () => {
+    const sentinel = join(sbx, "SENTINEL-inline-macro");
+    file("project/inline-macro.ts", `import { writeFileSync } from "node:fs"; export function x() { writeFileSync(${JSON.stringify(sentinel)}, "pwned"); return "v"; }`);
+    const r = await bundleBackend({ code: `import { x } from "${join(sbx, "project/inline-macro.ts")}" with { type: "macro" }; export default { fetch() { return new Response(x()); } };` });
+    expect(r.ok).toBe(false);
+    expect(existsSync(sentinel)).toBe(false);
+  });
+
+  it("test_DW_6_1_type_text_of_an_absolute_file_is_refused (entry mode and inline mode)", async () => {
+    const code = `import t from "/etc/hosts" with { type: "text" }; export default { fetch() { return new Response(t); } };`;
+    const entry = file("project/text-entry.ts", code);
+    for (const r of [await bundleBackend({ entry }), await bundleBackend({ code })]) {
+      expect(r).toMatchObject({ ok: false, kind: "forbidden_import" });
+      if (!r.ok) expect(r.message).toMatch(/hosts/);
+    }
+  });
+
+  it("test_DW_6_1_a_relative_escape_out_of_the_project_is_refused", async () => {
+    const entry = file("project/src/escape.ts", `import { x } from "../../outside/secret"; ${HANDLER}`);
+    const r = await bundleBackend({ entry });
+    expect(r).toMatchObject({ ok: false, kind: "forbidden_import" });
+    if (!r.ok) expect(r.message).not.toContain("TOP-SECRET");
+    // The same with ?raw-style text attribute on a non-code file
+    const text = file("project/src/escape-text.ts", `import t from "../../outside/secret.txt" with { type: "text" }; export default { fetch() { return new Response(t); } };`);
+    expect(await bundleBackend({ entry: text })).toMatchObject({ ok: false, kind: "forbidden_import" });
+  });
+
+  it("without a package.json the root is the entry's own directory, so even a sibling directory is out", async () => {
+    file("loose/lib/a.ts", 'export const x = 1;');
+    file("loose/other/b.ts", 'export const y = 2;');
+    const entry = file("loose/lib/entry.ts", `import { x } from "./a"; import { y } from "../other/b"; export default { fetch() { return new Response(String(x + y)); } };`);
+    expect(await bundleBackend({ entry })).toMatchObject({ ok: false, kind: "forbidden_import" });
+  });
+
+  it("test_DW_6_1_a_symlink_that_resolves_outside_the_project_is_refused", async () => {
+    const link = join(sbx, "project/linked.ts");
+    symlinkSync(join(sbx, "outside/secret.ts"), link);
+    const entry = file("project/link-entry.ts", `import { x } from "./linked"; ${HANDLER}`);
+    const r = await bundleBackend({ entry });
+    expect(r).toMatchObject({ ok: false, kind: "forbidden_import" });
+    if (!r.ok) expect(r.message).not.toContain("TOP-SECRET");
+  });
+
+  it("a symlinked directory pointing outside is refused as well", async () => {
+    symlinkSync(join(sbx, "outside"), join(sbx, "project/dirlink"));
+    const entry = file("project/dirlink-entry.ts", `import { x } from "./dirlink/secret"; ${HANDLER}`);
+    expect(await bundleBackend({ entry })).toMatchObject({ ok: false, kind: "forbidden_import" });
+  });
+
+  it("test_DW_6_1_inline_code_may_import_nothing_from_disk_or_network", async () => {
+    const abs = join(sbx, "outside/secret.ts");
+    const bad: Array<[string, string]> = [
+      ["absolute path", `import { x } from "${abs}"; ${HANDLER}`],
+      ["relative path", `import { x } from "./secret"; ${HANDLER}`],
+      ["parent path", `import { x } from "../outside/secret"; ${HANDLER}`],
+      ["bare package", `import x from "left-pad"; ${HANDLER}`],
+      ["file: URL", `import x from "file://${abs}"; ${HANDLER}`],
+      ["data: URL", `import x from "data:text/javascript,export default 1"; ${HANDLER}`],
+      ["https: URL", `import x from "https://example.com/x.js"; ${HANDLER}`],
+      ["dynamic import of a path", `export default { async fetch() { return new Response(String(await import("${abs}"))); } };`],
+    ];
+    for (const [label, code] of bad) {
+      const r = await bundleBackend({ code });
+      expect(r, label).toMatchObject({ ok: false, kind: "forbidden_import" });
+      if (!r.ok) expect(r.message, label).not.toContain("TOP-SECRET");
+    }
+  });
+
+  it("entry mode refuses URL imports too", async () => {
+    for (const spec of ["file:///etc/hosts", "data:text/javascript,export default 1", "https://example.com/x.js"]) {
+      const entry = file("project/url-entry.ts", `import x from "${spec}"; ${HANDLER}`);
+      expect(await bundleBackend({ entry }), spec).toMatchObject({ ok: false, kind: "forbidden_import" });
+    }
+  });
+
+  it("what is still allowed: cloudflare:* in inline code, and node built-ins keep their own message", async () => {
+    expect((await bundleBackend({ code: `import { env } from "cloudflare:workers"; export default { fetch() { return new Response(String(env)); } };` })).ok).toBe(true);
+    expect(await bundleBackend({ code: `import fs from "node:fs"; export default { fetch() { return new Response(String(fs)); } };` })).toMatchObject({ ok: false, kind: "node_builtin" });
+  });
+
+  it("test_DW_6_1_a_normal_TypeScript_project_with_an_npm_package_still_bundles_in_entry_mode", async () => {
+    file("app/package.json", '{"name":"app"}');
+    file("app/node_modules/tiny-pkg/package.json", '{"name":"tiny-pkg","version":"1.0.0","main":"index.js"}');
+    file("app/node_modules/tiny-pkg/index.js", 'export const shout = (s) => s.toUpperCase() + "!";');
+    file("app/src/util.ts", "export const greet = (n: string): string => `hi ${n}`;");
+    file("app/data.json", '{"k":"json-value"}');
+    const entry = file("app/src/entry.ts", `import { shout } from "tiny-pkg"; import { greet } from "./util"; import data from "../data.json";
+export default { async fetch(): Promise<Response> { return Response.json({ m: shout(greet("x")), d: data.k }); } };`);
+    const r = await bundleBackend({ entry });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.source).toContain("toUpperCase");
+      expect(r.source).toContain("json-value");
+    }
+  });
+
+  it("an absolute import of a file INSIDE the project is fine", async () => {
+    file("app2/package.json", '{"name":"app2"}');
+    const inside = file("app2/lib/in.ts", "export const x = 1;");
+    const entry = file("app2/entry.ts", `import { x } from "${inside}"; ${HANDLER}`);
+    expect((await bundleBackend({ entry })).ok).toBe(true);
   });
 });
