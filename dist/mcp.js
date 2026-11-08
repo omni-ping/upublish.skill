@@ -26770,6 +26770,56 @@ import {
   statSync
 } from "fs";
 import { join as join4, relative, sep } from "path";
+
+// lib/billing-text.ts
+var ACCOUNT_PAST_DUE_CODE = "account_past_due";
+var ACCOUNT_PAST_DUE_TEXT = "Payment failed \u2014 update your card. New publishes are paused.";
+var BILLING_URL = "https://upubli.sh/profile/settings";
+var accountPastDueMessage = () => `${ACCOUNT_PAST_DUE_TEXT} Update it at ${BILLING_URL} (Manage billing). Existing sites keep serving.`;
+var unit = (interval) => interval === "year" ? "/yr" : interval === "month" ? "/mo" : "";
+var money = (usd, interval) => `$${usd.toFixed(2)}${unit(interval)}`;
+var intervalNote = (interval) => interval === null ? " (billing interval not reported)" : "";
+function totalText(unitUsd, count, interval) {
+  return count === 1 ? money(unitUsd, interval) : `${money(unitUsd * count, interval)} (${money(unitUsd, interval)} each)`;
+}
+function storageChargeLine(ov) {
+  return `+${totalText(ov.price, ov.blocks, ov.interval)} added to your bill${intervalNote(ov.interval)} \u2014 ${ov.blocks} x ${ov.block_gb}GB storage ${ov.blocks === 1 ? "block" : "blocks"}.`;
+}
+function storageApprovalPriceLine(a) {
+  if (a.price === null)
+    return "Approving adds a storage block to your subscription.";
+  const blocks = a.blocks_needed ?? 1;
+  const size = `${a.block_gb ?? 10}GB`;
+  const what = blocks === 1 ? `a ${size} storage block` : `${blocks} x ${size} storage blocks`;
+  return `Approving adds ${what} at ${totalText(a.price, blocks, a.interval)}${intervalNote(a.interval)}.`;
+}
+function packChargeLine(ov) {
+  return `+${money(ov.price, ov.interval)} added to your bill${intervalNote(ov.interval)} \u2014 a pack of ${ov.pack_size} address slots.`;
+}
+function packApprovalPriceLine(a) {
+  if (a.price === null)
+    return "Adding this address requires an address pack.";
+  return `Adding this address requires a pack of ${a.pack_size ?? 5} address slots at ${money(a.price, a.interval)}${intervalNote(a.interval)}.`;
+}
+var usd = (cents) => `$${(cents / 100).toFixed(2)}`;
+function addonChargeText(c) {
+  if (c === null)
+    return "No charge was made.";
+  const recurring = c.recurring_cents === undefined ? "" : ` It then costs ${usd(c.recurring_cents)}/${c.interval}.`;
+  if (c.price_cents === 0)
+    return `No charge now.${recurring}`;
+  const plan = c.interval === "year" ? "yearly" : "monthly";
+  switch (c.basis) {
+    case "invoice":
+      return `Charged ${usd(c.price_cents)} now (prorated, ${plan} plan).${recurring}`;
+    case "list_price":
+      return `Price: ${usd(c.price_cents)}/${c.interval} (list price). The exact prorated amount charged today is on your Stripe receipt.`;
+    default:
+      return `Charged ${usd(c.price_cents)} (${plan} plan).${recurring}`;
+  }
+}
+
+// lib/publish.ts
 var STORAGE_APPROVAL_URL_FALLBACK = "https://upubli.sh/profile/settings?storage_request=1";
 var ANALYTICS_UPGRADE_URL = "https://upubli.sh/pricing";
 
@@ -26802,6 +26852,11 @@ function enrichPublishError(err) {
       const interval = rawInterval === "month" || rawInterval === "year" ? rawInterval : null;
       return new StorageApprovalError(approvalUrl, price, block_gb, blocks_needed, interval, `Storage pack approval required. Approve at ${approvalUrl}`);
     }
+  }
+  if (err instanceof ApiError && err.status === 403) {
+    const body = err.rawBodyData;
+    if (body?.error === ACCOUNT_PAST_DUE_CODE)
+      return new Error(accountPastDueMessage());
   }
   if (err instanceof ApiError && err.status === 403) {
     const body = err.rawBodyData;
@@ -27272,7 +27327,9 @@ async function publish(opts) {
   const neededPaths = new Set(manifestResult.needed.map((f) => f.path));
   const uploadedFiles = manifestResult.needed.map((f) => f.path);
   const skippedFiles = files.map((f) => f.path).filter((p) => !neededPaths.has(p));
-  const finalizeResult = await apiClient.finalize(nsId, slug, manifestResult.session_id);
+  const finalizeResult = await apiClient.finalize(nsId, slug, manifestResult.session_id).catch((err) => {
+    throw enrichPublishError(err);
+  });
   log(`[finalize] slug=${slug} uploaded=${uploadedFiles.length} skipped=${skippedFiles.length} url=${finalizeResult.url}`);
   const result = {
     url: finalizeResult.url,
@@ -28292,6 +28349,7 @@ var STATUS_SHAPE = [
   ["billing.wipe_after", nullable3(isoTime)],
   ["billing.wiped_at", nullable3(isoTime)],
   ["billing.would_charge", isBool],
+  ["billing.paused", optionalOf(isBool)],
   ["price", isObj],
   ["price.month_cents", nullable3(intMin(0))],
   ["price.year_cents", nullable3(intMin(0))],
@@ -28379,7 +28437,9 @@ var ENABLE_SHAPE = [
   ["activating", isBool],
   ["charge", nullable3(isObj)],
   ["charge.interval", oneOf("month", "year")],
-  ["charge.price_cents", intMin(0)]
+  ["charge.price_cents", intMin(0)],
+  ["charge.basis", optionalOf(oneOf("invoice", "list_price"))],
+  ["charge.recurring_cents", optionalOf(intMin(0))]
 ];
 var DISABLE_SHAPE = [["entitled", oneOf(false)], ["wipe_after", isoTime]];
 var JWT_RESPONSE_SHAPE = [["jwt_issuer", nullable3(isObj)], ...under("jwt_issuer", JWT_ISSUER_SHAPE)];
@@ -28483,22 +28543,20 @@ async function getStatus(apiClient, ns) {
   const collections = Object.fromEntries(Object.entries(status.collections).map(([name, c]) => [name, { ...c, config: slugifyConfig(dir, c.config) }]));
   return { ...status, collections };
 }
-async function readAccount(apiClient) {
-  const read = async (path, what) => {
-    try {
-      return await apiClient.get(path);
-    } catch (err) {
-      const detail = err instanceof ApiError || err instanceof Error ? err.message : String(err);
-      throw new Error(`Could not read ${what} (${path}), so the charge cannot be confirmed. Nothing was charged. ${detail}`);
-    }
-  };
-  const space = await read("/api/space", "the account plan");
-  const me = await read("/auth/me", "the account role");
+async function readTier(apiClient) {
+  const path = "/api/space";
+  let space;
+  try {
+    space = await apiClient.get(path);
+  } catch (err) {
+    const detail = err instanceof ApiError || err instanceof Error ? err.message : String(err);
+    throw new Error(`Could not read the account plan (${path}), so the charge cannot be confirmed. Nothing was charged. ${detail}`);
+  }
   const tier = space?.space?.tier;
   if (tier !== "free" && tier !== "pro" && tier !== "max") {
     throw new Error("Could not read the account plan (/api/space): unexpected tier. Nothing was charged.");
   }
-  return { tier, admin: me?.role === "admin" };
+  return tier;
 }
 function expectedFor(status, tier) {
   const { interval, would_charge } = status.billing;
@@ -28513,21 +28571,27 @@ async function enable(apiClient, ns, acceptCharge, given) {
   }
   if (status.entitled)
     return { action: "enable", state: "already_enabled" };
+  if (status.billing.paused === true)
+    return { action: "enable", state: "paused" };
   if (status.billing.item_present)
     return { action: "enable", state: "in_progress" };
-  const { tier, admin } = await readAccount(apiClient);
-  if (tier === "free" && !admin)
-    return { action: "enable", state: "needs_paid_plan" };
+  const tier = await readTier(apiClient);
   const expected = expectedFor(status, tier);
-  const consent = (changed) => ({ action: "enable", state: "consent_needed", expected, price: status.price, changed, admin });
+  const consent = (changed) => ({ action: "enable", state: "consent_needed", expected, price: status.price, changed });
   if (!acceptCharge)
     return consent(false);
   if (given === undefined)
     return { action: "enable", state: "expected_missing" };
   if (!sameExpectation(given, expected))
     return consent(true);
-  const res = await guard("owner", async () => parseEnableResponse(await apiClient.post(`${dataBase(ns.id)}/enable`, { accept_charge: true })), "billing_enable");
-  return { action: "enable", state: "enabled", activating: res.activating, charge: res.charge };
+  try {
+    const res = await guard("owner", async () => parseEnableResponse(await apiClient.post(`${dataBase(ns.id)}/enable`, { accept_charge: true })), "billing_enable");
+    return { action: "enable", state: "enabled", activating: res.activating, charge: res.charge };
+  } catch (err) {
+    if (err instanceof SiteDataError && err.code === "upgrade_required")
+      return { action: "enable", state: "needs_paid_plan" };
+    throw err;
+  }
 }
 async function runData(apiClient, ns, args) {
   switch (args.action) {
@@ -28791,13 +28855,14 @@ async function runDataRows(apiClient, ns, args) {
 }
 
 // lib/site-data-format.ts
-var usd = (cents) => `$${(cents / 100).toFixed(2)}`;
+var usd2 = (cents) => `$${(cents / 100).toFixed(2)}`;
 function priceText(price, interval) {
-  const month = price.month_cents === null ? null : `${usd(price.month_cents)}/month`;
-  const year = price.year_cents === null ? null : `${usd(price.year_cents)}/year`;
+  const month = price.month_cents === null ? null : `${usd2(price.month_cents)}/month`;
+  const year = price.year_cents === null ? null : `${usd2(price.year_cents)}/year`;
   const shown = interval === "month" ? [month] : interval === "year" ? [year] : [month, year];
   return shown.filter(Boolean).join(" or ") || "price unavailable";
 }
+var PAUSED_TEXT = "Billing: PAUSED with the subscription. Site data is suspended (the data is kept and no deletion clock runs); it resumes when the subscription resumes (manage billing in the Stripe portal).";
 var NO_CHARGE_TEXT = "Enabling will not charge this account.";
 var NEEDS_PAID_PLAN_TEXT = "Site data needs a Pro or Max plan \u2014 use the `upgrade` tool, then run `data enable` again WITHOUT accept_charge to see the price.";
 function consentText(r) {
@@ -28805,13 +28870,11 @@ function consentText(r) {
   const lead = r.changed ? `The plan or price changed since the last consent, so nothing was charged. Show the user the new details.
 ` : "";
   let cost;
-  if (r.admin && !expected.would_charge) {
-    cost = "No charge for this account (platform admin).";
-  } else if (expected.would_charge) {
+  if (expected.would_charge) {
     const unknown = expected.interval === null ? " The billing interval is unknown, so both list prices are shown; if the account has no subscription the enable call will say so and charge nothing." : "";
     cost = `Enabling site data is a paid add-on on the ${safeText(expected.tier)} plan. List price: ${priceText(r.price, expected.interval)}.${unknown} ` + "A prorated amount for the rest of the current billing period is charged immediately on the existing payment method and reported after enabling " + "(the API does not expose the prorated amount before enabling).";
   } else {
-    cost = "The server reports no new charge for this account; if the account has no subscription the enable call will say so.";
+    cost = "The server reports no new charge for this account; if the account has no subscription the enable call will say so." + (expected.tier === "free" ? " The account is on the Free plan: unless the address is owned by a platform admin, the server refuses the enable (use the `upgrade` tool first). Nothing is charged either way." : "");
   }
   return `${lead}${cost} NOTHING HAS BEEN CHARGED.
 ` + `Ask the user to confirm, then call data again with action 'enable', accept_charge: true and this exact expected value:
@@ -28829,7 +28892,9 @@ function dataText(r) {
         lines.push(`Entitlement: ${safeText(s.entitlement_source)}`);
       if (s.billing.past_due)
         lines.push("Billing: PAST DUE");
-      if (!s.entitled) {
+      if (s.billing.paused === true)
+        lines.push(PAUSED_TEXT);
+      if (!s.entitled && s.billing.paused !== true) {
         lines.push(s.billing.would_charge ? `Price if enabled: ${priceText(s.price, s.billing.interval)}` : NO_CHARGE_TEXT);
       }
       if (s.billing.wipe_after)
@@ -28857,12 +28922,14 @@ function dataText(r) {
           return "Site data is already being added to this account (the add-on's billing item exists but it is not active yet). Nothing was charged. Check `data` status in a minute.";
         case "needs_paid_plan":
           return NEEDS_PAID_PLAN_TEXT;
+        case "paused":
+          return `${PAUSED_TEXT} Enabling again would not help. Nothing was charged.`;
         case "expected_missing":
           return "Nothing was charged: accept_charge needs the `expected` object that the consent printed. Run `data` action 'enable' WITHOUT accept_charge first, show the user what it says, then pass accept_charge: true together with that expected.";
         case "consent_needed":
           return consentText(r);
       }
-      return "Site data enabled." + (r.charge ? ` Charged ${usd(r.charge.price_cents)} now (prorated, ${r.charge.interval}ly plan).` : " No charge was made.") + (r.activating ? " It can take up to a minute to become active on your sites." : "");
+      return "Site data enabled." + ` ${addonChargeText(r.charge)}` + (r.activating ? " It can take up to a minute to become active on your sites." : "");
     case "disable":
       return `Site data disabled. Visitor access stops now. Data is retained until ${safeText(r.wipe_after)}, then permanently deleted.`;
     case "wipe":
@@ -29010,6 +29077,7 @@ var ADDON_SHAPE = [
   ["billing.would_charge", isBool],
   ["billing.converts_data_addon", isBool],
   ["billing.paused", optionalBool],
+  ["billing.disable_keeps_site_data", optionalBool],
   ["price", isObj],
   ["price.month_cents", nullable3(intMin(0))],
   ["price.year_cents", nullable3(intMin(0))],
@@ -29024,9 +29092,11 @@ var ENABLE_SHAPE2 = [
   ["converted_data_addon", isBool],
   ["charge", nullable3(isObj)],
   ["charge.interval", oneOf("month", "year")],
-  ["charge.price_cents", intMin(0)]
+  ["charge.price_cents", intMin(0)],
+  ["charge.basis", (v) => v === undefined || v === "invoice" || v === "list_price"],
+  ["charge.recurring_cents", (v) => v === undefined || intMin(0)(v)]
 ];
-var DISABLE_SHAPE2 = [["entitled", oneOf(false)], ["delete_after", isoTime]];
+var DISABLE_SHAPE2 = [["entitled", oneOf(false)], ["delete_after", isoTime], ["site_data_kept", optionalBool]];
 var STATUS_SHAPE2 = [
   ["deployed", isBool],
   ["site", isObj],
@@ -29146,6 +29216,9 @@ function hintFor2(code, role, context) {
     case "version_not_found":
       return `List versions with \`backend\` action 'versions'. Only the ${L.archivedVersionsPerBackend} most recent archived versions are kept.`;
     case "conflict":
+      if (context === "billing_disable") {
+        return "Site data can't be kept right now, so NOTHING was changed (Backend is still on). Ask the user: wait and retry to keep Site data, or end BOTH Backend and Site data (its rows are deleted after 30 days) by calling `backend` action 'addon_disable' with keep_site_data: false.";
+      }
       return context === "billing_enable" ? "The subscription is managed by a subscription schedule, so nothing was changed. Change the plan in the Stripe billing portal first." : "Another change is in flight or the state moved. Check `backend` action 'status', then retry.";
     case "upstream_failed":
       return "Cloudflare rejected or failed the request. The previous version stays live. Retry shortly.";
@@ -29433,6 +29506,16 @@ function expectedFor2(status) {
 }
 var sameExpectation2 = (a, b) => a !== undefined && a !== null && a.would_charge === b.would_charge && a.converts_data_addon === b.converts_data_addon && a.interval === b.interval && a.price_cents === b.price_cents && a.month_cents === b.month_cents && a.year_cents === b.year_cents;
 var getAddonStatus = (apiClient, ns) => guard2("member", async () => parseAddonStatus(await apiClient.get(addonBase(ns.id))));
+async function readSiteDataPrice(apiClient, ns) {
+  try {
+    const status = parseDataStatus(await apiClient.get(`/api/ns/${ns.id}/data`));
+    const { interval } = status.billing;
+    const cents = interval === "month" ? status.price.month_cents : interval === "year" ? status.price.year_cents : null;
+    return interval !== null && cents !== null ? { cents, interval } : null;
+  } catch {
+    return null;
+  }
+}
 async function addonEnable(apiClient, ns, acceptCharge, given) {
   const status = await getAddonStatus(apiClient, ns);
   if (!status.available)
@@ -29463,8 +29546,10 @@ async function runBackend(apiClient, ns, args) {
     case "addon_enable":
       return addonEnable(apiClient, ns, args.accept_charge === true, args.expected);
     case "addon_disable": {
-      const res = await guard2("owner", async () => parseDisableResponse2(await apiClient.post(`${addonBase(ns.id)}/disable`, {})), { context: "billing_disable" });
-      return { action: "addon_disable", ...res };
+      const keep = args.keep_site_data ?? true;
+      const res = await guard2("owner", async () => parseDisableResponse2(await apiClient.post(`${addonBase(ns.id)}/disable`, { keep_site_data: keep })), { context: "billing_disable" });
+      const dataPrice = res.site_data_kept === true ? await readSiteDataPrice(apiClient, ns) : null;
+      return { action: "addon_disable", ...res, data_price: dataPrice };
     }
   }
   const site = requireArg(args.site, "site", args.action);
@@ -29538,7 +29623,7 @@ async function runBackendLogs(apiClient, ns, args) {
 }
 
 // lib/backend-format.ts
-var usd2 = (cents) => `$${(cents / 100).toFixed(2)}`;
+var usd3 = (cents) => `$${(cents / 100).toFixed(2)}`;
 var nameList = (names) => names.length > 0 ? names.map(safeText).join(", ") : "(none)";
 var BUNDLE_FAILURE_HINT = {
   entry_not_found: "Check the path (relative paths resolve from the current directory).",
@@ -29587,8 +29672,8 @@ function statusText(namespace, site, s) {
 `);
 }
 var priceText2 = (price, interval) => {
-  const month = price.month_cents === null ? null : `${usd2(price.month_cents)}/month`;
-  const year = price.year_cents === null ? null : `${usd2(price.year_cents)}/year`;
+  const month = price.month_cents === null ? null : `${usd3(price.month_cents)}/month`;
+  const year = price.year_cents === null ? null : `${usd3(price.year_cents)}/year`;
   const both = [month, year].filter(Boolean).join(" or ") || "price unavailable";
   const mine = interval === "month" ? month : interval === "year" ? year : null;
   return mine ? `${both} (this subscription bills ${interval === "month" ? "monthly" : "yearly"}: ${mine})` : both;
@@ -29602,6 +29687,9 @@ function addonStatusText(namespace, s) {
     lines.push("Billing: PAUSED with the subscription; backends are suspended until it resumes (manage billing in the Stripe portal).");
   if (b.past_due)
     lines.push("Billing: PAST DUE");
+  if (s.entitled && b.disable_keeps_site_data !== undefined) {
+    lines.push(b.disable_keeps_site_data ? "Turning the add-on off keeps Site data on, billed at the Site data price (you choose with keep_site_data)." : "Turning the add-on off cannot keep Site data right now; it would need keep_site_data: false and would end both.");
+  }
   lines.push(`Price: ${priceText2(s.price, b.interval)}. It includes Site data (/_data collections).`);
   lines.push(`Backends: ${s.backends.count} of ${s.backends.max}`);
   if (b.delete_after && !b.deleted_at)
@@ -29610,6 +29698,17 @@ function addonStatusText(namespace, s) {
     lines.push(`Scripts were deleted ${b.deleted_at}. After re-enabling, redeploy with backend action 'rollback' (an archived version) or publish_backend; secrets must be set again.`);
   return lines.join(`
 `);
+}
+function disableText(r) {
+  const backend = `The Backend add-on is disabled: every /_api endpoint stops answering now. Backends are kept until ${r.delete_after}, then their scripts are deleted. Re-enable before then to keep them.`;
+  if (r.site_data_kept === true) {
+    const price = r.data_price ? `${usd3(r.data_price.cents)}/${r.data_price.interval}` : "the Site data price";
+    return `${backend} Site data stays on and stays billed: ${price}, billed with your plan from the next invoice (the Backend price no longer applies). Its rows are untouched. To stop that too, use the \`data\` tool, action 'disable'.`;
+  }
+  if (r.site_data_kept === false) {
+    return `${backend} Site data ended with it: both are off and nothing for either stays billed. Site data rows are deleted after 30 days; enabling Site data again before then keeps them.`;
+  }
+  return backend;
 }
 function consentText2(r) {
   const { expected, status } = r;
@@ -29660,14 +29759,13 @@ ${rows.join(`
         case "expected_missing":
           return "accept_charge needs the exact `expected` object from the consent. Run action 'addon_enable' WITHOUT accept_charge to get it. Nothing was charged.";
         case "enabled": {
-          const c = r.result.charge;
-          const charge = c ? `Charged: ${usd2(c.price_cents)}/${c.interval === "month" ? "month" : "year"} recurring (a prorated amount for this period may also appear on the invoice).` : "No charge (complimentary or admin).";
+          const charge = r.result.charge ? addonChargeText(r.result.charge) : "No charge (complimentary or admin).";
           const conv = r.result.converted_data_addon ? " The existing Site data item was moved to the Backend price." : "";
           return sanitizeOutput(`The Backend add-on is enabled${r.result.activating ? " (activating; backends can be deployed now, and /_api answers within about a minute)" : ""}. ${charge}${conv} It includes Site data.`);
         }
       }
     case "addon_disable":
-      return sanitizeOutput(`The Backend add-on is disabled: every /_api endpoint stops answering now. Backends are kept until ${r.delete_after}, then their scripts are deleted. Re-enable before then to keep them.`);
+      return sanitizeOutput(disableText(r));
   }
 }
 function formatBackendSecret(r) {
@@ -29694,7 +29792,6 @@ function formatBackendLogs(r) {
 ${rows.join(`
 `)}`);
 }
-
 // lib/core.ts
 var API_BASE_URL = process.env.UPUBLISH_API_URL ?? "https://api.upubli.sh";
 var SITE_BASE_URL = (process.env.UPUBLISH_SITE_URL ?? "https://upubli.sh").replace(/\/$/, "");
@@ -30067,7 +30164,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.44";
+var PACKAGE_VERSION = "0.12.45";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -30316,10 +30413,9 @@ Uploaded: ${result.uploadedFiles.length} file(s), skipped ${result.skippedFiles.
         const ov = result.storage_overage;
         if (ov?.charged !== true)
           return "";
-        const intervalSuffix = ov.interval === "year" ? "/yr" : "/mo";
         return `
 
-+$${ov.price.toFixed(2)}${intervalSuffix} added to your bill \u2014 ` + `${ov.blocks} x ${ov.block_gb}GB storage block${ov.blocks !== 1 ? "s" : ""}.`;
+${storageChargeLine(ov)}`;
       })();
       if (result.preview_url) {
         log(`[publish] tool done slug=${site.slug} preview_url=${result.preview_url}`);
@@ -30339,7 +30435,7 @@ Use the promote tool to make this preview live.`);
     } catch (err) {
       log(`[publish] tool error slug=${slug} err=${err.message}`);
       if (err instanceof StorageApprovalError) {
-        const priceLine = err.price !== null ? `Approving adds a ${err.block_gb ?? 10}GB storage block ` + `at $${err.price.toFixed(2)}${err.interval === "year" ? "/yr" : "/mo"}.` : `Approving adds a storage block to your subscription.`;
+        const priceLine = storageApprovalPriceLine(err);
         return {
           content: [
             {
@@ -30870,7 +30966,7 @@ ${fields}`;
 ` + "  access        \u2014 Set `access`: 'site' (the site's passcode / gate applies) or 'public'\n" + `  delete        \u2014 DESTRUCTIVE and irreversible: deletes the site's backend script, ALL its versions and archives and its secrets, and frees one of the ${BACKEND_LIMITS.backendsPerNamespace} per-address backend slots. Requires confirm_site equal to the site slug. Prefer 'disable' to just stop serving
 ` + `  addon_status  \u2014 Availability, whether the add-on is enabled, price, backend count
 ` + "  addon_enable  \u2014 Turn the Backend add-on on. It CHARGES the account's payment method (prorated now, then monthly or yearly) and includes Site data. " + "WITHOUT accept_charge it charges nothing and only prints the consent and an exact `expected` object. " + "Pass accept_charge: true AND that same `expected` only after the user agrees; if the price or plan changed meanwhile, nothing is charged and a new consent is printed. " + `Free plans must use the upgrade tool first. Owner only
-` + `  addon_disable \u2014 Turn the add-on off. Every /_api endpoint stops at once; backends are kept ${BACKEND_LIMITS.retentionDays} days, then deleted. Owner only
+` + `  addon_disable \u2014 Turn the add-on off. Every /_api endpoint stops at once; backends are kept ${BACKEND_LIMITS.retentionDays} days, then deleted. ` + "BEFORE calling it, ask the owner whether to KEEP Site data or END BOTH: keep_site_data true (the default) leaves Site data on, billed at the Site data price from the next invoice; " + `keep_site_data false ends Site data too and its rows are deleted after 30 days (destructive: only with the owner's explicit yes). If Site data cannot be kept right now the call changes nothing and says so. The result states what stays billed. Owner only
 
 ` + "If addon_status says the add-on is not available for this account, tell the user and stop; do not offer it.",
     inputSchema: {
@@ -30880,6 +30976,7 @@ ${fields}`;
       access: accessArg.optional().describe("access only: 'site' or 'public'."),
       confirm_site: string2().min(1).max(255).optional().describe("delete only: must equal the site slug exactly (type-to-confirm)."),
       accept_charge: boolean2().optional().describe("addon_enable only: true ONLY after the user has agreed to the consent shown by a previous addon_enable call; must come with `expected`."),
+      keep_site_data: boolean2().optional().describe("addon_disable only: true (default) keeps Site data on at the Site data price; false ends Site data too (rows deleted after 30 days). Ask the owner; never choose false on your own."),
       expected: object2({
         would_charge: boolean2(),
         converts_data_addon: boolean2(),
@@ -31161,14 +31258,13 @@ ${lines.join(`
         `Domain: ${result.domain}`
       ];
       if (result.overage?.charged === true) {
-        const intervalSuffix = result.overage.interval === "year" ? "/yr" : "/mo";
-        lines.push(``, `+$${result.overage.price.toFixed(2)}${intervalSuffix} added to your bill \u2014 ` + `a pack of ${result.overage.pack_size} address slots.`);
+        lines.push(``, packChargeLine(result.overage));
       }
       return okResponse(lines.join(`
 `));
     } catch (err) {
       if (err instanceof OverageApprovalError) {
-        const priceLine = err.price !== null ? `Adding this address requires a pack of ${err.pack_size ?? 5} address slots ` + `at $${err.price.toFixed(2)}${err.interval === "year" ? "/yr" : "/mo"}.` : `Adding this address requires an address pack.`;
+        const priceLine = packApprovalPriceLine(err);
         return {
           content: [
             {
