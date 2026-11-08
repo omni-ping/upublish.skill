@@ -59,10 +59,10 @@ Needs Pro or Max. A connected domain becomes its own address, so sites serve at 
 
 ## Team members
 
-On a shared address (Max plan), `members` lists, adds, removes and re-roles members: `action` is `list`, `add`, `remove` or `role`, with `username` and `role` (`admin` or `user`).
+On a shared address (Max plan), `members` lists, adds, removes and re-roles members: `action` is `list`, `add`, `remove` or `role`, with `username` (the member's sign-in email) and `role` (`admin` or `user`).
 
 ## Checking site status
 
-After publishing, you can verify a site is live by noting the production URL returned by the publish tool. The URL format is always `https://{address}.upubli.sh/{slug}/`.
+After publishing, you can verify a site is live by noting the production URL returned by the publish tool. Share the URL the tool returns. Its shape is `https://{address}.upubli.sh/{slug}/` (or `.pinn.sh`, or `https://{hostname}/{slug}/` on a custom domain), with any `path_prefix` before the slug. The `_root` site is the address home page, with no slug.
 
 If a user asks "is my site working?" — the best answer is to tell them the URL and suggest they visit it. The MCP tools don't have a health-check endpoint.

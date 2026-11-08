@@ -39,7 +39,7 @@ These control how the page looks when shared on Slack, Discord, Twitter/X, Linke
 
 **Safe default: 1200x630 PNG.** Works everywhere.
 
-If no og:image exists, generate one using inline SVG (see `generate-assets.md` for techniques) — project name on a colored background is better than no preview image.
+If no og:image exists, generate one using inline SVG (see `skills/upublish/references/generate-assets.md` for techniques). The project name on a colored background is better than no preview image.
 
 ### Twitter/X cards
 
@@ -87,7 +87,7 @@ Sites on upublish are served at a subdirectory path. The canonical URL should re
 <link rel="canonical" href="https://address.upubli.sh/slug/">
 ```
 
-This prevents search engines from treating the same content at different URLs as duplicates. Replace `username` and `slug` with actual values.
+This prevents search engines from treating the same content at different URLs as duplicates. Replace `address` and `slug` with actual values.
 
 ## robots.txt
 
