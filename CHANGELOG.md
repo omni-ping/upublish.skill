@@ -2,10 +2,20 @@
 
 ## [Unreleased]
 
+## [0.12.40] — 2026-11-08
+
+### Changed
+
+- `references/backends.md`: guide gaps closed (#21).
+
+## [0.12.39] — 2026-11-07
+
 ### Added
 
 - User backends (paid add-on): `publish_backend` deploys a small server-side handler next to a site at `{site}/_api/*` (an entry file bundled locally with `Bun.build`, or inline `code`; bundle limit 1 MB, compiler errors and Node built-in imports reported before anything is sent). `backend` covers status, versions, rollback, enable/disable, access (`site` or `public`), `delete` (destructive, needs `confirm_site`) and the add-on itself (`addon_enable` needs a consent echo: `accept_charge: true` plus the exact `expected` object, and states that the add-on includes Site data). `backend_secret` sets, lists (names only) and deletes secrets; values are never echoed, logged or stored locally. `backend_logs` shows the last 100 log lines. Guide: `references/backends.md`, with a tested contact-form starter (`references/backend-template.ts`).
 - `publish` warns when a published file has an `_api` path segment (reserved for backends; such files are not served).
+
+## [0.12.38] — 2026-11-06
 
 ### Fixed
 
