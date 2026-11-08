@@ -27296,7 +27296,7 @@ async function publish(opts) {
   const collectedFiles = await hashFiles(fileList, { onHashProgress });
   const files = Object.entries(collectedFiles).map(([path, file]) => ({
     path,
-    hash: force ? crypto.randomUUID() : file.hash,
+    hash: file.hash,
     size: file.size
   }));
   const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
@@ -27310,6 +27310,7 @@ async function publish(opts) {
       passcode: visibility === "passcode" ? passcode : undefined,
       passcode_label: visibility === "passcode" ? passcodeLabel ?? "default" : undefined,
       preview,
+      force: force === true ? true : undefined,
       analytics_enabled: analyticsEnabled,
       spa,
       path_prefix: pathPrefix
@@ -27344,7 +27345,8 @@ async function publish(opts) {
     warnings,
     excluded,
     uploadedFiles,
-    skippedFiles
+    skippedFiles,
+    ...force === true ? { forced: true } : {}
   };
   if (manifestResult.storage_overage?.charged === true) {
     result.storage_overage = manifestResult.storage_overage;
@@ -30171,7 +30173,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.48";
+var PACKAGE_VERSION = "0.12.49";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -30322,7 +30324,7 @@ function createServer(callerDeps, opts) {
       passcode: string2().optional().describe("Passcode for passcode-protected sites. Required when visibility is 'passcode'."),
       namespace: string2().optional().describe("Address name to publish into. When omitted, the default address is used."),
       preview: boolean2().optional().describe("When true, publishes as a staging preview instead of going live immediately. " + "The response includes a preview_url where the staging version can be reviewed. " + "Use the promote tool to promote the staging version to live."),
-      force: boolean2().optional().describe("When true, uploads all files regardless of whether they changed. " + "Use this to force a full re-upload when the site is broken or out of sync."),
+      force: boolean2().optional().describe("Re-checks every stored file and re-uploads any that are missing or corrupt; healthy files are never re-uploaded. " + "Use this when a site is broken or out of sync."),
       spa: boolean2().optional().describe("Single-page app mode: unknown paths serve index.html. Pass true on EVERY publish of an SPA; " + "a republish without it that also sets a non-public visibility (such as a passcode) turns SPA mode off."),
       allow_no_index: boolean2().optional().describe("Publish even though the directory has no top-level index.html. Only for folders that are intentionally not a web page (e.g. downloads)."),
       allow_project_files: boolean2().optional().describe("Publish even though the directory looks like a project root (two or more of package.json, tsconfig.json, lockfiles, Dockerfile, src/, .git/). Usually you want the build output folder instead."),
@@ -30414,7 +30416,8 @@ Excluded: ${result.excluded.length} file(s) (${result.excluded.join(", ")})` : "
 Warning: Included files that may not be site content: ${result.warnings.join(", ")}` + `
   Add them to .upublishignore in the publish directory to exclude.` : "";
       const filenameWarningLine = renderFilenameWarning(result.filenameWarnings);
-      const incrementalLine = result.uploadedFiles !== undefined && result.skippedFiles !== undefined ? `
+      const incrementalLine = result.forced && result.uploadedFiles !== undefined ? `
+Force: verified ${result.uploadedFiles.length + (result.skippedFiles?.length ?? 0)} file(s), re-uploaded ${result.uploadedFiles.length}` : result.uploadedFiles !== undefined && result.skippedFiles !== undefined ? `
 Uploaded: ${result.uploadedFiles.length} file(s), skipped ${result.skippedFiles.length} unchanged file(s)` : "";
       const storageOverageLine = (() => {
         const ov = result.storage_overage;
