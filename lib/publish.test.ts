@@ -318,55 +318,75 @@ describe("DW-1.4: size derives from bytes hashed", () => {
     expect(entry.size).toBe(Buffer.byteLength(content));
   });
 
-  it("test_DW_1_4_force_mode_random_hash_real_size", async () => {
-    // force=true sends random hashes to the manifest, but the reported size
-    // must remain the real on-disk byte count. Capture the manifest payload.
-    const content = "<h1>Hello</h1>";
-    writeFileSync(join(tmpDir, "index.html"), content);
-
-    const collected = collectFilesWithHashes(tmpDir);
-    const realHash = collected.files["index.html"].hash;
-
-    let capturedFiles: Record<string, { hash: string; size: number }> = {};
+  // DW-2.1: force sends real MD5s plus an explicit force flag; no random hashes ever.
+  async function runPublish(opts: { force?: boolean; needed: Array<{ path: string; upload_url: string }> }) {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
+    writeFileSync(join(tmpDir, "b.txt"), "bee");
+    const collected = collectFilesWithHashes(tmpDir).files;
+    let body: Record<string, any> = {};
     const fetchFn = async (url: string, init?: RequestInit) => {
       if (url.includes("/manifest")) {
-        const body = init?.body ? JSON.parse(init.body as string) : {};
-        capturedFiles = body.files;
+        body = JSON.parse(init!.body as string);
         return new Response(
-          JSON.stringify({
-            needed: [{ path: "index.html", upload_url: "https://r2.example.com/1" }],
-            version: 1,
-            session_id: "sess-1",
-            base_version: null,
-          }),
+          JSON.stringify({ needed: opts.needed, version: 1, session_id: "sess-1", base_version: null }),
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
-      if (url.includes("r2.example.com") && init?.method === "PUT") {
-        return new Response("", { status: 200 });
-      }
+      if (url.includes("r2.example.com") && init?.method === "PUT") return new Response("", { status: 200 });
       if (url.includes("/finalize")) {
-        return new Response(
-          JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
+        return new Response(JSON.stringify({ site: SAMPLE_SITE, url: SAMPLE_URL }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       }
       return new Response("Not found", { status: 404 });
     };
-
     const apiClient = new ApiClient(BASE_URL, staticTokenProvider, fetchFn);
-    await publish({
-      apiClient,
-      nsId: "ns-1",
-      directory: tmpDir,
-      slug: "my-site",
-      force: true,
-      fetchFn,
-    });
+    const result = await publish({ apiClient, nsId: "ns-1", directory: tmpDir, slug: "my-site", force: opts.force, fetchFn });
+    return { body, collected, result };
+  }
 
-    // Random hash != real collected hash, but size is the real byte count.
-    expect(capturedFiles["index.html"].hash).not.toBe(realHash);
-    expect(capturedFiles["index.html"].size).toBe(Buffer.byteLength(content));
+  it("test_DW_2_1_force_sends_real_md5_hashes_and_force_true", async () => {
+    const { body, collected } = await runPublish({ force: true, needed: [] });
+    expect(body.force).toBe(true);
+    expect(Object.keys(body.files)).toHaveLength(2);
+    for (const [p, f] of Object.entries(body.files as Record<string, { hash: string; size: number }>)) {
+      expect(f.hash).toMatch(/^[0-9a-f]{32}$/);
+      expect(f.hash).toBe(collected[p]!.hash);
+      expect(f.size).toBe(collected[p]!.size);
+    }
+  });
+
+  it("test_DW_2_1_no_force_omits_flag_and_sends_real_hashes", async () => {
+    for (const force of [undefined, false]) {
+      const { body, collected } = await runPublish({ force, needed: [] });
+      expect("force" in body).toBe(false);
+      for (const [p, f] of Object.entries(body.files as Record<string, { hash: string }>)) {
+        expect(f.hash).toBe(collected[p]!.hash);
+      }
+    }
+  });
+
+  it("test_DW_2_1_force_result_reports_verified_and_reuploaded_sets", async () => {
+    const { result } = await runPublish({
+      force: true,
+      needed: [{ path: "b.txt", upload_url: "https://r2.example.com/1" }],
+    });
+    expect(result.forced).toBe(true);
+    expect(result.uploadedFiles).toEqual(["b.txt"]);
+    expect(result.skippedFiles).toEqual(["index.html"]);
+  });
+
+  it("test_DW_2_1_force_against_server_presigning_nothing_still_finalizes", async () => {
+    const { result } = await runPublish({ force: true, needed: [] });
+    expect(result.url).toBe(SAMPLE_URL);
+    expect(result.uploadedFiles).toEqual([]);
+    expect(result.skippedFiles).toHaveLength(2);
+  });
+
+  it("test_DW_2_1_non_forced_result_has_no_forced_marker", async () => {
+    const { result } = await runPublish({ needed: [] });
+    expect(result.forced).toBeUndefined();
   });
 });
 
@@ -583,6 +603,22 @@ describe("DW-5.2: ApiClient.manifest()", () => {
       visibility: "public",
       preview: true,
     });
+  });
+
+  it("test_DW_2_1_manifest_forwards_force_flag_in_body", async () => {
+    let captured: Record<string, unknown> = {};
+    const fetchFn = async (_u: string, init?: RequestInit) => {
+      captured = JSON.parse(init!.body as string);
+      return new Response(
+        JSON.stringify({ needed: [], version: 1, session_id: "s", base_version: null }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    };
+    const client = new ApiClient(BASE_URL, staticTokenProvider, fetchFn as typeof fetch);
+    await client.manifest("ns-1", "my-site", { files: [], force: true });
+    expect(captured.force).toBe(true);
+    await client.manifest("ns-1", "my-site", { files: [] });
+    expect("force" in captured).toBe(false);
   });
 
   it("test_DW_5_1_manifest_forwards_path_prefix", async () => {
@@ -2153,8 +2189,8 @@ describe("DW-2.6: publish() byte-identical when onHashProgress omitted", () => {
   });
 
   it("test_T2_13_force_still_hashes_real_byte_totals", async () => {
-    // force=true sends random manifest hashes, but hashing still runs locally and
-    // onHashProgress reports the REAL byte totals; manifest hash != real hash.
+    // force=true sends the REAL manifest hashes plus force:true; onHashProgress
+    // reports the REAL byte totals.
     const content = "<h1>Hello force</h1>";
     writeFileSync(join(tmpDir, "index.html"), content);
 
@@ -2192,8 +2228,8 @@ describe("DW-2.6: publish() byte-identical when onHashProgress omitted", () => {
       onHashProgress: (p) => events.push({ ...p }),
     });
 
-    // Manifest carries a RANDOM hash (not the real one) but the real size.
-    expect(cap.manifestFiles!["index.html"].hash).not.toBe(realHash);
+    // Manifest carries the real hash and the real size.
+    expect(cap.manifestFiles!["index.html"].hash).toBe(realHash);
     expect(cap.manifestFiles!["index.html"].size).toBe(Buffer.byteLength(content));
     // onHashProgress reported the REAL hashed byte total on completion.
     const last = events[events.length - 1];

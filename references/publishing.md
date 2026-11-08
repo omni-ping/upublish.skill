@@ -18,7 +18,7 @@ Use the `publish` tool:
 | `preview` | no | Stage the version without changing the live site; `promote` makes it live |
 | `path_prefix` | no | Nested path, e.g. `2026/q3` publishes at `2026/q3/{slug}` |
 | `analytics_enabled` | no | `false` publishes without the analytics script (paid plan) |
-| `force` | no | Re-upload every file even if unchanged |
+| `force` | no | Re-checks every stored file and re-uploads any that are missing or corrupt; healthy files are never re-uploaded |
 | `allow_no_index`, `allow_project_files`, `include_sourcemaps` | no | Opt-outs for the guards below |
 
 ## Before anything uploads

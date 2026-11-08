@@ -272,8 +272,9 @@ export interface PublishOpts {
    */
   preview?: boolean;
   /**
-   * When true, sends randomized hashes so the server treats every file as changed.
-   * Bypasses the diff — all files are uploaded regardless of whether they exist.
+   * Verify-and-repair: sends `force: true` in the manifest (with real hashes) so the server
+   * re-checks every stored file and presigns only those that are missing or corrupt.
+   * Healthy files are never re-uploaded.
    */
   force?: boolean;
   /**
@@ -367,6 +368,8 @@ export interface PublishResult {
    * These files were unchanged and did not need to be re-uploaded.
    */
   skippedFiles?: string[];
+  /** Present (true) only when the publish ran with `force`; `uploadedFiles` is then the re-uploaded (repaired) set and every file was verified. */
+  forced?: boolean;
   /**
    * Present when this publish charged storage-pack blocks. The backend bills
    * recurring packs of `block_gb` GB at `price` USD per `interval`.
@@ -1389,10 +1392,11 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   const collectedFiles = await hashFiles(fileList, { onHashProgress });
 
   // Build file manifest to send to server.
-  // When force=true, use random hashes so the server treats every file as changed.
+  // Always real MD5s (the server rejects anything else). force=true is sent as an explicit
+  // manifest flag: the server re-checks every stored blob and presigns only the missing/corrupt ones.
   const files = Object.entries(collectedFiles).map(([path, file]) => ({
     path,
-    hash: force ? crypto.randomUUID() : file.hash,
+    hash: file.hash,
     size: file.size,
   }));
 
@@ -1412,6 +1416,8 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
       passcode_label:
         visibility === "passcode" ? (passcodeLabel ?? "default") : undefined,
       preview,
+      // Only sent when true; an older server ignores it and diffs normally.
+      force: force === true ? true : undefined,
       analytics_enabled: analyticsEnabled,
       // Omitted (undefined) unless set, so the body is unchanged for non-SPA publishes.
       spa,
@@ -1464,6 +1470,7 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     excluded,
     uploadedFiles,
     skippedFiles,
+    ...(force === true ? { forced: true } : {}),
   };
 
   // Thread storage_overage from the manifest response when present and charged.

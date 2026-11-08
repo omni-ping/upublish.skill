@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `publish` with `force: true` works again. It always sends real file hashes plus an explicit `force: true` manifest flag, and the server re-checks every stored file and re-uploads only those that are missing or corrupt (healthy files are never re-uploaded). The result reports how many files were verified and how many re-uploaded. Previously it sent random hashes, which the server rejected. Against an older server that ignores the flag, a forced publish behaves as a normal diff publish.
+
 ### Changed
 
 - `passcode_add` and `visibility(..., passcode:)`: when the site already has the code, the server answers `existed: true` and the tools report "That passcode already exists on this site as '<label>' (id <id>); nothing changed." as a success (visibility still switches). Older servers without the field behave as before.

@@ -181,6 +181,8 @@ export class ApiClient {
       passcode?: string;
       passcode_label?: string;
       preview?: boolean;
+      /** Verify-and-repair: server re-checks every stored blob and presigns only missing/corrupt ones. Omit unless true. */
+      force?: boolean;
       analytics_enabled?: boolean;
       /** SPA mode. Must be re-sent on every publish of an SPA (a republish without it that also sets a non-public visibility clears it server-side). */
       spa?: boolean;

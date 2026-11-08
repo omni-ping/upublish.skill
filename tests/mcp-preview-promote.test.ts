@@ -324,3 +324,56 @@ describe("DW-3.8: MCP promote tool registered", () => {
     expect(result.content[0].text).toContain("No staging version to promote");
   });
 });
+
+// ─── DW-2.1: force publish — description + result line ───────────────────────
+
+describe("DW-2.1: MCP publish force (verify-and-repair)", () => {
+  test("test_DW_2_1_force_description_states_repair_meaning", () => {
+    const { credFile, deps } = makeDeps();
+    tmpCredFiles.push(credFile);
+    const tool = getTools(createServer(deps))["publish"] as unknown as {
+      inputSchema: { shape: Record<string, { description?: string }> };
+    };
+    const d = tool.inputSchema.shape.force!.description!;
+    expect(d).toContain("Re-checks every stored file and re-uploads any that are missing or corrupt; healthy files are never re-uploaded.");
+    expect(d).not.toContain("regardless of whether they changed");
+  });
+
+  test("test_DW_2_1_force_result_line_reports_verified_and_reuploaded", async () => {
+    let body: { force?: boolean } = {};
+    const fetchFn = makeMockFetch(async (url, init) => {
+      if (url.includes("/manifest") && init?.method === "POST") {
+        body = JSON.parse(init.body as string);
+        return new Response(
+          JSON.stringify({ needed: [{ path: "b.txt", upload_url: "https://r2.example.com/b" }], version: 2, session_id: "s", base_version: 1 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.includes("r2.example.com")) return new Response("", { status: 200 });
+      if (url.includes("/finalize") && init?.method === "POST") {
+        return new Response(JSON.stringify({ site: SAMPLE_SITE, url: LIVE_URL }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return null as unknown as Response;
+    });
+    const { credFile, deps } = makeDeps(fetchFn);
+    tmpCredFiles.push(credFile);
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-force-"));
+    tmpDirs.push(tmpDir);
+    fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
+    fs.writeFileSync(path.join(tmpDir, "b.txt"), "bee");
+
+    const tools = getTools(createServer(deps));
+    const forced = await tools["publish"].handler({ directory: tmpDir, slug: "my-site", force: true });
+    expect(body.force).toBe(true);
+    expect(forced.content[0]!.text).toContain("Force: verified 2 file(s), re-uploaded 1");
+    expect(forced.content[0]!.text).not.toContain("skipped");
+
+    const normal = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
+    expect(body.force).toBeUndefined();
+    expect(normal.content[0]!.text).toContain("Uploaded: 1 file(s), skipped 1 unchanged file(s)");
+    expect(normal.content[0]!.text).not.toContain("Force:");
+  });
+});

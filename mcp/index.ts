@@ -492,8 +492,8 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           .boolean()
           .optional()
           .describe(
-            "When true, uploads all files regardless of whether they changed. " +
-            "Use this to force a full re-upload when the site is broken or out of sync.",
+            "Re-checks every stored file and re-uploads any that are missing or corrupt; healthy files are never re-uploaded. " +
+            "Use this when a site is broken or out of sync.",
           ),
         spa: z
           .boolean()
@@ -689,7 +689,9 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
 
         // Show uploaded vs skipped file counts
         const incrementalLine =
-          result.uploadedFiles !== undefined && result.skippedFiles !== undefined
+          result.forced && result.uploadedFiles !== undefined
+            ? `\nForce: verified ${result.uploadedFiles.length + (result.skippedFiles?.length ?? 0)} file(s), re-uploaded ${result.uploadedFiles.length}`
+            : result.uploadedFiles !== undefined && result.skippedFiles !== undefined
             ? `\nUploaded: ${result.uploadedFiles.length} file(s), skipped ${result.skippedFiles.length} unchanged file(s)`
             : "";
 
