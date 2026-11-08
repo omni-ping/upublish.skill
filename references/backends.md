@@ -1,6 +1,6 @@
 # Backends: a small server-side handler next to a site
 
-A published site is static files. A **backend** is one small JavaScript handler that runs next to a site and answers at `{site}/_api/*`: a form handler, a webhook receiver, or an API route that calls a third party with the owner's own key. You deploy it in one tool call (`publish_backend`) and operate it with `backend`, `backend_secret` and `backend_logs`. It is a paid add-on and the account may not have it (see Step 1).
+A published site is static files. A **backend** is one small JavaScript handler that runs next to a site and answers at `{site}/_api/*`: a form handler, a webhook receiver, or an API route that calls a third party with the owner's own key. You deploy it in one tool call (`publish_backend`) and operate it with `backend`, `backend_secret` and `backend_logs`. It is a paid add-on and the account may not have it: `publish_backend` fails with `addon_not_enabled` until the add-on is on, so start with Step 1 (`addon_status`) even if you only want to deploy.
 
 ## Step 1: Enable the add-on (tools)
 
@@ -22,9 +22,12 @@ Do these in order. Stop and report if a step fails; error messages say what to d
 
 ## Step 2: Write the handler
 
-A backend is **one ES module with a default export** that has a `fetch` handler. Use TypeScript or JavaScript; `publish_backend` bundles it for you locally (npm imports are fine, the whole bundle must stay under 1 MB). There are no Node built-ins (no `node:fs`, no `Buffer` import, no `nodejs_compat`): use Web APIs (`fetch`, `Request`, `Response`, `URL`, `crypto.subtle`, `TextEncoder`).
+A backend is **one ES module with a default export** that has a `fetch` handler. Use TypeScript or JavaScript, in an `entry` file or inline `code` (both are compiled as TypeScript; types are stripped, not checked); `publish_backend` bundles it for you locally (npm imports are fine, the whole bundle must stay under 1 MB). There are no Node built-ins (no `node:fs`, no `Buffer` import, no `nodejs_compat`): use Web APIs (`fetch`, `Request`, `Response`, `URL`, `crypto.subtle`, `TextEncoder`).
 
 ```ts
+// Define the props shape yourself: there is no package to import it from (see "The props" below).
+type Upublish = { site: { id: string; address: string; namespace: string }; identity: { kind: string; subject: string } | null };
+
 export default {
   async fetch(request: Request, env: Record<string, string>, ctx: { props: { upublish: Upublish } }): Promise<Response> {
     const { pathname } = new URL(request.url); // /contact/_api/submit arrives as /submit
@@ -33,7 +36,27 @@ export default {
 };
 ```
 
-**Routing: the forwarded path.** The handler sees the same host and query, and a pathname equal to `/` plus the segments after `_api`. A request to `/contact/_api/submit?x=1` arrives as `/submit?x=1`; `/contact/_api` and `/contact/_api/` arrive as `/`. Route on that pathname, not on the site slug.
+**Minimal example: validate and answer, no secrets.** The page posts JSON `{ email, message }` to `{site}/_api/contact`:
+
+```js
+const fail = (status, code, error) => Response.json({ error, code }, { status });
+
+export default {
+  async fetch(request) {
+    const { pathname } = new URL(request.url);
+    if (pathname !== "/contact") return fail(404, "not_found", "Not found");
+    if (request.method !== "POST") return fail(405, "method_not_allowed", "Use POST");
+    const body = await request.json().catch(() => null);
+    const email = typeof body?.email === "string" ? body.email.trim() : "";
+    const message = typeof body?.message === "string" ? body.message.trim() : "";
+    if (!email || !message) return fail(400, "invalid_request", "email and message are required");
+    console.log("contact", email.length, message.length); // shows up in backend_logs
+    return Response.json({ ok: true });
+  },
+};
+```
+
+**Routing: the forwarded path.** The handler sees the same host and query, and a pathname equal to `/` plus the segments after `_api`. A request to `/contact/_api/submit?x=1` arrives as `/submit?x=1`; `/contact/_api` and `/contact/_api/` arrive as `/`. Route on that pathname, not on the site slug. Route names are yours to choose (`/contact`, `/submit`, `/hooks/stripe`).
 
 **Where it answers.** `{site url}/_api/...`, for example `https://alice.upubli.sh/contact/_api/submit`; for the address root site (`_root`) it is `https://alice.upubli.sh/_api/submit`. It also works on nested addresses and custom domains. `_api` is a reserved path segment (any case, any depth): a published file with an `_api` path segment is never served, and `publish` warns about it.
 
@@ -99,7 +122,7 @@ Your `fetch()` goes through an egress filter. It answers `{ error, code }`: `egr
 | Stop serving without deleting / serve again | `backend` actions `disable`, `enable` |
 | Remove a backend for good (script, all versions and secrets; frees one of the 5 slots) | `backend` action `delete` with `confirm_site` equal to the site slug. Irreversible: prefer `disable` unless the user wants it gone |
 | Set a secret, list names, delete one | `backend_secret` actions `set`, `list`, `delete` |
-| See what the handler logged and how requests ended | `backend_logs` |
+| See what the handler logged (`console.log` / `console.error` lines) and how requests ended | `backend_logs` |
 
 `publish_backend` bundles locally, so a compiler error or a bundle over 1 MB is reported before anything is sent. Bundling is sandboxed: macros are off, and `entry` may import only files inside its project folder (the nearest folder with a package.json) and npm packages installed there. The hosted server cannot see your files, so there you pass `code`: one self-contained module that imports nothing except `cloudflare:*` (no relative, absolute, URL or npm imports; bundle first on your machine if you need packages). Roles: the address owner enables or disables the add-on; the owner or an admin member deploys, sets secrets, rolls back and changes settings; any member can read the add-on status.
 
