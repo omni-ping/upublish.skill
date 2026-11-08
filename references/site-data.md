@@ -19,6 +19,8 @@ Do these in order. Stop and report if a step fails; error messages say what to d
 4. If visitors will use passcodes as identities, add them with `passcode_add` before writing claim matchers that name their labels.
 5. Write the browser code (below), `publish`, then verify with `data_rows` action `list` that rows arrive.
 
+The user can also see and manage Site data in the dashboard: on `https://upubli.sh/profile/home`, select the address, then follow **Site data** in the strip above the right pane (`/profile/ns/<address id>/data`). The link shows only when the add-on is available to the account. Site data is no longer a tab in the address settings.
+
 Other tools: `data_rows` (list, export to a file, archive = reset, delete one row, create/put rows as the owner, import up to 500 rows per call with explicit authors and timestamps; there is no single-row `get`, use `list`), `data_jwt` (bring-your-own sign-in), `data` actions `disable` (data kept 30 days, then permanently deleted) and `wipe` (**destructive**: deletes everything now; needs `confirm_namespace` equal to the address name).
 
 Do not put files in a `_data` directory, at any depth (`_data/`, `assets/_data/`, ...): any `_data` path segment under a site's published URL is answered by the data plane as JSON, never as a static file, so such files are never served (publish warns but still uploads them). Sites are named by slug in tool arguments (`_root` for the root site); the tools translate to ids.

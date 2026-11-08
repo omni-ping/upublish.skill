@@ -18,6 +18,8 @@ Do these in order. Stop and report if a step fails; error messages say what to d
 3. Write the handler (below), then `publish_backend`.
 4. Set secrets with `backend_secret` (ask the user for the values), then call the endpoint and read `backend_logs` if it misbehaves.
 
+The user can also do this in the dashboard: on `https://upubli.sh/profile/home`, select the address, then follow **Backend** in the strip above the right pane (`/profile/ns/<address id>/backend`). The link shows only when the add-on is available to the account. Backend is no longer a tab in the address settings.
+
 `backend` action `addon_disable` stops every `/_api` endpoint at once; backends are kept for 30 days and then their scripts are deleted. **Before calling it, ask the owner** whether to keep Site data or end both. `keep_site_data: true` (the default) leaves Site data on, billed at the Site data price from the next invoice, rows untouched. `keep_site_data: false` ends Site data too, and its rows are deleted after 30 days: send it only on the owner's explicit yes. If `addon_status` shows `Entitlement: admin` or `comped` rather than `paid`, the add-on was included, not bought, and keeping Site data stays included: nothing is billed for it, so tell the owner that instead of quoting the Site data price. If Site data can't be kept right now, the call answers 409 and changes nothing (Backend stays on); ask the owner again before retrying with `false`. The result says what stays billed. Re-enabling within 30 days restores them as they were. After the scripts are deleted, `status` shows `deployed: false`; redeploy with `backend` action `rollback` (an archived version is the one-call redeploy) or a fresh `publish_backend`, and set the secrets again.
 
 ## Step 2: Write the handler
