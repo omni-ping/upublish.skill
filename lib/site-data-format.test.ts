@@ -485,12 +485,11 @@ describe("DW-7.4: data enable outcome text states what the number is", () => {
     expect(out).toContain("It then costs $20.00/year.");
   });
 
-  it("test_DW_7_4_list_price_basis_is_an_estimate_never_called_prorated_now", () => {
+  it("test_DW_7_4_list_price_basis_is_a_price_never_an_amount_charged", () => {
     const out = enabled({ interval: "month", price_cents: 200, basis: "list_price", recurring_cents: 200 });
-    expect(out).toContain("Charged about $2.00 now");
-    expect(out).toContain("list price");
-    expect(out).toContain("estimate");
-    expect(out).not.toContain("(prorated");
+    expect(out).toContain("Price: $2.00/month (list price)");
+    expect(out).toContain("Stripe receipt");
+    expect(out).not.toMatch(/Charged|\(prorated/);
   });
 
   it("test_DW_7_4_older_server_without_basis_claims_neither_prorated_nor_recurring", () => {

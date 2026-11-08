@@ -143,9 +143,8 @@ describe("DW-7.4: add-on charge text depends on basis", () => {
 
   it("test_DW_7_4_list_price_basis_is_an_estimate_not_prorated", () => {
     const t = addonChargeText({ interval: "year", price_cents: 3000, basis: "list_price" });
-    expect(t).toContain("Charged about $30.00 now");
-    expect(t).toContain("estimate");
-    expect(t).not.toContain("(prorated");
+    expect(t).toBe("Price: $30.00/year (list price). The exact prorated amount charged today is on your Stripe receipt.");
+    expect(t).not.toMatch(/Charged \$|charged .* now|\(prorated/);
   });
 
   it("test_DW_7_4_no_basis_older_server_claims_nothing", () => {

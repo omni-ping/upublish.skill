@@ -73,7 +73,7 @@ export interface AddonCharge { interval: BillingInterval; price_cents: number; b
 /**
  * What an add-on enable charged. `basis` says what `price_cents` is:
  * - "invoice": the prorated amount Stripe invoiced now -> "Charged $X now (prorated)".
- * - "list_price": the invoice could not be read, so it is the list price -> an estimate, never called prorated.
+ * - "list_price": the invoice could not be read, so it is the list price -> stated as a price, never as an amount charged.
  * - absent (older server): unknown meaning -> only the amount and the plan interval, no "prorated" or "recurring" claim.
  * A zero amount reads "No charge now". `recurring_cents`, when sent, is what the item costs each period.
  */
@@ -86,7 +86,8 @@ export function addonChargeText(c: AddonCharge | null): string {
     case "invoice":
       return `Charged ${usd(c.price_cents)} now (prorated, ${plan} plan).${recurring}`;
     case "list_price":
-      return `Charged about ${usd(c.price_cents)} now (the add-on's list price, an estimate: the exact prorated amount is on your invoice; ${plan} plan).${recurring}`;
+      // A list price is NOT an amount charged: never word it as "charged ... now".
+      return `Price: ${usd(c.price_cents)}/${c.interval} (list price). The exact prorated amount charged today is on your Stripe receipt.`;
     default:
       return `Charged ${usd(c.price_cents)} (${plan} plan).${recurring}`;
   }

@@ -167,7 +167,7 @@ export interface EnableResponse {
   entitled: true;
   activating: boolean;
   /**
-   * What was charged now; null when comped/admin. `basis` says what `price_cents` is: "invoice" = the prorated amount invoiced,
+   * What an enable charged; null when comped/admin. `basis` says what `price_cents` is: "invoice" = the prorated amount invoiced,
    * "list_price" = the invoice could not be read so it is an estimate. `recurring_cents` = the item's price per `interval`.
    * Both absent on an older server.
    */
