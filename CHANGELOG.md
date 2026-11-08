@@ -2,12 +2,6 @@
 
 ## [Unreleased]
 
-## [0.12.40] — 2026-11-08
-
-### Changed
-
-- `references/backends.md`: guide gaps closed (#21).
-
 ## [0.12.39] — 2026-11-07
 
 ### Added

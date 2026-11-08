@@ -1,6 +1,6 @@
 # Backends: a small server-side handler next to a site
 
-A published site is static files. A **backend** is one small JavaScript handler that runs next to a site and answers at `{site}/_api/*`: a form handler, a webhook receiver, or an API route that calls a third party with the owner's own key. You deploy it in one tool call (`publish_backend`) and operate it with `backend`, `backend_secret` and `backend_logs`. It is a paid add-on and the account may not have it: `publish_backend` fails with `not_available` when the add-on is hidden for this account, or `addon_not_enabled` when it is available but not yet on, so start with Step 1 (`addon_status`) even if you only want to deploy.
+A published site is static files. A **backend** is one small JavaScript handler that runs next to a site and answers at `{site}/_api/*`: a form handler, a webhook receiver, or an API route that calls a third party with the owner's own key. You deploy it in one tool call (`publish_backend`) and operate it with `backend`, `backend_secret` and `backend_logs`. It is a paid add-on and the account may not have it: `publish_backend` fails with `not_available` when the add-on is hidden for this account, or `addon_not_enabled` when it is available but not yet on (`upgrade_required` on the Free plan), so start with Step 1 (`addon_status`) even if you only want to deploy.
 
 ## Step 1: Enable the add-on (tools)
 
