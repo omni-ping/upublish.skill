@@ -72,6 +72,9 @@ function hintFor(code: BackendErrorCode, role: BackendRole, context?: BackendErr
     case "version_not_found":
       return `List versions with \`backend\` action 'versions'. Only the ${L.archivedVersionsPerBackend} most recent archived versions are kept.`;
     case "conflict":
+      if (context === "billing_disable") {
+        return "Site data can't be kept right now, so NOTHING was changed (Backend is still on). Ask the user: wait and retry to keep Site data, or end BOTH Backend and Site data (its rows are deleted after 30 days) by calling `backend` action 'addon_disable' with keep_site_data: false.";
+      }
       return context === "billing_enable"
         ? "The subscription is managed by a subscription schedule, so nothing was changed. Change the plan in the Stripe billing portal first."
         : "Another change is in flight or the state moved. Check `backend` action 'status', then retry.";

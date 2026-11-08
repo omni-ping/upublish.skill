@@ -128,15 +128,17 @@ describe("DW-6.4: data enable (consent bound to what was shown)", () => {
   const enabledReply = () => jsonResponse(200, fixtureResponse(enableFx, "enabled").body);
   const serveEnable = (account: Account, status: unknown) => withAccount(account, (req) => (req.method === "POST" ? enabledReply() : serveStatus(status)(req)));
 
-  it("test_DW_6_4_enable_reads_status_space_and_me_fresh_on_every_call", async () => {
+  // A33 (DW-7.4): the consent is the OWNER's, so it is built from the status and the plan, never the caller's role (/auth/me).
+  it("test_DW_7_4_enable_reads_status_and_space_fresh_on_every_call_and_never_auth_me", async () => {
     const { client, calls } = makeClient(asAccount(PRO, unentitled));
     await runData(client, NS, { action: "enable" });
     const paths = calls.map((c) => c.path);
     expect(paths).toContain(STATUS_PATH);
     expect(paths).toContain("/api/space");
-    expect(paths).toContain("/auth/me");
+    expect(paths).not.toContain("/auth/me");
     await runData(client, NS, { action: "enable" });
     expect(calls.filter((c) => c.path === "/api/space")).toHaveLength(2);
+    expect(calls.filter((c) => c.path === "/auth/me")).toHaveLength(0);
   });
 
   it("test_DW_6_4_enable_dark_launch_is_not_available_error", async () => {
@@ -162,19 +164,37 @@ describe("DW-6.4: data enable (consent bound to what was shown)", () => {
     }
   });
 
-  it("test_DW_6_4_enable_free_tier_needs_paid_plan_and_refuses_accept_even_with_matching_looking_expected", async () => {
-    const { client, calls } = makeClient(asAccount({ tier: "free", role: "user" }, chargingMonth));
-    expect(await runData(client, NS, { action: "enable" })).toEqual({ action: "enable", state: "needs_paid_plan" });
-    for (const expected of [undefined, goodExpected, { ...goodExpected, tier: "free" as const }]) {
-      expect(await runData(client, NS, { action: "enable", accept_charge: true, expected })).toEqual({ action: "enable", state: "needs_paid_plan" });
-    }
+  // A33 (DW-7.4): there is no client-side Free-plan pre-check any more (nothing the skill can read tells a Free owner from an
+  // admin owner). The server's 402 upgrade_required answers, and it is still a needs_paid_plan RESULT with nothing charged.
+  it("test_DW_7_4_enable_free_tier_owner_is_refused_by_the_server_into_needs_paid_plan", async () => {
+    const freeExpected = { ...goodExpected, tier: "free" as const, would_charge: false, price_cents: null };
+    const refuse = withAccount({ tier: "free", role: "user" }, (req) => (req.method === "POST" ? jsonResponse(402, { error: "Subscribe", code: "upgrade_required" }) : serveStatus(unentitled)(req)));
+    const { client, calls } = makeClient(refuse);
+    const consent = await runData(client, NS, { action: "enable" });
+    expect(consent).toMatchObject({ state: "consent_needed", expected: freeExpected });
     expect(posts(calls)).toHaveLength(0);
+    expect(await runData(client, NS, { action: "enable", accept_charge: true, expected: freeExpected })).toEqual({ action: "enable", state: "needs_paid_plan" });
+    expect(posts(calls)).toHaveLength(1);
+  });
+
+  it("test_DW_7_4_enable_paused_item_is_a_paused_result_and_never_posts", async () => {
+    const paused: DataStatus = { ...chargingMonth, billing: { ...chargingMonth.billing, item_present: true, paused: true, would_charge: false } };
+    for (const accept of [false, true]) {
+      const { client, calls } = makeClient(asAccount(PRO, paused));
+      expect(await runData(client, NS, { action: "enable", accept_charge: accept, expected: goodExpected })).toEqual({ action: "enable", state: "paused" });
+      expect(posts(calls)).toHaveLength(0);
+    }
+  });
+
+  it("test_DW_7_4_paused_false_with_an_item_is_still_in_progress", async () => {
+    const pending: DataStatus = { ...chargingMonth, billing: { ...chargingMonth.billing, item_present: true, paused: false } };
+    expect(await runData(makeClient(asAccount(PRO, pending)).client, NS, { action: "enable" })).toEqual({ action: "enable", state: "in_progress" });
   });
 
   it("test_DW_6_4_enable_without_accept_returns_consent_with_expected_and_never_posts", async () => {
     const { client, calls } = makeClient(asAccount(PRO, chargingMonth));
     expect(await runData(client, NS, { action: "enable" })).toEqual({
-      action: "enable", state: "consent_needed", expected: goodExpected, price: { month_cents: 200, year_cents: 2000 }, changed: false, admin: false,
+      action: "enable", state: "consent_needed", expected: goodExpected, price: { month_cents: 200, year_cents: 2000 }, changed: false,
     });
     expect(await runData(client, NS, { action: "enable", accept_charge: false, expected: goodExpected })).toMatchObject({ state: "consent_needed", changed: false });
     expect(posts(calls)).toHaveLength(0);
@@ -261,7 +281,7 @@ describe("DW-6.4: data enable (consent bound to what was shown)", () => {
   it("test_DW_6_4_paid_tier_not_charging_consents_then_posts_on_matching_expected", async () => {
     const expected = { tier: "pro" as const, would_charge: false, price_cents: null, interval: "month" as const, month_cents: 200, year_cents: 2000 };
     const { client, calls } = makeClient(serveEnable(PRO, unentitled));
-    expect(await runData(client, NS, { action: "enable" })).toMatchObject({ state: "consent_needed", expected, admin: false });
+    expect(await runData(client, NS, { action: "enable" })).toMatchObject({ state: "consent_needed", expected });
     expect(await runData(client, NS, { action: "enable", accept_charge: true, expected })).toMatchObject({ state: "enabled" });
     expect(posts(calls)).toHaveLength(1);
   });
@@ -270,7 +290,7 @@ describe("DW-6.4: data enable (consent bound to what was shown)", () => {
     const adminFree: Account = { tier: "free", role: "admin" };
     const expected = { tier: "free" as const, would_charge: false, price_cents: null, interval: "month" as const, month_cents: 200, year_cents: 2000 };
     const { client, calls } = makeClient(serveEnable(adminFree, unentitled));
-    expect(await runData(client, NS, { action: "enable" })).toMatchObject({ state: "consent_needed", admin: true, expected });
+    expect(await runData(client, NS, { action: "enable" })).toMatchObject({ state: "consent_needed", expected });
     expect(posts(calls)).toHaveLength(0);
     expect(await runData(client, NS, { action: "enable", accept_charge: true, expected })).toMatchObject({ state: "enabled" });
     expect(posts(calls)).toHaveLength(1);
@@ -284,8 +304,8 @@ describe("DW-6.4: data enable (consent bound to what was shown)", () => {
     expect(await runData(client, NS, { action: "enable", accept_charge: true, expected })).toMatchObject({ state: "enabled", charge: null });
   });
 
-  it("test_DW_6_4_space_or_me_failure_is_a_clear_error_and_never_posts", async () => {
-    for (const account of [{ ...PRO, spaceStatus: 500 }, { ...PRO, meStatus: 500 }, { ...PRO, spaceStatus: 401 }]) {
+  it("test_DW_6_4_space_failure_is_a_clear_error_and_never_posts", async () => {
+    for (const account of [{ ...PRO, spaceStatus: 500 }, { ...PRO, spaceStatus: 401 }]) {
       const { client, calls } = makeClient(serveEnable(account, chargingMonth));
       const err = await runData(client, NS, { action: "enable", accept_charge: true, expected: goodExpected }).catch((e: unknown) => e);
       expect((err as Error).message).toContain("so the charge cannot be confirmed. Nothing was charged.");
@@ -301,7 +321,7 @@ describe("DW-6.4: data enable (consent bound to what was shown)", () => {
 
   it("test_DW_6_4_server_402_codes_are_still_mapped", async () => {
     const reply = (code: string) => withAccount(PRO, (req) => (req.method === "POST" ? jsonResponse(402, { error: "x", code }) : serveStatus(chargingMonth)(req)));
-    for (const code of ["consent_required", "upgrade_required", "no_subscription"]) {
+    for (const code of ["consent_required", "no_subscription"]) {
       const { client } = makeClient(reply(code));
       await expect(runData(client, NS, { action: "enable", accept_charge: true, expected: goodExpected })).rejects.toMatchObject({ code, status: 402 });
     }

@@ -35,7 +35,7 @@ interface Case {
   /** Extra assertions on a successful result. */
   onSuccess?: (result: unknown, fixtureBody: unknown) => void;
   /** Overrides the default "SiteDataError with the fixture code" expectation for a named response. */
-  onError?: Record<string, (err: unknown) => void>;
+  onError?: Record<string, (err: unknown, value?: unknown) => void>;
 }
 
 const statusFixture = loadRoute("api.status");
@@ -61,6 +61,8 @@ const CASES: Case[] = [
     call: (c) => runData(c, NS, { action: "enable", accept_charge: true, expected: { tier: "pro", would_charge: false, price_cents: null, interval: "month", month_cents: 200, year_cents: 2000 } }),
     prelude: withAccount({ tier: "pro", role: "user" }, (req) => (req.method === "GET" && req.path === `/api/ns/${NS.id}/data` ? jsonResponse(200, unentitledStatus) : undefined)),
     onSuccess: (r) => expect(r).toMatchObject({ action: "enable", state: "enabled" }),
+    // A Free-plan owner's 402 upgrade_required is a RESULT (needs_paid_plan), not an error: nothing was charged (A33, DW-7.4).
+    onError: { "free tier": (_e, value) => expect(value).toEqual({ action: "enable", state: "needs_paid_plan" }) },
   },
   {
     route: "api.disable",
@@ -219,9 +221,10 @@ describe("DW-6.1: contract fixtures replayed against every api.* route", () => {
           }
           return;
         }
-        const err = await c.call(client).then(() => null, (e: unknown) => e);
+        const settled = await c.call(client).then((value) => ({ value, err: null as unknown }), (err: unknown) => ({ value: undefined as unknown, err }));
+        const err = settled.err;
         const override = c.onError?.[resp.name];
-        if (override) return override(err);
+        if (override) return override(err, settled.value);
         expect(err).toBeInstanceOf(SiteDataError);
         const body = resp.body as { code: SiteDataErrorCode };
         expect((err as SiteDataError).code).toBe(body.code);

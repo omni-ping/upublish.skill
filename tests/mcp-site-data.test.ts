@@ -236,7 +236,7 @@ describe("DW-6.1: data tool", () => {
     const enabled = fixtureResponse(loadRoute("api.enable"), "enabled").body;
     const { call, calls } = setup((req) => (req.method === "POST" ? jsonResponse(200, enabled) : jsonResponse(200, unentitled)));
     const r = await call("data", { action: "enable", accept_charge: true, expected: freeOfCharge });
-    expect(text(r)).toContain("Charged $1.40 now");
+    expect(text(r)).toContain("Charged $1.40 (monthly plan).");
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(1);
     expect(calls.find((c) => c.method === "POST")!.body).toEqual({ accept_charge: true });
   });
@@ -255,7 +255,7 @@ describe("DW-6.1: data tool", () => {
     expect(parsed.success).toBe(true);
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
     const r = await call("data", parsed.success ? (parsed.data as Record<string, unknown>) : {});
-    expect(text(r)).toContain("Charged $1.40 now");
+    expect(text(r)).toContain("Charged $1.40 (monthly plan).");
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(1);
   });
 
@@ -274,19 +274,35 @@ describe("DW-6.1: data tool", () => {
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
   });
 
-  test("test_DW_6_4_tool_data_enable_free_tier_says_upgrade_even_with_accept_and_expected", async () => {
-    const { call, calls } = setup(() => jsonResponse(200, charging), { tier: "free" });
-    for (const args of [{ action: "enable" }, { action: "enable", accept_charge: true, expected: { ...chargingExpected, tier: "free" } }]) {
-      expect(text(await call("data", args))).toBe(
-        "Site data needs a Pro or Max plan — use the `upgrade` tool, then run `data enable` again WITHOUT accept_charge to see the price.",
-      );
-    }
+  // A33 (DW-7.4): no client-side Free pre-check and no caller-role claim; the server's upgrade_required becomes the upgrade result.
+  test("test_DW_7_4_tool_data_enable_free_tier_owner_is_refused_by_the_server_with_the_upgrade_text", async () => {
+    const { call, calls } = setup(
+      (req) => (req.method === "POST" ? jsonResponse(402, { error: "Subscribe", code: "upgrade_required" }) : jsonResponse(200, unentitled)),
+      { tier: "free" },
+    );
+    const freeExpected = { tier: "free", would_charge: false, price_cents: null, interval: "month", month_cents: 200, year_cents: 2000 };
+    expect(text(await call("data", { action: "enable" }))).toContain("Free plan");
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
+    expect(text(await call("data", { action: "enable", accept_charge: true, expected: freeExpected }))).toBe(
+      "Site data needs a Pro or Max plan — use the `upgrade` tool, then run `data enable` again WITHOUT accept_charge to see the price.",
+    );
   });
 
-  test("test_DW_6_4_tool_data_enable_admin_on_free_tier_no_charge_consent", async () => {
-    const { call } = setup(() => jsonResponse(200, unentitled), { tier: "free", role: "admin" });
-    expect(text(await call("data", { action: "enable" }))).toContain("No charge for this account");
+  test("test_DW_7_4_tool_data_enable_consent_never_reads_the_callers_role", async () => {
+    const { call, calls } = setup(() => jsonResponse(200, unentitled), { tier: "free", role: "admin" });
+    const out = text(await call("data", { action: "enable" }));
+    expect(out).toContain("The server reports no new charge");
+    expect(out).not.toContain("(platform admin)");
+    expect(calls.map((c) => c.path)).not.toContain("/auth/me");
+  });
+
+  test("test_DW_7_4_tool_data_enable_paused_says_resume_billing_and_never_posts", async () => {
+    const paused = { ...charging, billing: { ...charging.billing, item_present: true, paused: true } };
+    const { call, calls } = setup(() => jsonResponse(200, paused));
+    const out = text(await call("data", { action: "enable", accept_charge: true, expected: chargingExpected }));
+    expect(out).toContain("PAUSED");
+    expect(out).toContain("Enabling again would not help");
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
   });
 
   test("test_DW_6_4_tool_data_enable_item_present_is_in_progress", async () => {
@@ -296,7 +312,7 @@ describe("DW-6.1: data tool", () => {
   });
 
   test("test_DW_6_4_tool_data_enable_space_or_me_failure_is_an_error_and_never_posts", async () => {
-    for (const account of [{ spaceStatus: 500 }, { meStatus: 500 }]) {
+    for (const account of [{ spaceStatus: 500 }]) {
       const { call, calls } = setup(() => jsonResponse(200, charging), account);
       const r = await call("data", { action: "enable", namespace: "ryan", accept_charge: true, expected: chargingExpected });
       expect(r.isError).toBe(true);
@@ -312,14 +328,12 @@ describe("DW-6.1: data tool", () => {
     expect(text(r)).toContain("WITHOUT accept_charge");
   });
 
-  test("test_DW_6_1_tool_data_enable_402_upgrade_required_is_actionable_error", async () => {
+  test("test_DW_6_1_tool_data_enable_402_upgrade_required_points_at_the_upgrade_tool", async () => {
     const { call } = setup((req) =>
       req.method === "POST" ? jsonResponse(402, { error: "The add-on needs a Pro or Max plan.", code: "upgrade_required" }) : jsonResponse(200, unentitled),
     );
     const r = await call("data", { action: "enable", accept_charge: true, expected: freeOfCharge });
-    expect(r.isError).toBe(true);
-    expect(text(r)).toContain("[upgrade_required]");
-    expect(text(r)).toContain("upgrade tool");
+    expect(text(r)).toContain("`upgrade` tool");
   });
 
   test("test_DW_6_1_tool_data_enable_not_available_error", async () => {

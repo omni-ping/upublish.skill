@@ -27,6 +27,7 @@ import type { ApiClient } from "./api-client.ts";
 import { ApiError } from "./api-client.ts";
 import type { FetchFn, NamespaceRole, Site, Visibility } from "./types.ts";
 import { log } from "./log.ts";
+import { ACCOUNT_PAST_DUE_CODE, accountPastDueMessage } from "./billing-text.ts";
 
 // ─── Storage pack approval error ──────────────────────────────────────────────
 
@@ -118,6 +119,12 @@ export function enrichPublishError(err: Error): Error {
       );
     }
     // 402 with an unexpected code — fall through to pass-through below.
+  }
+
+  // 403 account_past_due (finalize): the bare body `{ error: "account_past_due" }` carries no `code`.
+  if (err instanceof ApiError && err.status === 403) {
+    const body = err.rawBodyData as Record<string, unknown> | null;
+    if (body?.error === ACCOUNT_PAST_DUE_CODE) return new Error(accountPastDueMessage());
   }
 
   // 403 analytics-gate: rewrite to a friendly upgrade message.
@@ -373,8 +380,8 @@ export interface PublishResult {
     blocks: number;
     /** USD price per block for this interval. */
     price: number;
-    /** Billing interval matching the base subscription. */
-    interval: "month" | "year";
+    /** Billing interval matching the base subscription; null when the server could not tell (`price` is then the monthly figure). */
+    interval: "month" | "year" | null;
   };
 }
 
@@ -1436,7 +1443,10 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
     .filter((p) => !neededPaths.has(p));
 
   // Finalize: server verifies uploads, creates DB records, goes live
-  const finalizeResult = await apiClient.finalize(nsId, slug, manifestResult.session_id);
+  // Finalize is where a past-due account is refused, so it gets the same enrichment as the manifest call.
+  const finalizeResult = await apiClient.finalize(nsId, slug, manifestResult.session_id).catch((err: unknown) => {
+    throw enrichPublishError(err as Error);
+  });
 
   log(`[finalize] slug=${slug} uploaded=${uploadedFiles.length} skipped=${skippedFiles.length} url=${finalizeResult.url}`);
 

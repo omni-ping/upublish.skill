@@ -152,6 +152,8 @@ export interface DataStatus {
     wiped_at: string | null;
     /** Enabling now would add a paid Stripe item (paid Pro/Max owner, not yet entitled). false for admin-role owners and already-entitled spaces. */
     would_charge: boolean;
+    /** The add-on item is kept but the owner's subscription is paused: entitlement is suspended, no wipe clock runs. Absent = older server (treat as false). */
+    paused?: boolean;
   };
   price: { month_cents: number | null; year_cents: number | null };
   collections: Record<string, { config: CollectionConfig; stats: CollectionStats | null }>;
@@ -164,8 +166,12 @@ export interface DataStatus {
 export interface EnableResponse {
   entitled: true;
   activating: boolean;
-  /** What was charged now (prorated); null when comped/admin. */
-  charge: { interval: BillingInterval; price_cents: number } | null;
+  /**
+   * What was charged now; null when comped/admin. `basis` says what `price_cents` is: "invoice" = the prorated amount invoiced,
+   * "list_price" = the invoice could not be read so it is an estimate. `recurring_cents` = the item's price per `interval`.
+   * Both absent on an older server.
+   */
+  charge: { interval: BillingInterval; price_cents: number; basis?: "invoice" | "list_price"; recurring_cents?: number } | null;
 }
 
 export interface DisableResponse {

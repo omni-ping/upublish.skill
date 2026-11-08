@@ -7,6 +7,7 @@
  * unit-tested.
  */
 
+import { addonChargeText } from "./billing-text.ts";
 import { quoteText, safeText as t, hasControlChars, sanitizeOutput } from "./site-data-text.ts";
 import { descriptionOf, type CollectionDescription } from "./site-data-shape.ts";
 import type { DataCollectionResult } from "./site-data-collections.ts";
@@ -32,6 +33,9 @@ function priceText(price: { month_cents: number | null; year_cents: number | nul
   return shown.filter(Boolean).join(" or ") || "price unavailable";
 }
 
+const PAUSED_TEXT =
+  "Billing: PAUSED with the subscription. Site data is suspended (the data is kept and no deletion clock runs); it resumes when the subscription resumes (manage billing in the Stripe portal).";
+
 const NO_CHARGE_TEXT = "Enabling will not charge this account.";
 
 const NEEDS_PAID_PLAN_TEXT =
@@ -47,10 +51,8 @@ function consentText(r: ConsentResult): string {
   const { expected } = r;
   const lead = r.changed ? "The plan or price changed since the last consent, so nothing was charged. Show the user the new details.\n" : "";
   let cost: string;
-  // Never assure "no charge" when the server says it would charge, whatever the role.
-  if (r.admin && !expected.would_charge) {
-    cost = "No charge for this account (platform admin).";
-  } else if (expected.would_charge) {
+  // Server fields only: `would_charge` is the owner's, so it is never contradicted by who is calling.
+  if (expected.would_charge) {
     const unknown = expected.interval === null
       ? " The billing interval is unknown, so both list prices are shown; if the account has no subscription the enable call will say so and charge nothing."
       : "";
@@ -59,7 +61,11 @@ function consentText(r: ConsentResult): string {
       "A prorated amount for the rest of the current billing period is charged immediately on the existing payment method and reported after enabling " +
       "(the API does not expose the prorated amount before enabling).";
   } else {
-    cost = "The server reports no new charge for this account; if the account has no subscription the enable call will say so.";
+    cost =
+      "The server reports no new charge for this account; if the account has no subscription the enable call will say so." +
+      (expected.tier === "free"
+        ? " The account is on the Free plan: unless the address is owned by a platform admin, the server refuses the enable (use the `upgrade` tool first). Nothing is charged either way."
+        : "");
   }
   return (
     `${lead}${cost} NOTHING HAS BEEN CHARGED.\n` +
@@ -79,7 +85,8 @@ function dataText(r: DataResult): string {
       const lines = [`Site data for '${t(r.namespace)}': ${s.entitled ? "ENABLED" : "not enabled"}${s.activating ? " (activating; can take up to a minute)" : ""}`];
       if (s.entitlement_source) lines.push(`Entitlement: ${t(s.entitlement_source)}`);
       if (s.billing.past_due) lines.push("Billing: PAST DUE");
-      if (!s.entitled) {
+      if (s.billing.paused === true) lines.push(PAUSED_TEXT);
+      if (!s.entitled && s.billing.paused !== true) {
         lines.push(s.billing.would_charge ? `Price if enabled: ${priceText(s.price, s.billing.interval)}` : NO_CHARGE_TEXT);
       }
       if (s.billing.wipe_after) lines.push(`Data is retained until ${t(s.billing.wipe_after)}, then permanently deleted.`);
@@ -103,6 +110,8 @@ function dataText(r: DataResult): string {
           return "Site data is already being added to this account (the add-on's billing item exists but it is not active yet). Nothing was charged. Check `data` status in a minute.";
         case "needs_paid_plan":
           return NEEDS_PAID_PLAN_TEXT;
+        case "paused":
+          return `${PAUSED_TEXT} Enabling again would not help. Nothing was charged.`;
         case "expected_missing":
           return "Nothing was charged: accept_charge needs the `expected` object that the consent printed. Run `data` action 'enable' WITHOUT accept_charge first, show the user what it says, then pass accept_charge: true together with that expected.";
         case "consent_needed":
@@ -110,7 +119,7 @@ function dataText(r: DataResult): string {
       }
       return (
         "Site data enabled." +
-        (r.charge ? ` Charged ${usd(r.charge.price_cents)} now (prorated, ${r.charge.interval}ly plan).` : " No charge was made.") +
+        ` ${addonChargeText(r.charge)}` +
         (r.activating ? " It can take up to a minute to become active on your sites." : "")
       );
     case "disable":

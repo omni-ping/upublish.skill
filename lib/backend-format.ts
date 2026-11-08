@@ -11,6 +11,7 @@
 
 import type { BackendLogsResult, BackendResult, BackendSecretResult, PublishBackendResult } from "./backend.ts";
 import { BACKEND_LIMITS, type BackendAddonStatus, type BackendStatus, type BillingInterval } from "./backend-shape.ts";
+import { addonChargeText } from "./billing-text.ts";
 import { safeText as t, sanitizeOutput } from "./site-data-text.ts";
 
 /** Cents as dollars, e.g. 300 -> "$3.00". */
@@ -77,11 +78,34 @@ function addonStatusText(namespace: string, s: BackendAddonStatus): string {
   if (s.entitlement_source) lines.push(`Entitlement: ${s.entitlement_source}`);
   if (b.paused) lines.push("Billing: PAUSED with the subscription; backends are suspended until it resumes (manage billing in the Stripe portal).");
   if (b.past_due) lines.push("Billing: PAST DUE");
+  if (s.entitled && b.disable_keeps_site_data !== undefined) {
+    lines.push(b.disable_keeps_site_data
+      ? "Turning the add-on off keeps Site data on, billed at the Site data price (you choose with keep_site_data)."
+      : "Turning the add-on off cannot keep Site data right now; it would need keep_site_data: false and would end both.");
+  }
   lines.push(`Price: ${priceText(s.price, b.interval)}. It includes Site data (/_data collections).`);
   lines.push(`Backends: ${s.backends.count} of ${s.backends.max}`);
   if (b.delete_after && !b.deleted_at) lines.push(`Disabled ${b.disabled_at}: backends are kept until ${b.delete_after}, then their scripts are deleted. Re-enable before then to keep them.`);
   if (b.deleted_at) lines.push(`Scripts were deleted ${b.deleted_at}. After re-enabling, redeploy with backend action 'rollback' (an archived version) or publish_backend; secrets must be set again.`);
   return lines.join("\n");
+}
+
+type DisableResult = Extract<BackendResult, { action: "addon_disable" }>;
+
+/**
+ * What a disable did, and above all what is STILL BILLED. The server says whether Site data survived (`site_data_kept`);
+ * an older server omits it, and its disable deleted Site data, so no claim is made either way.
+ */
+function disableText(r: DisableResult): string {
+  const backend = `The Backend add-on is disabled: every /_api endpoint stops answering now. Backends are kept until ${r.delete_after}, then their scripts are deleted. Re-enable before then to keep them.`;
+  if (r.site_data_kept === true) {
+    const price = r.data_price ? `${usd(r.data_price.cents)}/${r.data_price.interval}` : "the Site data price";
+    return `${backend} Site data stays on and stays billed: ${price}, billed with your plan from the next invoice (the Backend price no longer applies). Its rows are untouched. To stop that too, use the \`data\` tool, action 'disable'.`;
+  }
+  if (r.site_data_kept === false) {
+    return `${backend} Site data ended with it: both are off and nothing for either stays billed. Site data rows are deleted after 30 days; enabling Site data again before then keeps them.`;
+  }
+  return backend;
 }
 
 type ConsentResult = Extract<BackendResult, { action: "addon_enable"; state: "consent_needed" }>;
@@ -142,14 +166,14 @@ export function formatBackendResult(r: BackendResult): string {
         case "expected_missing":
           return "accept_charge needs the exact `expected` object from the consent. Run action 'addon_enable' WITHOUT accept_charge to get it. Nothing was charged.";
         case "enabled": {
-          const c = r.result.charge;
-          const charge = c ? `Charged: ${usd(c.price_cents)}/${c.interval === "month" ? "month" : "year"} recurring (a prorated amount for this period may also appear on the invoice).` : "No charge (complimentary or admin).";
+          // `basis` decides what the amount is called; nothing here says "recurring" for a one-time prorated amount.
+          const charge = r.result.charge ? addonChargeText(r.result.charge) : "No charge (complimentary or admin).";
           const conv = r.result.converted_data_addon ? " The existing Site data item was moved to the Backend price." : "";
           return sanitizeOutput(`The Backend add-on is enabled${r.result.activating ? " (activating; backends can be deployed now, and /_api answers within about a minute)" : ""}. ${charge}${conv} It includes Site data.`);
         }
       }
     case "addon_disable":
-      return sanitizeOutput(`The Backend add-on is disabled: every /_api endpoint stops answering now. Backends are kept until ${r.delete_after}, then their scripts are deleted. Re-enable before then to keep them.`);
+      return sanitizeOutput(disableText(r));
   }
 }
 

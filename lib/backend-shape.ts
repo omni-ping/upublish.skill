@@ -68,6 +68,8 @@ export interface BackendAddonStatus {
     would_charge: boolean;
     converts_data_addon: boolean;
     paused?: boolean;
+    /** What a bodyless disable does with Site data: true = keeps it (billed at the Site data price), false = it would answer 409 or there is nothing to keep. Absent = older server. */
+    disable_keeps_site_data?: boolean;
   };
   price: { month_cents: number | null; year_cents: number | null };
   includes_site_data: true;
@@ -77,11 +79,17 @@ export interface BackendAddonStatus {
 export interface BackendEnableResponse {
   entitled: true;
   activating: boolean;
-  charge: { interval: BillingInterval; price_cents: number } | null;
+  /** `basis`: "invoice" = prorated amount invoiced now, "list_price" = an estimate; `recurring_cents` = the item's price per `interval`. Both absent on an older server. */
+  charge: { interval: BillingInterval; price_cents: number; basis?: "invoice" | "list_price"; recurring_cents?: number } | null;
   converted_data_addon: boolean;
 }
 
-export interface BackendDisableResponse { entitled: false; delete_after: string }
+export interface BackendDisableResponse {
+  entitled: false;
+  delete_after: string;
+  /** Site data survived this disable (no wipe clock). Absent = older server, whose disable deleted it. */
+  site_data_kept?: boolean;
+}
 
 export interface BackendStatus {
   deployed: boolean;
@@ -148,7 +156,7 @@ const ADDON_SHAPE: Shape = [
   ["billing", isObj], ["billing.item_present", isBool], ["billing.interval", nullable(oneOf("month", "year"))],
   ["billing.past_due", isBool], ["billing.enabled_at", nullable(isoTime)], ["billing.disabled_at", nullable(isoTime)],
   ["billing.delete_after", nullable(isoTime)], ["billing.deleted_at", nullable(isoTime)],
-  ["billing.would_charge", isBool], ["billing.converts_data_addon", isBool], ["billing.paused", optionalBool],
+  ["billing.would_charge", isBool], ["billing.converts_data_addon", isBool], ["billing.paused", optionalBool], ["billing.disable_keeps_site_data", optionalBool],
   ["price", isObj], ["price.month_cents", nullable(intMin(0))], ["price.year_cents", nullable(intMin(0))],
   ["includes_site_data", oneOf(true)],
   ["backends", isObj], ["backends.count", intMin(0)], ["backends.max", intMin(1)],
@@ -157,8 +165,9 @@ const ADDON_SHAPE: Shape = [
 const ENABLE_SHAPE: Shape = [
   ["entitled", oneOf(true)], ["activating", isBool], ["converted_data_addon", isBool], ["charge", nullable(isObj)],
   ["charge.interval", oneOf("month", "year")], ["charge.price_cents", intMin(0)],
+  ["charge.basis", (v) => v === undefined || v === "invoice" || v === "list_price"], ["charge.recurring_cents", (v) => v === undefined || intMin(0)(v)],
 ];
-const DISABLE_SHAPE: Shape = [["entitled", oneOf(false)], ["delete_after", isoTime]];
+const DISABLE_SHAPE: Shape = [["entitled", oneOf(false)], ["delete_after", isoTime], ["site_data_kept", optionalBool]];
 
 const STATUS_SHAPE: Shape = [
   ["deployed", isBool], ["site", isObj], ["site.id", isStr], ["site.address", isStr],

@@ -6,6 +6,8 @@
 
 import { describe, it, expect } from "bun:test";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { BackendError } from "./backend-errors.ts";
 import { expectedFor, runBackend, runBackendLogs, runBackendSecret, runPublishBackend, type AddonExpectation } from "./backend.ts";
 import { parseAddonStatus } from "./backend-shape.ts";
@@ -441,3 +443,77 @@ describe("DW-6.1: runBackendLogs", () => {
     await expect(runBackendLogs(makeClient(() => err(404, "not_found")).client, NS, { site: "x" })).rejects.toMatchObject({ code: "not_found" });
   });
 });
+
+// ─── DW-7.6: addon_disable asks keep-or-end and states what stays billed ─────
+
+describe("DW-7.6: addon_disable keep_site_data", () => {
+  const DATA = `/api/ns/${NS.id}/data`;
+  const dataStatus = (interval: "month" | "year" | null) => ({
+    ...loadJson("site-data/routes/api.status.json", "enabled"),
+    billing: { ...loadJson("site-data/routes/api.status.json", "enabled").billing, interval },
+    price: { month_cents: 200, year_cents: 2000 },
+  });
+
+  /** Disable endpoint answers `disableReply`; the data status read answers `data` (or fails when null). */
+  function disabling(disableReply: Response, data: object | null = dataStatus("month")) {
+    return makeClient((req) => {
+      if (req.method === "POST" && req.path === `${ADDON}/disable`) return disableReply;
+      if (req.method === "GET" && req.path === DATA) return data === null ? err(500, "unavailable") : jsonResponse(200, data);
+      return undefined;
+    });
+  }
+  const disabledBody = { entitled: false, delete_after: "2026-12-06T12:00:00.000Z" };
+  const sent = (calls: Recorded[]) => calls.filter((c) => c.method === "POST").map((c) => c.body);
+
+  it("test_DW_7_6_default_sends_keep_site_data_true", async () => {
+    const { client, calls } = disabling(jsonResponse(200, { ...disabledBody, site_data_kept: true }));
+    const r = await runBackend(client, NS, { action: "addon_disable" });
+    expect(sent(calls)).toEqual([{ keep_site_data: true }]);
+    expect(r).toMatchObject({ action: "addon_disable", site_data_kept: true, data_price: { cents: 200, interval: "month" } });
+  });
+
+  it("test_DW_7_6_explicit_false_sends_false_and_reads_no_data_price", async () => {
+    const { client, calls } = disabling(jsonResponse(200, { ...disabledBody, site_data_kept: false }));
+    const r = await runBackend(client, NS, { action: "addon_disable", keep_site_data: false });
+    expect(sent(calls)).toEqual([{ keep_site_data: false }]);
+    expect(calls.some((c) => c.method === "GET")).toBe(false);
+    expect(r).toMatchObject({ site_data_kept: false, data_price: null });
+  });
+
+  it("test_DW_7_6_explicit_true_sends_true", async () => {
+    const { client, calls } = disabling(jsonResponse(200, { ...disabledBody, site_data_kept: true }));
+    await runBackend(client, NS, { action: "addon_disable", keep_site_data: true });
+    expect(sent(calls)).toEqual([{ keep_site_data: true }]);
+  });
+
+  it("test_DW_7_6_409_cant_keep_changes_nothing_and_tells_the_ai_to_ask_before_ending_both", async () => {
+    const { client, calls } = disabling(err(409, "conflict", "Site data can't be kept right now; send keep_site_data:false to end both"));
+    const e = await runBackend(client, NS, { action: "addon_disable" }).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(BackendError);
+    expect((e as BackendError).code).toBe("conflict");
+    expect((e as BackendError).message).toContain("NOTHING was changed");
+    expect((e as BackendError).message).toContain("keep_site_data: false");
+    expect((e as BackendError).message).toContain("deleted after 30 days");
+    expect(sent(calls)).toEqual([{ keep_site_data: true }]); // it did not retry with false on its own
+  });
+
+  it("test_DW_7_6_a_failed_data_price_read_only_drops_the_amount", async () => {
+    const { client } = disabling(jsonResponse(200, { ...disabledBody, site_data_kept: true }), null);
+    expect(await runBackend(client, NS, { action: "addon_disable" })).toMatchObject({ site_data_kept: true, data_price: null });
+  });
+
+  it("an unknown data interval gives no amount", async () => {
+    const { client } = disabling(jsonResponse(200, { ...disabledBody, site_data_kept: true }), dataStatus(null));
+    expect(await runBackend(client, NS, { action: "addon_disable" })).toMatchObject({ data_price: null });
+  });
+
+  it("a non-owner is still forbidden", async () => {
+    const denied = makeClient(() => reply("addon.disable", "not-owner"));
+    await expect(runBackend(denied.client, NS, { action: "addon_disable", keep_site_data: false })).rejects.toMatchObject({ code: "forbidden" });
+  });
+});
+
+function loadJson(rel: string, responseName: string): any {
+  const file = JSON.parse(readFileSync(join(import.meta.dir, "..", "tests", "fixtures", rel), "utf-8")) as { responses: Array<{ name: string; body: any }> };
+  return file.responses.find((r) => r.name === responseName)!.body;
+}

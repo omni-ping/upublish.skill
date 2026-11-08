@@ -71,8 +71,8 @@ describe("DW-6.1: the add-on consent echo", () => {
     expect(f("paused")).toContain("Stripe billing portal");
     expect(f("expected_missing")).toContain("WITHOUT accept_charge");
     const enabled = (result: object) => f("enabled", { result });
-    expect(enabled({ entitled: true, activating: true, charge: { interval: "month", price_cents: 300 }, converted_data_addon: false })).toContain("Charged: $3.00/month");
-    expect(enabled({ entitled: true, activating: false, charge: { interval: "year", price_cents: 3000 }, converted_data_addon: true })).toMatch(/\$30\.00\/year.*moved to the Backend price/s);
+    expect(enabled({ entitled: true, activating: true, charge: { interval: "month", price_cents: 300 }, converted_data_addon: false })).toContain("Charged $3.00 (monthly plan).");
+    expect(enabled({ entitled: true, activating: false, charge: { interval: "year", price_cents: 3000 }, converted_data_addon: true })).toMatch(/\$30\.00.*yearly.*moved to the Backend price/s);
     expect(enabled({ entitled: true, activating: false, charge: null, converted_data_addon: false })).toContain("No charge");
   });
 });
@@ -108,6 +108,47 @@ describe("DW-6.1: add-on status and disable", () => {
 
   it("disable states when the scripts are deleted", () => {
     expect(formatBackendResult({ action: "addon_disable", entitled: false, delete_after: "2026-12-06T12:00:00.000Z" })).toContain("kept until 2026-12-06T12:00:00.000Z");
+  });
+});
+
+describe("DW-7.6: the disable text states what stays billed", () => {
+  const disabled = (extra: object) =>
+    formatBackendResult({ action: "addon_disable", entitled: false, delete_after: "2026-12-06T12:00:00.000Z", ...extra } as BackendResult);
+
+  it("test_DW_7_6_kept_with_a_price_names_the_amount_interval_and_that_it_is_billed_with_the_plan", () => {
+    const t = disabled({ site_data_kept: true, data_price: { cents: 200, interval: "month" } });
+    expect(t).toContain("every /_api endpoint stops answering now");
+    expect(t).toContain("Site data stays on and stays billed: $2.00/month, billed with your plan");
+    expect(t).not.toContain("Site data ended");
+  });
+
+  it("test_DW_7_6_kept_without_a_readable_price_still_says_it_stays_billed", () => {
+    const t = disabled({ site_data_kept: true, data_price: null });
+    expect(t).toContain("stays billed: the Site data price, billed with your plan");
+    expect(t).not.toMatch(/\$\d/);
+  });
+
+  it("test_DW_7_6_ended_says_both_are_off_nothing_stays_billed_and_the_30_day_deletion", () => {
+    const t = disabled({ site_data_kept: false });
+    expect(t).toContain("Site data ended with it");
+    expect(t).toContain("nothing for either stays billed");
+    expect(t).toContain("deleted after 30 days");
+    expect(t).not.toContain("stays on");
+  });
+
+  it("test_DW_7_6_older_server_without_site_data_kept_makes_no_site_data_claim", () => {
+    const t = disabled({});
+    expect(t).toContain("kept until 2026-12-06T12:00:00.000Z");
+    expect(t).not.toMatch(/Site data (stays|ended)/);
+  });
+
+  it("the add-on status says what a disable would do with Site data (and nothing for an older server)", () => {
+    const raw = body("addon.status", "enabled");
+    const render = (billing: object) =>
+      formatBackendResult({ action: "addon_status", available: true, namespace: "ryan", status: parseAddonStatus({ ...raw, billing: { ...raw.billing, ...billing } }) });
+    expect(render({ disable_keeps_site_data: true })).toContain("keeps Site data on, billed at the Site data price");
+    expect(render({ disable_keeps_site_data: false })).toContain("cannot keep Site data right now");
+    expect(render({})).not.toContain("Site data price");
   });
 });
 

@@ -82,7 +82,7 @@ interface CreateNamespaceResponse {
    * `interval` is the billing interval matching the base subscription.
    * `price` is the USD cost per pack (1 monthly, 10 annual).
    */
-  overage?: { charged: boolean; price: number; pack_size: number; interval: "month" | "year" };
+  overage?: { charged: boolean; price: number; pack_size: number; interval: "month" | "year" | null };
 }
 
 /** Result of creating a namespace — the new id and the domain it lives on. */
@@ -94,9 +94,9 @@ export interface NamespaceCreateResult {
   /**
    * Present when this create charged an address-pack overage. The backend bills
    * recurring packs of `pack_size` address slots at `price` USD per `interval`.
-   * Absent on a normal within-cap create.
+   * Absent on a normal within-cap create. `interval` is null when the server could not tell.
    */
-  overage?: { charged: boolean; price: number; pack_size: number; interval: "month" | "year" };
+  overage?: { charged: boolean; price: number; pack_size: number; interval: "month" | "year" | null };
 }
 
 // ─── Resolution ──────────────────────────────────────────────────────────────

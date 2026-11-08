@@ -76,6 +76,7 @@ const STATUS_SHAPE: Shape = [
   ["billing", isObj], ["billing.item_present", isBool], ["billing.interval", nullable(oneOf("month", "year"))],
   ["billing.past_due", isBool], ["billing.enabled_at", nullable(isoTime)], ["billing.disabled_at", nullable(isoTime)],
   ["billing.wipe_after", nullable(isoTime)], ["billing.wiped_at", nullable(isoTime)], ["billing.would_charge", isBool],
+  ["billing.paused", optionalOf(isBool)],
   ["price", isObj], ["price.month_cents", nullable(intMin(0))], ["price.year_cents", nullable(intMin(0))],
   ["collections", isObj],
   ["stats_state", oneOf("ok", "unavailable")],
@@ -183,6 +184,8 @@ const counts = (...keys: string[]): Shape => keys.map((k) => [k, intMin(0)] as c
 const ENABLE_SHAPE: Shape = [
   ["entitled", oneOf(true)], ["activating", isBool], ["charge", nullable(isObj)],
   ["charge.interval", oneOf("month", "year")], ["charge.price_cents", intMin(0)],
+  // Absent on an older server.
+  ["charge.basis", optionalOf(oneOf("invoice", "list_price"))], ["charge.recurring_cents", optionalOf(intMin(0))],
 ];
 const DISABLE_SHAPE: Shape = [["entitled", oneOf(false)], ["wipe_after", isoTime]];
 const JWT_RESPONSE_SHAPE: Shape = [["jwt_issuer", nullable(isObj)], ...under("jwt_issuer", JWT_ISSUER_SHAPE)];

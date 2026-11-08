@@ -297,7 +297,7 @@ describe("DW-6.1: add-on consent through the handler", () => {
     const done = await call("backend", { action: "addon_enable", accept_charge: true, expected: expectedOf(consent) });
     expect(done.isError).toBeUndefined();
     expect(text(done)).toContain("The Backend add-on is enabled");
-    expect(text(done)).toContain("Charged: $3.00/month");
+    expect(text(done)).toContain("Charged $3.00 (monthly plan).");
     expect(posts(calls)).toHaveLength(1);
     expect(posts(calls)[0]!.body).toEqual({ accept_charge: true });
   });
@@ -310,6 +310,50 @@ describe("DW-6.1: add-on consent through the handler", () => {
     expect(text(r)).toContain("[upgrade_required]");
     expect(text(r)).toContain("upgrade tool");
     expect(text(await server().call("backend", { action: "addon_disable" }))).toContain("every /_api endpoint stops answering now");
+  });
+});
+
+describe("DW-7.6: addon_disable through the handler", () => {
+  const disableServer = (disableReply: () => Response) =>
+    setup((req) => {
+      if (req.method === "POST" && req.path === `${ADDON}/disable`) return disableReply();
+      if (req.method === "GET" && req.path === `${BASE}/data`) return jsonResponse(200, { ...fx("addon.status", "enabled").body, available: true });
+      return undefined;
+    });
+  const delivered = { entitled: false, delete_after: "2026-12-06T12:00:00.000Z" };
+
+  test("test_DW_7_6_schema_accepts_keep_site_data_and_rejects_a_non_boolean", () => {
+    const { tools } = setup(() => undefined);
+    const schema = tools["backend"]!.inputSchema;
+    expect(schema.safeParse({ action: "addon_disable", keep_site_data: false }).success).toBe(true);
+    expect(schema.safeParse({ action: "addon_disable", keep_site_data: "no" }).success).toBe(false);
+    expect(tools["backend"]!.description).toContain("keep_site_data");
+    expect(tools["backend"]!.description).toContain("BEFORE calling it, ask the owner");
+  });
+
+  test("test_DW_7_6_default_call_sends_true_and_the_text_says_site_data_stays_billed", async () => {
+    const { call, calls } = disableServer(() => jsonResponse(200, { ...delivered, site_data_kept: true }));
+    const r = await call("backend", { action: "addon_disable" });
+    expect(calls.find((c) => c.method === "POST")!.body).toEqual({ keep_site_data: true });
+    expect(text(r)).toContain("Site data stays on and stays billed");
+    expect(r.isError).toBeUndefined();
+  });
+
+  test("test_DW_7_6_keep_false_sends_false_and_the_text_says_both_end", async () => {
+    const { call, calls } = disableServer(() => jsonResponse(200, { ...delivered, site_data_kept: false }));
+    const r = await call("backend", { action: "addon_disable", keep_site_data: false });
+    expect(calls.find((c) => c.method === "POST")!.body).toEqual({ keep_site_data: false });
+    expect(text(r)).toContain("Site data ended with it");
+    expect(text(r)).toContain("deleted after 30 days");
+  });
+
+  test("test_DW_7_6_409_cant_keep_is_an_error_that_changes_nothing_and_says_to_ask", async () => {
+    const { call, calls } = disableServer(() => jsonResponse(409, { error: "Site data can't be kept right now; send keep_site_data:false to end both", code: "conflict" }));
+    const r = await call("backend", { action: "addon_disable" });
+    expect(r.isError).toBe(true);
+    expect(text(r)).toContain("NOTHING was changed");
+    expect(text(r)).toContain("keep_site_data: false");
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(1);
   });
 });
 

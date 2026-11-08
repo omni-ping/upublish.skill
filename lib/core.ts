@@ -182,6 +182,7 @@ export type { QrCodeArgs, QrCodeResult };
 export type { Namespace, Site, Visibility, GateConfig, GateFieldType, GateSubmission };
 export type { NamespaceCreateResult };
 export { OverageApprovalError };
+export { storageChargeLine, storageApprovalPriceLine, packChargeLine, packApprovalPriceLine } from "./billing-text.ts";
 export type {
   DomainArgs,
   DomainResult,

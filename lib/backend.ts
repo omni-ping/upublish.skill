@@ -40,6 +40,7 @@ import {
   type BackendSecret, type BackendStatus, type BackendVersion, type BillingInterval, type RollbackResponse,
 } from "./backend-shape.ts";
 import { listSites } from "./list.ts";
+import { parseDataStatus } from "./site-data-shape.ts";
 import { requireArg } from "./site-data-errors.ts";
 import { safeText } from "./site-data-text.ts";
 import type { Namespace } from "./types.ts";
@@ -175,6 +176,11 @@ export interface BackendArgs {
   confirm_site?: string;
   /** addon_enable: explicit user approval of the charge. Honoured only together with a matching `expected`. */
   accept_charge?: boolean;
+  /**
+   * addon_disable: keep Site data (default true: Backend goes off, Site data stays and is billed at the Site data price) or end
+   * BOTH (false: Site data is removed too and its rows are deleted after 30 days). The user chooses; `false` is destructive.
+   */
+  keep_site_data?: boolean;
   /** addon_enable: the `expected` object a previous consent result printed, echoed back unchanged. */
   expected?: AddonExpectation;
   namespace?: string;
@@ -195,7 +201,11 @@ export type BackendResult =
     }
   | { action: "addon_enable"; state: "already_enabled" | "in_progress" | "paused" | "expected_missing" }
   | { action: "addon_enable"; state: "enabled"; result: BackendEnableResponse }
-  | ({ action: "addon_disable" } & BackendDisableResponse);
+  | ({
+      action: "addon_disable";
+      /** The Site data price that stays billed after a kept disable, when it could be read. */
+      data_price?: { cents: number; interval: BillingInterval } | null;
+    } & BackendDisableResponse);
 
 /** The list price at the billing interval, only when this enable charges; null otherwise or when the interval is unknown. */
 export function expectedFor(status: BackendAddonStatus): AddonExpectation {
@@ -213,6 +223,18 @@ const sameExpectation = (a: AddonExpectation | undefined, b: AddonExpectation): 
 
 const getAddonStatus = (apiClient: ApiClient, ns: Namespace): Promise<BackendAddonStatus> =>
   guard("member", async () => parseAddonStatus(await apiClient.get<unknown>(addonBase(ns.id))));
+
+/** The Site data add-on's price at the subscription's interval, or null if it cannot be read (never throws: it only decorates text). */
+async function readSiteDataPrice(apiClient: ApiClient, ns: Namespace): Promise<{ cents: number; interval: BillingInterval } | null> {
+  try {
+    const status = parseDataStatus(await apiClient.get<unknown>(`/api/ns/${ns.id}/data`));
+    const { interval } = status.billing;
+    const cents = interval === "month" ? status.price.month_cents : interval === "year" ? status.price.year_cents : null;
+    return interval !== null && cents !== null ? { cents, interval } : null;
+  } catch {
+    return null;
+  }
+}
 
 async function addonEnable(apiClient: ApiClient, ns: Namespace, acceptCharge: boolean, given: AddonExpectation | undefined): Promise<BackendResult> {
   // Read first: never POST (and so never risk a second charge) when already on or pending.
@@ -249,8 +271,12 @@ export async function runBackend(apiClient: ApiClient, ns: Namespace, args: Back
     case "addon_enable":
       return addonEnable(apiClient, ns, args.accept_charge === true, args.expected);
     case "addon_disable": {
-      const res = await guard("owner", async () => parseDisableResponse(await apiClient.post<unknown>(`${addonBase(ns.id)}/disable`, {})), { context: "billing_disable" });
-      return { action: "addon_disable", ...res };
+      // Always explicit: the server's default (keep) is the same, but a sent value is a choice, never a guess.
+      const keep = args.keep_site_data ?? true;
+      const res = await guard("owner", async () => parseDisableResponse(await apiClient.post<unknown>(`${addonBase(ns.id)}/disable`, { keep_site_data: keep })), { context: "billing_disable" });
+      // What stays billed is the Site data price; best-effort read so the text can state it (a failed read only drops the amount).
+      const dataPrice = res.site_data_kept === true ? await readSiteDataPrice(apiClient, ns) : null;
+      return { action: "addon_disable", ...res, data_price: dataPrice };
     }
   }
 

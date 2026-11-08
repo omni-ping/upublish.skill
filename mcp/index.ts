@@ -34,6 +34,10 @@ import {
   namespaceCreate,
   OverageApprovalError,
   StorageApprovalError,
+  storageChargeLine,
+  storageApprovalPriceLine,
+  packChargeLine,
+  packApprovalPriceLine,
   domain,
   addPasscode,
   setVisibility,
@@ -693,11 +697,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         const storageOverageLine = (() => {
           const ov = result.storage_overage;
           if (ov?.charged !== true) return "";
-          const intervalSuffix = ov.interval === "year" ? "/yr" : "/mo";
-          return (
-            `\n\n+$${ov.price.toFixed(2)}${intervalSuffix} added to your bill — ` +
-            `${ov.blocks} x ${ov.block_gb}GB storage block${ov.blocks !== 1 ? "s" : ""}.`
-          );
+          return `\n\n${storageChargeLine(ov)}`;
         })();
 
         if (result.preview_url) {
@@ -741,14 +741,8 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         // consent on a surface we control. Agents must always forward the approval
         // URL to the user and wait for them to authorize the charge manually.
         if (err instanceof StorageApprovalError) {
-          // Render interval-aware price copy when the server supplied it.
-          // Omit the price line entirely when the body was malformed/missing it —
-          // never fall back to a hardcoded literal.
-          const priceLine =
-            err.price !== null
-              ? `Approving adds a ${err.block_gb ?? 10}GB storage block ` +
-                `at $${err.price.toFixed(2)}${err.interval === "year" ? "/yr" : "/mo"}.`
-              : `Approving adds a storage block to your subscription.`;
+          // Interval-aware, total-first price copy from server values only (lib/billing-text.ts).
+          const priceLine = storageApprovalPriceLine(err);
           return {
             content: [
               {
@@ -1746,7 +1740,9 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         "WITHOUT accept_charge it charges nothing and only prints the consent and an exact `expected` object. " +
         "Pass accept_charge: true AND that same `expected` only after the user agrees; if the price or plan changed meanwhile, nothing is charged and a new consent is printed. " +
         "Free plans must use the upgrade tool first. Owner only\n" +
-        `  addon_disable — Turn the add-on off. Every /_api endpoint stops at once; backends are kept ${BACKEND_LIMITS.retentionDays} days, then deleted. Owner only\n\n` +
+        `  addon_disable — Turn the add-on off. Every /_api endpoint stops at once; backends are kept ${BACKEND_LIMITS.retentionDays} days, then deleted. ` +
+        "BEFORE calling it, ask the owner whether to KEEP Site data or END BOTH: keep_site_data true (the default) leaves Site data on, billed at the Site data price from the next invoice; " +
+        "keep_site_data false ends Site data too and its rows are deleted after 30 days (destructive: only with the owner's explicit yes). If Site data cannot be kept right now the call changes nothing and says so. The result states what stays billed. Owner only\n\n" +
         "If addon_status says the add-on is not available for this account, tell the user and stop; do not offer it.",
       inputSchema: {
         action: z.enum(["status", "versions", "rollback", "enable", "disable", "access", "delete", "addon_status", "addon_enable", "addon_disable"]).describe("The operation to perform."),
@@ -1758,6 +1754,10 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           .boolean()
           .optional()
           .describe("addon_enable only: true ONLY after the user has agreed to the consent shown by a previous addon_enable call; must come with `expected`."),
+        keep_site_data: z
+          .boolean()
+          .optional()
+          .describe("addon_disable only: true (default) keeps Site data on at the Site data price; false ends Site data too (rows deleted after 30 days). Ask the owner; never choose false on your own."),
         expected: z
           .object({
             would_charge: z.boolean(),
@@ -2241,14 +2241,8 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           `Domain: ${result.domain}`,
         ];
         if (result.overage?.charged === true) {
-          // Render interval-aware pack copy from server-returned values.
-          // Never hardcode a price — use whatever the backend returned.
-          const intervalSuffix = result.overage.interval === "year" ? "/yr" : "/mo";
-          lines.push(
-            ``,
-            `+$${result.overage.price.toFixed(2)}${intervalSuffix} added to your bill — ` +
-            `a pack of ${result.overage.pack_size} address slots.`,
-          );
+          // Interval-aware pack copy from server values only (lib/billing-text.ts).
+          lines.push(``, packChargeLine(result.overage));
         }
         return okResponse(lines.join("\n"));
       } catch (err) {
@@ -2256,14 +2250,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         // the agent can forward them to the user. Never send accept_overage — that
         // flag is reserved for explicit human consent on a surface we control.
         if (err instanceof OverageApprovalError) {
-          // Render interval-aware price copy when the server supplied it.
-          // Omit the price line entirely when the body was malformed/missing it —
-          // never fall back to a hardcoded literal.
-          const priceLine =
-            err.price !== null
-              ? `Adding this address requires a pack of ${err.pack_size ?? 5} address slots ` +
-                `at $${err.price.toFixed(2)}${err.interval === "year" ? "/yr" : "/mo"}.`
-              : `Adding this address requires an address pack.`;
+          const priceLine = packApprovalPriceLine(err);
           return {
             content: [
               {

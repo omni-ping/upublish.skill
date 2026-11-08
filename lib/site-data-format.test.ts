@@ -52,8 +52,8 @@ describe("DW-6.1: formatDataResult", () => {
   });
 
   const P = { month_cents: 200, year_cents: 2000 };
-  const consent = (expected: EnableExpectation, extra: { changed?: boolean; admin?: boolean; price?: { month_cents: number | null; year_cents: number | null } } = {}) =>
-    formatDataResult({ action: "enable", state: "consent_needed", expected, price: extra.price ?? P, changed: extra.changed ?? false, admin: extra.admin ?? false });
+  const consent = (expected: EnableExpectation, extra: { changed?: boolean; price?: { month_cents: number | null; year_cents: number | null } } = {}) =>
+    formatDataResult({ action: "enable", state: "consent_needed", expected, price: extra.price ?? P, changed: extra.changed ?? false });
   const charging: EnableExpectation = { tier: "pro", would_charge: true, price_cents: 200, interval: "month", month_cents: 200, year_cents: 2000 };
 
   it("test_DW_6_4_format_consent_paid_lists_price_prorated_charge_and_exact_expected_json", () => {
@@ -91,17 +91,27 @@ describe("DW-6.1: formatDataResult", () => {
   });
 
   it("test_DW_6_4_admin_with_would_charge_true_shows_price_not_no_charge", () => {
-    const out = consent({ tier: "pro", would_charge: true, price_cents: 200, interval: "month", month_cents: 200, year_cents: 2000 }, { admin: true });
+    const out = consent({ tier: "pro", would_charge: true, price_cents: 200, interval: "month", month_cents: 200, year_cents: 2000 });
     expect(out).not.toContain("No charge");
     expect(out).toContain("$2.00/month");
     expect(out).toContain("NOTHING HAS BEEN CHARGED");
   });
 
-  it("test_DW_6_4_format_consent_admin_says_no_charge_for_this_account", () => {
-    const out = consent({ tier: "free", would_charge: false, price_cents: null, interval: null, month_cents: 200, year_cents: 2000 }, { admin: true });
-    expect(out).toContain("No charge for this account");
+  // A33 (DW-7.4): no "(platform admin)" claim from the caller's role; a server "no charge" on a Free plan says what may happen.
+  it("test_DW_7_4_format_consent_no_charge_on_free_plan_is_server_based_and_names_both_outcomes", () => {
+    const out = consent({ tier: "free", would_charge: false, price_cents: null, interval: null, month_cents: 200, year_cents: 2000 });
+    expect(out).toContain("The server reports no new charge for this account");
+    expect(out).toContain("Free plan");
+    expect(out).toContain("platform admin");
+    expect(out).toContain("`upgrade` tool");
+    expect(out).not.toContain("No charge for this account (platform admin)");
     expect(out).not.toContain("prorated");
     expect(out).toContain('"tier":"free"');
+  });
+
+  it("test_DW_7_4_format_consent_no_charge_on_a_paid_plan_has_no_free_plan_caveat", () => {
+    const out = consent({ tier: "max", would_charge: false, price_cents: null, interval: "month", month_cents: 200, year_cents: 2000 });
+    expect(out).not.toContain("Free plan");
   });
 
   it("test_DW_6_4_format_consent_after_mismatch_says_the_plan_or_price_changed", () => {
@@ -129,7 +139,7 @@ describe("DW-6.1: formatDataResult", () => {
 
   it("test_DW_6_1_format_enable_outcomes", () => {
     expect(formatDataResult({ action: "enable", state: "already_enabled" })).toContain("already enabled");
-    const paid = formatDataResult({ action: "enable", state: "enabled", activating: true, charge: { interval: "month", price_cents: 140 } });
+    const paid = formatDataResult({ action: "enable", state: "enabled", activating: true, charge: { interval: "month", price_cents: 140, basis: "invoice" } });
     expect(paid).toContain("Charged $1.40 now (prorated, monthly plan)");
     expect(paid).toContain("up to a minute");
     const comped = formatDataResult({ action: "enable", state: "enabled", activating: false, charge: null });
@@ -460,5 +470,48 @@ describe("DW-4.1: skill references tell the truth about Phases 1-3", () => {
     const siteData = refs.find(([f]) => f === "site-data.md")![1];
     expect(siteData).toContain("Warnings");
     expect(siteData).toContain("cannot work as written");
+  });
+});
+
+// ─── DW-7.4: charge text by basis, the paused branch ──────────────────────────
+
+describe("DW-7.4: data enable outcome text states what the number is", () => {
+  const enabled = (charge: Parameters<typeof formatDataResult>[0] extends infer R ? (R extends { state: "enabled"; charge: infer C } ? C : never) : never) =>
+    formatDataResult({ action: "enable", state: "enabled", activating: false, charge });
+
+  it("test_DW_7_4_invoice_basis_is_prorated_and_names_the_recurring_price", () => {
+    const out = enabled({ interval: "year", price_cents: 140, basis: "invoice", recurring_cents: 2000 });
+    expect(out).toContain("Charged $1.40 now (prorated, yearly plan)");
+    expect(out).toContain("It then costs $20.00/year.");
+  });
+
+  it("test_DW_7_4_list_price_basis_is_an_estimate_never_called_prorated_now", () => {
+    const out = enabled({ interval: "month", price_cents: 200, basis: "list_price", recurring_cents: 200 });
+    expect(out).toContain("Charged about $2.00 now");
+    expect(out).toContain("list price");
+    expect(out).toContain("estimate");
+    expect(out).not.toContain("(prorated");
+  });
+
+  it("test_DW_7_4_older_server_without_basis_claims_neither_prorated_nor_recurring", () => {
+    const out = enabled({ interval: "month", price_cents: 140 });
+    expect(out).toContain("Charged $1.40 (monthly plan).");
+    expect(out).not.toMatch(/prorated|recurring|then costs/);
+  });
+
+  it("test_DW_7_4_zero_cent_charge_reads_no_charge_now", () => {
+    expect(enabled({ interval: "month", price_cents: 0, basis: "invoice" })).toContain("No charge now.");
+    expect(enabled({ interval: "month", price_cents: 0, basis: "invoice" })).not.toContain("Charged");
+  });
+
+  it("test_DW_7_4_paused_enable_and_status_text", () => {
+    const out = formatDataResult({ action: "enable", state: "paused" });
+    expect(out).toContain("PAUSED");
+    expect(out).toContain("Enabling again would not help");
+    expect(out).toContain("Nothing was charged");
+    const s: DataStatus = { ...status, entitled: false, collections: {}, billing: { ...status.billing, paused: true, item_present: true, would_charge: false } };
+    const text = formatDataResult({ action: "status", available: true, namespace: "ryan", status: s });
+    expect(text).toContain("Billing: PAUSED");
+    expect(text).not.toContain("Price if enabled");
   });
 });

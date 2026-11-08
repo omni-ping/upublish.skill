@@ -84,6 +84,18 @@ describe("DW-6.1: parsers reject drift and name the field", () => {
     expect(() => parseAddonStatus({ ...addon, billing: { ...addon.billing, paused: "yes" } })).toThrow(/billing\.paused/);
   });
 
+  it("test_DW_7_6_new_optional_fields_are_accepted_when_well_formed_and_rejected_when_not", () => {
+    const addon = backendResponse(loadBackendRoute("addon.status"), "enabled").body;
+    expect(parseAddonStatus({ ...addon, billing: { ...addon.billing, disable_keeps_site_data: false } }).billing.disable_keeps_site_data).toBe(false);
+    expect(() => parseAddonStatus({ ...addon, billing: { ...addon.billing, disable_keeps_site_data: "yes" } })).toThrow(/disable_keeps_site_data/);
+    expect(parseDisableResponse({ entitled: false, delete_after: "2026-12-06T12:00:00.000Z", site_data_kept: true }).site_data_kept).toBe(true);
+    expect(() => parseDisableResponse({ entitled: false, delete_after: "2026-12-06T12:00:00.000Z", site_data_kept: 1 })).toThrow(/site_data_kept/);
+    const charge = { interval: "month", price_cents: 140, basis: "invoice", recurring_cents: 300 } as const;
+    expect(parseEnableResponse({ entitled: true, activating: false, charge, converted_data_addon: false }).charge).toEqual(charge);
+    expect(() => parseEnableResponse({ entitled: true, activating: false, charge: { ...charge, basis: "guess" }, converted_data_addon: false })).toThrow(/charge\.basis/);
+    expect(() => parseEnableResponse({ entitled: true, activating: false, charge: { ...charge, recurring_cents: -1 }, converted_data_addon: false })).toThrow(/recurring_cents/);
+  });
+
   it("enable response needs entitled:true; disable needs entitled:false", () => {
     expect(() => parseEnableResponse({ entitled: false, activating: false, charge: null, converted_data_addon: false })).toThrow(/entitled/);
     expect(() => parseDisableResponse({ entitled: true, delete_after: "2026-12-06T12:00:00.000Z" })).toThrow(/entitled/);

@@ -73,11 +73,11 @@ export type DataResult =
       action: "enable"; state: "consent_needed"; expected: EnableExpectation; price: DataStatus["price"];
       /** True when the caller echoed an `expected` that no longer matches (or asked to accept without one that does). */
       changed: boolean;
-      /** The account's role is platform admin: enabling is free. */
-      admin: boolean;
     }
   | { action: "enable"; state: "already_enabled" }
   | { action: "enable"; state: "in_progress" }
+  /** The add-on item is on a paused subscription: enabling again would not help (resume billing instead). */
+  | { action: "enable"; state: "paused" }
   | { action: "enable"; state: "needs_paid_plan" }
   | { action: "enable"; state: "expected_missing" }
   | { action: "enable"; state: "enabled"; activating: boolean; charge: EnableResponse["charge"] }
@@ -111,23 +111,27 @@ async function getStatus(apiClient: ApiClient, ns: Namespace): Promise<DataStatu
   return { ...status, collections };
 }
 
-/** Reads the plan tier and role the consent depends on; a failed read refuses the enable (nothing is posted). */
-async function readAccount(apiClient: ApiClient): Promise<{ tier: PlanTier; admin: boolean }> {
-  const read = async <T>(path: string, what: string): Promise<T> => {
-    try {
-      return await apiClient.get<T>(path);
-    } catch (err) {
-      const detail = err instanceof ApiError || err instanceof Error ? err.message : String(err);
-      throw new Error(`Could not read ${what} (${path}), so the charge cannot be confirmed. Nothing was charged. ${detail}`);
-    }
-  };
-  const space = await read<{ space?: { tier?: unknown } }>("/api/space", "the account plan");
-  const me = await read<{ role?: unknown }>("/auth/me", "the account role");
+/**
+ * Reads the plan tier the consent is bound to; a failed read refuses the enable (nothing is posted).
+ *
+ * Deliberately NOT the caller's role: whether this enable is free is the server's call, reported as
+ * `billing.would_charge` for the address's OWNER. Reading `/auth/me` here would key the consent on the
+ * caller, which differs from the owner when a platform admin acts on someone else's address.
+ */
+async function readTier(apiClient: ApiClient): Promise<PlanTier> {
+  const path = "/api/space";
+  let space: { space?: { tier?: unknown } };
+  try {
+    space = await apiClient.get<{ space?: { tier?: unknown } }>(path);
+  } catch (err) {
+    const detail = err instanceof ApiError || err instanceof Error ? err.message : String(err);
+    throw new Error(`Could not read the account plan (${path}), so the charge cannot be confirmed. Nothing was charged. ${detail}`);
+  }
   const tier = space?.space?.tier;
   if (tier !== "free" && tier !== "pro" && tier !== "max") {
     throw new Error("Could not read the account plan (/api/space): unexpected tier. Nothing was charged.");
   }
-  return { tier, admin: me?.role === "admin" };
+  return tier;
 }
 
 /** The list price at the billing interval, only when this enable charges; null otherwise or when the interval is unknown. */
@@ -148,20 +152,28 @@ async function enable(apiClient: ApiClient, ns: Namespace, acceptCharge: boolean
     throw new SiteDataError("not_available", 404, "Site data is not available for this account. [not_available]");
   }
   if (status.entitled) return { action: "enable", state: "already_enabled" };
+  // Paused is checked before in_progress: a paused subscription keeps its item, which would otherwise read as "activating" forever.
+  if (status.billing.paused === true) return { action: "enable", state: "paused" };
   if (status.billing.item_present) return { action: "enable", state: "in_progress" };
 
-  const { tier, admin } = await readAccount(apiClient);
-  // Free accounts cannot buy the add-on; platform admins are exempt (they are not charged).
-  if (tier === "free" && !admin) return { action: "enable", state: "needs_paid_plan" };
+  // No Free-plan pre-check: a Free OWNER is refused by the server (upgrade_required, mapped below) and an admin OWNER is
+  // allowed, and nothing the skill can read tells those apart. The consent says so instead of guessing.
+  const tier = await readTier(apiClient);
 
   const expected = expectedFor(status, tier);
-  const consent = (changed: boolean): DataResult => ({ action: "enable", state: "consent_needed", expected, price: status.price, changed, admin });
+  const consent = (changed: boolean): DataResult => ({ action: "enable", state: "consent_needed", expected, price: status.price, changed });
   if (!acceptCharge) return consent(false);
   if (given === undefined) return { action: "enable", state: "expected_missing" };
   if (!sameExpectation(given, expected)) return consent(true);
 
-  const res = await guard("owner", async () => parseEnableResponse(await apiClient.post<unknown>(`${dataBase(ns.id)}/enable`, { accept_charge: true })), "billing_enable");
-  return { action: "enable", state: "enabled", activating: res.activating, charge: res.charge };
+  try {
+    const res = await guard("owner", async () => parseEnableResponse(await apiClient.post<unknown>(`${dataBase(ns.id)}/enable`, { accept_charge: true })), "billing_enable");
+    return { action: "enable", state: "enabled", activating: res.activating, charge: res.charge };
+  } catch (err) {
+    // The server refused a Free-plan owner: nothing was charged. Same outcome the pre-check used to give.
+    if (err instanceof SiteDataError && err.code === "upgrade_required") return { action: "enable", state: "needs_paid_plan" };
+    throw err;
+  }
 }
 
 /**
