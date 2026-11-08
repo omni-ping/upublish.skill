@@ -1,6 +1,17 @@
 {
   "name": "@omniping/upublish",
   "version": "0.12.40",
+  "description": "upublish gives everything your AI agent builds a permanent home at your own address: real multi-page sites, free, from any agent.",
+  "keywords": [
+    "ai-agents",
+    "claude-code-plugin",
+    "codex",
+    "gemini-cli-extension",
+    "mcp",
+    "mcp-server",
+    "publish",
+    "static-site-hosting"
+  ],
   "private": false,
   "license": "MIT",
   "type": "module",
