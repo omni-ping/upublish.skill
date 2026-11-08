@@ -27554,8 +27554,12 @@ async function createPasscode(apiClient, nsId, slug, code, label) {
       id: result.id,
       label: result.label,
       created_at: result.created_at
-    }
+    },
+    existed: result.existed === true
   };
+}
+function existingPasscodeMessage(p) {
+  return `That passcode already exists on this site as '${p.label}' (id ${p.id}); nothing changed.`;
 }
 function passcodeRefusal(slug, visibility) {
   if (visibility === "public") {
@@ -27609,7 +27613,9 @@ async function setVisibility(apiClient, nsId, args) {
       throw new Error(`Site "${slug}" has no passcodes, so switching it to passcode protection would lock everyone out. ` + `Pass passcode: "<code>" to add one in the same call. Visibility is unchanged (${previous.toUpperCase()}).`);
     }
   }
-  const added = passcode !== undefined ? (await createPasscode(apiClient, nsId, slug, passcode, label)).passcode : undefined;
+  const posted = passcode !== undefined ? await createPasscode(apiClient, nsId, slug, passcode, label) : undefined;
+  const added = posted && !posted.existed ? posted.passcode : undefined;
+  const already = posted?.existed ? posted.passcode : undefined;
   let response;
   try {
     response = await apiClient.patch(`${base}/visibility`, { visibility });
@@ -27626,7 +27632,8 @@ async function setVisibility(apiClient, nsId, args) {
     visibility: echoed ?? visibility,
     previous,
     activePasscodes: visibility === "passcode" ? existing + (added ? 1 : 0) : 0,
-    ...added ? { addedPasscode: added } : {}
+    ...added ? { addedPasscode: added } : {},
+    ...already ? { existingPasscode: already } : {}
   };
 }
 
@@ -30164,7 +30171,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.47";
+var PACKAGE_VERSION = "0.12.48";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -30610,6 +30617,8 @@ No republish was needed \u2014 this took effect immediately.`);
   }, async ({ slug, code, label, namespace }) => {
     try {
       const result = await addPasscode2(slug, code, label, namespace, coreDeps);
+      if (result.existed)
+        return okResponse(existingPasscodeMessage(result.passcode));
       return okResponse(`Passcode added to ${slug}
 ` + `ID:    ${result.passcode.id}
 ` + `Label: ${result.passcode.label}`);
@@ -30646,6 +30655,8 @@ No republish was needed \u2014 this took effect immediately.`);
       ];
       if (r.addedPasscode)
         lines.push(`Added passcode "${r.addedPasscode.label}" (id ${r.addedPasscode.id}).`);
+      if (r.existingPasscode)
+        lines.push(existingPasscodeMessage(r.existingPasscode));
       if (r.visibility === "public") {
         lines.push("Anyone with the link can now view it. Stored passcodes are kept but not enforced while public.");
       }
