@@ -298,7 +298,7 @@ export interface PublishArgs {
    * Use the promote() function to promote the staging version to live.
    */
   preview?: boolean;
-  /** When true, uploads all files regardless of whether they changed. */
+  /** When true, the server re-checks every stored file and re-uploads any that are missing or corrupt; healthy files are never re-uploaded. */
   force?: boolean;
   /**
    * Per-site analytics opt-out (Phase 3). false ⇒ publish with the analytics
