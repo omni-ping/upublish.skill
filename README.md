@@ -4,6 +4,8 @@ upublish gives everything your AI agent builds a permanent home on the web. Say 
 
 Free plan: 1 address, unlimited sites, 100 MB. Pro is $4/mo. Details at [upubli.sh](https://upubli.sh).
 
+Backends are a Pro or Max add-on; the price is shown before you agree.
+
 ## Requirements
 
 [Bun](https://bun.sh) 1.4.4 or newer. The bundled MCP server runs on Bun, and older versions have a security flaw (CVE-2026-111497) and a publish bug. If yours is older, run `bun upgrade`; the server also warns you in its tool output.
