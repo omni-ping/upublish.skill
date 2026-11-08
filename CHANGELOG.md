@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `passcode_add` and `visibility(..., passcode:)`: when the site already has the code, the server answers `existed: true` and the tools report "That passcode already exists on this site as '<label>' (id <id>); nothing changed." as a success (visibility still switches). Older servers without the field behave as before.
+
 ## [0.12.39] — 2026-11-07
 
 ### Added

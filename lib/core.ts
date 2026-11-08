@@ -63,6 +63,7 @@ import { setVisibility as domainSetVisibility } from "./visibility.ts";
 import type { SetVisibilityResult } from "./visibility.ts";
 import {
   addPasscode as domainAddPasscode,
+  existingPasscodeMessage,
   listPasscodes as domainListPasscodes,
   revokePasscode as domainRevokePasscode,
 } from "./passcode.ts";
@@ -173,6 +174,7 @@ export type { DeleteResult };
 export type { PromoteResult };
 export type { ListVersionsResult, DeleteVersionResult, RestoreVersionResult, SetVersionsLimitResult, SiteVersion };
 export type { SetAnalyticsResult };
+export { existingPasscodeMessage };
 export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
 export type { SetVisibilityResult, GateRemoveVisibility };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };

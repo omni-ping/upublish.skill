@@ -24,8 +24,14 @@ export interface SitePasscode {
 }
 
 export interface AddPasscodeResult {
-  /** The newly created passcode record. */
+  /** The passcode record: newly created, or the entry the site already had. */
   passcode: SitePasscode;
+  /**
+   * True only when the server answered `existed: true` (the site already had this
+   * code and nothing changed). False for a new code, and for older servers that
+   * send no `existed` field or a non-boolean one.
+   */
+  existed: boolean;
 }
 
 export interface ListPasscodesResult {
@@ -42,6 +48,8 @@ interface AddPasscodeResponse {
   id: string;
   label: string;
   created_at: string;
+  /** Absent on servers that predate duplicate detection. */
+  existed?: unknown;
 }
 
 interface ListPasscodesResponse {
@@ -116,7 +124,13 @@ export async function createPasscode(
       label: result.label,
       created_at: result.created_at,
     },
+    existed: result.existed === true,
   };
+}
+
+/** The informational line shown when the site already had the code. */
+export function existingPasscodeMessage(p: SitePasscode): string {
+  return `That passcode already exists on this site as '${p.label}' (id ${p.id}); nothing changed.`;
 }
 
 /** Why a passcode cannot protect a site in the given (non-passcode) state. */
@@ -152,7 +166,7 @@ function passcodeRefusal(slug: string, visibility: Visibility): string {
  * @param slug - The site slug.
  * @param code - The passcode string.
  * @param label - Optional label; omitted/blank defaults to "default".
- * @returns The newly created passcode record.
+ * @returns The passcode record; `existed` is true when the site already had the code.
  * @throws Error if code is empty.
  * @throws Error if the site is not passcode-protected or its visibility can't be read.
  * @throws Error on API failure (propagated from ApiClient).

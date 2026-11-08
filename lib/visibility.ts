@@ -40,8 +40,10 @@ export interface SetVisibilityResult {
   previous: Visibility;
   /** Passcodes enforced after the call (0 whenever the site is not passcode-protected). */
   activePasscodes: number;
-  /** The passcode added by this call, when `passcode` was supplied. */
+  /** The passcode newly added by this call, when `passcode` was supplied and was not already present. */
   addedPasscode?: SitePasscode;
+  /** The entry the site already had, when the supplied `passcode` was already present (nothing was added). */
+  existingPasscode?: SitePasscode;
 }
 
 interface PatchVisibilityResponse {
@@ -94,7 +96,10 @@ export async function setVisibility(
     }
   }
 
-  const added = passcode !== undefined ? (await createPasscode(apiClient, nsId, slug, passcode, label)).passcode : undefined;
+  const posted = passcode !== undefined ? await createPasscode(apiClient, nsId, slug, passcode, label) : undefined;
+  // `existed` means the code was already counted in `existing`; nothing new was added.
+  const added = posted && !posted.existed ? posted.passcode : undefined;
+  const already = posted?.existed ? posted.passcode : undefined;
 
   let response: PatchVisibilityResponse;
   try {
@@ -124,5 +129,6 @@ export async function setVisibility(
     previous,
     activePasscodes: visibility === "passcode" ? existing + (added ? 1 : 0) : 0,
     ...(added ? { addedPasscode: added } : {}),
+    ...(already ? { existingPasscode: already } : {}),
   };
 }

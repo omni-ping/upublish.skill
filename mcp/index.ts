@@ -40,6 +40,7 @@ import {
   packApprovalPriceLine,
   domain,
   addPasscode,
+  existingPasscodeMessage,
   setVisibility,
   listPasscodes,
   revokePasscode,
@@ -1139,6 +1140,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           namespace as string | undefined,
           coreDeps,
         );
+        if (result.existed) return okResponse(existingPasscodeMessage(result.passcode));
         return okResponse(
           `Passcode added to ${slug as string}\n` +
           `ID:    ${result.passcode.id}\n` +
@@ -1205,6 +1207,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             (r.visibility === "passcode" ? ` Active passcodes: ${r.activePasscodes}.` : ""),
         ];
         if (r.addedPasscode) lines.push(`Added passcode "${r.addedPasscode.label}" (id ${r.addedPasscode.id}).`);
+        if (r.existingPasscode) lines.push(existingPasscodeMessage(r.existingPasscode));
         if (r.visibility === "public") {
           lines.push("Anyone with the link can now view it. Stored passcodes are kept but not enforced while public.");
         }

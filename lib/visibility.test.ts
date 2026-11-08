@@ -226,3 +226,37 @@ describe("setVisibility defensive checks", () => {
     expect(calls[1]).toBe(`PATCH /api/ns/${NS_ID}/sites/a%20b/visibility`);
   });
 });
+
+describe("DW-2.2: supplied passcode already exists on the site", () => {
+  const existed = (status = 200): Route => ({ status, body: { id: "old-1", label: "Client A", created_at: "t", existed: true } });
+
+  it("test_DW_2_2_existed_true_still_patches_and_reports_the_existing_code_without_counting_it_twice", async () => {
+    const calls: string[] = [];
+    const api = client({ [SITES]: sites("public"), [CODES]: codes(2), [POST]: existed(), [PATCH]: patched("passcode") }, calls);
+    const r = await setVisibility(api, NS_ID, { slug: SLUG, visibility: "passcode", passcode: "abcd", label: "other" });
+
+    expect(calls).toEqual([SITES, CODES, POST, PATCH]);
+    expect(r.visibility).toBe("passcode");
+    expect(r.activePasscodes).toBe(2);
+    expect(r.addedPasscode).toBeUndefined();
+    expect(r.existingPasscode).toEqual({ id: "old-1", label: "Client A", created_at: "t" });
+  });
+
+  it("test_DW_2_2_patch_failure_after_existed_does_not_claim_a_code_was_added", async () => {
+    const api = client(
+      { [SITES]: sites("public"), [CODES]: codes(1), [POST]: existed(), [PATCH]: { status: 500, body: { error: "boom" } } },
+      [],
+    );
+    const err = (await setVisibility(api, NS_ID, { slug: SLUG, visibility: "passcode", passcode: "abcd" }).catch((e: Error) => e)) as Error;
+    expect(err.message).not.toContain("WAS added");
+    expect(err.message).toContain("is still PUBLIC");
+  });
+
+  it("test_DW_2_2_older_server_without_existed_keeps_added_behaviour", async () => {
+    const api = client({ [SITES]: sites("public"), [CODES]: codes(0), [POST]: created, [PATCH]: patched("passcode") }, []);
+    const r = await setVisibility(api, NS_ID, { slug: SLUG, visibility: "passcode", passcode: "abcd" });
+    expect(r.addedPasscode?.id).toBe("new-1");
+    expect(r.existingPasscode).toBeUndefined();
+    expect(r.activePasscodes).toBe(1);
+  });
+});

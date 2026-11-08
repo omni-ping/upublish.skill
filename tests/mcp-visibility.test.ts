@@ -73,6 +73,22 @@ describe("DW-2.1/2.2: visibility tool", () => {
     cleanup();
   });
 
+  test("test_DW_2_2_visibility_with_existing_code_patches_and_says_it_already_exists", async () => {
+    const { tools, calls, cleanup } = setup({
+      [SITES]: sites("public"),
+      [CODES]: codes(1),
+      [POST]: { status: 200, body: { id: "old-1", label: "Client A", created_at: "t", existed: true } },
+      [PATCH]: patched("passcode"),
+    });
+    const r = await tools["visibility"]!.handler({ slug: "my-site", visibility: "passcode", passcode: "abcd" });
+    expect(r.isError).toBeUndefined();
+    expect(text(r)).toContain('Visibility of "my-site" is now PASSCODE (was PUBLIC). Active passcodes: 1.');
+    expect(text(r)).toContain("That passcode already exists on this site as 'Client A' (id old-1); nothing changed.");
+    expect(text(r)).not.toContain("Added passcode");
+    expect(calls).toEqual([SITES, CODES, POST, PATCH]);
+    cleanup();
+  });
+
   test("test_DW_2_2_visibility_passcode_with_zero_codes_is_error_and_no_patch", async () => {
     const { tools, calls, cleanup } = setup({ [SITES]: sites("public"), [CODES]: codes(0) });
     const r = await tools["visibility"]!.handler({ slug: "my-site", visibility: "passcode" });
@@ -214,6 +230,28 @@ describe("DW-2.3: passcode_add guard", () => {
     expect(r.isError).toBeUndefined();
     expect(text(r)).toBe("Passcode added to my-site\nID:    new-1\nLabel: Client A");
     expect(calls).toEqual([SITES, POST]);
+    cleanup();
+  });
+
+  test("test_DW_2_1_passcode_add_existing_code_is_a_friendly_non_error_message", async () => {
+    const { tools, calls, cleanup } = setup({
+      [SITES]: sites("passcode"),
+      [POST]: { status: 200, body: { id: "old-1", label: "Client A", created_at: "t", existed: true } },
+    });
+    const r = await tools["passcode_add"]!.handler({ slug: "my-site", code: "abcd", label: "other" });
+    expect(r.isError).toBeUndefined();
+    expect(text(r)).toBe("That passcode already exists on this site as 'Client A' (id old-1); nothing changed.");
+    expect(calls).toEqual([SITES, POST]);
+    cleanup();
+  });
+
+  test("test_DW_2_1_passcode_add_non_boolean_existed_prints_the_normal_added_text", async () => {
+    const { tools, cleanup } = setup({
+      [SITES]: sites("passcode"),
+      [POST]: { status: 201, body: { id: "new-1", label: "Client A", created_at: "t", existed: "true" } },
+    });
+    const r = await tools["passcode_add"]!.handler({ slug: "my-site", code: "abcd", label: "Client A" });
+    expect(text(r)).toBe("Passcode added to my-site\nID:    new-1\nLabel: Client A");
     cleanup();
   });
 

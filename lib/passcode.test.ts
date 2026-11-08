@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "bun:test";
-import { addPasscode, createPasscode, normalizeLabel, withPaidPlanHint, listPasscodes, revokePasscode } from "./passcode.ts";
+import { addPasscode, createPasscode, existingPasscodeMessage, normalizeLabel, withPaidPlanHint, listPasscodes, revokePasscode } from "./passcode.ts";
 import { ApiClient, ApiError } from "./api-client.ts";
 
 const BASE_URL = "https://api.example.com";
@@ -348,5 +348,41 @@ describe("DW-2.2: createPasscode / withPaidPlanHint", () => {
     expect(withPaidPlanHint(notFound)).toBe(notFound);
     const plain = new Error("boom");
     expect(withPaidPlanHint(plain)).toBe(plain);
+  });
+});
+
+// ─── Passcode dedupe: the server's `existed` flag ────────────────────────────
+
+describe("DW-2.1: createPasscode / addPasscode carry the server's existed flag", () => {
+  const post = (status: number, body: unknown) =>
+    new ApiClient(BASE_URL, staticTokenProvider, routedFetch({ [LIST_KEY]: siteList("passcode"), [POST_KEY]: { status, body } }));
+  const row = { id: "p", label: "Client A", created_at: "t" };
+
+  it("test_DW_2_1_existed_true_200_is_reported_with_the_existing_entry", async () => {
+    const r = await createPasscode(post(200, { ...row, existed: true }), NS_ID, SLUG, "abcd", "other");
+    expect(r).toEqual({ passcode: row, existed: true });
+  });
+
+  it("test_DW_2_1_new_code_201_existed_false_and_older_server_without_field_are_not_existing", async () => {
+    expect((await createPasscode(post(201, { ...row, existed: false }), NS_ID, SLUG, "abcd", "l")).existed).toBe(false);
+    expect((await createPasscode(post(201, row), NS_ID, SLUG, "abcd", "l")).existed).toBe(false);
+  });
+
+  it("test_DW_2_1_non_boolean_existed_is_treated_as_false", async () => {
+    for (const bad of ["true", 1, null, {}]) {
+      expect((await createPasscode(post(200, { ...row, existed: bad }), NS_ID, SLUG, "abcd", "l")).existed).toBe(false);
+    }
+  });
+
+  it("test_DW_2_1_addPasscode_passes_existed_through_after_the_visibility_guard", async () => {
+    const r = await addPasscode(post(200, { ...row, existed: true }), NS_ID, SLUG, "abcd", "x");
+    expect(r.existed).toBe(true);
+    expect(r.passcode.label).toBe("Client A");
+  });
+
+  it("test_DW_2_1_existingPasscodeMessage_text", () => {
+    expect(existingPasscodeMessage(row)).toBe(
+      "That passcode already exists on this site as 'Client A' (id p); nothing changed.",
+    );
   });
 });
