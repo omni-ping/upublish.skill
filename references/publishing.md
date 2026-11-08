@@ -33,9 +33,9 @@ It always skips `.git`, `node_modules`, `.env*`, private keys (`*.pem`, `*.key`,
 ## What happens
 
 1. Files are hashed locally; only changed files are uploaded (incremental publish)
-2. Changed files are uploaded directly to R2 storage at `{address}/{slug}/`
+2. Changed files are uploaded directly to the site's version prefix in R2
 3. Site metadata is pushed to Cloudflare KV for edge access control
-4. The site is live within seconds at `https://{address}.upubli.sh/{slug}/`
+4. The site is live within seconds at `https://{address}.upubli.sh/{slug}/` (or `.pinn.sh`, or `https://{hostname}/{slug}/` on a custom domain)
 
 The tool returns the **production URL** — always share this URL with the user, not a localhost URL.
 

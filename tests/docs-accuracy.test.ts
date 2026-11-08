@@ -981,7 +981,8 @@ describe("DW-6.2: references/backends.md matches the frozen contract", () => {
 
   test("test_DW_6_2_guide_consent_flow_and_lifecycle", () => {
     expect(guide).toContain("NOTHING HAS BEEN CHARGED");
-    expect(guide).toContain("$3.00/month or $30.00/year");
+    expect(guide).toContain("the price shown in the consent");
+    expect(guide).not.toMatch(/\$\d+\.\d{2}/); // prices come from the server consent, never the guide
     expect(guide).toContain("**includes Site data**");
     expect(guide).toContain("`accept_charge: true`");
     expect(guide).toContain("moves that item to the Backend price");
