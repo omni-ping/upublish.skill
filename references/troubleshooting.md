@@ -47,9 +47,21 @@ The folder has two or more repo signals (`package.json`, `tsconfig.json`, a lock
 
 ## Publish stops with "Storage pack approval required" (402)
 
-The upload would exceed the plan's storage. The message contains an approval URL and the price of the extra storage block. The tool never approves the charge itself.
+The upload needs more storage than the plan includes plus any blocks the account already pays for. The message contains an approval URL and the price of an extra 10 GB storage block. The tool never approves the charge itself.
 
-**Fix:** Give the user the URL and wait for them to approve it in the browser, then retry the publish. No extra flag is needed.
+**Fix:** Give the user the URL. It opens Settings, where they turn on automatic approval for extra storage. Then retry the publish. No extra flag is needed. Each extra block is billed on the next invoice, and turning the switch off later stops new blocks without removing the ones already added.
+
+## Creating an address stops with "Address pack approval required" (402)
+
+Same shape for addresses: the new address needs more than the plan includes plus any packs already paid for. Extra addresses come in packs of 5.
+
+**Fix:** Give the user the URL. They turn on automatic approval for extra addresses in Settings, then retry `namespace_create`.
+
+## "Contact hello@upubli.sh for more room" (402 `comp_cap`)
+
+The account is on a complimentary plan, which includes the normal Pro or Max allowance and can't buy extra storage or addresses. There is no approval URL, and retrying won't help.
+
+**Fix:** Tell the user to email hello@upubli.sh for more room, or free space first (delete old sites or versions).
 
 ## Storage or file-size limit reached (403)
 

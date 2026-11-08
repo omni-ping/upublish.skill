@@ -69,7 +69,7 @@ Paid plans keep the previous version, so `versions_list` and `versions_restore` 
 | Limit | Free tier | Paid tier | What happens |
 |-------|-----------|-----------|-------------|
 | Single file | 10 MB | 1 GB | Files over the plan limit are rejected by the server |
-| Total storage | 100 MB | 10 GB (Pro), 100 GB (Max) | Over the cap: free is refused; paid gets a storage-pack approval URL for the user |
+| Total storage | 100 MB | 10 GB (Pro), 100 GB (Max) | Over the cap: free is refused; paid gets a storage approval URL for the user (`references/troubleshooting.md`); complimentary plans get `comp_cap` |
 | Slug length | 1-255 characters | 1-255 characters | Rejected at API level |
 
 Upload sessions are valid for 6 hours. If an upload takes longer (e.g. uploading a very large file on a slow connection), start a new publish to get fresh upload URLs.
