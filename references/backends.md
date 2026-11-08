@@ -18,7 +18,7 @@ Do these in order. Stop and report if a step fails; error messages say what to d
 3. Write the handler (below), then `publish_backend`.
 4. Set secrets with `backend_secret` (ask the user for the values), then call the endpoint and read `backend_logs` if it misbehaves.
 
-`backend` action `addon_disable` stops every `/_api` endpoint at once; backends are kept for 30 days and then their scripts are deleted. Re-enabling within 30 days restores them as they were. After the scripts are deleted, `status` shows `deployed: false`; redeploy with `backend` action `rollback` (an archived version is the one-call redeploy) or a fresh `publish_backend`, and set the secrets again.
+`backend` action `addon_disable` stops every `/_api` endpoint at once; backends are kept for 30 days and then their scripts are deleted. **Before calling it, ask the owner** whether to keep Site data or end both. `keep_site_data: true` (the default) leaves Site data on, billed at the Site data price from the next invoice, rows untouched. `keep_site_data: false` ends Site data too, and its rows are deleted after 30 days: send it only on the owner's explicit yes. If Site data can't be kept right now, the call answers 409 and changes nothing (Backend stays on); ask the owner again before retrying with `false`. The result says what stays billed. Re-enabling within 30 days restores them as they were. After the scripts are deleted, `status` shows `deployed: false`; redeploy with `backend` action `rollback` (an archived version is the one-call redeploy) or a fresh `publish_backend`, and set the secrets again.
 
 ## Step 2: Write the handler
 
