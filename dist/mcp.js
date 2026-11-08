@@ -28312,6 +28312,19 @@ var COLLECTION_VIEW_SHAPE = [
   ["created_at", isoTime],
   ["updated_at", isoTime]
 ];
+var isWarning = (v) => isObj(v) && isStr(v.code) && isStr(v.message);
+var DESCRIPTION_SHAPE = [
+  ["summary", isObj],
+  ["summary.read", isStr],
+  ["summary.write", isStr],
+  ["summary.edit", isStr],
+  ["summary.admin", isStr],
+  ["warnings", arrOf(isWarning)]
+];
+function descriptionOf(view) {
+  const d = isObj(view) ? view.description : undefined;
+  return isObj(d) && firstInvalid(d, DESCRIPTION_SHAPE) === null ? d : undefined;
+}
 var at = (root, path) => path.split(".").reduce((v, k) => isObj(v) ? v[k] : undefined, root);
 function underNull(root, path) {
   const keys = path.split(".");
@@ -28826,6 +28839,7 @@ function dataText(r) {
       for (const n of names) {
         const c = s.collections[n];
         lines.push(`  ${safeText(n)} (${safeText(c.config.rule)}; sites: ${c.config.sites.map(safeText).join(", ")}; ${statsText(c.stats)})`);
+        lines.push(...descriptionLines(descriptionOf(c), "    "));
       }
       if (s.stats_state === "unavailable")
         lines.push("Note: row statistics are temporarily unavailable.");
@@ -28857,18 +28871,41 @@ function dataText(r) {
 }
 var matcherText = (m) => `${safeText(m.kind)}{${Object.entries(m.claims).map(([k, v]) => `${safeText(k)}=${safeText(v)}`).join(", ")}}`;
 var claimsText = (ms) => ms.length === 0 ? "none" : ms.map(matcherText).join(" OR ");
-function collectionText(name, c) {
+var MAX_DESCRIPTION_LINE = 1500;
+var descText = (s) => {
+  const text = safeText(s);
+  return text.length > MAX_DESCRIPTION_LINE ? `${text.slice(0, MAX_DESCRIPTION_LINE - 1)}\u2026` : text;
+};
+function descriptionLines(d, indent) {
+  if (!d)
+    return [];
+  const { read, write, edit, admin } = d.summary;
+  const lines = [
+    `${indent}Who can read: ${descText(read)}`,
+    `${indent}Who can write: ${descText(write)}`,
+    `${indent}Who can edit: ${descText(edit)}`,
+    `${indent}Who can admin: ${descText(admin)}`
+  ];
+  if (d.warnings.length > 0) {
+    lines.push(`${indent}Warnings (this config cannot work as written):`);
+    for (const w of d.warnings)
+      lines.push(`${indent}  - [${descText(w.code)}] ${descText(w.message)}`);
+  }
+  return lines;
+}
+function collectionText(name, c, description) {
   return [
     `Collection '${safeText(name)}' (${safeText(c.rule)})`,
     `  Sites: ${c.sites.map(safeText).join(", ")}`,
     `  Writers: ${c.writers.map(safeText).join(", ")}`,
     `  Write claims: ${claimsText(c.write_claims)}`,
     `  Admin claims: ${claimsText(c.admin_claims)}`,
-    `  Limits: max_rows ${c.max_rows}, max_row_bytes ${c.max_row_bytes}, writes_per_min ${c.writes_per_min}, per_identity_limit ${c.per_identity_limit ?? "none"}`
+    `  Limits: max_rows ${c.max_rows}, max_row_bytes ${c.max_row_bytes}, writes_per_min ${c.writes_per_min}, per_identity_limit ${c.per_identity_limit ?? "none"}`,
+    ...descriptionLines(description, "  ")
   ].join(`
 `);
 }
-var viewText = (v) => collectionText(v.name, v);
+var viewText = (v) => collectionText(v.name, v, descriptionOf(v));
 function collectionResultText(r) {
   switch (r.action) {
     case "list":
@@ -30030,7 +30067,7 @@ async function logout(deps) {
 
 // mcp/index.ts
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.41";
+var PACKAGE_VERSION = "0.12.42";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
