@@ -78,12 +78,12 @@ ctx.props.upublish = {
 
 | `identity.kind` | `subject` | extra | When |
 |---|---|---|---|
-| `anonymous` | a random per-browser id (clearing cookies mints a new one) | none | the browser presented the `/_data` visitor cookie |
+| `anonymous` | a random per-browser id (clearing cookies mints a new one) | none | the browser presented the `/_data` visitor cookie, or made its first same-origin write to `/_api` (the platform then sets that cookie) |
 | `passcode` | the passcode id | `label` (the owner's name for the passcode) | the visitor entered a site passcode |
 | `jwt` | `{iss}\|{sub}` | `claims` (verified claims) | a bring-your-own JWT issuer is configured (`data_jwt`) and the `Authorization: Bearer` token verified |
 | `null` | none | none | no identity resolved, for example a webhook with no cookies: treat as unauthenticated |
 
-- **`/_api` never gives a first-time visitor an anonymous identity.** With no valid cookie, passcode or JWT, `identity` is `null`. Writing through `data` then fails with `forbidden`. A fully public anonymous form is simpler to build with the Site data add-on straight from the browser (see `references/site-data.md`); use a backend when you need a secret, a third-party call or your own logic.
+- **A visitor's first same-origin write gives them an anonymous identity, like `/_data`** (on an address with the Site data add-on). That first request already runs with the new anonymous `identity`, and the platform sets the `/_data` visitor cookie on its response only when your handler answers 2xx (a 4xx, 5xx or redirect sets none, so the next try mints again). A cookieless GET (a page load) also has `identity: null`, but `data` reads work (they return nothing the visitor owns) while `data` writes fail with `forbidden`. Webhooks and other cross-origin or no-`Origin` unsafe requests get no `data` capability at all. Anonymous writes are rate-limited per IP, as on `/_data`: each mint and each anonymous write through `data` costs a token, so a burst answers 429 (`backend_rate_limited`, or `rate_limited` from `data`). A fully public anonymous form is still simpler to build with the Site data add-on straight from the browser (see `references/site-data.md`); use a backend when you need a secret, a third-party call or your own logic.
 - **Forms must post from the site's own origin.** An unsafe request (anything but GET, HEAD, OPTIONS) that is not same-origin gets no cookie identity (`identity: null` unless it carries a bearer JWT) and no `data` capability, and on `access: site` backends it is refused with `403 access_denied`. Webhooks are cross-origin by design: they are dispatched on `access: public` with `identity: null`.
 - When no JWT issuer is configured, the `Authorization` header passes through to your code untouched and is **not** an identity (your own API keys and webhook signatures work). When an issuer is configured the header is consumed by the platform and an invalid token is `401 invalid_token`.
 
@@ -185,7 +185,7 @@ This is `references/backend-template.ts`. It works for a **first-time anonymous 
  *    a Slack or Discord incoming webhook, or any endpoint that accepts JSON
  *  - JSON responses only: an HTML or other non-allowlisted response is replaced by a 502
  *
- * It needs no visitor identity, so it works for a first-time anonymous visitor (`/_api` mints none).
+ * It needs no visitor identity, so it works for any visitor, including a first-time anonymous one and a webhook caller.
  *
  * Deploy:   publish_backend  site: "<slug>"  entry: "references/backend-template.ts"
  * Secrets:  backend_secret   action: "set"  name: "TURNSTILE_SECRET" | "CONTACT_WEBHOOK_URL"  (ask the user)
@@ -296,9 +296,9 @@ export default {
 
 To use it: `publish_backend` it, `backend_secret` `set` both `TURNSTILE_SECRET` and `CONTACT_WEBHOOK_URL` (ask the user for the values), and have the page post JSON or a form `{ name, email, message, "cf-turnstile-response" }` to `{site}/_api/submit` from the site itself. Errors are JSON `{ error, code }`: 400 `invalid_request` / `turnstile_failed`, 413 `payload_too_large`, 502 `delivery_failed` / `turnstile_unreachable`, 405 and 404 for other methods and paths.
 
-### Optional: store the message in Site data (visitors with an identity only)
+### Optional: store the message in Site data
 
-Instead of (or as well as) the webhook, a handler can write a row with `ctx.props.upublish.data`. This only works when the visitor has an identity (a passcode, a bring-your-own JWT, or a `/_data` cookie). `/_api` never mints an anonymous identity, so a first-time anonymous visitor gets `forbidden` from `data`; that is why the template above does not depend on it. Create the collection first (`data_collection` action `set`, rule `inbox`).
+Instead of (or as well as) the webhook, a handler can write a row with `ctx.props.upublish.data`. This works for a visitor who has an identity (a passcode, a bring-your-own JWT, or a visitor cookie). A first-time visitor's first same-origin POST mints an anonymous identity, so `data.create` works on it; a cookieless GET can read but `data.create` answers `forbidden`; webhook and cross-origin calls get no `data` stub at all (`ctx.props.upublish.data` is undefined). The template above does not depend on any of this. Create the collection first (`data_collection` action `set`, rule `inbox`).
 
 ```ts
 const result = await ctx.props.upublish.data?.create("contact", { name, email, message });

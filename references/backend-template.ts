@@ -11,7 +11,7 @@
  *    a Slack or Discord incoming webhook, or any endpoint that accepts JSON
  *  - JSON responses only: an HTML or other non-allowlisted response is replaced by a 502
  *
- * It needs no visitor identity, so it works for a first-time anonymous visitor (`/_api` mints none).
+ * It needs no visitor identity, so it works for any visitor, including a first-time anonymous one and a webhook caller.
  *
  * Deploy:   publish_backend  site: "<slug>"  entry: "references/backend-template.ts"
  * Secrets:  backend_secret   action: "set"  name: "TURNSTILE_SECRET" | "CONTACT_WEBHOOK_URL"  (ask the user)

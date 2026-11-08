@@ -8,7 +8,7 @@ import { describe, it, expect, afterEach } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { data, dataCollection, dataJwt, dataRows, SiteDataError } from "./core.ts";
+import { data, dataCollection, dataJwt, dataRows, formatCollectionResult, SiteDataError } from "./core.ts";
 import type { CoreDeps } from "./core.ts";
 import { NS, SITES_BODY, fixtureResponse, jsonResponse, loadRoute, stackFetch, type Handler } from "../tests/helpers/site-data.ts";
 
@@ -85,5 +85,19 @@ describe("DW-6.1: core site data wiring", () => {
     const err = await dataCollection({ action: "list" }, d).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SiteDataError);
     expect((err as SiteDataError).status).toBe(402);
+  });
+  it("test_DW_4_2_core_get_collection_with_description_prints_summary_and_tolerates_a_bad_one", async () => {
+    const found = fixtureResponse(loadRoute("api.get_collection"), "found").body as object;
+    const description = {
+      summary: { read: "everyone.", write: "nobody from the site (only you, through the dashboard or tools).", edit: "only you.", admin: "only you." },
+      warnings: [{ code: "writers_ignored", message: "Writers are ignored on owner-only." }],
+    };
+    for (const [body, expectLines] of [[{ ...found, description }, true], [{ ...found, description: { summary: "bad" } }, false]] as const) {
+      const { deps: d } = deps((req) => (req.path.endsWith("/collections/votes") ? jsonResponse(200, body) : jsonResponse(200, SITES_BODY)));
+      const out = formatCollectionResult(await dataCollection({ action: "get", collection: "votes" }, d));
+      expect(out.includes("Who can read: everyone.")).toBe(expectLines);
+      expect(out.includes("[writers_ignored] Writers are ignored on owner-only.")).toBe(expectLines);
+      expect(out).toContain("Collection 'votes'");
+    }
   });
 });

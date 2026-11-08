@@ -8,6 +8,7 @@
  */
 
 import { quoteText, safeText as t, hasControlChars, sanitizeOutput } from "./site-data-text.ts";
+import { descriptionOf, type CollectionDescription } from "./site-data-shape.ts";
 import type { DataCollectionResult } from "./site-data-collections.ts";
 import type { DataJwtResult, DataResult } from "./site-data.ts";
 import type { DataRowsResult } from "./site-data-rows.ts";
@@ -87,6 +88,7 @@ function dataText(r: DataResult): string {
       for (const n of names) {
         const c = s.collections[n]!;
         lines.push(`  ${t(n)} (${t(c.config.rule)}; sites: ${c.config.sites.map(t).join(", ")}; ${statsText(c.stats)})`);
+        lines.push(...descriptionLines(descriptionOf(c), "    "));
       }
       if (s.stats_state === "unavailable") lines.push("Note: row statistics are temporarily unavailable.");
       if (s.kv.drift !== "none") lines.push(`Edge sync: ${t(s.kv.drift)} (it can lag by up to a minute after changes)`);
@@ -125,7 +127,36 @@ const matcherText = (m: ClaimMatcher): string =>
 
 const claimsText = (ms: ClaimMatcher[]): string => (ms.length === 0 ? "none" : ms.map(matcherText).join(" OR "));
 
-function collectionText(name: string, c: CollectionConfig): string {
+/** Owner-controlled text, so a runaway line cannot flood the output; the server clips at the same length. */
+const MAX_DESCRIPTION_LINE = 1500;
+const descText = (s: string): string => {
+  const text = t(s);
+  return text.length > MAX_DESCRIPTION_LINE ? `${text.slice(0, MAX_DESCRIPTION_LINE - 1)}…` : text;
+};
+
+/**
+ * The server's who-can-read/write/edit/admin sentences and config warnings, one line each; nothing when the
+ * server sent no (valid) `description`. Slugs, labels and claim values inside are plain text from the owner,
+ * printed as data and never interpreted. A warning's code is printed as-is, so one this client has never
+ * seen still shows.
+ */
+function descriptionLines(d: CollectionDescription | undefined, indent: string): string[] {
+  if (!d) return [];
+  const { read, write, edit, admin } = d.summary;
+  const lines = [
+    `${indent}Who can read: ${descText(read)}`,
+    `${indent}Who can write: ${descText(write)}`,
+    `${indent}Who can edit: ${descText(edit)}`,
+    `${indent}Who can admin: ${descText(admin)}`,
+  ];
+  if (d.warnings.length > 0) {
+    lines.push(`${indent}Warnings (this config cannot work as written):`);
+    for (const w of d.warnings) lines.push(`${indent}  - [${descText(w.code)}] ${descText(w.message)}`);
+  }
+  return lines;
+}
+
+function collectionText(name: string, c: CollectionConfig, description?: CollectionDescription): string {
   return [
     `Collection '${t(name)}' (${t(c.rule)})`,
     `  Sites: ${c.sites.map(t).join(", ")}`,
@@ -133,10 +164,11 @@ function collectionText(name: string, c: CollectionConfig): string {
     `  Write claims: ${claimsText(c.write_claims)}`,
     `  Admin claims: ${claimsText(c.admin_claims)}`,
     `  Limits: max_rows ${c.max_rows}, max_row_bytes ${c.max_row_bytes}, writes_per_min ${c.writes_per_min}, per_identity_limit ${c.per_identity_limit ?? "none"}`,
+    ...descriptionLines(description, "  "),
   ].join("\n");
 }
 
-const viewText = (v: CollectionView): string => collectionText(v.name, v);
+const viewText = (v: CollectionView): string => collectionText(v.name, v, descriptionOf(v));
 
 function collectionResultText(r: DataCollectionResult): string {
   switch (r.action) {

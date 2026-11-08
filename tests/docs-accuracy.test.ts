@@ -365,10 +365,11 @@ describe("DW-6.5: guide fixes from the independent review", () => {
     expect(guide).toMatch(/Only a 401 \/ `invalid_token`[^\n]*stops the flush/);
   });
 
-  test("test_DW_6_5_documents_site_moved_and_the_passcode_nonce_bump", () => {
+  test("test_DW_6_5_documents_site_moved_and_no_longer_the_passcode_nonce_bump", () => {
     expect(guide).toMatch(/`site_moved` \| 410 \|[^|]*\|[^|]*SITE_PATH/);
-    expect(guide).toContain("bumps the site's passcode nonce");
-    expect(guide).toMatch(/403 `data_unavailable`\*\* \(JSON, never the passcode form\)/);
+    // Decision 14 is retired (site-data iteration Phase 1): joining a collection no longer logs passcode visitors out.
+    expect(guide).not.toContain("bumps the site's passcode nonce");
+    expect(guide).not.toMatch(/before the site joined a collection/);
     expect(guide).not.toMatch(/until then they act as anonymous/);
   });
 
@@ -392,8 +393,9 @@ describe("DW-6.5: guide fixes from the independent review", () => {
     expect(guide).toContain("Gate (form) cookies stay anonymous on `/_data`");
   });
 
-  test("test_DW_6_6_guide_nonce_bump_paragraph_still_says_403_until_reentry", () => {
-    expect(guide).toMatch(/bumps the site's passcode nonce[^\n]*403 `data_unavailable`[^\n]*enter the passcode again/);
+  test("test_DW_6_6_guide_v1_and_other_address_cookies_still_need_the_passcode_again", () => {
+    expect(guide).toMatch(/Legacy unbound v1 passcode cookies are rejected for ALL access[^\n]*enter the passcode once/);
+    expect(guide).toMatch(/`data_unavailable` \| 403 \|[^\n]*re-entered on the exact site address/);
   });
 
   test("test_DW_6_6_guide_error_rows_match_amendment_4", () => {
@@ -932,7 +934,8 @@ describe("DW-6.2: references/backends.md matches the frozen contract", () => {
     expect(guide).toContain("site:     { id, address, namespace }");
     expect(guide).toContain("identity: { kind, subject, claims?, label? } | null");
     for (const kind of ["`anonymous`", "`passcode`", "`jwt`", "`null`"]) expect(guide).toContain(`| ${kind} |`);
-    expect(guide).toContain("never gives a first-time visitor an anonymous identity");
+    expect(guide).toContain("first same-origin write gives them an anonymous identity");
+    expect(guide).not.toContain("never gives a first-time visitor an anonymous identity");
     expect(guide).toContain("Forms must post from the site's own origin");
     expect(guide).toContain("passes through to your code untouched");
   });
@@ -1003,12 +1006,13 @@ describe("DW-6.2: references/backends.md matches the frozen contract", () => {
     expect(guide).toContain("frees one of the 5 slots");
   });
 
-  test("test_DW_6_2_guide_template_works_for_anonymous_visitors_and_explains_site_data_forbidden", () => {
+  test("test_DW_6_2_guide_template_works_for_anonymous_visitors_and_explains_site_data_identity_rules", () => {
     expect(guide).toContain("first-time anonymous visitor");
     expect(guide).toContain("`TURNSTILE_SECRET`");
     expect(guide).toContain("`CONTACT_WEBHOOK_URL`");
-    expect(guide).toContain("### Optional: store the message in Site data (visitors with an identity only)");
-    expect(guide).toContain("gets `forbidden` from `data`");
+    expect(guide).toContain("### Optional: store the message in Site data");
+    expect(guide).toContain("cookieless GET can read but `data.create` answers `forbidden`");
+    expect(guide).not.toContain("gets `forbidden` from `data`");
   });
 
   test("test_DW_6_2_guide_documents_the_bundling_sandbox", () => {

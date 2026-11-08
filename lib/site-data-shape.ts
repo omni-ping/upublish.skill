@@ -88,6 +88,33 @@ const COLLECTION_VIEW_SHAPE: Shape = [
   ...CONFIG_SHAPE, ["name", isStr], ["created_at", isoTime], ["updated_at", isoTime],
 ];
 
+/**
+ * The owner API's plain-English account of who may read, write, edit and administer a collection, and
+ * which configs cannot work as written. Additive on collection views (absent = an older server).
+ */
+export interface CollectionDescription {
+  summary: { read: string; write: string; edit: string; admin: string };
+  /** `code` is any short string: a code added after this client was built is printed, never rejected. */
+  warnings: { code: string; message: string }[];
+}
+
+const isWarning: Check = (v) => isObj(v) && isStr((v as { code: unknown }).code) && isStr((v as { message: unknown }).message);
+const DESCRIPTION_SHAPE: Shape = [
+  ["summary", isObj],
+  ["summary.read", isStr], ["summary.write", isStr], ["summary.edit", isStr], ["summary.admin", isStr],
+  ["warnings", arrOf(isWarning)],
+];
+
+/**
+ * The optional `description` of a collection view or a status collection entry, or `undefined` when it is
+ * absent or malformed. It is a display extra, so a bad one is dropped rather than failing the response
+ * (unlike the config fields, which are validated strictly). Never throws.
+ */
+export function descriptionOf(view: unknown): CollectionDescription | undefined {
+  const d = isObj(view) ? (view as { description?: unknown }).description : undefined;
+  return isObj(d) && firstInvalid(d, DESCRIPTION_SHAPE) === null ? (d as unknown as CollectionDescription) : undefined;
+}
+
 /** Resolves a dotted path; `undefined` when any step is not an object. */
 const at = (root: unknown, path: string): unknown =>
   path.split(".").reduce<unknown>((v, k) => (isObj(v) ? (v as Record<string, unknown>)[k] : undefined), root);
