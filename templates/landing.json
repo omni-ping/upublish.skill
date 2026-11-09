@@ -1,0 +1,119 @@
+{
+  "name": "landing",
+  "title": "Landing page",
+  "description": "A product or project landing page in ink and signal lime: a big type-led headline, three numbered benefits, a how-it-works strip, an FAQ and a closing call to action.",
+  "placeholders": [
+    {
+      "token": "[[Product name]]",
+      "hint": "The name of your product, project or service."
+    },
+    {
+      "token": "[[Short tagline]]",
+      "hint": "A few words for the browser tab, e.g. Invoices without the busywork."
+    },
+    {
+      "token": "[[One sentence on what your product does and who it is for]]",
+      "hint": "Used as the page description in search results and link previews."
+    },
+    {
+      "token": "[[A short announcement, e.g. Now in early access]]",
+      "hint": "A small line above the headline. Delete it if you have nothing to announce."
+    },
+    {
+      "token": "[[Your headline: the main benefit in under ten words]]",
+      "hint": "The main promise of the page, short and concrete."
+    },
+    {
+      "token": "[[One or two sentences that explain what the product does and who it is for]]",
+      "hint": "Expands the headline in plain words."
+    },
+    {
+      "token": "[[Call to action, e.g. Get started]]",
+      "hint": "The button text, two or three words. It appears twice. Each button links to # for now: point it at the real address (the element's data-placeholder-href says what goes there)."
+    },
+    {
+      "token": "[[First benefit]]",
+      "hint": "A benefit in two to four words."
+    },
+    {
+      "token": "[[One sentence on the first benefit]]",
+      "hint": "Why the first benefit matters to the reader."
+    },
+    {
+      "token": "[[Second benefit]]",
+      "hint": "A benefit in two to four words."
+    },
+    {
+      "token": "[[One sentence on the second benefit]]",
+      "hint": "Why the second benefit matters to the reader."
+    },
+    {
+      "token": "[[Third benefit]]",
+      "hint": "A benefit in two to four words."
+    },
+    {
+      "token": "[[One sentence on the third benefit]]",
+      "hint": "Why the third benefit matters to the reader."
+    },
+    {
+      "token": "[[Step one]]",
+      "hint": "The first step a new user takes, a few words."
+    },
+    {
+      "token": "[[What happens in step one]]",
+      "hint": "One sentence on the first step."
+    },
+    {
+      "token": "[[Step two]]",
+      "hint": "The second step, a few words."
+    },
+    {
+      "token": "[[What happens in step two]]",
+      "hint": "One sentence on the second step."
+    },
+    {
+      "token": "[[Step three]]",
+      "hint": "The last step, usually the moment it pays off."
+    },
+    {
+      "token": "[[What happens in step three]]",
+      "hint": "One sentence on the result."
+    },
+    {
+      "token": "[[First question people ask]]",
+      "hint": "A real question from customers or friends."
+    },
+    {
+      "token": "[[Answer to the first question]]",
+      "hint": "A short, direct answer."
+    },
+    {
+      "token": "[[Second question people ask]]",
+      "hint": "Another common question."
+    },
+    {
+      "token": "[[Answer to the second question]]",
+      "hint": "A short, direct answer."
+    },
+    {
+      "token": "[[Third question people ask]]",
+      "hint": "Another common question, or delete the item."
+    },
+    {
+      "token": "[[Answer to the third question]]",
+      "hint": "A short, direct answer."
+    },
+    {
+      "token": "[[Closing line that invites people to start]]",
+      "hint": "One last nudge, e.g. Ready when you are."
+    },
+    {
+      "token": "[[Year]]",
+      "hint": "The current year, for the copyright line."
+    },
+    {
+      "token": "[[Your contact email]]",
+      "hint": "The address people write to, shown in the footer. Its link is # for now: set it to mailto:your address (the element's data-placeholder-href says what goes there)."
+    }
+  ]
+}

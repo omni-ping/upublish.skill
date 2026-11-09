@@ -1,0 +1,119 @@
+{
+  "name": "docs",
+  "title": "Documentation",
+  "description": "A two-page documentation site with a sidebar, an introduction with install and quick start, and a guide with configuration, options and troubleshooting.",
+  "placeholders": [
+    {
+      "token": "[[Project name]]",
+      "hint": "The name of the project you're documenting. Used on both pages."
+    },
+    {
+      "token": "[[Version, e.g. v1.0]]",
+      "hint": "The current version, or delete the badge."
+    },
+    {
+      "token": "[[Where the configuration lives and how it is loaded]]",
+      "hint": "On the Guide page: the config file name and where it goes."
+    },
+    {
+      "token": "[[An example configuration file]]",
+      "hint": "A short, working example. Escape < and & inside the code block."
+    },
+    {
+      "token": "[[First option]]",
+      "hint": "An option name, as it appears in the config."
+    },
+    {
+      "token": "[[First default]]",
+      "hint": "Its default value."
+    },
+    {
+      "token": "[[What the first option controls]]",
+      "hint": "A short description."
+    },
+    {
+      "token": "[[Second option]]",
+      "hint": "Another option name. Copy the table row to add more."
+    },
+    {
+      "token": "[[Second default]]",
+      "hint": "Its default value."
+    },
+    {
+      "token": "[[What the second option controls]]",
+      "hint": "A short description."
+    },
+    {
+      "token": "[[The task people do most often, step by step in one or two sentences]]",
+      "hint": "Everyday use, in plain words."
+    },
+    {
+      "token": "[[A code example of the most common task]]",
+      "hint": "A short example. Escape < and & inside the code block."
+    },
+    {
+      "token": "[[A problem people run into]]",
+      "hint": "A common error or question. Copy the block to add more."
+    },
+    {
+      "token": "[[How to fix it]]",
+      "hint": "The fix, in a sentence or two."
+    },
+    {
+      "token": "[[Year]]",
+      "hint": "The current year, for the copyright line."
+    },
+    {
+      "token": "[[Where to get help, e.g. Issue tracker]]",
+      "hint": "The link text for getting help. Its link is # for now: point it at the real address (the element's data-placeholder-href says what goes there)."
+    },
+    {
+      "token": "[[One sentence on what your project does]]",
+      "hint": "Shown under the heading and used as the page description."
+    },
+    {
+      "token": "[[A short paragraph on who the project is for and the problem it solves]]",
+      "hint": "Keep it to what a newcomer needs before they install anything."
+    },
+    {
+      "token": "[[One line on what people need before installing, e.g. a runtime or an account]]",
+      "hint": "Prerequisites in one line."
+    },
+    {
+      "token": "[[Install command, e.g. npm install my-project]]",
+      "hint": "The exact command to install."
+    },
+    {
+      "token": "[[First step]]",
+      "hint": "The first thing a new user does, a few words."
+    },
+    {
+      "token": "[[What the reader does in the first step]]",
+      "hint": "One or two sentences."
+    },
+    {
+      "token": "[[Second step]]",
+      "hint": "The next thing they do."
+    },
+    {
+      "token": "[[What the reader does in the second step]]",
+      "hint": "One or two sentences."
+    },
+    {
+      "token": "[[A short code example for the second step]]",
+      "hint": "A few lines of code. Escape < as &lt; and & as &amp; inside the code block."
+    },
+    {
+      "token": "[[Third step]]",
+      "hint": "The last step, usually seeing it work."
+    },
+    {
+      "token": "[[What the reader sees when it works]]",
+      "hint": "Describe the success state so readers know they're done."
+    },
+    {
+      "token": "[[A tip or warning worth calling out, e.g. a common mistake]]",
+      "hint": "One sentence. Delete the note if you don't need it."
+    }
+  ]
+}

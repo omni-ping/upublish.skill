@@ -1,0 +1,59 @@
+{
+  "name": "links",
+  "title": "Link in bio",
+  "description": "A single-column link-in-bio page in forest and cream: your initials, name and short bio, a highlighted latest link, four more links, your profiles and email.",
+  "placeholders": [
+    {
+      "token": "[[Your name]]",
+      "hint": "Your full name as you want visitors to see it. Used in the title, the heading and the footer."
+    },
+    {
+      "token": "[[A short line about you]]",
+      "hint": "One sentence. Also used as the page description."
+    },
+    {
+      "token": "[[YN]]",
+      "hint": "Your initials, one to three letters, shown in the round avatar."
+    },
+    {
+      "token": "[[Your handle, e.g. @yourname]]",
+      "hint": "Your username, or delete the line."
+    },
+    {
+      "token": "[[Your newest thing, e.g. a new video or article]]",
+      "hint": "The link you most want people to open, shown highlighted at the top. Its link is # for now: point it at the real address (the element's data-placeholder-href says what goes there)."
+    },
+    {
+      "token": "[[First link title]]",
+      "hint": "The text of a link button. Its link is # for now: point it at the real address (the element's data-placeholder-href says what goes there)."
+    },
+    {
+      "token": "[[Second link title]]",
+      "hint": "The text of a link button."
+    },
+    {
+      "token": "[[Third link title]]",
+      "hint": "The text of a link button."
+    },
+    {
+      "token": "[[Fourth link title]]",
+      "hint": "The text of a link button. Copy or delete list items to change how many links you have."
+    },
+    {
+      "token": "[[First profile, e.g. Instagram]]",
+      "hint": "A profile name for the footer row. Its link is # for now: point it at the real address (the element's data-placeholder-href says what goes there)."
+    },
+    {
+      "token": "[[Second profile, e.g. YouTube]]",
+      "hint": "Another profile, or delete the item. Its link is # for now: point it at the real address (the element's data-placeholder-href says what goes there)."
+    },
+    {
+      "token": "[[Your email address]]",
+      "hint": "The email address people should write to, shown as the link text. The link is # for now: set it to mailto:your address (the element's data-placeholder-href says what goes there)."
+    },
+    {
+      "token": "[[Year]]",
+      "hint": "The current year, for the copyright line."
+    }
+  ]
+}
