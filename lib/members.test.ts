@@ -425,10 +425,23 @@ describe("Phase 3: invites in lib/members.ts", () => {
     expect(JSON.stringify(result)).not.toMatch(SECRET_RE);
   });
 
-  it("test_DW_3_1_revoke_invite_sends_delete_with_encoded_id", async () => {
+  it("test_DW_3_1_revoke_invite_sends_delete_with_the_id", async () => {
     const { calls, api } = recording(200, { ok: true });
-    expect(await revokeInvite(api, NS_ID, "inv/1")).toEqual({ ok: true });
-    expect(calls).toEqual([{ url: `${BASE_URL}/api/ns/${NS_ID}/invites/inv%2F1`, method: "DELETE", body: undefined }]);
+    expect(await revokeInvite(api, NS_ID, " 3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b ")).toEqual({ ok: true });
+    expect(calls).toEqual([{ url: `${BASE_URL}/api/ns/${NS_ID}/invites/3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b`, method: "DELETE", body: undefined }]);
+  });
+
+  // Review N4: a pasted join link or raw token must never reach a request path (server access logs).
+  it("test_DW_3_2_revoke_refuses_a_pasted_link_or_token_before_any_request", async () => {
+    const { calls, api } = recording(200, { ok: true });
+    const token = "A".repeat(43);
+    for (const bad of [`https://upubli.sh/join#${token}`, `#${token}`, token, "inv/1", "inv-1"]) {
+      const err = await revokeInvite(api, NS_ID, bad).catch((e: Error) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toMatch(/not an invite id/);
+      expect((err as Error).message).not.toMatch(SECRET_RE);
+    }
+    expect(calls).toHaveLength(0);
   });
 
   it("revoke_invite_requires_an_id_before_any_request", async () => {
@@ -455,7 +468,7 @@ describe("Phase 3: invites in lib/members.ts", () => {
       for (const run of [
         (api: ApiClient) => createInvite(api, NS_ID),
         (api: ApiClient) => listInvites(api, NS_ID),
-        (api: ApiClient) => revokeInvite(api, NS_ID, "inv-1"),
+        (api: ApiClient) => revokeInvite(api, NS_ID, "3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b"),
       ]) {
         const err = await run(recording(status, body).api).then(() => null, (e: Error) => e);
         expect(err).toBeInstanceOf(Error);
@@ -469,7 +482,7 @@ describe("Phase 3: invites in lib/members.ts", () => {
     const api = new ApiClient(BASE_URL, async () => {
       throw new Error("Token refresh failed: 401 Unauthorized — invalid refresh token");
     }, (async () => new Response("{}")) as unknown as typeof fetch);
-    for (const run of [() => createInvite(api, NS_ID), () => listInvites(api, NS_ID), () => revokeInvite(api, NS_ID, "inv-1")]) {
+    for (const run of [() => createInvite(api, NS_ID), () => listInvites(api, NS_ID), () => revokeInvite(api, NS_ID, "3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b")]) {
       await expect(run()).rejects.toThrow("Token refresh failed: 401 Unauthorized — invalid refresh token");
     }
   });
@@ -487,7 +500,7 @@ describe("Phase 3: invites in lib/members.ts", () => {
     const api = new ApiClient(BASE_URL, staticTokenProvider, (async () => {
       throw new TypeError(`fetch failed for ${BASE_URL}/api/ns/${NS_ID}/invites`);
     }) as unknown as typeof fetch);
-    for (const run of [() => createInvite(api, NS_ID), () => listInvites(api, NS_ID), () => revokeInvite(api, NS_ID, "inv-1")]) {
+    for (const run of [() => createInvite(api, NS_ID), () => listInvites(api, NS_ID), () => revokeInvite(api, NS_ID, "3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b")]) {
       const err = await run().then(() => null, (e: Error) => e);
       expect(err!.message).toMatch(/could not be reached/);
       expect(err!.message).not.toMatch(SECRET_RE);

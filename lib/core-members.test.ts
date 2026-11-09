@@ -404,7 +404,7 @@ describe("Phase 3 (invites): core members() invite/invites/revoke", () => {
     const calls: string[] = [];
     const deps: CoreDeps = { credentialsPath: f, fetchFn: inviteFetch(calls) };
     expect(await members({ action: "invites", namespace: NS_NAME }, deps)).toEqual({ action: "invites", address: NS_NAME, invites: [] });
-    expect(await members({ action: "revoke", invite_id: "inv-1", namespace: NS_NAME }, deps)).toEqual({ action: "revoke", address: NS_NAME, ok: true });
-    expect(calls).toEqual([`GET /api/ns/${NS_ID}/invites`, `DELETE /api/ns/${NS_ID}/invites/inv-1`]);
+    expect(await members({ action: "revoke", invite_id: "3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b", namespace: NS_NAME }, deps)).toEqual({ action: "revoke", address: NS_NAME, ok: true });
+    expect(calls).toEqual([`GET /api/ns/${NS_ID}/invites`, `DELETE /api/ns/${NS_ID}/invites/3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b`]);
   });
 });

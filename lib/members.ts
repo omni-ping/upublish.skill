@@ -271,6 +271,9 @@ const INVITE_VERB: Record<InviteOp, string> = {
   revoke: "revoke the invite link",
 };
 
+/** Server-generated invite ids are UUIDs (crypto.randomUUID). */
+const INVITE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Maps any failure of an invite call to a plain-language Error. The message is built only from
  * the status and code — never from response text — so no URL or token can ever be echoed.
@@ -385,8 +388,16 @@ export async function revokeInvite(
   if (typeof inviteId !== "string" || inviteId.trim() === "") {
     throw new Error("An invite id is required to revoke an invite link. Use action 'invites' to see the pending ones.");
   }
+  // Invite ids are UUIDs. Anything else (e.g. a pasted join link or its token) is refused BEFORE any request,
+  // so a live token can never land in a request path (and so in server access logs).
+  const id = inviteId.trim();
+  if (!INVITE_ID_RE.test(id)) {
+    throw new Error(
+      "That is not an invite id. Revoke takes the id shown by action 'invites', not the invite link itself.",
+    );
+  }
   try {
-    await apiClient.delete<{ ok: true }>(`/api/ns/${nsId}/invites/${encodeURIComponent(inviteId.trim())}`);
+    await apiClient.delete<{ ok: true }>(`/api/ns/${nsId}/invites/${id}`);
   } catch (err) {
     throw inviteError(err, "revoke");
   }

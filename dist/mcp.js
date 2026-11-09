@@ -27743,6 +27743,7 @@ var INVITE_VERB = {
   list: "list invite links",
   revoke: "revoke the invite link"
 };
+var INVITE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function inviteError(err, op) {
   if (!(err instanceof ApiError)) {
     const isTransport = err instanceof TypeError || err instanceof Error && typeof err.code === "string";
@@ -27814,8 +27815,12 @@ async function revokeInvite(apiClient, nsId, inviteId) {
   if (typeof inviteId !== "string" || inviteId.trim() === "") {
     throw new Error("An invite id is required to revoke an invite link. Use action 'invites' to see the pending ones.");
   }
+  const id = inviteId.trim();
+  if (!INVITE_ID_RE.test(id)) {
+    throw new Error("That is not an invite id. Revoke takes the id shown by action 'invites', not the invite link itself.");
+  }
   try {
-    await apiClient.delete(`/api/ns/${nsId}/invites/${encodeURIComponent(inviteId.trim())}`);
+    await apiClient.delete(`/api/ns/${nsId}/invites/${id}`);
   } catch (err) {
     throw inviteError(err, "revoke");
   }

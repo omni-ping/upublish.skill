@@ -681,10 +681,10 @@ describe("Phase 3: members tool invite actions", () => {
   test("test_DW_3_1_revoke_by_invite_id", async () => {
     const calls: string[] = [];
     const tools = inviteTools({ DELETE: { status: 200, body: { ok: true } } }, calls);
-    const result = await tools["members"].handler({ action: "revoke", invite_id: "inv-1" });
+    const result = await tools["members"].handler({ action: "revoke", invite_id: "3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b" });
     expect(result.isError).toBeFalsy();
-    expect(calls).toEqual([`DELETE /api/ns/${NS_ID}/invites/inv-1`]);
-    expect(result.content[0].text).toMatch(/Revoked invite inv-1/);
+    expect(calls).toEqual([`DELETE /api/ns/${NS_ID}/invites/3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b`]);
+    expect(result.content[0].text).toMatch(/Revoked invite 3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b/);
   });
 
   test("revoke_requires_invite_id", async () => {
@@ -712,7 +712,7 @@ describe("Phase 3: members tool invite actions", () => {
     test(`test_DW_3_2_error_${status}_${code ?? "none"}_mapped_and_leaks_nothing`, async () => {
       const reply = { status, body: { error: `leak ${JOIN_URL}`, code, url: JOIN_URL, token: TOKEN43 } };
       const tools = inviteTools({ POST: reply, GET: reply, DELETE: reply });
-      for (const args of [{ action: "invite" }, { action: "invites" }, { action: "revoke", invite_id: "inv-1" }]) {
+      for (const args of [{ action: "invite" }, { action: "invites" }, { action: "revoke", invite_id: "3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b" }]) {
         const result = await tools["members"].handler(args);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(expected);
