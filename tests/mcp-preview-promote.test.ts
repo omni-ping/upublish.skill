@@ -149,7 +149,7 @@ describe("DW-3.4: MCP publish tool has preview parameter", () => {
     tmpDirs.push(tmpDir);
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     await tools["publish"].handler({
@@ -189,7 +189,7 @@ describe("DW-3.5: MCP publish tool response uses preview URL", () => {
     tmpDirs.push(tmpDir);
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     const result = await tools["publish"].handler({
@@ -228,7 +228,7 @@ describe("DW-3.5: MCP publish tool response uses preview URL", () => {
     tmpDirs.push(tmpDir);
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     const result = await tools["publish"].handler({
@@ -248,7 +248,7 @@ describe("DW-3.8: MCP promote tool registered", () => {
     const { credFile, deps } = makeDeps();
     tmpCredFiles.push(credFile);
 
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect("promote" in tools).toBe(true);
   });
@@ -270,7 +270,7 @@ describe("DW-3.8: MCP promote tool registered", () => {
     const { credFile, deps } = makeDeps(fetchFn);
     tmpCredFiles.push(credFile);
 
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     const result = await tools["promote"].handler({ slug: "my-site" });
@@ -294,7 +294,7 @@ describe("DW-3.8: MCP promote tool registered", () => {
     const { credFile, deps } = makeDeps(fetchFn);
     tmpCredFiles.push(credFile);
 
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     // namespace is optional — must not throw when omitted
@@ -316,7 +316,7 @@ describe("DW-3.8: MCP promote tool registered", () => {
     const { credFile, deps } = makeDeps(fetchFn);
     tmpCredFiles.push(credFile);
 
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     const result = await tools["promote"].handler({ slug: "my-site" });
@@ -331,7 +331,7 @@ describe("DW-2.1: MCP publish force (verify-and-repair)", () => {
   test("test_DW_2_1_force_description_states_repair_meaning", () => {
     const { credFile, deps } = makeDeps();
     tmpCredFiles.push(credFile);
-    const tool = getTools(createServer(deps))["publish"] as unknown as {
+    const tool = getTools(createServer(deps, { localFiles: true }))["publish"] as unknown as {
       inputSchema: { shape: Record<string, { description?: string }> };
     };
     const d = tool.inputSchema.shape.force!.description!;
@@ -365,7 +365,7 @@ describe("DW-2.1: MCP publish force (verify-and-repair)", () => {
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
     fs.writeFileSync(path.join(tmpDir, "b.txt"), "bee");
 
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const forced = await tools["publish"].handler({ directory: tmpDir, slug: "my-site", force: true });
     expect(body.force).toBe(true);
     expect(forced.content[0]!.text).toContain("Force: verified 2 file(s), re-uploaded 1");

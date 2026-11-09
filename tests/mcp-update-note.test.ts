@@ -82,7 +82,8 @@ async function waitFor(cond: () => boolean, ms = 1000): Promise<void> {
 }
 
 function server(stub: Stub, opts?: CreateServerOpts, extra?: Partial<CoreDeps>) {
-  return toolsOf(createServer({ credentialsPath: credFile, fetchFn: stub.fetchFn, ...extra }, opts));
+  // localFiles: these tests drive local-only tools (publish, logout); update/runtime stay as the caller passes them.
+  return toolsOf(createServer({ credentialsPath: credFile, fetchFn: stub.fetchFn, ...extra }, { localFiles: true, ...opts }));
 }
 
 describe("note appears once after the check resolves (DW-2.1)", () => {

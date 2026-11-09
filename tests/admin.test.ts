@@ -95,7 +95,7 @@ describe("DW-7.1: tool count 31 without UPUBLISH_ADMIN, 36 with it", () => {
   test("test_DW_7_1_without_env_var_18_tools", () => {
     delete process.env.UPUBLISH_ADMIN;
     const { deps, credFile } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     // Base tools: publish, list, delete, versions_list, versions_delete, versions_restore,
     // versions_limit, passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
@@ -108,7 +108,7 @@ describe("DW-7.1: tool count 31 without UPUBLISH_ADMIN, 36 with it", () => {
   test("test_DW_7_1_with_env_var_23_tools", () => {
     process.env.UPUBLISH_ADMIN = "1";
     const { deps, credFile } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     // 27 base + 5 admin: admin_user, admin_site, admin_stats, admin_storage, admin_domains = 32
     expect(Object.keys(tools).length).toBe(36);
@@ -118,7 +118,7 @@ describe("DW-7.1: tool count 31 without UPUBLISH_ADMIN, 36 with it", () => {
   test("test_DW_7_1_env_var_not_1_does_not_register_admin_tools", () => {
     process.env.UPUBLISH_ADMIN = "0";
     const { deps, credFile } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect(Object.keys(tools).length).toBe(31);
     fs.unlinkSync(credFile);
@@ -127,7 +127,7 @@ describe("DW-7.1: tool count 31 without UPUBLISH_ADMIN, 36 with it", () => {
   test("test_DW_7_1_with_env_var_admin_tools_present", () => {
     process.env.UPUBLISH_ADMIN = "1";
     const { deps, credFile } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect("admin_user" in tools).toBe(true);
     expect("admin_site" in tools).toBe(true);
@@ -140,7 +140,7 @@ describe("DW-7.1: tool count 31 without UPUBLISH_ADMIN, 36 with it", () => {
   test("test_DW_7_1_without_env_var_admin_tools_absent", () => {
     delete process.env.UPUBLISH_ADMIN;
     const { deps, credFile } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect("admin_user" in tools).toBe(false);
     expect("admin_site" in tools).toBe(false);
@@ -177,7 +177,7 @@ describe("DW-7.4: UPUBLISH_ADMIN=1 unauthenticated uses standard not-authenticat
       credentialsPath: noCredFile,
       fetchFn: makeMockFetch(),
     };
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect("admin_stats" in tools).toBe(true);
 
@@ -195,7 +195,7 @@ describe("DW-7.4: UPUBLISH_ADMIN=1 unauthenticated uses standard not-authenticat
       credentialsPath: noCredFile,
       fetchFn: makeMockFetch(),
     };
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     const handler = tools.admin_user.handler;
@@ -235,7 +235,7 @@ describe("DW-7.4: 403 from API in MCP tool handler surfaces as isError response"
     };
 
     const { deps, credFile } = makeDeps(mock403Fetch);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     const handler = tools.admin_stats.handler;

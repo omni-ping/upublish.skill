@@ -140,7 +140,7 @@ describe("DW-5.2: publish tool heartbeat", () => {
     };
 
     const deps: CoreDeps = { credentialsPath: credFile, fetchFn: mockFetch };
-    const server = createServer(deps, { heartbeatIntervalMs: HEARTBEAT_MS });
+    const server = createServer(deps, { localFiles: true, heartbeatIntervalMs: HEARTBEAT_MS });
     const tools = (server as unknown as InternalServer)._registeredTools;
     const publishTool = tools["publish"];
     expect(publishTool).toBeDefined();
@@ -211,7 +211,7 @@ describe("DW-5.2: publish tool heartbeat", () => {
     };
 
     const deps: CoreDeps = { credentialsPath: credFile, fetchFn: mockFetch };
-    const server = createServer(deps, { heartbeatIntervalMs: 10 });
+    const server = createServer(deps, { localFiles: true, heartbeatIntervalMs: 10 });
     const tools = (server as unknown as InternalServer)._registeredTools;
     const publishTool = tools["publish"];
 
@@ -272,7 +272,7 @@ describe("DW-5.2: publish tool heartbeat", () => {
     };
 
     const deps: CoreDeps = { credentialsPath: credFile, fetchFn: mockFetch };
-    const server = createServer(deps, { heartbeatIntervalMs: HEARTBEAT_MS });
+    const server = createServer(deps, { localFiles: true, heartbeatIntervalMs: HEARTBEAT_MS });
     const tools = (server as unknown as InternalServer)._registeredTools;
     const publishTool = tools["publish"];
 
@@ -377,7 +377,7 @@ describe("DW-2: manifest-wait heartbeat relabel", () => {
     };
 
     const deps: CoreDeps = { credentialsPath: credFile, fetchFn: mockFetch };
-    const server = createServer(deps, { heartbeatIntervalMs: HEARTBEAT_MS });
+    const server = createServer(deps, { localFiles: true, heartbeatIntervalMs: HEARTBEAT_MS });
     const tools = (server as unknown as InternalServer)._registeredTools;
     const publishTool = tools["publish"];
 
@@ -467,7 +467,7 @@ describe("DW-2: manifest-wait heartbeat relabel", () => {
 
     try {
       const deps: CoreDeps = { credentialsPath: credFile2, fetchFn: mockFetch };
-      const server = createServer(deps, { heartbeatIntervalMs: HEARTBEAT_MS });
+      const server = createServer(deps, { localFiles: true, heartbeatIntervalMs: HEARTBEAT_MS });
       const tools = (server as unknown as InternalServer)._registeredTools;
       const publishTool = tools["publish"];
 
@@ -558,7 +558,7 @@ describe("DW-2: manifest-wait heartbeat relabel", () => {
     };
 
     const deps: CoreDeps = { credentialsPath: credFile, fetchFn: mockFetch };
-    const server = createServer(deps, { heartbeatIntervalMs: HEARTBEAT_MS });
+    const server = createServer(deps, { localFiles: true, heartbeatIntervalMs: HEARTBEAT_MS });
     const tools = (server as unknown as InternalServer)._registeredTools;
     const publishTool = tools["publish"];
 

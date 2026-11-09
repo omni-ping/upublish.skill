@@ -45,7 +45,7 @@ function setup(o: { base?: number | null; tier?: string; role?: string; preview?
     return json(404, {});
   };
   const deps: CoreDeps = { credentialsPath: cred, fetchFn };
-  const tools = (createServer(deps) as unknown as InternalServer)._registeredTools;
+  const tools = (createServer(deps, { localFiles: true }) as unknown as InternalServer)._registeredTools;
   return { publish: tools["publish"]!, urls, manifest: () => manifest };
 }
 const text = (r: ToolResult) => r.content[0]!.text;

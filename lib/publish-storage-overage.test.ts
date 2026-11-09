@@ -553,7 +553,7 @@ describe("MCP publish tool — storage overage via createServer", () => {
     };
     const dir = makeTmpSiteDir();
     const deps = makeDeps(mockPublishFetch({ manifestStatus: 402, manifestBody: body402 }));
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const handler = tools["publish"]?.handler;
     expect(handler).toBeDefined();
 
@@ -583,7 +583,7 @@ describe("MCP publish tool — storage overage via createServer", () => {
     };
     const dir = makeTmpSiteDir();
     const deps = makeDeps(mockPublishFetch({ manifestStatus: 402, manifestBody: body402 }));
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const handler = tools["publish"]?.handler;
     const result = await handler({ directory: dir, slug: "my-site" });
     const text = result.content[0]?.text ?? "";
@@ -609,7 +609,7 @@ describe("MCP publish tool — storage overage via createServer", () => {
       manifestBody,
       finalizeBody: FINALIZE_BODY,
     }));
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const handler = tools["publish"]?.handler;
     const result = await handler({ directory: dir, slug: "my-site" });
     const text = result.content[0]?.text ?? "";
@@ -638,7 +638,7 @@ describe("MCP publish tool — storage overage via createServer", () => {
       manifestBody,
       finalizeBody: FINALIZE_BODY,
     }));
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const handler = tools["publish"]?.handler;
     const result = await handler({ directory: dir, slug: "my-site" });
     const text = result.content[0]?.text ?? "";
@@ -664,7 +664,7 @@ describe("MCP publish tool — storage overage via createServer", () => {
       manifestBody,
       finalizeBody: FINALIZE_BODY,
     }));
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const handler = tools["publish"]?.handler;
     const result = await handler({ directory: dir, slug: "my-site" });
     const text = result.content[0]?.text ?? "";
@@ -680,7 +680,7 @@ describe("MCP publish tool — storage overage via createServer", () => {
     const body402 = { code: "needs_storage_approval" };
     const dir = makeTmpSiteDir();
     const deps = makeDeps(mockPublishFetch({ manifestStatus: 402, manifestBody: body402 }));
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const handler = tools["publish"]?.handler;
     const result = await handler({ directory: dir, slug: "my-site" });
     const text = result.content[0]?.text ?? "";
@@ -709,7 +709,7 @@ describe("MCP publish tool — storage overage via createServer", () => {
       finalizeBody: FINALIZE_BODY,
       captureManifest,
     }));
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const handler = tools["publish"]?.handler;
     await handler({ directory: dir, slug: "my-site" });
 
@@ -730,7 +730,7 @@ describe("MCP publish tool — storage overage via createServer", () => {
     };
     const dir = makeTmpSiteDir();
     const deps = makeDeps(mockPublishFetch({ manifestStatus: 402, manifestBody: body402 }));
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const handler = tools["publish"]?.handler;
     const result = await handler({ directory: dir, slug: "my-site" });
     const text = result.content[0]?.text ?? "";
@@ -754,7 +754,7 @@ describe("MCP publish tool — storage overage via createServer", () => {
       manifestBody,
       finalizeBody: FINALIZE_BODY,
     }));
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const handler = tools["publish"]?.handler;
     const result = await handler({ directory: dir, slug: "my-site" });
     const text = result.content[0]?.text ?? "";
@@ -771,7 +771,7 @@ describe("MCP publish tool — storage overage via createServer", () => {
       manifestStatus: 500,
       manifestBody: { error: "internal server error" },
     }));
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const handler = tools["publish"]?.handler;
     const result = await handler({ directory: dir, slug: "my-site" });
     const text = result.content[0]?.text ?? "";

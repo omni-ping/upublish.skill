@@ -113,7 +113,7 @@ const SAMPLE_SITE = {
 describe("DW-6.1: publish tool namespace parameter", () => {
   test("test_DW_6_1_publish_tool_has_namespace_param", () => {
     const { deps, credFile } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const publishTool = tools["publish"];
 
@@ -167,7 +167,7 @@ describe("DW-6.1: publish tool namespace parameter", () => {
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
     try {
-      const server = createServer(deps);
+      const server = createServer(deps, { localFiles: true });
       const tools = getTools(server);
       const result = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
 
@@ -223,7 +223,7 @@ describe("DW-6.1: publish tool namespace parameter", () => {
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
     try {
-      const server = createServer(deps);
+      const server = createServer(deps, { localFiles: true });
       const tools = getTools(server);
       const result = await tools["publish"].handler({
         directory: tmpDir,
@@ -273,7 +273,7 @@ describe("DW-6.2: list uses default namespace", () => {
     };
 
     const { deps, credFile } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     await tools["list"].handler({});
 
@@ -314,7 +314,7 @@ describe("DW-6.3: list tool namespace scope", () => {
     };
 
     const { deps, credFile } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["list"].handler({});
 
@@ -351,7 +351,7 @@ describe("DW-6.3: list tool namespace scope", () => {
     };
 
     const { deps, credFile } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     await tools["list"].handler({ namespace: NS_NAME });
 
@@ -394,7 +394,7 @@ describe("DW-6.4: delete tool namespace scope", () => {
     };
 
     const { deps, credFile } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["delete"].handler({ slug: "my-site" });
 
@@ -432,7 +432,7 @@ describe("DW-6.4: delete tool namespace scope", () => {
     };
 
     const { deps, credFile } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     await tools["delete"].handler({ slug: "my-site", namespace: NS_NAME });
 
@@ -460,7 +460,7 @@ describe("DW-6.6: backward compatibility — error handling with new API shape",
     };
 
     const { deps, credFile } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["list"].handler({});
 

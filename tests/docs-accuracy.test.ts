@@ -55,7 +55,7 @@ function registeredToolNames(): string[] {
   const saved = process.env.UPUBLISH_ADMIN;
   delete process.env.UPUBLISH_ADMIN;
   try {
-    const server = createServer({ credentialsPath: "/nonexistent" }) as unknown as { _registeredTools: Record<string, unknown> };
+    const server = createServer({ credentialsPath: "/nonexistent" }, { localFiles: true }) as unknown as { _registeredTools: Record<string, unknown> };
     return Object.keys(server._registeredTools);
   } finally {
     if (saved !== undefined) process.env.UPUBLISH_ADMIN = saved;
@@ -446,7 +446,7 @@ describe("DW-6.7: final fix round (N1, N4, amendment 5) is documented", () => {
   const skill = readDoc("skills/upublish/SKILL.md");
   const gemini = readDoc("GEMINI.md");
   const tools = () =>
-    (createServer({ credentialsPath: "/nonexistent" }) as unknown as {
+    (createServer({ credentialsPath: "/nonexistent" }, { localFiles: true }) as unknown as {
       _registeredTools: Record<string, { description?: string; inputSchema: { shape: Record<string, { description?: string }> } }>;
     })._registeredTools;
 

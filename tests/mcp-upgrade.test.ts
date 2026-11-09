@@ -81,7 +81,7 @@ describe("DW-2.2: upgrade tool registered and opens checkout URL", () => {
   test("test_DW_2_2_upgrade_tool_registered", () => {
     const credFile = writeTempCredentials();
     try {
-      const server = createServer({ credentialsPath: credFile });
+      const server = createServer({ credentialsPath: credFile }, { localFiles: true });
       expect("upgrade" in getTools(server)).toBe(true);
     } finally {
       fs.unlinkSync(credFile);
@@ -105,9 +105,7 @@ describe("DW-2.2: upgrade tool registered and opens checkout URL", () => {
 
     try {
       const server = createServer(
-        { credentialsPath: credFile, fetchFn } as CoreDeps,
-        { openBrowser: async (u) => { opened.push(u); } },
-      );
+        { credentialsPath: credFile, fetchFn } as CoreDeps, { localFiles: true, openBrowser: async (u) => { opened.push(u); } });
       const result = await getTools(server)["upgrade"].handler({});
 
       // Defaults applied client-side.
@@ -138,9 +136,7 @@ describe("DW-2.2: upgrade tool registered and opens checkout URL", () => {
 
     try {
       const server = createServer(
-        { credentialsPath: credFile, fetchFn } as CoreDeps,
-        { openBrowser: async () => {} },
-      );
+        { credentialsPath: credFile, fetchFn } as CoreDeps, { localFiles: true, openBrowser: async () => {} });
       await getTools(server)["upgrade"].handler({ plan: "max", interval: "year" });
       expect(checkoutBody).toEqual({ plan: "max", interval: "year" });
     } finally {
@@ -166,9 +162,7 @@ describe("DW-2.3: upgrade tool survives an openBrowser failure", () => {
 
     try {
       const server = createServer(
-        { credentialsPath: credFile, fetchFn } as CoreDeps,
-        { openBrowser: async () => { throw new Error("no DISPLAY"); } },
-      );
+        { credentialsPath: credFile, fetchFn } as CoreDeps, { localFiles: true, openBrowser: async () => { throw new Error("no DISPLAY"); } });
       const result = await getTools(server)["upgrade"].handler({});
 
       // No crash; response carries the URL and the manual-open guidance.
@@ -197,9 +191,7 @@ describe("DW-2.5: upgrade tool rejects invalid args before any checkout call", (
 
     try {
       const server = createServer(
-        { credentialsPath: credFile, fetchFn } as CoreDeps,
-        { openBrowser: async () => {} },
-      );
+        { credentialsPath: credFile, fetchFn } as CoreDeps, { localFiles: true, openBrowser: async () => {} });
       // zod enum rejects "free" at the schema boundary OR startUpgrade rejects it;
       // either way no checkout call may fire. Drive the handler directly with the
       // invalid value (bypassing schema) to prove the lib-level guard holds too.
@@ -243,7 +235,7 @@ describe("DW-2.4: publish tier-limit 403 includes the upgrade hint", () => {
     });
 
     try {
-      const server = createServer({ credentialsPath: credFile, fetchFn } as CoreDeps);
+      const server = createServer({ credentialsPath: credFile, fetchFn } as CoreDeps, { localFiles: true });
       const result = await getTools(server)["publish"].handler({ directory: dir, slug: "my-site" });
 
       expect(result.isError).toBe(true);
@@ -274,7 +266,7 @@ describe("DW-2.4: publish tier-limit 403 includes the upgrade hint", () => {
     });
 
     try {
-      const server = createServer({ credentialsPath: credFile, fetchFn } as CoreDeps);
+      const server = createServer({ credentialsPath: credFile, fetchFn } as CoreDeps, { localFiles: true });
       const result = await getTools(server)["publish"].handler({ directory: dir, slug: "my-site" });
 
       expect(result.isError).toBe(true);
@@ -300,7 +292,7 @@ describe("DW-2.4: publish tier-limit 403 includes the upgrade hint", () => {
     });
 
     try {
-      const server = createServer({ credentialsPath: credFile, fetchFn } as CoreDeps);
+      const server = createServer({ credentialsPath: credFile, fetchFn } as CoreDeps, { localFiles: true });
       const result = await getTools(server)["publish"].handler({ directory: dir, slug: "my-site" });
 
       expect(result.isError).toBe(true);

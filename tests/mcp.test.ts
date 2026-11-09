@@ -115,7 +115,7 @@ function getTools(server: ReturnType<typeof createServer>): RegisteredTools {
 describe("DW-2.1: server registers publish, list, delete tools", () => {
   test("test_DW_2_1_server_registers_publish_tool", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect("publish" in tools).toBe(true);
     fs.unlinkSync(deps.credentialsPath!);
@@ -123,7 +123,7 @@ describe("DW-2.1: server registers publish, list, delete tools", () => {
 
   test("test_DW_2_1_server_registers_list_tool", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect("list" in tools).toBe(true);
     fs.unlinkSync(deps.credentialsPath!);
@@ -131,7 +131,7 @@ describe("DW-2.1: server registers publish, list, delete tools", () => {
 
   test("test_DW_2_1_server_registers_delete_tool", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect("delete" in tools).toBe(true);
     fs.unlinkSync(deps.credentialsPath!);
@@ -139,7 +139,7 @@ describe("DW-2.1: server registers publish, list, delete tools", () => {
 
   test("test_DW_2_1_server_registers_logout_tool", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect("logout" in tools).toBe(true);
     fs.unlinkSync(deps.credentialsPath!);
@@ -147,7 +147,7 @@ describe("DW-2.1: server registers publish, list, delete tools", () => {
 
   test("test_DW_2_1_server_registers_all_tools", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     // 31 tools (22 + visibility + the 4 site data tools data, data_collection, data_rows, data_jwt + the 4 backend tools publish_backend, backend, backend_secret, backend_logs): publish, list, delete, versions_list, versions_delete, versions_restore,
     // versions_limit, passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
@@ -196,7 +196,7 @@ describe("DW-2.1: each tool calls core, no auth knowledge in mcp/index.ts", () =
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
     try {
-      const server = createServer(deps);
+      const server = createServer(deps, { localFiles: true });
       const tools = getTools(server);
       await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
       expect(apiCalled).toBe(true);
@@ -238,7 +238,7 @@ describe("DW-2.1: each tool calls core, no auth knowledge in mcp/index.ts", () =
     };
 
     const { deps } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     await tools["list"].handler({});
     expect(apiCalled).toBe(true);
@@ -277,7 +277,7 @@ describe("DW-2.1: each tool calls core, no auth knowledge in mcp/index.ts", () =
     };
 
     const { deps } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     await tools["delete"].handler({ slug: "my-site" });
     expect(deleteCalled).toBe(true);
@@ -331,7 +331,7 @@ describe("tool output format", () => {
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
     try {
-      const server = createServer(deps);
+      const server = createServer(deps, { localFiles: true });
       const tools = getTools(server);
       const result = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
 
@@ -348,7 +348,7 @@ describe("tool output format", () => {
 
   test("test_DW_2_4_list_output_contains_site_slug_and_url", async () => {
     const { deps } = makeDeps(makeMockFetch({ sites: [SAMPLE_SITE] }));
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["list"].handler({});
 
@@ -361,7 +361,7 @@ describe("tool output format", () => {
 
   test("test_DW_2_4_list_output_empty_sites_message", async () => {
     const { deps } = makeDeps(makeMockFetch({ sites: [] }));
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["list"].handler({});
 
@@ -401,7 +401,7 @@ describe("tool output format", () => {
     };
 
     const { deps } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["delete"].handler({ slug: "my-site" });
 
@@ -483,7 +483,7 @@ describe("publish emits byte-based progress notifications", () => {
       },
     };
     try {
-      const tools = getTools(createServer(deps));
+      const tools = getTools(createServer(deps, { localFiles: true }));
       const handler = tools["publish"].handler as unknown as (
         args: Record<string, unknown>,
         extra: ProgressExtra,
@@ -573,7 +573,7 @@ describe("DW-2.3: stale-state bug fixed — tools read credentials fresh per cal
     };
 
     // Create server BEFORE credentials exist
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     // No credentials yet — should return error
@@ -617,7 +617,7 @@ describe("error handling", () => {
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
     try {
-      const server = createServer(deps);
+      const server = createServer(deps, { localFiles: true });
       const tools = getTools(server);
       const result = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
       expect(result.isError).toBe(true);
@@ -644,7 +644,7 @@ describe("error handling", () => {
     };
 
     const { deps } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["list"].handler({});
     expect(result.isError).toBe(true);
@@ -682,7 +682,7 @@ describe("error handling", () => {
     };
 
     const { deps } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["delete"].handler({ slug: "nonexistent" });
     expect(result.isError).toBe(true);
@@ -695,7 +695,7 @@ describe("error handling", () => {
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
     try {
-      const server = createServer(deps);
+      const server = createServer(deps, { localFiles: true });
       const tools = getTools(server);
       const result = await tools["publish"].handler({ directory: tmpDir, slug: "INVALID SLUG!" });
       expect(result.isError).toBe(true);
@@ -712,7 +712,7 @@ describe("error handling", () => {
       credentialsPath: "/does/not/exist/creds",
       fetchFn: makeMockFetch(),
     };
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["list"].handler({});
     expect(result.isError).toBe(true);
@@ -736,7 +736,7 @@ describe("DW-2.5: logout tool calls core.logout() and returns text result", () =
       },
     );
 
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["logout"].handler({});
 
@@ -753,7 +753,7 @@ describe("DW-2.5: logout tool calls core.logout() and returns text result", () =
       fetchFn: async () => new Response(JSON.stringify({}), { status: 200 }),
     };
 
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["logout"].handler({});
 
@@ -768,7 +768,7 @@ describe("DW-2.5: logout tool calls core.logout() and returns text result", () =
 describe("DW-1.1: MCP server exposes a login tool", () => {
   test("test_DW_1_1_server_registers_login_tool", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect("login" in tools).toBe(true);
     fs.unlinkSync(deps.credentialsPath!);
@@ -796,7 +796,7 @@ describe("DW-1.1: MCP server exposes a login tool", () => {
     // text. We verify the tool is registered and has the expected shape.
     // A full integration test of the login flow is not feasible in unit tests.
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect(tools["login"]).toBeDefined();
     expect(typeof tools["login"].handler).toBe("function");
@@ -809,7 +809,7 @@ describe("DW-1.1: MCP server exposes a login tool", () => {
 describe("DW-1.2: MCP server exposes a status tool", () => {
   test("test_DW_1_2_server_registers_status_tool", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect("status" in tools).toBe(true);
     fs.unlinkSync(deps.credentialsPath!);
@@ -833,7 +833,7 @@ describe("DW-1.2: MCP server exposes a status tool", () => {
     };
 
     const { deps } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["status"].handler({});
 
@@ -850,7 +850,7 @@ describe("DW-1.2: MCP server exposes a status tool", () => {
       fetchFn: async () => new Response(JSON.stringify({}), { status: 200 }),
     };
 
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["status"].handler({});
 
@@ -869,7 +869,7 @@ describe("DW-1.3: login tool creates callback server, waits for tokens, stores c
     // This is verified by checking the tool is registered and the handler exists.
     // Full integration testing would require mocking Bun.serve and the open package.
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect(tools["login"]).toBeDefined();
     // The login tool has no required input params (empty schema)
@@ -885,7 +885,7 @@ describe("DW-1.4: login tool response always includes the auth URL as text", () 
     // and includes it in the response text. We verify the tool exists.
     // The auth URL inclusion is tested via the tool's response format.
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect(typeof tools["login"].handler).toBe("function");
     fs.unlinkSync(deps.credentialsPath!);
@@ -900,7 +900,7 @@ describe("DW-1.5: error message no longer references CLI commands", () => {
       credentialsPath: "/does/not/exist/creds-no-cli",
       fetchFn: makeMockFetch(),
     };
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["list"].handler({});
     expect(result.isError).toBe(true);
@@ -918,7 +918,7 @@ describe("DW-1.5: error message no longer references CLI commands", () => {
 describe("DW-1.7: tool count assertions are correct", () => {
   test("test_DW_1_7_server_registers_exactly_eighteen_tools", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     // 31 tools (22 + visibility + the 4 site data tools data, data_collection, data_rows, data_jwt + the 4 backend tools publish_backend, backend, backend_secret, backend_logs): publish, list, delete, versions_list, versions_delete, versions_restore,
     // versions_limit, passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
@@ -933,7 +933,7 @@ describe("DW-1.7: tool count assertions are correct", () => {
 describe("server structure", () => {
   test("test_DW_2_1_creates_server_and_has_tools", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     expect(server).toBeDefined();
     const tools = getTools(server);
     // 31 tools (22 + visibility + the 4 site data tools data, data_collection, data_rows, data_jwt + the 4 backend tools publish_backend, backend, backend_secret, backend_logs): publish, list, delete, versions_list, versions_delete, versions_restore,
@@ -947,7 +947,7 @@ describe("server structure", () => {
     // createServer accepts CoreDeps — the apiBaseUrl env var is handled
     // inside core.ts, which reads process.env.UPUBLISH_API_URL
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     expect(server).toBeDefined();
     fs.unlinkSync(deps.credentialsPath!);
   });
@@ -958,7 +958,7 @@ describe("server structure", () => {
 describe("DW-2.1: list output has labeled fields and namespace header", () => {
   test("test_DW_2_1_list_output_has_labeled_fields", async () => {
     const { deps } = makeDeps(makeMockFetch({ sites: [SAMPLE_SITE] }));
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["list"].handler({});
 
@@ -976,7 +976,7 @@ describe("DW-2.1: list output has labeled fields and namespace header", () => {
 
   test("test_DW_2_1_list_output_has_namespace_header", async () => {
     const { deps } = makeDeps(makeMockFetch({ sites: [SAMPLE_SITE] }));
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["list"].handler({});
 
@@ -989,7 +989,7 @@ describe("DW-2.1: list output has labeled fields and namespace header", () => {
 
   test("test_DW_2_1_list_empty_no_namespace_header", async () => {
     const { deps } = makeDeps(makeMockFetch({ sites: [] }));
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["list"].handler({});
 
@@ -1005,7 +1005,7 @@ describe("DW-2.1: list output has labeled fields and namespace header", () => {
   test("test_DW_2_1_list_output_visibility_shown_for_non_public", async () => {
     const passcodeSite = { ...SAMPLE_SITE, visibility: "passcode" };
     const { deps } = makeDeps(makeMockFetch({ sites: [passcodeSite] }));
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["list"].handler({});
 
@@ -1017,7 +1017,7 @@ describe("DW-2.1: list output has labeled fields and namespace header", () => {
 
   test("test_DW_2_1_list_output_visibility_hidden_for_public", async () => {
     const { deps } = makeDeps(makeMockFetch({ sites: [SAMPLE_SITE] }));
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["list"].handler({});
 
@@ -1061,7 +1061,7 @@ describe("DW-2.2: status output includes namespace info when authenticated", () 
     };
 
     const { deps } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["status"].handler({});
 
@@ -1080,7 +1080,7 @@ describe("DW-2.2: status output includes namespace info when authenticated", () 
       fetchFn: async () => new Response(JSON.stringify({}), { status: 200 }),
     };
 
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["status"].handler({});
 
@@ -1118,7 +1118,7 @@ describe("DW-2.2: status output includes namespace info when authenticated", () 
     };
 
     const { deps } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["status"].handler({});
 
@@ -1153,7 +1153,7 @@ describe("DW-2.2: status output includes namespace info when authenticated", () 
     };
 
     const { deps } = makeDeps(fetchFn);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     const result = await tools["status"].handler({});
 
@@ -1223,7 +1223,7 @@ function getFieldDescription(
 describe("DW-2.1: slug input description mentions _root for root-domain publishing", () => {
   test("test_DW_2_1_slug_description_mentions_root", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     const slugDesc = getFieldDescription(tools, "publish", "slug");
@@ -1241,7 +1241,7 @@ describe("DW-2.1: slug input description mentions _root for root-domain publishi
 describe("DW-2.2: publish tool description mentions automatic file exclusion and .upublishignore", () => {
   test("test_DW_2_2_publish_description_mentions_exclusion", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     const desc = getToolDescription(tools, "publish");
@@ -1257,7 +1257,7 @@ describe("DW-2.2: publish tool description mentions automatic file exclusion and
 
   test("test_DW_2_2_publish_description_mentions_upublishignore", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     const desc = getToolDescription(tools, "publish");
@@ -1314,7 +1314,7 @@ describe("DW-2.3: success response includes excluded file info", () => {
     fs.writeFileSync(path.join(tmpDir, ".DS_Store"), "junk");
 
     try {
-      const server = createServer(deps);
+      const server = createServer(deps, { localFiles: true });
       const tools = getTools(server);
       const result = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
 
@@ -1371,7 +1371,7 @@ describe("DW-2.3: success response includes excluded file info", () => {
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
     try {
-      const server = createServer(deps);
+      const server = createServer(deps, { localFiles: true });
       const tools = getTools(server);
       const result = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
 
@@ -1432,7 +1432,7 @@ describe("DW-2.4: success response includes warning about suspicious files", () 
     fs.writeFileSync(path.join(tmpDir, "README.md"), "# My Project");
 
     try {
-      const server = createServer(deps);
+      const server = createServer(deps, { localFiles: true });
       const tools = getTools(server);
       const result = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
 
@@ -1491,7 +1491,7 @@ describe("DW-2.4: success response includes warning about suspicious files", () 
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>Hello</h1>");
 
     try {
-      const server = createServer(deps);
+      const server = createServer(deps, { localFiles: true });
       const tools = getTools(server);
       const result = await tools["publish"].handler({ directory: tmpDir, slug: "my-site" });
 
@@ -1511,7 +1511,7 @@ describe("DW-2.4: success response includes warning about suspicious files", () 
 describe("DW-6.2: rename tool registered", () => {
   test("test_DW_6_2_server_registers_rename_tool", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     expect("rename" in tools).toBe(true);
     fs.unlinkSync(deps.credentialsPath!);
@@ -1519,7 +1519,7 @@ describe("DW-6.2: rename tool registered", () => {
 
   test("test_DW_6_2_server_tool_count_is_18", () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
     // 31 tools (22 + visibility + the 4 site data tools data, data_collection, data_rows, data_jwt + the 4 backend tools publish_backend, backend, backend_secret, backend_logs): publish, list, delete, versions_list, versions_delete, versions_restore,
     // versions_limit, passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
@@ -1536,7 +1536,7 @@ describe("DW-6.3: rename tool — dirty paths", () => {
     const { deps } = makeDeps(
       makeMockFetch({ slug: "new-slug", url: "https://user.upubli.sh/new-slug/", redirect_expires_at: null }),
     );
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     const result = await tools["rename"].handler({ nsId: DEFAULT_NS_ID, site: "old-slug", newName: "new-slug" });
@@ -1551,7 +1551,7 @@ describe("DW-6.3: rename tool — dirty paths", () => {
     const { deps } = makeDeps(
       makeMockFetch({ name: "new-ns", url: "https://new-ns.upubli.sh/", redirect_expires_at: null }),
     );
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     // No site field -> namespace rename
@@ -1590,7 +1590,7 @@ describe("DW-6.3: rename tool — dirty paths", () => {
       );
     };
     const { credFile, deps } = makeDeps(errorFetch);
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     const result = await tools["rename"].handler({ nsId: DEFAULT_NS_ID, site: "my-site", newName: "new-slug" });
@@ -1603,7 +1603,7 @@ describe("DW-6.3: rename tool — dirty paths", () => {
 
   test("test_DW_6_3_rename_tool_missing_newName_is_handled", async () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     const result = await tools["rename"].handler({ nsId: DEFAULT_NS_ID });
@@ -1614,7 +1614,7 @@ describe("DW-6.3: rename tool — dirty paths", () => {
 
   test("test_DW_6_3_rename_tool_missing_nsId_is_handled", async () => {
     const { deps } = makeDeps();
-    const server = createServer(deps);
+    const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
 
     const result = await tools["rename"].handler({ newName: "new-slug" });
@@ -1710,7 +1710,7 @@ describe("Phase 3: hashing phase MCP progress notifications", () => {
       },
     };
     try {
-      const tools = getTools(createServer(deps));
+      const tools = getTools(createServer(deps, { localFiles: true }));
       const handler = tools["publish"].handler as unknown as ProgressHandler;
       const result = await handler({ directory: tmpDir, slug: "my-site" }, extra);
       return { result, notes };
@@ -1800,7 +1800,7 @@ describe("Phase 3: hashing phase MCP progress notifications", () => {
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>hi</h1>");
     const notes: ProgressNote[] = [];
     try {
-      const tools = getTools(createServer(deps));
+      const tools = getTools(createServer(deps, { localFiles: true }));
       // Call without a progressToken — no notifications should fire.
       const handler = tools["publish"].handler as unknown as (
         args: Record<string, unknown>,
@@ -1831,7 +1831,7 @@ describe("Phase 3: hashing phase MCP progress notifications", () => {
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<h1>hi</h1>");
     const notes: ProgressNote[] = [];
     try {
-      const server = createServer(deps, { heartbeatIntervalMs: HEARTBEAT_MS });
+      const server = createServer(deps, { localFiles: true, heartbeatIntervalMs: HEARTBEAT_MS });
       const tools = getTools(server);
       const handler = tools["publish"].handler as unknown as ProgressHandler;
       await handler(
@@ -1929,7 +1929,7 @@ describe("DW-1.2: gate tool renders field objects as readable text", () => {
 
   test("test_DW_1_2_gate_set_response_lists_field_types", async () => {
     const { deps } = gateDeps();
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const result = await tools["gate"].handler({
       action: "set",
       slug: "my-site",
@@ -1945,7 +1945,7 @@ describe("DW-1.2: gate tool renders field objects as readable text", () => {
 
   test("test_DW_1_2_gate_get_response_lists_field_types", async () => {
     const { deps } = gateDeps();
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const result = await tools["gate"].handler({ action: "get", slug: "my-site" });
 
     expect(result.isError).toBeUndefined();
@@ -1966,7 +1966,7 @@ describe("DW-1.2: gate tool renders field objects as readable text", () => {
         { type: "phone", required: false },
       ],
     });
-    const tools = getTools(createServer(deps));
+    const tools = getTools(createServer(deps, { localFiles: true }));
     const result = await tools["gate"].handler({ action: "get", slug: "my-site" });
 
     expect(result.isError).toBeUndefined();
@@ -1997,7 +1997,7 @@ async function listTools(): Promise<Record<string, JsonSchema>> {
   const server = createServer({
     credentialsPath: "/nonexistent/upublish-credentials",
     fetchFn: () => Promise.reject(new Error("tools/list must not hit the network")),
-  });
+  }, { localFiles: true });
   const client = new Client({ name: "mcp-tools-schema-test", version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);

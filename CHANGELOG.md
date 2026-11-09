@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Security
+
+- A server created without `localFiles: true` (the hosted `/mcp` router) no longer exposes any tool that acts on the machine it runs on. `publish`, `qrcode`, `login`, `logout`, `upgrade` and the `admin_*` tools are not registered (and refuse if called anyway), `data_rows` drops `path`/`overwrite` and refuses `export`, the default browser opener refuses, and `status` uses the injected `tokenProvider` instead of reading the host's credentials file. New exports: `LOCAL_ONLY_TOOLS`, `ADMIN_TOOLS`, `HostedServerUnsafeError`, `assertHostedServerSafe` and `createHostedServer(coreDeps)`, which forces `localFiles: false` and throws if a local-only or admin tool is registered. The stdio server (`stdioServerOptions()`) is unchanged.
+
 ### Fixed
 
 - `publish` with `force: true` works again. It always sends real file hashes plus an explicit `force: true` manifest flag, and the server re-checks every stored file and re-uploads only those that are missing or corrupt (healthy files are never re-uploaded). The result reports how many files were verified and how many re-uploaded. Previously it sent random hashes, which the server rejected. Against an older server that ignores the flag, a forced publish behaves as a normal diff publish.

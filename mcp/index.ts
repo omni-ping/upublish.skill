@@ -16,7 +16,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import type { ProgressNotification } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import open from "open";
-import { log } from "../lib/log.ts";
+import { log, setFileLogging } from "../lib/log.ts";
 import {
   checkBunRuntime,
   list,
@@ -110,6 +110,29 @@ import type {
 // Re-export types that external consumers (e.g. the backend MCP router) need
 // to import from the package entry without reaching into internal submodules.
 export type { CoreDeps, TokenProvider };
+
+/**
+ * Tools that read or write the machine the server runs on, spawn a browser or bind a port. They exist only on a
+ * LOCAL server (`opts.localFiles === true`, i.e. stdio). A hosted server must never register or run them.
+ */
+export const LOCAL_ONLY_TOOLS = ["publish", "qrcode", "login", "logout", "upgrade"] as const;
+/** The env-gated admin tools: registered only on a local server with UPUBLISH_ADMIN=1. */
+export const ADMIN_TOOLS = ["admin_user", "admin_site", "admin_stats", "admin_storage", "admin_domains"] as const;
+
+const LOCAL_ONLY_MESSAGE = "This tool is only available in the local upublish plugin.";
+
+/**
+ * The default browser opener: launches the system browser only on a local server. On a hosted server it
+ * rejects, because the "system" would be the backend host. `opener` is a test seam.
+ */
+export async function openUrlIfLocal(
+  url: string,
+  localFiles: boolean,
+  opener: (url: string) => Promise<unknown> = open,
+): Promise<void> {
+  if (!localFiles) throw new Error(LOCAL_ONLY_MESSAGE);
+  await opener(url);
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -373,9 +396,12 @@ export interface CreateServerOpts {
    */
   updateCheck?: boolean;
   /**
-   * Opt in to `publish_backend`'s `entry` (a path on this machine). Defaults to OFF: the hosted /mcp router
-   * runs createServer() on the backend's own host, where a path would name the SERVER's files. Only the stdio
-   * entrypoint turns this on (see stdioServerOptions()); hosted use passes inline `code`.
+   * Opt in to every tool that touches the machine the server runs on. Defaults to OFF: the hosted /mcp router
+   * runs createServer() on the backend's own host, where a path, a browser or a loopback port would be the
+   * SERVER's. When off, `publish`, `qrcode`, `login`, `logout`, `upgrade` and the `admin_*` tools are not
+   * registered (and refuse if called anyway), `data_rows` drops `path`/`overwrite` and refuses `export`, and
+   * `publish_backend` refuses `entry`. Only the stdio entrypoint turns this on (see stdioServerOptions());
+   * hosted use passes inline `code`. Use createHostedServer() for a hosted server.
    */
   localFiles?: boolean;
 }
@@ -400,16 +426,32 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
   // Every API request identifies this client build; a caller-supplied value wins.
   const coreDeps: CoreDeps = { ...callerDeps, clientVersion: callerDeps?.clientVersion ?? PACKAGE_VERSION };
   const heartbeatIntervalMs = opts?.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
-  const openBrowser = opts?.openBrowser ?? ((url: string) => open(url).then(() => undefined));
+  // Read at call time (not captured) so a handler re-checks the flag on every call.
+  const localFiles = (): boolean => opts?.localFiles === true;
+  const openBrowser = opts?.openBrowser ?? ((url: string) => openUrlIfLocal(url, localFiles()));
   const server = new McpServer({
     name: PACKAGE_NAME,
     version: PACKAGE_VERSION,
   });
+  // Registrar for tools that touch the host machine. Omits the tool unless `enabled`, and wraps its handler so
+  // a call that still arrives with localFiles off is refused before any work (belt and braces).
+  const hostOnly = (enabled: boolean): Pick<McpServer, "registerTool"> => ({
+    registerTool: ((name: string, config: never, cb: (...a: unknown[]) => unknown) => {
+      if (!enabled) return undefined;
+      return server.registerTool(
+        name,
+        config,
+        (async (...a: unknown[]) => (localFiles() ? cb(...a) : errResponse(new Error(LOCAL_ONLY_MESSAGE)))) as never,
+      );
+    }) as McpServer["registerTool"],
+  });
+  const local = hostOnly(localFiles());
+  const admin = hostOnly(localFiles() && process.env.UPUBLISH_ADMIN === "1");
 
   if (opts?.updateCheck) installUpdateNote(server, callerDeps);
   if (opts?.runtimeCheck) installRuntimeNote(server, opts.runtimeCheck.version);
 
-  server.registerTool(
+  local.registerTool(
     "publish",
     {
       title: "Publish Site",
@@ -1642,13 +1684,24 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         author: z.string().optional().describe("list/delete: a row's 'author:' value exactly as list prints it ('kind:subject', e.g. 'passcode:<id>'); never the label."),
         archived: z.boolean().optional().describe("delete: remove EVERY archived (history) row with this author and id instead of the active one. Default false (active row)."),
         include_archived: z.boolean().optional().describe("list: also return archived rows."),
-        path: z.string().optional().describe("export: file to write; must end in .ndjson or .jsonl (e.g. /tmp/votes.ndjson)."),
-        overwrite: z.boolean().optional().describe("export: replace the destination if it already exists (default: refuse)."),
+        // File export writes to a path on the machine running the server: local server only (omitted when hosted).
+        ...(localFiles()
+          ? {
+              path: z.string().optional().describe("export: file to write; must end in .ndjson or .jsonl (e.g. /tmp/votes.ndjson)."),
+              overwrite: z.boolean().optional().describe("export: replace the destination if it already exists (default: refuse)."),
+            }
+          : {}),
         rows: z.array(importRow).max(SITE_DATA_LIMITS.maxImportRowsPerCall).optional().describe("import: the rows to import."),
         namespace: namespaceArg,
       },
     },
     async (args) => {
+      // Belt and braces: the hosted schema has no path/overwrite, but a call must still never reach the file writer.
+      if (args.action === "export" && !localFiles()) {
+        return errResponse(
+          new Error("Export to a file is only available in the local upublish plugin; use list to page through rows."),
+        );
+      }
       try {
         return okResponse(formatRowsResult(await dataRows(args, coreDeps)));
       } catch (err) {
@@ -1994,7 +2047,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
     },
   );
 
-  server.registerTool(
+  local.registerTool(
     "qrcode",
     {
       title: "QR Code",
@@ -2048,7 +2101,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
     },
   );
 
-  server.registerTool(
+  local.registerTool(
     "logout",
     {
       title: "Logout",
@@ -2070,7 +2123,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
     },
   );
 
-  server.registerTool(
+  local.registerTool(
     "login",
     {
       title: "Login",
@@ -2091,7 +2144,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             siteBaseUrl: (process.env.UPUBLISH_SITE_URL ?? "https://upubli.sh").replace(/\/$/, ""),
             openBrowser: async (url: string) => {
               capturedAuthUrl = url;
-              await open(url);
+              await openBrowser(url);
             },
             startCallbackServer: createCallbackServer,
             log: () => {},
@@ -2117,7 +2170,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
     },
   );
 
-  server.registerTool(
+  local.registerTool(
     "upgrade",
     {
       title: "Upgrade Plan",
@@ -2488,11 +2541,11 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
   );
 
   // ─── Admin tools (env-gated) ────────────────────────────────────────────────
-  // Only registered when UPUBLISH_ADMIN=1. Without the env var, the tool
+  // Only registered on a local server (localFiles) with UPUBLISH_ADMIN=1. Without both, the tool
   // registry is byte-identical to the 18-tool baseline — existing tests pass.
 
-  if (process.env.UPUBLISH_ADMIN === "1") {
-    server.registerTool(
+  {
+    admin.registerTool(
       "admin_user",
       {
         title: "Admin: User",
@@ -2616,7 +2669,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
       },
     );
 
-    server.registerTool(
+    admin.registerTool(
       "admin_site",
       {
         title: "Admin: Site",
@@ -2666,7 +2719,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
       },
     );
 
-    server.registerTool(
+    admin.registerTool(
       "admin_stats",
       {
         title: "Admin: Platform Stats",
@@ -2700,7 +2753,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
       },
     );
 
-    server.registerTool(
+    admin.registerTool(
       "admin_storage",
       {
         title: "Admin: Storage",
@@ -2784,7 +2837,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
       },
     );
 
-    server.registerTool(
+    admin.registerTool(
       "admin_domains",
       {
         title: "Admin: Domains",
@@ -2852,6 +2905,63 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
     );
   }
 
+  return server;
+}
+
+// ─── Hosted factory ───────────────────────────────────────────────────────────
+
+/** Thrown by createHostedServer when a host-touching tool is registered on what must be a hosted server. */
+export class HostedServerUnsafeError extends Error {
+  readonly tools: string[];
+  constructor(tools: string[]) {
+    super(`Hosted MCP server exposes host-only tools: ${tools.join(", ")}`);
+    this.name = "HostedServerUnsafeError";
+    this.tools = tools;
+  }
+}
+
+/**
+ * Names registered on `server`, read from the SDK's private registry. This is the ONLY place that reaches into
+ * it (covered by tests); if the SDK renames it, fail closed rather than report an empty list.
+ */
+function registeredToolNames(server: McpServer): string[] {
+  const registry = (server as unknown as { _registeredTools?: unknown })._registeredTools;
+  let found: string[] | null = null;
+  if (registry instanceof Map) found = [...registry.keys()].map(String);
+  else if (Array.isArray(registry)) found = registry.map(String);
+  else if (registry !== null && typeof registry === "object") found = Object.keys(registry);
+  // Any unrecognised shape, or an empty registry (a hosted server always has tools), is unverifiable: fail closed.
+  if (found === null || found.length === 0) {
+    throw new HostedServerUnsafeError(["<cannot read the MCP SDK tool registry>"]);
+  }
+  return found;
+}
+
+/** Throws HostedServerUnsafeError naming every local-only or admin tool registered on `server`. */
+export function assertHostedServerSafe(server: McpServer): void {
+  const forbidden = new Set<string>([...LOCAL_ONLY_TOOLS, ...ADMIN_TOOLS]);
+  const found = registeredToolNames(server).filter((n) => forbidden.has(n));
+  if (found.length > 0) throw new HostedServerUnsafeError(found);
+}
+
+/**
+ * Builds the MCP server for a hosted (remote) router: `localFiles` is forced off, update checks are forced off,
+ * host file logging is switched off for the process, and the registered tool names are verified, so a
+ * registration regression fails closed instead of exposing a host-touching tool.
+ *
+ * `coreDeps.tokenProvider` is REQUIRED: without it every API tool would fall back to the HOST's credentials file
+ * and act as the host's user. `build` is a test seam; production callers pass only `coreDeps`.
+ */
+export function createHostedServer(
+  coreDeps?: CoreDeps,
+  build: (deps?: CoreDeps, opts?: CreateServerOpts) => McpServer = createServer,
+): McpServer {
+  if (typeof coreDeps?.tokenProvider !== "function") {
+    throw new HostedServerUnsafeError(["<coreDeps.tokenProvider is required: without it API tools use the host's credentials>"]);
+  }
+  setFileLogging(false);
+  const server = build(coreDeps, { localFiles: false, updateCheck: false });
+  assertHostedServerSafe(server);
   return server;
 }
 

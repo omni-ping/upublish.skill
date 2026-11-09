@@ -63,7 +63,7 @@ function makeTmpSiteDir(): string {
 }
 
 async function connectClient(deps: CoreDeps): Promise<Client> {
-  const server = createServer(deps);
+  const server = createServer(deps, { localFiles: true });
   const client = new Client({ name: "mcp-path-prefix-test", version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 

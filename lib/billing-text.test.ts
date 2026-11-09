@@ -79,7 +79,7 @@ describe("DW-7.1: a past-due finalize reaches the user as the banner sentence", 
   });
 
   it("test_DW_7_1_mcp_publish_tool_prints_the_sentence_as_an_error", async () => {
-    const tools = (createServer(deps(pastDue)) as unknown as { _registeredTools: Record<string, { handler: (a: Record<string, unknown>) => Promise<{ content: { text: string }[]; isError?: boolean }> }> })._registeredTools;
+    const tools = (createServer(deps(pastDue), { localFiles: true }) as unknown as { _registeredTools: Record<string, { handler: (a: Record<string, unknown>) => Promise<{ content: { text: string }[]; isError?: boolean }> }> })._registeredTools;
     const r = await tools["publish"]!.handler({ directory: siteDir(), slug: "my-site" });
     expect(r.isError).toBe(true);
     expect(r.content[0]!.text).toContain("Payment failed — update your card. New publishes are paused.");
@@ -163,7 +163,7 @@ describe("DW-7.4: the MCP publish tool prints the storage total and a unit-less 
     const d = deps({ status: 200, body: { site: { id: "s", user_id: "u", slug: "my-site", title: "T", created_at: "x", updated_at: "x", file_count: 1, total_size: 11, visibility: "public", passcode_hash: null }, url: "https://alice.upubli.sh/my-site/" } });
     const base = d.fetchFn!;
     d.fetchFn = async (url, init) => (String(url).includes("/manifest") ? new Response(JSON.stringify({ needed: [], version: 2, session_id: "s", base_version: 1, ...manifest }), { status: 200, headers: { "Content-Type": "application/json" } }) : base(url, init));
-    const tools = (createServer(d) as unknown as { _registeredTools: Tools })._registeredTools;
+    const tools = (createServer(d, { localFiles: true }) as unknown as { _registeredTools: Tools })._registeredTools;
     return (await tools["publish"]!.handler({ directory: siteDir(), slug: "my-site" })).content[0]!.text;
   };
 
@@ -188,7 +188,7 @@ describe("DW-7.4: the 402 storage approval through the MCP tool", () => {
       String(url).includes("/manifest")
         ? new Response(JSON.stringify({ code: "needs_storage_approval", approval_url: "https://upubli.sh/profile/settings?storage_overage_request=1", ...body }), { status: 402, headers: { "Content-Type": "application/json" } })
         : base(url, init);
-    const tools = (createServer(d) as unknown as { _registeredTools: Tools })._registeredTools;
+    const tools = (createServer(d, { localFiles: true }) as unknown as { _registeredTools: Tools })._registeredTools;
     return (await tools["publish"]!.handler({ directory: siteDir(), slug: "my-site" })).content[0]!.text;
   };
 

@@ -29,7 +29,7 @@ function setup(handler: Handler, account: Account = {}) {
   tmpFiles.push(file);
   const { fetchFn, calls } = stackFetch(handler, account);
   const deps: CoreDeps = { credentialsPath: file, fetchFn };
-  const tools = (createServer(deps) as unknown as InternalServer)._registeredTools;
+  const tools = (createServer(deps, { localFiles: true }) as unknown as InternalServer)._registeredTools;
   const call = (name: string, args: Record<string, unknown>) => tools[name]!.handler(args);
   return { tools, call, calls };
 }
@@ -362,7 +362,7 @@ describe("DW-6.1: data tool", () => {
   });
 
   test("test_DW_6_1_tool_data_unauthenticated_points_to_login", async () => {
-    const tools = (createServer({ credentialsPath: "/nonexistent/creds", fetchFn: async () => jsonResponse(500, {}) }) as unknown as InternalServer)._registeredTools;
+    const tools = (createServer({ credentialsPath: "/nonexistent/creds", fetchFn: async () => jsonResponse(500, {}) }, { localFiles: true }) as unknown as InternalServer)._registeredTools;
     const r = await tools["data"]!.handler({ action: "status" });
     expect(r.isError).toBe(true);
     expect(text(r)).toContain("login tool");
@@ -535,7 +535,7 @@ describe("R-J: error text from the site data tools is single-line", () => {
     const file = path.join(os.tmpdir(), `mcp-site-data-raw-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     fs.writeFileSync(file, "refresh-token", { mode: 0o600 });
     tmpFiles.push(file);
-    const tools = (createServer({ credentialsPath: file, fetchFn } as CoreDeps) as unknown as InternalServer)._registeredTools;
+    const tools = (createServer({ credentialsPath: file, fetchFn } as CoreDeps, { localFiles: true }) as unknown as InternalServer)._registeredTools;
     return (name: string, args: Record<string, unknown>) => tools[name]!.handler(args);
   }
   const routed = (routes: Record<string, () => Response>) => async (url: string): Promise<Response> => {

@@ -1239,23 +1239,28 @@ export async function login(
  * { authenticated: false } when credentials are absent or invalid.
  */
 export async function status(deps?: CoreDeps): Promise<StatusResult> {
-  const credFile = deps?.credentialsPath ?? defaultCredentialsPath();
-  const refreshToken = await readCredentials(credFile);
+  let apiClient: ApiClient;
+  if (deps?.tokenProvider) {
+    // Injected provider (hosted use): report the CALLER's identity and never touch
+    // the host's credentials file. buildApiClient fails closed on an empty bearer.
+    apiClient = await buildApiClient(deps);
+  } else {
+    const credFile = deps?.credentialsPath ?? defaultCredentialsPath();
+    const refreshToken = await readCredentials(credFile);
 
-  if (!refreshToken) {
-    return { authenticated: false };
+    if (!refreshToken) {
+      return { authenticated: false };
+    }
+
+    const fetchFn: FetchFn | undefined = deps?.fetchFn;
+    const tokenProvider = createTokenProvider({
+      refreshToken,
+      apiBaseUrl: API_BASE_URL,
+      fetchFn,
+      clientVersion: deps?.clientVersion,
+    });
+    apiClient = new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch, deps?.clientVersion);
   }
-
-  const fetchFn: FetchFn | undefined = deps?.fetchFn;
-
-  const tokenProvider = createTokenProvider({
-    refreshToken,
-    apiBaseUrl: API_BASE_URL,
-    fetchFn,
-    clientVersion: deps?.clientVersion,
-  });
-
-  const apiClient = new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch, deps?.clientVersion);
 
   try {
     const result = await apiClient.get<{ username: string }>("/auth/me");
