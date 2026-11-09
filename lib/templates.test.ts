@@ -391,6 +391,25 @@ describe("DW-2.5: symlinks, tmpdir and relative paths", () => {
     expect(r.directory).toBe(path.join(base, "my-site"));
     expect(fs.existsSync(path.join(base, "my-site", "index.html"))).toBe(true);
   });
+
+  test("test_bad_template_symlink_entry_is_refused", () => {
+    const base = tmp();
+    const root = path.join(base, "templates");
+    fs.mkdirSync(path.join(root, "s"), { recursive: true });
+    fs.writeFileSync(path.join(root, "s.json"), JSON.stringify({ name: "s", title: "t", description: "d", placeholders: [] }));
+    const secret = path.join(base, "secret.txt");
+    fs.writeFileSync(secret, "outside the templates root");
+    fs.symlinkSync(secret, path.join(root, "s", "index.html"));
+    const parent = path.join(base, "out");
+    fs.mkdirSync(parent);
+    const target = path.join(parent, "site");
+
+    const r = createFromTemplate({ name: "s", directory: target }, { root });
+
+    expect(r).toMatchObject({ success: false, code: "bad_template" });
+    expect(fs.existsSync(target)).toBe(false);
+    expect(fs.readdirSync(parent)).toEqual([]);
+  });
 });
 
 describe("DW-2.9: a created folder passes publish preflight", () => {

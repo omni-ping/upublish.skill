@@ -53,6 +53,7 @@ Match what the user wants and read the reference file, then follow it.
 | User wants to... | Do this |
 |---|---|
 | Publish a directory as a live site | `../../references/publishing.md` |
+| Make a portfolio, landing page, resume, docs site, coming-soon page or links page, with no files yet | `template`; read `../../references/templates.md` |
 | Check asset paths before publishing (skip for a folder you know is build output) | `../../references/pre-publish-checklist.md` |
 | Figure out what type of content this is | `../../references/content-types/taxonomy.md`, then the specific content type reference |
 | Publish a React/Vue/Svelte app with client-side routes | Build it, then `publish(..., spa: true)`; read `../../references/content-types/spa.md`. Pass `spa: true` on **every** publish of that site. |

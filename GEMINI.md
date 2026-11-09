@@ -38,6 +38,7 @@ directly. Tell the user to complete setup in the browser window.
 | User wants to... | Do this |
 |---|---|
 | Publish a directory as a live site | `references/publishing.md` |
+| Make a portfolio, landing page, resume, docs site, coming-soon page or links page, with no files yet | `template`; `references/templates.md` |
 | Check asset paths before publishing (skip for known build output) | `references/pre-publish-checklist.md` |
 | Publish a React/Vue/Svelte app with client-side routes | `publish(..., spa: true)` on **every** publish; `references/content-types/spa.md` |
 | Make a site private, or public again | `visibility`; `references/visibility.md` |
