@@ -29,12 +29,12 @@ import { status } from "../lib/core.ts";
 
 type McpServerT = ReturnType<typeof createServer>;
 
-/** The full stdio tool set today (31 tools). A new tool must be added here deliberately. */
+/** The full stdio tool set today (32 tools). A new tool must be added here deliberately. */
 const STDIO_TOOLS = [
   "publish", "list", "delete", "versions_list", "versions_delete", "versions_restore", "versions_limit", "analytics",
   "passcode_add", "visibility", "passcode_list", "passcode_revoke", "gate", "data", "data_collection", "data_rows",
   "data_jwt", "publish_backend", "backend", "backend_secret", "backend_logs", "members", "promote", "qrcode", "logout",
-  "login", "upgrade", "status", "namespace_create", "domain", "rename",
+  "login", "upgrade", "status", "namespace_create", "domain", "rename", "template",
 ];
 
 const HOSTED: CoreDeps = { tokenProvider: async () => "t" };
@@ -102,7 +102,7 @@ describe("DW-1.1: hosted tool list has no local-only or admin tool", () => {
   const forbidden = [...LOCAL_ONLY_TOOLS, ...ADMIN_TOOLS];
 
   test("LOCAL_ONLY_TOOLS and ADMIN_TOOLS are the pinned name lists", () => {
-    expect([...LOCAL_ONLY_TOOLS]).toEqual(["publish", "qrcode", "login", "logout", "upgrade"]);
+    expect([...LOCAL_ONLY_TOOLS]).toEqual(["publish", "qrcode", "login", "logout", "upgrade", "template"]);
     expect([...ADMIN_TOOLS]).toEqual(["admin_user", "admin_site", "admin_stats", "admin_storage", "admin_domains"]);
   });
 
@@ -123,7 +123,7 @@ describe("DW-1.1: hosted tool list has no local-only or admin tool", () => {
     expect(listed).toContain("data_rows");
   });
 
-  test("the hosted set is exactly the stdio set minus the five local-only tools", () => {
+  test("the hosted set is exactly the stdio set minus the six local-only tools", () => {
     delete process.env.UPUBLISH_ADMIN;
     const hosted = names(createHostedServer(HOSTED));
     expect(hosted.sort()).toEqual(STDIO_TOOLS.filter((n) => !(LOCAL_ONLY_TOOLS as readonly string[]).includes(n)).sort());
@@ -154,6 +154,7 @@ describe("DW-1.2: a local-only call is refused with no side effect", () => {
     login: {},
     logout: {},
     upgrade: { plan: "pro" },
+    template: { action: "create", name: "links", directory: "" },
   };
 
   /** Spies and fixtures shared by the "nothing happened" assertions. */
@@ -182,7 +183,7 @@ describe("DW-1.2: a local-only call is refused with no side effect", () => {
   test.each(LOCAL_ONLY_TOOLS)("hosted: tools/call %s is an error and nothing is read, written, opened or bound", async (name) => {
     const h = harness();
     const client = await connect(createServer(h.deps, { openBrowser: h.openBrowser, localFiles: false }));
-    const args = { ...ARGS[name], ...(name === "qrcode" ? { outputDir: h.outDir } : {}) };
+    const args = { ...ARGS[name], ...(name === "qrcode" ? { outputDir: h.outDir } : name === "template" ? { directory: h.outDir } : {}) };
     const r = await call(client, name, args);
     expect(r.isError).toBe(true);
     expect(text(r)).toMatch(/not found|unknown|disabled/i);
@@ -194,7 +195,7 @@ describe("DW-1.2: a local-only call is refused with no side effect", () => {
     const opts: CreateServerOpts = { openBrowser: h.openBrowser, localFiles: true };
     const client = await connect(createServer(h.deps, opts));
     opts.localFiles = false; // the handler re-reads the flag on every call
-    const args = { ...ARGS[name], ...(name === "qrcode" ? { outputDir: h.outDir } : {}) };
+    const args = { ...ARGS[name], ...(name === "qrcode" ? { outputDir: h.outDir } : name === "template" ? { directory: h.outDir } : {}) };
     const r = await call(client, name, args);
     expect(r.isError).toBe(true);
     expect(text(r)).toContain("only available in the local upublish plugin");
@@ -476,5 +477,42 @@ describe("DW-1.7: createHostedServer verifies what it registered", () => {
     const fake = { _registeredTools: ["list", "publish"] } as unknown as McpServerT;
     expect(() => assertHostedServerSafe(fake)).toThrow(/publish/);
     expect(() => assertHostedServerSafe({ _registeredTools: ["list"] } as unknown as McpServerT)).not.toThrow();
+  });
+});
+
+describe("DW-2.6 (starter templates): template is wholly local-only", () => {
+  test("test_DW_2_6_hosted_tool_list_excludes_template_and_stdio_includes_it", async () => {
+    delete process.env.UPUBLISH_ADMIN;
+    expect(names(createHostedServer(HOSTED))).not.toContain("template");
+    const listed = (await (await connect(createHostedServer(HOSTED))).listTools()).tools.map((t) => t.name);
+    expect(listed).not.toContain("template");
+    expect(names(createServer({}, stdioServerOptions()))).toContain("template");
+  });
+
+  test("test_DW_2_6_forced_hosted_template_create_is_refused_and_writes_nothing", async () => {
+    const parent = tmp();
+    const target = path.join(parent, "site");
+    const client = await connect(createHostedServer(HOSTED));
+    for (const args of [{ action: "create", name: "links", directory: target }, { action: "list" }]) {
+      const r = await call(client, "template", args);
+      expect(r.isError).toBe(true);
+    }
+    const opts: CreateServerOpts = { localFiles: true };
+    const flipped = await connect(createServer(HOSTED, opts));
+    opts.localFiles = false;
+    const r = await call(flipped, "template", { action: "create", name: "links", directory: target });
+    expect(r.isError).toBe(true);
+    expect(text(r)).toContain("only available in the local upublish plugin");
+    expect(fs.readdirSync(parent)).toEqual([]);
+  });
+
+  test("test_DW_2_6_hosted_self_check_throws_if_template_is_ever_registered", () => {
+    expect(() =>
+      createHostedServer(HOSTED, (d) => {
+        const s = createServer(d, { localFiles: false });
+        s.registerTool("template", { description: "x" }, async () => ({ content: [] }));
+        return s;
+      }),
+    ).toThrow(/template/);
   });
 });

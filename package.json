@@ -29,6 +29,7 @@
     "dist/",
     "references/",
     "skills/",
+    "templates/",
     "GEMINI.md",
     "gemini-extension.json",
     "plugin.json",

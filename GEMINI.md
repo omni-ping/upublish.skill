@@ -81,6 +81,7 @@ Tell the user before relying on these; the server refuses them on the free plan 
 - `rename` — rename a site or an address, with a redirect mode for old URLs
 - `upgrade` — open Stripe Checkout for Pro or Max
 - `publish` — publish a directory as a live site (`spa`, `preview`, `namespace`, `slug: "_root"`, ...)
+- `template` — starter templates (local only): `list`, or `create` one in a new or empty folder to fill in and publish
 - `list` — list all published sites with URLs
 - `delete` — delete a published site and all its versions (permanent, confirm first)
 - `promote` — make a staged preview version live

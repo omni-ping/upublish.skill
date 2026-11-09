@@ -106,6 +106,7 @@ Tell the user before relying on these; the server refuses them on the free plan 
 | `rename` | Rename a site or an address, with a redirect mode for old URLs |
 | `upgrade` | Open Stripe Checkout for Pro or Max |
 | `publish` | Publish a directory as a live site (`spa`, `preview`, `namespace`, `slug: "_root"`, ...) |
+| `template` | Starter templates (local only): `list`, or `create` one in a new or empty folder to fill in and publish |
 | `list` | List all published sites with URLs |
 | `delete` | Delete a published site and all its versions (permanent, confirm first) |
 | `promote` | Make a staged preview version live |
