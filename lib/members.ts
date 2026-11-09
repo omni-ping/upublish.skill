@@ -9,7 +9,7 @@
  * GET members call — this is an implementation detail callers never see.
  */
 
-import type { ApiClient } from "./api-client.ts";
+import { ApiError, type ApiClient } from "./api-client.ts";
 import type { NamespaceRole } from "./types.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -179,4 +179,37 @@ export async function changeMemberRole(
     { role },
   );
   return { member: response.member };
+}
+
+// ─── Leave ────────────────────────────────────────────────────────────────────
+
+/**
+ * The caller leaves a namespace via DELETE /api/ns/:nsId/members/me (no id lookup).
+ * Plain-language errors for the two expected failures; anything else is rethrown.
+ *
+ * @throws Error if the caller owns the namespace (400 `owner_cannot_leave`).
+ * @throws Error if the caller is not a member (404).
+ */
+export async function leaveMember(
+  apiClient: ApiClient,
+  nsId: string,
+): Promise<RemoveMemberResult> {
+  try {
+    const response = await apiClient.delete<RemoveMemberResponse>(`/api/ns/${nsId}/members/me`);
+    return { ok: response.ok };
+  } catch (err) {
+    if (err instanceof ApiError) {
+      const code = (err.rawBodyData as { code?: unknown } | null)?.code;
+      if (err.status === 400 && code === "owner_cannot_leave") {
+        throw new Error(
+          "You own this address, so you cannot leave it. You can delete the address instead.",
+          { cause: err },
+        );
+      }
+      if (err.status === 404) {
+        throw new Error("You are not a member of this address, so there is nothing to leave.", { cause: err });
+      }
+    }
+    throw err;
+  }
 }

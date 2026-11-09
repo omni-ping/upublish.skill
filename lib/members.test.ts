@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "bun:test";
-import { listMembers, addMember, removeMember, changeMemberRole } from "./members.ts";
+import { listMembers, addMember, removeMember, changeMemberRole, leaveMember } from "./members.ts";
 import { ApiClient } from "./api-client.ts";
 import type { Namespace } from "./types.ts";
 
@@ -318,5 +318,48 @@ describe("DW-4.1: changeMemberRole", () => {
       "API error 403",
     );
     expect(callCount).toBe(2);
+  });
+});
+
+// ─── Phase 4: leaveMember ─────────────────────────────────────────────────────
+
+describe("Phase 4: leaveMember", () => {
+  const client = (f: (url: string, init?: RequestInit) => Promise<Response>) =>
+    new ApiClient(BASE_URL, staticTokenProvider, f as typeof fetch);
+
+  it("test_DW_4_1_leave_member_sends_delete_to_members_me_without_lookup", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    const result = await leaveMember(
+      client(async (url, init) => {
+        calls.push({ url: String(url), method: init?.method ?? "GET" });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }),
+      NS_ID,
+    );
+    expect(result).toEqual({ ok: true });
+    expect(calls).toEqual([{ url: `${BASE_URL}/api/ns/${NS_ID}/members/me`, method: "DELETE" }]);
+  });
+
+  it("test_DW_4_2_leave_member_owner_gets_plain_message", async () => {
+    const p = leaveMember(
+      client(mockFetch(400, { error: "Owner cannot leave", code: "owner_cannot_leave" })),
+      NS_ID,
+    );
+    await expect(p).rejects.toThrow(/own this address.*cannot leave/i);
+  });
+
+  it("test_DW_4_2_leave_member_not_a_member_gets_not_found_message", async () => {
+    const p = leaveMember(client(mockFetch(404, { error: "Not found" })), NS_ID);
+    await expect(p).rejects.toThrow(/not a member of this address/i);
+  });
+
+  it("leave_member_rethrows_other_errors_unchanged", async () => {
+    const p = leaveMember(client(mockFetch(500, { error: "boom" })), NS_ID);
+    await expect(p).rejects.toThrow(/500/);
+  });
+
+  it("leave_member_400_without_owner_code_is_not_rewritten", async () => {
+    const p = leaveMember(client(mockFetch(400, { error: "bad", code: "other" })), NS_ID);
+    await expect(p).rejects.toThrow(/400/);
   });
 });

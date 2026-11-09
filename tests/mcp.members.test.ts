@@ -534,3 +534,49 @@ describe("DW-4.4: status tool role display", () => {
     expect(text).not.toContain("[user]");
   });
 });
+
+// ─── Phase 4: members tool — leave action ────────────────────────────────────
+
+describe("Phase 4: members tool leave action", () => {
+  const leaveDeps = (extra: Record<string, { status: number; body: unknown }>) =>
+    makeDeps(makeMockFetch("user", extra)).deps;
+
+  test("test_DW_4_1_leave_action_confirms_and_names_address", async () => {
+    const tools = getTools(createServer(leaveDeps({ "/members/me": { status: 200, body: { ok: true } } })));
+    const result = await tools["members"].handler({ action: "leave", namespace: NS_NAME });
+    expect(result.isError).toBeFalsy();
+    expect(result.content[0].text).toContain(NS_NAME);
+    expect(result.content[0].text.toLowerCase()).toContain("left");
+  });
+
+  test("test_DW_4_2_leave_action_owner_gets_owner_cannot_leave_message", async () => {
+    const tools = getTools(createServer(leaveDeps({
+      "/members/me": { status: 400, body: { error: "Owner cannot leave", code: "owner_cannot_leave" } },
+    })));
+    const result = await tools["members"].handler({ action: "leave", namespace: NS_NAME });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/own this address.*cannot leave/i);
+  });
+
+  test("test_DW_4_2_leave_action_not_a_member_gets_not_found_message", async () => {
+    const tools = getTools(createServer(leaveDeps({ "/members/me": { status: 404, body: { error: "Not found" } } })));
+    const result = await tools["members"].handler({ action: "leave", namespace: NS_NAME });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/not a member of this address/i);
+  });
+
+  test("leave_action_requires_namespace", async () => {
+    const tools = getTools(createServer(leaveDeps({})));
+    const result = await tools["members"].handler({ action: "leave" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/namespace|address/i);
+  });
+
+  test("test_DW_4_2_tool_schema_action_enum_includes_leave", () => {
+    const tools = getTools(createServer(leaveDeps({})));
+    const schema = tools["members"].inputSchema as unknown as { shape?: Record<string, { safeParse: (v: unknown) => { success: boolean } }> };
+    const actionSchema = (schema.shape ?? (tools["members"].inputSchema as never))["action" as never] as { safeParse: (v: unknown) => { success: boolean } };
+    expect(actionSchema.safeParse("leave").success).toBe(true);
+    expect(actionSchema.safeParse("bogus").success).toBe(false);
+  });
+});
