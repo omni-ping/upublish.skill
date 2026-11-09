@@ -59,7 +59,7 @@ Needs Pro or Max. A connected domain becomes its own address, so sites serve at 
 
 ## Team members
 
-On a shared address (Max plan), `members` lists, adds, removes and re-roles members: `action` is `list`, `add`, `remove` or `role`, with `username` (the member's sign-in email) and `role` (`admin` or `user`).
+On a shared address (Max plan), `members` lists, adds, removes and re-roles members: `action` is `list`, `add`, `remove` or `role`, with `username` (the member's sign-in email) and `role` (`admin` or `user`). `action: "leave"` (`namespace` required) lets a non-owner member leave the address themselves; the owner cannot leave.
 
 ## Checking site status
 

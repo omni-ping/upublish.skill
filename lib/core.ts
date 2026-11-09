@@ -94,6 +94,7 @@ import {
   addMember as domainAddMember,
   removeMember as domainRemoveMember,
   changeMemberRole as domainChangeMemberRole,
+  leaveMember as domainLeaveMember,
 } from "./members.ts";
 import type {
   Member,
@@ -930,7 +931,8 @@ export type MembersArgs =
   | { action: "list"; namespace?: string }
   | { action: "add"; username: string; role: "admin" | "user"; namespace?: string }
   | { action: "remove"; username: string; namespace?: string }
-  | { action: "role"; username: string; role: "admin" | "user"; namespace?: string };
+  | { action: "role"; username: string; role: "admin" | "user"; namespace?: string }
+  | { action: "leave"; namespace?: string };
 
 /**
  * Discriminated union of results returned by members().
@@ -940,7 +942,8 @@ export type MembersResult =
   | ({ action: "list" } & ListMembersResult)
   | ({ action: "add" } & AddMemberResult)
   | ({ action: "remove" } & RemoveMemberResult)
-  | ({ action: "role" } & ChangeMemberRoleResult);
+  | ({ action: "role" } & ChangeMemberRoleResult)
+  | ({ action: "leave"; address: string } & RemoveMemberResult);
 
 /**
  * Single dispatch function for all member management operations.
@@ -979,6 +982,10 @@ export async function members(args: MembersArgs, deps?: CoreDeps): Promise<Membe
     case "role": {
       const result = await domainChangeMemberRole(apiClient, ns.id, args.username, args.role);
       return { action: "role", ...result };
+    }
+    case "leave": {
+      const result = await domainLeaveMember(apiClient, ns.id);
+      return { action: "leave", address: ns.name, ...result };
     }
   }
 }

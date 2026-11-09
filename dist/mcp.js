@@ -27715,6 +27715,23 @@ async function changeMemberRole(apiClient, nsId, username, role) {
   const response = await apiClient.patch(`/api/ns/${nsId}/members/${userId}`, { role });
   return { member: response.member };
 }
+async function leaveMember(apiClient, nsId) {
+  try {
+    const response = await apiClient.delete(`/api/ns/${nsId}/members/me`);
+    return { ok: response.ok };
+  } catch (err) {
+    if (err instanceof ApiError) {
+      const code = err.rawBodyData?.code;
+      if (err.status === 400 && code === "owner_cannot_leave") {
+        throw new Error("You own this address, so you cannot leave it. You can delete the address instead.", { cause: err });
+      }
+      if (err.status === 404) {
+        throw new Error("You are not a member of this address, so there is nothing to leave.", { cause: err });
+      }
+    }
+    throw err;
+  }
+}
 
 // lib/qrcode.ts
 import * as fs8 from "fs";
@@ -30035,6 +30052,10 @@ async function members2(args, deps) {
       const result = await changeMemberRole(apiClient, ns.id, args.username, args.role);
       return { action: "role", ...result };
     }
+    case "leave": {
+      const result = await leaveMember(apiClient, ns.id);
+      return { action: "leave", address: ns.name, ...result };
+    }
   }
 }
 async function qrCode2(args, deps) {
@@ -31053,12 +31074,13 @@ ${fields}`;
 ` + `  list   \u2014 List all members and their roles
 ` + `  add    \u2014 Add a user by username with a given role (admin|user)
 ` + `  remove \u2014 Remove a member by username
-` + "  role   \u2014 Change a member's role (admin|user)",
+` + `  role   \u2014 Change a member's role (admin|user)
+` + "  leave  \u2014 Leave the address yourself (any non-owner member; no username needed)",
     inputSchema: {
-      action: _enum(["list", "add", "remove", "role"]).describe("The member operation to perform: " + "'list' to show all members, 'add' to grant access, " + "'remove' to revoke access, 'role' to change a member's role."),
+      action: _enum(["list", "add", "remove", "role", "leave"]).describe("The member operation to perform: " + "'list' to show all members, 'add' to grant access, " + "'remove' to revoke access, 'role' to change a member's role, " + "'leave' to leave the address yourself."),
       username: string2().optional().describe("The username to add, remove, or change role for. " + "Required for add, remove, and role actions."),
       role: _enum(["admin", "user"]).optional().describe("The role to assign. Required for add and role actions. " + "'admin' can manage members; 'user' can publish and gate only."),
-      namespace: string2().optional().describe("Address name to manage members for. When omitted, the default address is used.")
+      namespace: string2().optional().describe("Address name to manage members for. When omitted, the default address is used. " + "Required for the leave action.")
     }
   }, async ({ action, username, role, namespace }) => {
     try {
@@ -31099,6 +31121,15 @@ ${lines.join(`
         if (result.action !== "remove")
           return errResponse(new Error("Unexpected result"));
         return okResponse(`Removed ${usernameStr} from address`);
+      }
+      if (actionStr === "leave") {
+        if (!nsStr) {
+          return errResponse(new Error("namespace is required for the leave action (name the address to leave)"));
+        }
+        const result = await members2({ action: "leave", namespace: nsStr }, coreDeps);
+        if (result.action !== "leave")
+          return errResponse(new Error("Unexpected result"));
+        return okResponse(`You left ${result.address}. You no longer have access to it.`);
       }
       const usernameStr = username;
       const roleStr = role;

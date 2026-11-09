@@ -351,3 +351,13 @@ describe("DW-4.1: core.members() role action", () => {
     expect(result.member.role).toBe("admin");
   });
 });
+
+describe("Phase 4: core members() leave", () => {
+  it("test_DW_4_1_core_leave_returns_address_and_ok", async () => {
+    const f = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(f);
+    const fetchFn = makeMockFetch("user", { "/members/me": { status: 200, body: { ok: true } } });
+    const result = await members({ action: "leave", namespace: NS_NAME }, { credentialsPath: f, fetchFn });
+    expect(result).toEqual({ action: "leave", address: NS_NAME, ok: true });
+  });
+});

@@ -1850,14 +1850,16 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         "  list   — List all members and their roles\n" +
         "  add    — Add a user by username with a given role (admin|user)\n" +
         "  remove — Remove a member by username\n" +
-        "  role   — Change a member's role (admin|user)",
+        "  role   — Change a member's role (admin|user)\n" +
+        "  leave  — Leave the address yourself (any non-owner member; no username needed)",
       inputSchema: {
         action: z
-          .enum(["list", "add", "remove", "role"])
+          .enum(["list", "add", "remove", "role", "leave"])
           .describe(
             "The member operation to perform: " +
             "'list' to show all members, 'add' to grant access, " +
-            "'remove' to revoke access, 'role' to change a member's role.",
+            "'remove' to revoke access, 'role' to change a member's role, " +
+            "'leave' to leave the address yourself.",
           ),
         username: z
           .string()
@@ -1877,13 +1879,14 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           .string()
           .optional()
           .describe(
-            "Address name to manage members for. When omitted, the default address is used.",
+            "Address name to manage members for. When omitted, the default address is used. " +
+            "Required for the leave action.",
           ),
       },
     },
     async ({ action, username, role, namespace }) => {
       try {
-        const actionStr = action as "list" | "add" | "remove" | "role";
+        const actionStr = action as "list" | "add" | "remove" | "role" | "leave";
         const nsStr = namespace as string | undefined;
 
         if (actionStr === "list") {
@@ -1928,6 +1931,15 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           );
           if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
           return okResponse(`Removed ${usernameStr} from address`);
+        }
+
+        if (actionStr === "leave") {
+          if (!nsStr) {
+            return errResponse(new Error("namespace is required for the leave action (name the address to leave)"));
+          }
+          const result = await members({ action: "leave", namespace: nsStr }, coreDeps);
+          if (result.action !== "leave") return errResponse(new Error("Unexpected result"));
+          return okResponse(`You left ${result.address}. You no longer have access to it.`);
         }
 
         // action === "role"
