@@ -26331,7 +26331,13 @@ var open_default = open2;
 import { appendFileSync, mkdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
+var fileLogging = true;
+function setFileLogging(enabled) {
+  fileLogging = enabled;
+}
 function log(msg) {
+  if (!fileLogging)
+    return;
   const line = `${new Date().toISOString()} ${msg}
 `;
   try {
@@ -30115,19 +30121,24 @@ async function login2(loginDeps, coreDeps) {
   return login(resolvedDeps);
 }
 async function status2(deps) {
-  const credFile = deps?.credentialsPath ?? defaultCredentialsPath();
-  const refreshToken = await readCredentials(credFile);
-  if (!refreshToken) {
-    return { authenticated: false };
+  let apiClient;
+  if (deps?.tokenProvider) {
+    apiClient = await buildApiClient(deps);
+  } else {
+    const credFile = deps?.credentialsPath ?? defaultCredentialsPath();
+    const refreshToken = await readCredentials(credFile);
+    if (!refreshToken) {
+      return { authenticated: false };
+    }
+    const fetchFn = deps?.fetchFn;
+    const tokenProvider = createTokenProvider({
+      refreshToken,
+      apiBaseUrl: API_BASE_URL,
+      fetchFn,
+      clientVersion: deps?.clientVersion
+    });
+    apiClient = new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch, deps?.clientVersion);
   }
-  const fetchFn = deps?.fetchFn;
-  const tokenProvider = createTokenProvider({
-    refreshToken,
-    apiBaseUrl: API_BASE_URL,
-    fetchFn,
-    clientVersion: deps?.clientVersion
-  });
-  const apiClient = new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch, deps?.clientVersion);
   try {
     const result = await apiClient.get("/auth/me");
     let namespaces = [];
@@ -30172,8 +30183,16 @@ async function logout(deps) {
 }
 
 // mcp/index.ts
+var LOCAL_ONLY_TOOLS = ["publish", "qrcode", "login", "logout", "upgrade"];
+var ADMIN_TOOLS = ["admin_user", "admin_site", "admin_stats", "admin_storage", "admin_domains"];
+var LOCAL_ONLY_MESSAGE = "This tool is only available in the local upublish plugin.";
+async function openUrlIfLocal(url, localFiles, opener = open_default) {
+  if (!localFiles)
+    throw new Error(LOCAL_ONLY_MESSAGE);
+  await opener(url);
+}
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.49";
+var PACKAGE_VERSION = "0.12.50";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
@@ -30301,18 +30320,26 @@ function stdioServerOptions() {
 function createServer(callerDeps, opts) {
   const coreDeps = { ...callerDeps, clientVersion: callerDeps?.clientVersion ?? PACKAGE_VERSION };
   const heartbeatIntervalMs = opts?.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
-  const openBrowser = opts?.openBrowser ?? ((url) => open_default(url).then(() => {
-    return;
-  }));
+  const localFiles = () => opts?.localFiles === true;
+  const openBrowser = opts?.openBrowser ?? ((url) => openUrlIfLocal(url, localFiles()));
   const server = new McpServer({
     name: PACKAGE_NAME,
     version: PACKAGE_VERSION
   });
+  const hostOnly = (enabled) => ({
+    registerTool: (name, config, cb) => {
+      if (!enabled)
+        return;
+      return server.registerTool(name, config, async (...a) => localFiles() ? cb(...a) : errResponse(new Error(LOCAL_ONLY_MESSAGE)));
+    }
+  });
+  const local = hostOnly(localFiles());
+  const admin = hostOnly(localFiles() && process.env.UPUBLISH_ADMIN === "1");
   if (opts?.updateCheck)
     installUpdateNote(server, callerDeps);
   if (opts?.runtimeCheck)
     installRuntimeNote(server, opts.runtimeCheck.version);
-  server.registerTool("publish", {
+  local.registerTool("publish", {
     title: "Publish Site",
     description: "Publishes a local directory as a static website to upubli.sh. " + "Hashes files locally, uploads only changed files via presigned R2 URLs, " + "automatically excluding .git, node_modules, .env, SSH/AWS keys, .npmrc and other credential files, " + "source maps (*.map), .DS_Store, and other non-site files. " + "Add a .upublishignore file to the directory for custom exclusions. " + "Publish the BUILD OUTPUT folder (the one with index.html), not a repo root: a folder with no top-level " + "index.html, or one that looks like a project (package.json, src/, lockfiles, Dockerfile, .git), is refused " + "before anything is uploaded (override with allow_no_index / allow_project_files). " + "A new site is live at its URL right after upload, with the visibility you set (public by default). " + "Publishing to an existing slug REPLACES the live version immediately; the output reports the replaced and new " + "version, and on paid plans the previous version can be restored with versions_restore (free plans cannot restore). " + 'visibility:"public" never removes protection from an existing passcode-protected site; use the visibility tool ' + "to change a site's access. For a single-page app pass spa:true on EVERY publish of it " + "(a republish without spa that also sets a non-public visibility, such as a passcode, clears SPA mode).",
     inputSchema: {
@@ -30912,12 +30939,17 @@ ${fields}`;
       author: string2().optional().describe("list/delete: a row's 'author:' value exactly as list prints it ('kind:subject', e.g. 'passcode:<id>'); never the label."),
       archived: boolean2().optional().describe("delete: remove EVERY archived (history) row with this author and id instead of the active one. Default false (active row)."),
       include_archived: boolean2().optional().describe("list: also return archived rows."),
-      path: string2().optional().describe("export: file to write; must end in .ndjson or .jsonl (e.g. /tmp/votes.ndjson)."),
-      overwrite: boolean2().optional().describe("export: replace the destination if it already exists (default: refuse)."),
+      ...localFiles() ? {
+        path: string2().optional().describe("export: file to write; must end in .ndjson or .jsonl (e.g. /tmp/votes.ndjson)."),
+        overwrite: boolean2().optional().describe("export: replace the destination if it already exists (default: refuse).")
+      } : {},
       rows: array(importRow).max(SITE_DATA_LIMITS.maxImportRowsPerCall).optional().describe("import: the rows to import."),
       namespace: namespaceArg
     }
   }, async (args) => {
+    if (args.action === "export" && !localFiles()) {
+      return errResponse(new Error("Export to a file is only available in the local upublish plugin; use list to page through rows."));
+    }
     try {
       return okResponse(formatRowsResult(await dataRows(args, coreDeps)));
     } catch (err) {
@@ -31132,7 +31164,7 @@ ${lines.join(`
       return errResponse(err);
     }
   });
-  server.registerTool("qrcode", {
+  local.registerTool("qrcode", {
     title: "QR Code",
     description: "Generates a QR code for a published site on upubli.sh. " + "Displays a scannable unicode QR in the agent output and writes " + "qr.svg and qr.png files to the specified directory (defaults to cwd). " + "The QR encodes the site's canonical URL + ?ref=qr for analytics tracking. " + "Regenerating overwrites prior output \u2014 the QR is deterministic.",
     inputSchema: {
@@ -31156,7 +31188,7 @@ ${lines.join(`
       return errResponse(err);
     }
   });
-  server.registerTool("logout", {
+  local.registerTool("logout", {
     title: "Logout",
     description: "Signs out of upubli.sh by revoking the refresh token server-side and " + "deleting local credentials. Safe to call even when not logged in or " + "when the server is unreachable (local credentials are always cleared).",
     inputSchema: {}
@@ -31170,7 +31202,7 @@ ${lines.join(`
       isError: true
     };
   });
-  server.registerTool("login", {
+  local.registerTool("login", {
     title: "Login",
     description: "Authenticates with upubli.sh. " + "Opens a browser sign-in page where you choose a provider and waits for the OAuth callback. " + "The auth URL is always included in the response so you can open " + "it in a different browser profile if needed.",
     inputSchema: {}
@@ -31182,7 +31214,7 @@ ${lines.join(`
         siteBaseUrl: (process.env.UPUBLISH_SITE_URL ?? "https://upubli.sh").replace(/\/$/, ""),
         openBrowser: async (url) => {
           capturedAuthUrl = url;
-          await open_default(url);
+          await openBrowser(url);
         },
         startCallbackServer: createCallbackServer,
         log: () => {}
@@ -31205,7 +31237,7 @@ ${lines.join(`
 `)));
     }
   });
-  server.registerTool("upgrade", {
+  local.registerTool("upgrade", {
     title: "Upgrade Plan",
     description: "Opens the Stripe Checkout page for a paid plan (pro or max) in your browser " + "so the user can enter payment and upgrade their upubli.sh account. " + "Use this when an agent hits a free-tier wall (file-size or storage tier limit) " + "and the user wants more capacity. Card entry is browser-only by design \u2014 this " + "tool only opens the right page, it cannot complete payment. The checkout URL is " + "always included in the response so it can be opened manually (e.g. headless envs). " + "Defaults to the pro plan billed monthly.",
     inputSchema: {
@@ -31410,8 +31442,8 @@ Redirect: permanent`;
       return errResponse(err);
     }
   });
-  if (process.env.UPUBLISH_ADMIN === "1") {
-    server.registerTool("admin_user", {
+  {
+    admin.registerTool("admin_user", {
       title: "Admin: User",
       description: `Admin operations on a user account. Requires admin role.
 
@@ -31485,7 +31517,7 @@ KV reconcile: written=${result.reconcile.written} verified=${result.reconcile.ve
         return errResponse(err);
       }
     });
-    server.registerTool("admin_site", {
+    admin.registerTool("admin_site", {
       title: "Admin: Site",
       description: `Admin operations on a site. Requires admin role.
 
@@ -31512,7 +31544,7 @@ KV reconcile: written=${result.reconcile.written} verified=${result.reconcile.ve
         return errResponse(err);
       }
     });
-    server.registerTool("admin_stats", {
+    admin.registerTool("admin_stats", {
       title: "Admin: Platform Stats",
       description: `Fetches platform-wide statistics. Requires admin role.
 
@@ -31541,7 +31573,7 @@ ${statusLines}
         return errResponse(err);
       }
     });
-    server.registerTool("admin_storage", {
+    admin.registerTool("admin_storage", {
       title: "Admin: Storage",
       description: `Admin storage operations. Requires admin role.
 
@@ -31587,7 +31619,7 @@ ${statusLines}
         return errResponse(err);
       }
     });
-    server.registerTool("admin_domains", {
+    admin.registerTool("admin_domains", {
       title: "Admin: Domains",
       description: `Admin domain management. Requires admin role.
 
@@ -31635,6 +31667,44 @@ ${lines.join(`
   }
   return server;
 }
+
+class HostedServerUnsafeError extends Error {
+  tools;
+  constructor(tools) {
+    super(`Hosted MCP server exposes host-only tools: ${tools.join(", ")}`);
+    this.name = "HostedServerUnsafeError";
+    this.tools = tools;
+  }
+}
+function registeredToolNames(server) {
+  const registry = server._registeredTools;
+  let found = null;
+  if (registry instanceof Map)
+    found = [...registry.keys()].map(String);
+  else if (Array.isArray(registry))
+    found = registry.map(String);
+  else if (registry !== null && typeof registry === "object")
+    found = Object.keys(registry);
+  if (found === null || found.length === 0) {
+    throw new HostedServerUnsafeError(["<cannot read the MCP SDK tool registry>"]);
+  }
+  return found;
+}
+function assertHostedServerSafe(server) {
+  const forbidden = new Set([...LOCAL_ONLY_TOOLS, ...ADMIN_TOOLS]);
+  const found = registeredToolNames(server).filter((n) => forbidden.has(n));
+  if (found.length > 0)
+    throw new HostedServerUnsafeError(found);
+}
+function createHostedServer(coreDeps, build = createServer) {
+  if (typeof coreDeps?.tokenProvider !== "function") {
+    throw new HostedServerUnsafeError(["<coreDeps.tokenProvider is required: without it API tools use the host's credentials>"]);
+  }
+  setFileLogging(false);
+  const server = build(coreDeps, { localFiles: false, updateCheck: false });
+  assertHostedServerSafe(server);
+  return server;
+}
 async function main() {
   const server = createServer(undefined, stdioServerOptions());
   const transport = new StdioServerTransport;
@@ -31648,8 +31718,14 @@ if (import.meta.main) {
   });
 }
 export {
+  ADMIN_TOOLS,
+  HostedServerUnsafeError,
+  LOCAL_ONLY_TOOLS,
   PACKAGE_NAME,
   PACKAGE_VERSION,
+  assertHostedServerSafe,
+  createHostedServer,
   createServer,
+  openUrlIfLocal,
   stdioServerOptions
 };
