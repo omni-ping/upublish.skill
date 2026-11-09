@@ -213,3 +213,182 @@ export async function leaveMember(
     throw err;
   }
 }
+
+// ─── Invite links ─────────────────────────────────────────────────────────────
+
+/** Roles an invite link may grant. `owner` is never grantable. */
+export type InviteRole = "admin" | "user";
+
+/** A created invite as returned to callers. The raw token is never kept — only the join URL. */
+export interface CreatedInvite {
+  id: string;
+  role: InviteRole;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface CreateInviteResult {
+  invite: CreatedInvite;
+  /** The single-use join URL. The only place a skill result ever carries the secret. */
+  url: string;
+}
+
+/** A pending invite as listed. Deliberately carries no URL or token (the server never returns them after create). */
+export interface PendingInvite {
+  id: string;
+  role: InviteRole;
+  /** The inviter's username, or null when their account is gone. */
+  created_by_username: string | null;
+  created_at: string;
+  expires_at: string;
+  /** True while the address owner is not on the Max plan: the link cannot be used until they are. */
+  paused: boolean;
+}
+
+export interface ListInvitesResult {
+  invites: PendingInvite[];
+}
+
+export interface RevokeInviteResult {
+  ok: true;
+}
+
+interface CreateInviteResponse {
+  invite: CreatedInvite;
+  token?: string;
+  url: string;
+}
+
+interface ListInvitesResponse {
+  invites: PendingInvite[];
+}
+
+type InviteOp = "create" | "list" | "revoke";
+
+const INVITE_VERB: Record<InviteOp, string> = {
+  create: "create the invite link",
+  list: "list invite links",
+  revoke: "revoke the invite link",
+};
+
+/**
+ * Maps any failure of an invite call to a plain-language Error. The message is built only from
+ * the status and code — never from response text — so no URL or token can ever be echoed.
+ */
+function inviteError(err: unknown, op: InviteOp): Error {
+  if (!(err instanceof ApiError)) {
+    // A transport failure (fetch's TypeError, or a Bun/Node system error carrying a `code`) may name the
+    // request URL, so it is replaced. Anything else — e.g. "Not authenticated" or a token-refresh failure
+    // from the token provider — passes through unchanged, like the other members actions (no URL in those).
+    const isTransport =
+      err instanceof TypeError || (err instanceof Error && typeof (err as { code?: unknown }).code === "string");
+    if (isTransport || !(err instanceof Error)) {
+      return new Error(`Could not ${INVITE_VERB[op]}: upublish could not be reached. Check your connection and try again.`);
+    }
+    return err;
+  }
+  const code = (err.rawBodyData as { code?: unknown } | null)?.code;
+  const plain = (message: string) => new Error(message, { cause: err });
+  switch (err.status) {
+    case 400:
+      return plain(
+        `Could not ${INVITE_VERB[op]}: the request was not valid. An invite link can make someone a member ('user') or an 'admin'.`,
+      );
+    case 401:
+      return plain("Your upublish sign-in has expired. Use the login tool, then try again.");
+    case 403:
+      if (code === "teams_unavailable") {
+        return plain("Invite links need the address owner to be on the Max plan.");
+      }
+      if (code === "account_restricted") {
+        return plain("Your account can't manage invite links right now.");
+      }
+      return plain("Only the owner or an admin of this address can manage invite links.");
+    case 404:
+      if (code === "invite_not_found") {
+        return plain(
+          "No pending invite with that id on this address. It may already have been used, revoked or expired. Use action 'invites' to see the pending ones.",
+        );
+      }
+      return plain("This address was not found, or you are not a member of it.");
+    case 422:
+      return plain(
+        "This address has no free seats: members plus pending invite links are at the plan limit. Revoke a pending invite or remove a member first.",
+      );
+    default:
+      return plain(`Could not ${INVITE_VERB[op]} (upublish returned error ${err.status}). Please try again.`);
+  }
+}
+
+/**
+ * Creates a single-use, 7-day invite link for a namespace. Requires owner or admin.
+ * `owner` (or any other value) is rejected before any request is made.
+ *
+ * @returns The invite metadata and its join URL. The raw token field is dropped.
+ * @throws Error with a plain-language message on any failure (never echoing a URL or token).
+ */
+export async function createInvite(
+  apiClient: ApiClient,
+  nsId: string,
+  role: InviteRole = "user",
+): Promise<CreateInviteResult> {
+  if (role !== "admin" && role !== "user") {
+    throw new Error("An invite link can make someone a member ('user') or an 'admin', never an owner.");
+  }
+  let response: CreateInviteResponse;
+  try {
+    response = await apiClient.post<CreateInviteResponse>(`/api/ns/${nsId}/invites`, { role });
+  } catch (err) {
+    throw inviteError(err, "create");
+  }
+  if (!response?.invite || typeof response.url !== "string") {
+    throw new Error("Could not create the invite link: upublish sent an unexpected reply. Please try again.");
+  }
+  const { id, role: grantedRole, created_at, expires_at } = response.invite;
+  return { invite: { id, role: grantedRole, created_at, expires_at }, url: response.url };
+}
+
+/**
+ * Lists a namespace's pending (unclaimed, unrevoked, unexpired) invites. Requires owner or admin.
+ * Fields are whitelisted, so nothing beyond the documented ones (and never a URL or token) passes through.
+ *
+ * @throws Error with a plain-language message on any failure.
+ */
+export async function listInvites(apiClient: ApiClient, nsId: string): Promise<ListInvitesResult> {
+  let response: ListInvitesResponse;
+  try {
+    response = await apiClient.get<ListInvitesResponse>(`/api/ns/${nsId}/invites`);
+  } catch (err) {
+    throw inviteError(err, "list");
+  }
+  const invites = (Array.isArray(response?.invites) ? response.invites : []).map((i) => ({
+    id: i.id,
+    role: i.role,
+    created_by_username: i.created_by_username ?? null,
+    created_at: i.created_at,
+    expires_at: i.expires_at,
+    paused: i.paused === true,
+  }));
+  return { invites };
+}
+
+/**
+ * Revokes one pending invite of a namespace by its id. Requires owner or admin.
+ *
+ * @throws Error with a plain-language message on any failure (404 when the invite is not pending here).
+ */
+export async function revokeInvite(
+  apiClient: ApiClient,
+  nsId: string,
+  inviteId: string,
+): Promise<RevokeInviteResult> {
+  if (typeof inviteId !== "string" || inviteId.trim() === "") {
+    throw new Error("An invite id is required to revoke an invite link. Use action 'invites' to see the pending ones.");
+  }
+  try {
+    await apiClient.delete<{ ok: true }>(`/api/ns/${nsId}/invites/${encodeURIComponent(inviteId.trim())}`);
+  } catch (err) {
+    throw inviteError(err, "revoke");
+  }
+  return { ok: true };
+}

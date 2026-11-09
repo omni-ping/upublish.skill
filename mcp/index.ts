@@ -96,6 +96,7 @@ import type {
   GateSubmission,
   UploadProgress,
   Member,
+  PendingInvite,
   AdminUserSummary,
   AdminUserInspect,
   AdminStatusResult,
@@ -1897,22 +1898,27 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
       title: "Address Members",
       description:
         "Manages members of a shared address on upubli.sh. " +
-        "Owners and admins can add, remove, and change member roles. " +
+        "Owners and admins can add, remove, and change member roles, and create, list and revoke invite links. " +
         "Any member can list the current member roster.\n\n" +
         "Actions:\n" +
         "  list   — List all members and their roles\n" +
         "  add    — Add a user by username with a given role (admin|user)\n" +
         "  remove — Remove a member by username\n" +
         "  role   — Change a member's role (admin|user)\n" +
-        "  leave  — Leave the address yourself (any non-owner member; no username needed)",
+        "  leave  — Leave the address yourself (any non-owner member; no username needed)\n" +
+        "  invite — Create a single-use invite link (role user by default, or admin) for someone without an account on this address; " +
+        "it works once and expires in 7 days. The person opens it in a browser and signs in to join (there is no claim action here)\n" +
+        "  invites — List pending invite links (id, role, who created them, expiry). Links themselves are shown only once, at creation\n" +
+        "  revoke — Revoke a pending invite link by its invite_id",
       inputSchema: {
         action: z
-          .enum(["list", "add", "remove", "role", "leave"])
+          .enum(["list", "add", "remove", "role", "leave", "invite", "invites", "revoke"])
           .describe(
             "The member operation to perform: " +
             "'list' to show all members, 'add' to grant access, " +
             "'remove' to revoke access, 'role' to change a member's role, " +
-            "'leave' to leave the address yourself.",
+            "'leave' to leave the address yourself, 'invite' to create an invite link, " +
+            "'invites' to list pending invite links, 'revoke' to revoke one by invite_id.",
           ),
         username: z
           .string()
@@ -1925,9 +1931,13 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           .enum(["admin", "user"])
           .optional()
           .describe(
-            "The role to assign. Required for add and role actions. " +
-            "'admin' can manage members; 'user' can publish and gate only.",
+            "The role to assign. Required for add and role actions; optional for invite (defaults to 'user'). " +
+            "'admin' can manage members; 'user' can publish and gate only. Invite links can never grant owner.",
           ),
+        invite_id: z
+          .string()
+          .optional()
+          .describe("The id of the pending invite to revoke (from action 'invites'). Required for the revoke action."),
         namespace: z
           .string()
           .optional()
@@ -1937,9 +1947,9 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ action, username, role, namespace }) => {
+    async ({ action, username, role, namespace, invite_id }) => {
       try {
-        const actionStr = action as "list" | "add" | "remove" | "role" | "leave";
+        const actionStr = action as "list" | "add" | "remove" | "role" | "leave" | "invite" | "invites" | "revoke";
         const nsStr = namespace as string | undefined;
 
         if (actionStr === "list") {
@@ -1993,6 +2003,59 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           const result = await members({ action: "leave", namespace: nsStr }, coreDeps);
           if (result.action !== "leave") return errResponse(new Error("Unexpected result"));
           return okResponse(`You left ${result.address}. You no longer have access to it.`);
+        }
+
+        if (actionStr === "invite") {
+          const roleStr = (role as string | undefined) ?? "user";
+          if (roleStr !== "user" && roleStr !== "admin") {
+            return errResponse(new Error("An invite link can make someone a member ('user') or an 'admin', never an owner."));
+          }
+          const result = await members({ action: "invite", role: roleStr, namespace: nsStr }, coreDeps);
+          if (result.action !== "invite") return errResponse(new Error("Unexpected result"));
+          const isAdmin = result.invite.role === "admin";
+          const lines = [
+            `Invite link for ${result.address} (${isAdmin ? "Admin" : "Member"}):`,
+            result.url,
+            "",
+            "This link works once and expires in 7 days.",
+          ];
+          if (isAdmin) {
+            lines.push("Admin links give full control of this address's team to whoever opens them first.");
+          }
+          lines.push(
+            "Share it only with the person you are inviting. They open it in a browser and sign in to join.",
+            `Invite id: ${result.invite.id} (use action 'revoke' with this invite_id to cancel it).`,
+          );
+          return okResponse(lines.join("\n"));
+        }
+
+        if (actionStr === "invites") {
+          const result = await members({ action: "invites", namespace: nsStr }, coreDeps);
+          if (result.action !== "invites") return errResponse(new Error("Unexpected result"));
+          if (result.invites.length === 0) {
+            return okResponse(`No pending invite links for ${result.address}.`);
+          }
+          // Whitelisted fields only: a listing never shows a link or token (they exist only at creation).
+          const lines = result.invites.map((i: PendingInvite) => {
+            const roleLabel = i.role === "admin" ? "Admin" : "Member";
+            const by = i.created_by_username ?? "a deleted account";
+            const paused = i.paused ? " — paused until the owner is on Max" : "";
+            return `  ${i.id} — ${roleLabel}, created by ${by}, expires ${i.expires_at}${paused}`;
+          });
+          return okResponse(
+            `Pending invite links for ${result.address}:\n${lines.join("\n")}\n` +
+            "Links are shown only once, when created. To replace one, revoke it and create a new invite.",
+          );
+        }
+
+        if (actionStr === "revoke") {
+          const idStr = invite_id as string | undefined;
+          if (!idStr || idStr.trim() === "") {
+            return errResponse(new Error("invite_id is required for the revoke action (use action 'invites' to see the pending ones)"));
+          }
+          const result = await members({ action: "revoke", invite_id: idStr, namespace: nsStr }, coreDeps);
+          if (result.action !== "revoke") return errResponse(new Error("Unexpected result"));
+          return okResponse(`Revoked invite ${idStr.trim()} on ${result.address}. That link no longer works.`);
         }
 
         // action === "role"

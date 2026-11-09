@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "bun:test";
-import { listMembers, addMember, removeMember, changeMemberRole, leaveMember } from "./members.ts";
+import { listMembers, addMember, removeMember, changeMemberRole, leaveMember, createInvite, listInvites, revokeInvite } from "./members.ts";
 import { ApiClient } from "./api-client.ts";
 import type { Namespace } from "./types.ts";
 
@@ -361,5 +361,136 @@ describe("Phase 4: leaveMember", () => {
   it("leave_member_400_without_owner_code_is_not_rewritten", async () => {
     const p = leaveMember(client(mockFetch(400, { error: "bad", code: "other" })), NS_ID);
     await expect(p).rejects.toThrow(/400/);
+  });
+});
+
+// ─── Invites (plan-11-invites Phase 3) ────────────────────────────────────────
+
+/** A realistic 43-char base64url token and its join URL, as the backend's POST /invites returns them. */
+const INVITE_TOKEN = "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCdE";
+const INVITE_URL = `https://upubli.sh/join#${INVITE_TOKEN}`;
+/** Any http(s) URL or a 43-char base64url run (the token format) — neither may appear in a listing or error. */
+const SECRET_RE = /https?:\/\/|[A-Za-z0-9_-]{43}/;
+
+describe("Phase 3: invites in lib/members.ts", () => {
+  type Call = { url: string; method: string; body?: string };
+  const recording = (status: number, body: unknown) => {
+    const calls: Call[] = [];
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      calls.push({ url: String(url), method: init?.method ?? "GET", body: init?.body as string | undefined });
+      return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    };
+    return { calls, api: new ApiClient(BASE_URL, staticTokenProvider, fetchFn as typeof fetch) };
+  };
+  const CREATED = {
+    invite: { id: "inv-1", role: "user", created_at: "2026-11-08T00:00:00.000Z", expires_at: "2026-11-15T00:00:00.000Z" },
+    token: INVITE_TOKEN,
+    url: INVITE_URL,
+  };
+
+  it("test_DW_3_1_create_invite_posts_role_user_by_default_and_returns_url_without_token", async () => {
+    const { calls, api } = recording(201, CREATED);
+    const result = await createInvite(api, NS_ID);
+    expect(calls).toEqual([{ url: `${BASE_URL}/api/ns/${NS_ID}/invites`, method: "POST", body: JSON.stringify({ role: "user" }) }]);
+    expect(result).toEqual({ invite: CREATED.invite as never, url: INVITE_URL });
+    expect("token" in result).toBe(false);
+  });
+
+  it("test_DW_3_1_create_invite_sends_admin_role", async () => {
+    const { calls, api } = recording(201, { ...CREATED, invite: { ...CREATED.invite, role: "admin" } });
+    const result = await createInvite(api, NS_ID, "admin");
+    expect(JSON.parse(calls[0].body!)).toEqual({ role: "admin" });
+    expect(result.invite.role).toBe("admin");
+  });
+
+  it("test_DW_3_2_create_invite_rejects_owner_role_before_any_request", async () => {
+    const { calls, api } = recording(201, CREATED);
+    await expect(createInvite(api, NS_ID, "owner" as never)).rejects.toThrow(/never an owner/i);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("test_DW_3_1_list_invites_whitelists_fields_and_never_carries_url_or_token", async () => {
+    const { calls, api } = recording(200, {
+      invites: [
+        { id: "inv-1", role: "admin", created_by_username: "bob@example.com", created_at: "c", expires_at: "e", paused: false, url: INVITE_URL, token: INVITE_TOKEN },
+        { id: "inv-2", role: "user", created_by_username: null, created_at: "c2", expires_at: "e2", paused: true },
+      ],
+    });
+    const result = await listInvites(api, NS_ID);
+    expect(calls).toEqual([{ url: `${BASE_URL}/api/ns/${NS_ID}/invites`, method: "GET", body: undefined }]);
+    expect(result.invites).toEqual([
+      { id: "inv-1", role: "admin", created_by_username: "bob@example.com", created_at: "c", expires_at: "e", paused: false },
+      { id: "inv-2", role: "user", created_by_username: null, created_at: "c2", expires_at: "e2", paused: true },
+    ]);
+    expect(JSON.stringify(result)).not.toMatch(SECRET_RE);
+  });
+
+  it("test_DW_3_1_revoke_invite_sends_delete_with_encoded_id", async () => {
+    const { calls, api } = recording(200, { ok: true });
+    expect(await revokeInvite(api, NS_ID, "inv/1")).toEqual({ ok: true });
+    expect(calls).toEqual([{ url: `${BASE_URL}/api/ns/${NS_ID}/invites/inv%2F1`, method: "DELETE", body: undefined }]);
+  });
+
+  it("revoke_invite_requires_an_id_before_any_request", async () => {
+    const { calls, api } = recording(200, { ok: true });
+    await expect(revokeInvite(api, NS_ID, "  ")).rejects.toThrow(/invite id is required/i);
+    expect(calls).toHaveLength(0);
+  });
+
+  // Every mapped server error: plain message, and never a URL or token even when the server body carries one.
+  const ERROR_CASES: Array<[string, number, string | undefined, RegExp]> = [
+    ["teams_unavailable", 403, "teams_unavailable", /Max plan/],
+    ["account_restricted", 403, "account_restricted", /can't manage invite links/],
+    ["forbidden", 403, "forbidden", /owner or an admin/],
+    ["not_found", 404, "not_found", /not found, or you are not a member/],
+    ["invite_not_found", 404, "invite_not_found", /No pending invite with that id/],
+    ["collaborator_limit", 422, "collaborator_limit", /no free seats/],
+    ["invalid_request", 400, "invalid_request", /not valid/],
+    ["unauthorized", 401, undefined, /login tool/],
+    ["server error", 500, undefined, /error 500/],
+  ];
+  for (const [name, status, code, expected] of ERROR_CASES) {
+    it(`test_DW_3_2_invite_error_${name}_is_plain_and_leaks_no_url_or_token`, async () => {
+      const body = { error: `bad ${INVITE_URL} ${INVITE_TOKEN}`, code, url: INVITE_URL, token: INVITE_TOKEN };
+      for (const run of [
+        (api: ApiClient) => createInvite(api, NS_ID),
+        (api: ApiClient) => listInvites(api, NS_ID),
+        (api: ApiClient) => revokeInvite(api, NS_ID, "inv-1"),
+      ]) {
+        const err = await run(recording(status, body).api).then(() => null, (e: Error) => e);
+        expect(err).toBeInstanceOf(Error);
+        expect(err!.message).toMatch(expected);
+        expect(err!.message).not.toMatch(SECRET_RE);
+      }
+    });
+  }
+
+  it("invite_auth_failure_passes_through_not_masked_as_network", async () => {
+    const api = new ApiClient(BASE_URL, async () => {
+      throw new Error("Token refresh failed: 401 Unauthorized — invalid refresh token");
+    }, (async () => new Response("{}")) as unknown as typeof fetch);
+    for (const run of [() => createInvite(api, NS_ID), () => listInvites(api, NS_ID), () => revokeInvite(api, NS_ID, "inv-1")]) {
+      await expect(run()).rejects.toThrow("Token refresh failed: 401 Unauthorized — invalid refresh token");
+    }
+  });
+
+  it("invite_system_error_with_code_is_plain_and_leaks_no_url", async () => {
+    const api = new ApiClient(BASE_URL, staticTokenProvider, (async () => {
+      throw Object.assign(new Error(`connect ECONNREFUSED ${BASE_URL}`), { code: "ConnectionRefused" });
+    }) as unknown as typeof fetch);
+    const err = await createInvite(api, NS_ID).then(() => null, (e: Error) => e);
+    expect(err!.message).toMatch(/could not be reached/);
+    expect(err!.message).not.toMatch(SECRET_RE);
+  });
+
+  it("test_DW_3_2_invite_network_failure_is_plain_and_leaks_no_url", async () => {
+    const api = new ApiClient(BASE_URL, staticTokenProvider, (async () => {
+      throw new TypeError(`fetch failed for ${BASE_URL}/api/ns/${NS_ID}/invites`);
+    }) as unknown as typeof fetch);
+    for (const run of [() => createInvite(api, NS_ID), () => listInvites(api, NS_ID), () => revokeInvite(api, NS_ID, "inv-1")]) {
+      const err = await run().then(() => null, (e: Error) => e);
+      expect(err!.message).toMatch(/could not be reached/);
+      expect(err!.message).not.toMatch(SECRET_RE);
+    }
   });
 });
