@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `export` (local plugin only): downloads a site's published files into a folder, verifying each file's size and MD5. Pages through the new `GET /api/ns/:nsId/sites/:slug/export` route with 8 parallel downloads, refuses unsafe or colliding paths and non-empty folders (unless `overwrite: true`) before writing, never follows symlinks, and never prints presigned URL query strings. `export` is in `LOCAL_ONLY_TOOLS`, so the hosted server does not list it. Guide: `references/managing.md`.
+
 ### Security
 
 - A server created without `localFiles: true` (the hosted `/mcp` router) no longer exposes any tool that acts on the machine it runs on. `publish`, `qrcode`, `login`, `logout`, `upgrade` and the `admin_*` tools are not registered (and refuse if called anyway), `data_rows` drops `path`/`overwrite` and refuses `export`, the default browser opener refuses, and `status` uses the injected `tokenProvider` instead of reading the host's credentials file. New exports: `LOCAL_ONLY_TOOLS`, `ADMIN_TOOLS`, `HostedServerUnsafeError`, `assertHostedServerSafe` and `createHostedServer(coreDeps)`, which forces `localFiles: false` and throws if a local-only or admin tool is registered. The stdio server (`stdioServerOptions()`) is unchanged.

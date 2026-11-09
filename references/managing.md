@@ -57,6 +57,16 @@ Needs Pro or Max. A connected domain becomes its own address, so sites serve at 
 - `qrcode(slug, outputDir?)` prints a QR code and writes `qr.svg` and `qr.png` (default: the current directory). The code encodes the canonical URL with `?ref=qr`.
 - `analytics(slug, enabled)` turns the analytics script on or off without republishing. It is on by default; turning it off needs a paid plan.
 
+## Exporting a site
+
+`export(slug, directory, version?, namespace?, overwrite?)` downloads a site's original published files into a local folder (local plugin only; not available on the hosted server). It checks every file's size and MD5 and reports how many were written, the bytes and the version.
+
+- No `version` exports the live one. Exporting an archived or staged version needs a paid plan (`versions_list` shows the numbers); a free plan gets an upgrade message.
+- The folder is created if missing. A non-empty folder is refused unless `overwrite: true`; even then existing symlinks are never followed or replaced.
+- Unsafe or colliding file paths (`..`, absolute, `\`, `:`, Windows reserved names, names that differ only by case or Unicode form, a file that is also a folder) abort the export before anything is written.
+- A file that fails (blob missing, size or MD5 mismatch) is listed in the report; the rest are still written, and no partial file is left. Download links last 10 minutes; the tool re-requests a page once if they expire, and waits out one rate-limit (429) response before reporting it.
+- It exports the site's files only: never a backend, secrets, Site data or passcodes.
+
 ## Team members
 
 On a shared address (Max plan), `members` lists, adds, removes and re-roles members: `action` is `list`, `add`, `remove` or `role`, with `username` (the member's sign-in email) and `role` (`admin` or `user`).

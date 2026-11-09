@@ -65,6 +65,7 @@ Match what the user wants and read the reference file, then follow it.
 | Stage a change and review it before it goes live | `publish(preview: true)`, then `promote(slug)` (`../../references/managing.md`) |
 | Rename a site or an address | `rename`; old URLs redirect for 30 days by default (`../../references/managing.md`) |
 | Print a QR code for a site | `qrcode(slug)` |
+| Download a published site's files to a folder | `export(slug, directory)` (`../../references/managing.md`) |
 | Turn analytics on or off for a site | `analytics(slug, enabled)` |
 | Add teammates to a shared address | `members` (Max plan) |
 | List, delete, or manage existing sites | `../../references/managing.md` |
@@ -110,6 +111,7 @@ Tell the user before relying on these; the server refuses them on the free plan 
 | `delete` | Delete a published site and all its versions (permanent, confirm first) |
 | `promote` | Make a staged preview version live |
 | `qrcode` | Write a QR code (svg + png) for a site and show it |
+| `export` | Download a site's published files into a local folder, each verified by MD5 (local plugin only) |
 | `analytics` | Turn the analytics script on or off for a site without republishing |
 | `versions_list` | List a site's retained versions (number, live status, date, file count, size) |
 | `versions_restore` | Roll a site back to a previous version, making it live again (paid plan) |

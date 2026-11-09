@@ -49,6 +49,7 @@ directly. Tell the user to complete setup in the browser window.
 | Stage a change and review it first | `publish(preview: true)`, then `promote(slug)` |
 | Rename a site or an address | `rename` (`references/managing.md`) |
 | QR code, analytics on/off | `qrcode`, `analytics` |
+| Download a published site's files to a folder | `export(slug, directory)` (`references/managing.md`) |
 | List, delete, or manage existing sites | `references/managing.md` |
 | Add voting, a guestbook, signups or any shared data to a site | `references/site-data.md` |
 | Add server-side code next to a site (form handler, webhook, API route with a secret) | `publish_backend`, `backend`, `backend_secret`, `backend_logs` (`references/backends.md`) |
@@ -85,6 +86,7 @@ Tell the user before relying on these; the server refuses them on the free plan 
 - `delete` — delete a published site and all its versions (permanent, confirm first)
 - `promote` — make a staged preview version live
 - `qrcode` — write a QR code (svg + png) for a site and show it
+- `export` — download a site's published files into a local folder, each verified by MD5
 - `analytics` — turn the analytics script on or off for a site without republishing
 - `versions_list` — list a site's retained versions
 - `versions_restore` — roll a site back to a previous version (paid plan)

@@ -540,7 +540,7 @@ function shippedDocs(): Array<[string, string]> {
 describe("DW-5.1: short tool names; every registered tool is named in SKILL.md and GEMINI.md", () => {
   test("test_DW_5_1_every_registered_tool_named_in_skill_and_gemini", () => {
     const names = registeredToolNames();
-    expect(names.length).toBe(31);
+    expect(names.length).toBe(32);
     for (const doc of [SKILL, GEMINI]) {
       const text = readDoc(doc);
       for (const t of names) expect(text, `${doc} is missing \`${t}\``).toContain(`\`${t}\``);
