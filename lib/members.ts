@@ -202,7 +202,7 @@ export async function leaveMember(
       const code = (err.rawBodyData as { code?: unknown } | null)?.code;
       if (err.status === 400 && code === "owner_cannot_leave") {
         throw new Error(
-          "You own this address, so you cannot leave it. You can delete the address instead.",
+          "You own this address, so you cannot leave it. You can delete the address from your upublish dashboard instead.",
           { cause: err },
         );
       }

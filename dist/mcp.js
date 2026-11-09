@@ -27729,7 +27729,7 @@ async function leaveMember(apiClient, nsId) {
     if (err instanceof ApiError) {
       const code = err.rawBodyData?.code;
       if (err.status === 400 && code === "owner_cannot_leave") {
-        throw new Error("You own this address, so you cannot leave it. You can delete the address instead.", { cause: err });
+        throw new Error("You own this address, so you cannot leave it. You can delete the address from your upublish dashboard instead.", { cause: err });
       }
       if (err.status === 404) {
         throw new Error("You are not a member of this address, so there is nothing to leave.", { cause: err });
