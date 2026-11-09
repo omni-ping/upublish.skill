@@ -1,0 +1,96 @@
+/* Résumé starter. Plain CSS, system fonts, light, dark and print. */
+:root {
+  --bg: #f4f3f0;
+  --paper: #ffffff;
+  --text: #1d2026;
+  --muted: #555b66;
+  --line: #e1e0dc;
+  --accent: #1f5c8a;
+  --tag: #eef3f7;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1114;
+    --paper: #171a1f;
+    --text: #e8eaee;
+    --muted: #a3a9b4;
+    --line: #2b3038;
+    --accent: #7db8e6;
+    --tag: #1f2934;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 1rem/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-wrap: break-word;
+}
+
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+.page {
+  width: min(860px, 100% - 1.5rem);
+  margin: clamp(0.75rem, 4vw, 3.5rem) auto;
+  padding: clamp(1.5rem, 6vw, 4rem);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+/* Masthead */
+.masthead { padding-bottom: 1.75rem; border-bottom: 3px solid var(--accent); }
+h1 { margin: 0; font-size: clamp(2.125rem, 6vw, 3.25rem); font-weight: 750; line-height: 1.05; letter-spacing: -0.03em; }
+.role { margin: 0.5rem 0 0; color: var(--muted); font-size: 1.1875rem; }
+.contact { display: flex; flex-wrap: wrap; gap: 0.5rem 1.75rem; margin: 1.25rem 0 0; padding: 0; list-style: none; font-size: 0.9375rem; }
+.contact li { display: inline-flex; gap: 0.45rem; align-items: center; min-width: 0; }
+.contact svg { flex: none; width: 16px; height: 16px; fill: var(--muted); }
+.contact .stroke { fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linejoin: round; }
+
+/* Sections */
+section { margin-top: 2.25rem; }
+h2 {
+  margin: 0 0 1rem;
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.summary { margin: 0; max-width: 65ch; font-size: 1.0625rem; }
+
+.entry + .entry { margin-top: 1.75rem; }
+.entry-head { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; align-items: baseline; justify-content: space-between; }
+h3 { margin: 0; font-size: 1.0625rem; font-weight: 650; line-height: 1.35; }
+.org { font-weight: 450; }
+.when { margin: 0; color: var(--muted); font-size: 0.9375rem; }
+.entry ul { margin: 0.6rem 0 0; padding-left: 1.15rem; }
+.entry li + li { margin-top: 0.3rem; }
+.entry li::marker { color: var(--muted); }
+
+.columns { display: grid; gap: 0 2.5rem; }
+@media (min-width: 760px) { .columns { grid-template-columns: 1.1fr 1.5fr 1.1fr; } }
+
+.tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.tags li { padding: 0.2rem 0.7rem; border-radius: 6px; background: var(--tag); font-size: 0.9375rem; }
+.plain { margin: 0; padding: 0; list-style: none; }
+.plain li + li { margin-top: 0.4rem; }
+
+.foot { margin-top: 2.75rem; padding-top: 1.25rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.875rem; }
+.foot p { margin: 0; }
+
+@media print {
+  :root { --bg: #fff; --paper: #fff; --text: #000; --muted: #444; --accent: #1f5c8a; --tag: #f1f1f1; }
+  body { font-size: 10.5pt; }
+  .page { width: auto; margin: 0; padding: 0; border: 0; }
+  a { color: inherit; text-decoration: none; }
+  section, .entry { break-inside: avoid; }
+}

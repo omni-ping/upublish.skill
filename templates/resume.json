@@ -1,0 +1,131 @@
+{
+  "name": "resume",
+  "title": "Résumé / CV",
+  "description": "A clean one-page résumé with experience, education, skills and languages. Prints neatly to paper or PDF.",
+  "placeholders": [
+    {
+      "token": "[[Your name]]",
+      "hint": "Your full name as you want visitors to see it. Used in the title, the heading and the footer."
+    },
+    {
+      "token": "[[Your current title]]",
+      "hint": "Your job title or the role you're after, e.g. Product designer."
+    },
+    {
+      "token": "[[Your city]]",
+      "hint": "Where you're based, e.g. Lisbon, Portugal, or Remote."
+    },
+    {
+      "token": "[[Your email address]]",
+      "hint": "The email address people should write to, shown as the link text. The link is # for now: set it to mailto:your address (the element's data-placeholder-href says what goes there)."
+    },
+    {
+      "token": "[[Your website or profile]]",
+      "hint": "A short label for your site or a profile, e.g. yourname.com. Its link is # for now: point it at the real address (the element's data-placeholder-href says what goes there)."
+    },
+    {
+      "token": "[[Two or three sentences on who you are, what you're good at, and the kind of role you want next]]",
+      "hint": "A short profile summary."
+    },
+    {
+      "token": "[[Most recent job title]]",
+      "hint": "Your current or latest role."
+    },
+    {
+      "token": "[[Most recent employer]]",
+      "hint": "The company or organisation."
+    },
+    {
+      "token": "[[Start year]]",
+      "hint": "When you started the latest role. Replace Present with an end year if you've left."
+    },
+    {
+      "token": "[[Something you achieved, with a number if you can]]",
+      "hint": "An outcome, e.g. Cut onboarding time by 40%."
+    },
+    {
+      "token": "[[Something you built, led or improved]]",
+      "hint": "A concrete piece of work."
+    },
+    {
+      "token": "[[A responsibility that shows your range]]",
+      "hint": "Something else you owned in that role."
+    },
+    {
+      "token": "[[Previous job title]]",
+      "hint": "The role before that."
+    },
+    {
+      "token": "[[Previous employer]]",
+      "hint": "The company or organisation."
+    },
+    {
+      "token": "[[Previous start year]]",
+      "hint": "When you started."
+    },
+    {
+      "token": "[[Previous end year]]",
+      "hint": "When you left."
+    },
+    {
+      "token": "[[A result you're proud of from this role]]",
+      "hint": "An outcome from the earlier role."
+    },
+    {
+      "token": "[[Another result, skill or responsibility]]",
+      "hint": "One more line, or delete it."
+    },
+    {
+      "token": "[[Degree or course]]",
+      "hint": "Your highest or most relevant qualification."
+    },
+    {
+      "token": "[[School or institution]]",
+      "hint": "Where you studied."
+    },
+    {
+      "token": "[[Graduation year]]",
+      "hint": "The year you finished."
+    },
+    {
+      "token": "[[First skill]]",
+      "hint": "A skill or tool, one or two words."
+    },
+    {
+      "token": "[[Second skill]]",
+      "hint": "A skill or tool."
+    },
+    {
+      "token": "[[Third skill]]",
+      "hint": "A skill or tool."
+    },
+    {
+      "token": "[[Fourth skill]]",
+      "hint": "A skill or tool."
+    },
+    {
+      "token": "[[Fifth skill]]",
+      "hint": "A skill or tool, or delete the item."
+    },
+    {
+      "token": "[[First language]]",
+      "hint": "A language you speak."
+    },
+    {
+      "token": "[[Level, e.g. Native]]",
+      "hint": "How well you speak the first language."
+    },
+    {
+      "token": "[[Second language]]",
+      "hint": "Another language, or delete the item."
+    },
+    {
+      "token": "[[Level, e.g. Professional]]",
+      "hint": "How well you speak the second language."
+    },
+    {
+      "token": "[[Month and year]]",
+      "hint": "When you last updated this page, e.g. November 2026."
+    }
+  ]
+}

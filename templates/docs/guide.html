@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Guide · [[Project name]] docs</title>
+  <meta name="description" content="How to configure and use [[Project name]].">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#content">Skip to content</a>
+  <header class="site-header">
+    <div class="bar">
+      <a class="brand" href="index.html">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18" rx="5" class="logo"/><path d="M8 9h8M8 12h8M8 15h5" class="logo-lines"/></svg>
+        <span>[[Project name]]</span>
+      </a>
+      <span class="version">[[Version, e.g. v1.0]]</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar" aria-label="Documentation">
+      <p class="nav-title">Docs</p>
+      <ul>
+        <li><a href="index.html">Introduction</a></li>
+        <li><a href="guide.html" aria-current="page">Guide</a></li>
+      </ul>
+      <p class="nav-title">On this page</p>
+      <ul>
+        <li><a href="#configuration">Configuration</a></li>
+        <li><a href="#options">Options</a></li>
+        <li><a href="#usage">Everyday use</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+      </ul>
+    </nav>
+
+    <main id="content" class="content">
+      <p class="crumb">Docs / Guide</p>
+      <h1>Guide</h1>
+      <p class="lede">How to set up [[Project name]] and use it day to day.</p>
+
+      <h2 id="configuration">Configuration</h2>
+      <p>[[Where the configuration lives and how it is loaded]]</p>
+      <pre tabindex="0"><code>[[An example configuration file]]</code></pre>
+
+      <h3 id="options">Options</h3>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Options">
+        <table>
+          <thead>
+            <tr><th scope="col">Option</th><th scope="col">Default</th><th scope="col">What it does</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>[[First option]]</code></td><td>[[First default]]</td><td>[[What the first option controls]]</td></tr>
+            <tr><td><code>[[Second option]]</code></td><td>[[Second default]]</td><td>[[What the second option controls]]</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="usage">Everyday use</h2>
+      <p>[[The task people do most often, step by step in one or two sentences]]</p>
+      <pre tabindex="0"><code>[[A code example of the most common task]]</code></pre>
+
+      <h2 id="troubleshooting">Troubleshooting</h2>
+      <details>
+        <summary>[[A problem people run into]]</summary>
+        <p>[[How to fix it]]</p>
+      </details>
+
+      <nav class="pager" aria-label="Pages">
+        <a class="prev" href="index.html"><span>Previous</span> Introduction</a>
+      </nav>
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    <p>&copy; [[Year]] [[Project name]] · <a href="#" data-placeholder-href="where people report problems or ask questions">[[Where to get help, e.g. Issue tracker]]</a></p>
+  </footer>
+</body>
+</html>

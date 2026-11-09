@@ -1,0 +1,39 @@
+{
+  "name": "coming-soon",
+  "title": "Coming soon",
+  "description": "A calm coming-soon page with a launch date, a one-line pitch and an email link for people who want to hear more.",
+  "placeholders": [
+    {
+      "token": "[[Your name or brand]]",
+      "hint": "The name people will know you by."
+    },
+    {
+      "token": "[[What you're building, in one line]]",
+      "hint": "The headline. Also used as the page description."
+    },
+    {
+      "token": "[[Launch date, e.g. spring 2027]]",
+      "hint": "When it's coming. A season or month is fine."
+    },
+    {
+      "token": "[[A sentence or two on what to expect, and who it's for]]",
+      "hint": "Short and specific."
+    },
+    {
+      "token": "[[Your email address]]",
+      "hint": "The address people write to if they want to hear when it's live. The link is # for now: set it to mailto:your address. There is deliberately no signup form: these templates are static pages that never collect or store visitors' data, so interested people email you (or follow a profile) instead."
+    },
+    {
+      "token": "[[Year]]",
+      "hint": "The current year, for the copyright line."
+    },
+    {
+      "token": "[[First profile, e.g. Instagram]]",
+      "hint": "A profile where people can follow along. Its link is # for now: point it at the real address (the element's data-placeholder-href says what goes there)."
+    },
+    {
+      "token": "[[Second profile, e.g. Bluesky]]",
+      "hint": "Another profile, or delete the item. Its link is # for now: point it at the real address (the element's data-placeholder-href says what goes there)."
+    }
+  ]
+}
