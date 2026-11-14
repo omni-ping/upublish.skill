@@ -337,3 +337,20 @@ describe("ApiClient.getRaw", () => {
     expect((err as ApiError).rawBodyData).toBeNull();
   });
 });
+
+describe("ApiError.retryAfterSeconds (site export 429 handling)", () => {
+  const failWith = (headers: Record<string, string>): Promise<ApiError> =>
+    new ApiClient(BASE_URL, staticTokenProvider, async () => new Response(JSON.stringify({ error: "slow" }), { status: 429, headers }))
+      .get("/x")
+      .then(() => { throw new Error("expected a 429"); }, (e: unknown) => e as ApiError);
+
+  it("parses a numeric Retry-After header", async () => {
+    expect((await failWith({ "Retry-After": "7" })).retryAfterSeconds).toBe(7);
+  });
+
+  it("is undefined when the header is absent, blank, negative or not a number", async () => {
+    for (const h of [{} as Record<string, string>, { "Retry-After": "  " }, { "Retry-After": "-3" }, { "Retry-After": "soon" }]) {
+      expect((await failWith(h)).retryAfterSeconds).toBeUndefined();
+    }
+  });
+});

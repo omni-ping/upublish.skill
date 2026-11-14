@@ -47,6 +47,8 @@ import {
   gate,
   members,
   qrCode,
+  exportSite,
+  formatExportResult,
   rename,
   upgrade,
   adminUser,
@@ -118,7 +120,7 @@ export type { CoreDeps, TokenProvider };
  * Tools that read or write the machine the server runs on, spawn a browser or bind a port. They exist only on a
  * LOCAL server (`opts.localFiles === true`, i.e. stdio). A hosted server must never register or run them.
  */
-export const LOCAL_ONLY_TOOLS = ["publish", "qrcode", "login", "logout", "upgrade", "template"] as const;
+export const LOCAL_ONLY_TOOLS = ["publish", "qrcode", "login", "logout", "upgrade", "template", "export"] as const;
 /** The env-gated admin tools: registered only on a local server with UPUBLISH_ADMIN=1. */
 export const ADMIN_TOOLS = ["admin_user", "admin_site", "admin_stats", "admin_storage", "admin_domains"] as const;
 
@@ -2228,6 +2230,48 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           `Links with href "#" to point at a real address (data-placeholder-href says what goes there):\n${hrefs}\n\n` +
           `Next: replace every [[...]] and every data-placeholder-href \`#\`, show the user, then publish this folder (${r.directory}).`,
       );
+    },
+  );
+
+  local.registerTool(
+    "export",
+    {
+      title: "Export Site",
+      description:
+        "Downloads a published site's original files from upubli.sh into a local directory and verifies each " +
+        "file's size and MD5. Local only. The live version by default; a specific version needs a paid plan. " +
+        "Refuses a non-empty directory unless `overwrite` is true, and refuses unsafe or colliding file paths " +
+        "before writing anything. Partial failures are listed in the report.",
+      inputSchema: {
+        slug: z.string().describe("The URL-safe identifier of the site to export. Use the `list` tool to find slugs."),
+        directory: z.string().describe("Directory to write the files into. Created if missing; must be empty unless `overwrite` is true."),
+        version: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("Version number to export (see `versions_list`). Defaults to the live version; non-live versions need a paid plan."),
+        namespace: z.string().optional().describe("Address name the site belongs to. When omitted, the default address is used."),
+        overwrite: z.boolean().optional().describe("Export into a non-empty directory, replacing files with the same path. Never follows or replaces symlinks."),
+      },
+    },
+    async ({ slug, directory, version, namespace, overwrite }) => {
+      try {
+        const result = await exportSite(
+          {
+            slug: slug as string,
+            directory: directory as string,
+            version: version as number | undefined,
+            namespace: namespace as string | undefined,
+            overwrite: overwrite === true,
+          },
+          coreDeps,
+        );
+        const response = okResponse(formatExportResult(result));
+        return result.failed.length > 0 ? { ...response, isError: true } : response;
+      } catch (err) {
+        return errResponse(err);
+      }
     },
   );
 

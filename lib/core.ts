@@ -136,6 +136,8 @@ import type {
   AdminResyncReport,
   AdminDomain,
 } from "./admin.ts";
+import { runSiteExport, formatExportResult } from "./site-export.ts";
+import type { ExportArgs, ExportResult, ExportFailure } from "./site-export.ts";
 import { resolveNamespace, resolveNamespaceRef, namespaceCreate as domainNamespaceCreate, OverageApprovalError } from "./namespace.ts";
 import type { NamespaceCreateResult } from "./namespace.ts";
 import { domain as domainDomain } from "./domain.ts";
@@ -192,6 +194,8 @@ export { formatGateFields };
 export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, ChangeMemberRoleResult };
 export type { InviteRole, PendingInvite, CreateInviteResult, ListInvitesResult, RevokeInviteResult };
 export type { QrCodeArgs, QrCodeResult };
+export type { ExportArgs, ExportResult, ExportFailure };
+export { formatExportResult };
 export type { Namespace, Site, Visibility, GateConfig, GateFieldType, GateSubmission };
 export type { NamespaceCreateResult };
 export { OverageApprovalError };
@@ -1041,6 +1045,23 @@ export async function qrCode(args: QrCodeArgs, deps?: CoreDeps): Promise<QrCodeR
       },
     },
   );
+}
+
+// ─── Site export ──────────────────────────────────────────────────────────────
+
+/**
+ * Downloads a version's published files into a local directory (local-only: it writes to this machine).
+ * Pages the export API, verifies every file's size + MD5 and writes only inside `args.directory`.
+ * Throws on a refused export (unsafe path, collision, non-empty directory) and on API errors; per-file
+ * download failures are returned in `result.failed`.
+ *
+ * @param args - slug, directory, optional version / namespace / overwrite.
+ * @param deps - Optional CoreDeps for test injection.
+ */
+export async function exportSite(args: ExportArgs & { namespace?: string }, deps?: CoreDeps): Promise<ExportResult> {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, args.namespace);
+  return runSiteExport(apiClient, ns.id, args, { fetchFn: deps?.fetchFn ?? fetch });
 }
 
 // ─── Rename ───────────────────────────────────────────────────────────────────

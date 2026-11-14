@@ -35,7 +35,7 @@ var __toESM = (mod, isNodeMode, target) => {
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
 var __require = import.meta.require;
 
-// ../../../node_modules/ajv/dist/compile/codegen/code.js
+// node_modules/ajv/dist/compile/codegen/code.js
 var require_code = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.regexpCode = exports.getEsmExportName = exports.getProperty = exports.safeStringify = exports.stringify = exports.strConcat = exports.addCodeArg = exports.str = exports._ = exports.nil = exports._Code = exports.Name = exports.IDENTIFIER = exports._CodeOrName = undefined;
@@ -189,7 +189,7 @@ var require_code = __commonJS(function(exports) {
   exports.regexpCode = regexpCode;
 });
 
-// ../../../node_modules/ajv/dist/compile/codegen/scope.js
+// node_modules/ajv/dist/compile/codegen/scope.js
 var require_scope = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ValueScope = exports.ValueScopeName = exports.Scope = exports.varKinds = exports.UsedValueState = undefined;
@@ -335,7 +335,7 @@ var require_scope = __commonJS(function(exports) {
   exports.ValueScope = ValueScope;
 });
 
-// ../../../node_modules/ajv/dist/compile/codegen/index.js
+// node_modules/ajv/dist/compile/codegen/index.js
 var require_codegen = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.or = exports.and = exports.not = exports.CodeGen = exports.operators = exports.varKinds = exports.ValueScopeName = exports.ValueScope = exports.Scope = exports.Name = exports.regexpCode = exports.stringify = exports.getProperty = exports.nil = exports.strConcat = exports.str = exports._ = undefined;
@@ -1045,7 +1045,7 @@ var require_codegen = __commonJS(function(exports) {
   }
 });
 
-// ../../../node_modules/ajv/dist/compile/util.js
+// node_modules/ajv/dist/compile/util.js
 var require_util = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.checkStrictMode = exports.getErrorPath = exports.Type = exports.useFunc = exports.setEvaluated = exports.evaluatedPropsToName = exports.mergeEvaluated = exports.eachItem = exports.unescapeJsonPointer = exports.escapeJsonPointer = exports.escapeFragment = exports.unescapeFragment = exports.schemaRefOrVal = exports.schemaHasRulesButRef = exports.schemaHasRules = exports.checkUnknownRules = exports.alwaysValidSchema = exports.toHash = undefined;
@@ -1209,7 +1209,7 @@ var require_util = __commonJS(function(exports) {
   exports.checkStrictMode = checkStrictMode;
 });
 
-// ../../../node_modules/ajv/dist/compile/names.js
+// node_modules/ajv/dist/compile/names.js
 var require_names = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -1234,7 +1234,7 @@ var require_names = __commonJS(function(exports) {
   exports.default = names;
 });
 
-// ../../../node_modules/ajv/dist/compile/errors.js
+// node_modules/ajv/dist/compile/errors.js
 var require_errors = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.extendErrors = exports.resetErrorsCount = exports.reportExtraError = exports.reportError = exports.keyword$DataError = exports.keywordError = undefined;
@@ -1352,7 +1352,7 @@ var require_errors = __commonJS(function(exports) {
   }
 });
 
-// ../../../node_modules/ajv/dist/compile/validate/boolSchema.js
+// node_modules/ajv/dist/compile/validate/boolSchema.js
 var require_boolSchema = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.boolOrEmptySchema = exports.topBoolOrEmptySchema = undefined;
@@ -1400,7 +1400,7 @@ var require_boolSchema = __commonJS(function(exports) {
   }
 });
 
-// ../../../node_modules/ajv/dist/compile/rules.js
+// node_modules/ajv/dist/compile/rules.js
 var require_rules = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getRules = exports.isJSONType = undefined;
@@ -1428,7 +1428,7 @@ var require_rules = __commonJS(function(exports) {
   exports.getRules = getRules;
 });
 
-// ../../../node_modules/ajv/dist/compile/validate/applicability.js
+// node_modules/ajv/dist/compile/validate/applicability.js
 var require_applicability = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.shouldUseRule = exports.shouldUseGroup = exports.schemaHasRulesForType = undefined;
@@ -1448,7 +1448,7 @@ var require_applicability = __commonJS(function(exports) {
   exports.shouldUseRule = shouldUseRule;
 });
 
-// ../../../node_modules/ajv/dist/compile/validate/dataType.js
+// node_modules/ajv/dist/compile/validate/dataType.js
 var require_dataType = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.reportTypeError = exports.checkDataTypes = exports.checkDataType = exports.coerceAndCheckDataType = exports.getJSONTypes = exports.getSchemaTypes = exports.DataType = undefined;
@@ -1629,7 +1629,7 @@ var require_dataType = __commonJS(function(exports) {
   }
 });
 
-// ../../../node_modules/ajv/dist/compile/validate/defaults.js
+// node_modules/ajv/dist/compile/validate/defaults.js
 var require_defaults = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.assignDefaults = undefined;
@@ -1663,7 +1663,7 @@ var require_defaults = __commonJS(function(exports) {
   }
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/code.js
+// node_modules/ajv/dist/vocabularies/code.js
 var require_code2 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateUnion = exports.validateArray = exports.usePattern = exports.callValidateCode = exports.schemaProperties = exports.allSchemaProperties = exports.noPropertyInData = exports.propertyInData = exports.isOwnProperty = exports.hasPropFunc = exports.reportMissingProp = exports.checkMissingProp = exports.checkReportMissingProp = undefined;
@@ -1792,7 +1792,7 @@ var require_code2 = __commonJS(function(exports) {
   exports.validateUnion = validateUnion;
 });
 
-// ../../../node_modules/ajv/dist/compile/validate/keyword.js
+// node_modules/ajv/dist/compile/validate/keyword.js
 var require_keyword = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateKeywordUsage = exports.validSchemaType = exports.funcKeywordCode = exports.macroKeywordCode = undefined;
@@ -1907,7 +1907,7 @@ var require_keyword = __commonJS(function(exports) {
   exports.validateKeywordUsage = validateKeywordUsage;
 });
 
-// ../../../node_modules/ajv/dist/compile/validate/subschema.js
+// node_modules/ajv/dist/compile/validate/subschema.js
 var require_subschema = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.extendSubschemaMode = exports.extendSubschemaData = exports.getSubschema = undefined;
@@ -1987,7 +1987,7 @@ var require_subschema = __commonJS(function(exports) {
   exports.extendSubschemaMode = extendSubschemaMode;
 });
 
-// ../../../node_modules/fast-deep-equal/index.js
+// node_modules/fast-deep-equal/index.js
 var require_fast_deep_equal = __commonJS(function(exports, module) {
   module.exports = function equal(a, b) {
     if (a === b)
@@ -2029,7 +2029,7 @@ var require_fast_deep_equal = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/json-schema-traverse/index.js
+// node_modules/json-schema-traverse/index.js
 var require_json_schema_traverse = __commonJS(function(exports, module) {
   var traverse = module.exports = function(schema, opts, cb) {
     if (typeof opts == "function") {
@@ -2112,7 +2112,7 @@ var require_json_schema_traverse = __commonJS(function(exports, module) {
   }
 });
 
-// ../../../node_modules/ajv/dist/compile/resolve.js
+// node_modules/ajv/dist/compile/resolve.js
 var require_resolve = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getSchemaRefs = exports.resolveUrl = exports.normalizeId = exports._getFullPath = exports.getFullPath = exports.inlineRef = undefined;
@@ -2265,7 +2265,7 @@ var require_resolve = __commonJS(function(exports) {
   exports.getSchemaRefs = getSchemaRefs;
 });
 
-// ../../../node_modules/ajv/dist/compile/validate/index.js
+// node_modules/ajv/dist/compile/validate/index.js
 var require_validate = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getData = exports.KeywordCxt = exports.validateFunctionCode = undefined;
@@ -2770,7 +2770,7 @@ var require_validate = __commonJS(function(exports) {
   exports.getData = getData;
 });
 
-// ../../../node_modules/ajv/dist/runtime/validation_error.js
+// node_modules/ajv/dist/runtime/validation_error.js
 var require_validation_error = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
 
@@ -2784,7 +2784,7 @@ var require_validation_error = __commonJS(function(exports) {
   exports.default = ValidationError;
 });
 
-// ../../../node_modules/ajv/dist/compile/ref_error.js
+// node_modules/ajv/dist/compile/ref_error.js
 var require_ref_error = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var resolve_1 = require_resolve();
@@ -2799,7 +2799,7 @@ var require_ref_error = __commonJS(function(exports) {
   exports.default = MissingRefError;
 });
 
-// ../../../node_modules/ajv/dist/compile/index.js
+// node_modules/ajv/dist/compile/index.js
 var require_compile = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.resolveSchema = exports.getCompilingSchema = exports.resolveRef = exports.compileSchema = exports.SchemaEnv = undefined;
@@ -3020,7 +3020,7 @@ var require_compile = __commonJS(function(exports) {
   }
 });
 
-// ../../../node_modules/ajv/dist/refs/data.json
+// node_modules/ajv/dist/refs/data.json
 var require_data = __commonJS(function(exports, module) {
   module.exports = {
     $id: "https://raw.githubusercontent.com/ajv-validator/ajv/master/lib/refs/data.json#",
@@ -3037,7 +3037,7 @@ var require_data = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/fast-uri/lib/utils.js
+// node_modules/fast-uri/lib/utils.js
 var require_utils = __commonJS(function(exports, module) {
   var isUUID = RegExp.prototype.test.bind(/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu);
   var isIPv4 = RegExp.prototype.test.bind(/^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)$/u);
@@ -3586,7 +3586,7 @@ var require_utils = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/fast-uri/lib/schemes.js
+// node_modules/fast-uri/lib/schemes.js
 var require_schemes = __commonJS(function(exports, module) {
   var { isUUID } = require_utils();
   var URN_REG = /^([\da-z][\d\-a-z]{0,31}):((?:[\w!$'()*+,\-./:;=@]|%[\da-f]{2})+)$/iu;
@@ -3761,7 +3761,7 @@ var require_schemes = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/fast-uri/index.js
+// node_modules/fast-uri/index.js
 var require_fast_uri = __commonJS(function(exports, module) {
   var { normalizeIPv6, removeDotSegments, removeDotSegmentsRelative, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, serializePathEncoding, normalizeQueryFragmentEncoding, encodeQuery, encodeFragment, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = require_utils();
   var { SCHEMES, getSchemeHandler } = require_schemes();
@@ -4186,7 +4186,7 @@ var require_fast_uri = __commonJS(function(exports, module) {
   module.exports.fastUri = fastUri;
 });
 
-// ../../../node_modules/ajv/dist/runtime/uri.js
+// node_modules/ajv/dist/runtime/uri.js
 var require_uri = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var uri = require_fast_uri();
@@ -4194,7 +4194,7 @@ var require_uri = __commonJS(function(exports) {
   exports.default = uri;
 });
 
-// ../../../node_modules/ajv/dist/core.js
+// node_modules/ajv/dist/core.js
 var require_core = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.CodeGen = exports.Name = exports.nil = exports.stringify = exports.str = exports._ = exports.KeywordCxt = undefined;
@@ -4787,7 +4787,7 @@ var require_core = __commonJS(function(exports) {
   }
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/core/id.js
+// node_modules/ajv/dist/vocabularies/core/id.js
 var require_id = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var def = {
@@ -4799,7 +4799,7 @@ var require_id = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/core/ref.js
+// node_modules/ajv/dist/vocabularies/core/ref.js
 var require_ref = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.callRef = exports.getValidate = undefined;
@@ -4918,7 +4918,7 @@ var require_ref = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/core/index.js
+// node_modules/ajv/dist/vocabularies/core/index.js
 var require_core2 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var id_1 = require_id();
@@ -4936,7 +4936,7 @@ var require_core2 = __commonJS(function(exports) {
   exports.default = core;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/validation/limitNumber.js
+// node_modules/ajv/dist/vocabularies/validation/limitNumber.js
 var require_limitNumber = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -4965,7 +4965,7 @@ var require_limitNumber = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/validation/multipleOf.js
+// node_modules/ajv/dist/vocabularies/validation/multipleOf.js
 var require_multipleOf = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -4990,7 +4990,7 @@ var require_multipleOf = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/runtime/ucs2length.js
+// node_modules/ajv/dist/runtime/ucs2length.js
 var require_ucs2length = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   function ucs2length(str) {
@@ -5013,7 +5013,7 @@ var require_ucs2length = __commonJS(function(exports) {
   ucs2length.code = 'require("ajv/dist/runtime/ucs2length").default';
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/validation/limitLength.js
+// node_modules/ajv/dist/vocabularies/validation/limitLength.js
 var require_limitLength = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -5042,7 +5042,7 @@ var require_limitLength = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/validation/pattern.js
+// node_modules/ajv/dist/vocabularies/validation/pattern.js
 var require_pattern = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
@@ -5076,7 +5076,7 @@ var require_pattern = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/validation/limitProperties.js
+// node_modules/ajv/dist/vocabularies/validation/limitProperties.js
 var require_limitProperties = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -5102,7 +5102,7 @@ var require_limitProperties = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/validation/required.js
+// node_modules/ajv/dist/vocabularies/validation/required.js
 var require_required = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
@@ -5181,7 +5181,7 @@ var require_required = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/validation/limitItems.js
+// node_modules/ajv/dist/vocabularies/validation/limitItems.js
 var require_limitItems = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -5207,7 +5207,7 @@ var require_limitItems = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/runtime/equal.js
+// node_modules/ajv/dist/runtime/equal.js
 var require_equal = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var equal = require_fast_deep_equal();
@@ -5215,7 +5215,7 @@ var require_equal = __commonJS(function(exports) {
   exports.default = equal;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/validation/uniqueItems.js
+// node_modules/ajv/dist/vocabularies/validation/uniqueItems.js
 var require_uniqueItems = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dataType_1 = require_dataType();
@@ -5279,7 +5279,7 @@ var require_uniqueItems = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/validation/const.js
+// node_modules/ajv/dist/vocabularies/validation/const.js
 var require_const = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -5305,7 +5305,7 @@ var require_const = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/validation/enum.js
+// node_modules/ajv/dist/vocabularies/validation/enum.js
 var require_enum = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -5351,7 +5351,7 @@ var require_enum = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/validation/index.js
+// node_modules/ajv/dist/vocabularies/validation/index.js
 var require_validation = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var limitNumber_1 = require_limitNumber();
@@ -5381,7 +5381,7 @@ var require_validation = __commonJS(function(exports) {
   exports.default = validation;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/additionalItems.js
+// node_modules/ajv/dist/vocabularies/applicator/additionalItems.js
 var require_additionalItems = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateAdditionalItems = undefined;
@@ -5431,7 +5431,7 @@ var require_additionalItems = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/items.js
+// node_modules/ajv/dist/vocabularies/applicator/items.js
 var require_items = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateTuple = undefined;
@@ -5485,7 +5485,7 @@ var require_items = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/prefixItems.js
+// node_modules/ajv/dist/vocabularies/applicator/prefixItems.js
 var require_prefixItems = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var items_1 = require_items();
@@ -5499,7 +5499,7 @@ var require_prefixItems = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/items2020.js
+// node_modules/ajv/dist/vocabularies/applicator/items2020.js
 var require_items2020 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -5531,7 +5531,7 @@ var require_items2020 = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/contains.js
+// node_modules/ajv/dist/vocabularies/applicator/contains.js
 var require_contains = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -5622,7 +5622,7 @@ var require_contains = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/dependencies.js
+// node_modules/ajv/dist/vocabularies/applicator/dependencies.js
 var require_dependencies = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateSchemaDeps = exports.validatePropertyDeps = exports.error = undefined;
@@ -5707,7 +5707,7 @@ var require_dependencies = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/propertyNames.js
+// node_modules/ajv/dist/vocabularies/applicator/propertyNames.js
 var require_propertyNames = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -5747,7 +5747,7 @@ var require_propertyNames = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js
+// node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js
 var require_additionalProperties = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
@@ -5850,7 +5850,7 @@ var require_additionalProperties = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/properties.js
+// node_modules/ajv/dist/vocabularies/applicator/properties.js
 var require_properties = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var validate_1 = require_validate();
@@ -5905,7 +5905,7 @@ var require_properties = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/patternProperties.js
+// node_modules/ajv/dist/vocabularies/applicator/patternProperties.js
 var require_patternProperties = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
@@ -5976,7 +5976,7 @@ var require_patternProperties = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/not.js
+// node_modules/ajv/dist/vocabularies/applicator/not.js
 var require_not = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var util_1 = require_util();
@@ -6004,7 +6004,7 @@ var require_not = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/anyOf.js
+// node_modules/ajv/dist/vocabularies/applicator/anyOf.js
 var require_anyOf = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
@@ -6018,7 +6018,7 @@ var require_anyOf = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/oneOf.js
+// node_modules/ajv/dist/vocabularies/applicator/oneOf.js
 var require_oneOf = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -6073,7 +6073,7 @@ var require_oneOf = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/allOf.js
+// node_modules/ajv/dist/vocabularies/applicator/allOf.js
 var require_allOf = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var util_1 = require_util();
@@ -6097,7 +6097,7 @@ var require_allOf = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/if.js
+// node_modules/ajv/dist/vocabularies/applicator/if.js
 var require_if = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -6163,7 +6163,7 @@ var require_if = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/thenElse.js
+// node_modules/ajv/dist/vocabularies/applicator/thenElse.js
 var require_thenElse = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var util_1 = require_util();
@@ -6178,7 +6178,7 @@ var require_thenElse = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/applicator/index.js
+// node_modules/ajv/dist/vocabularies/applicator/index.js
 var require_applicator = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var additionalItems_1 = require_additionalItems();
@@ -6221,7 +6221,7 @@ var require_applicator = __commonJS(function(exports) {
   exports.default = getApplicator;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/format/format.js
+// node_modules/ajv/dist/vocabularies/format/format.js
 var require_format = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -6308,7 +6308,7 @@ var require_format = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/format/index.js
+// node_modules/ajv/dist/vocabularies/format/index.js
 var require_format2 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var format_1 = require_format();
@@ -6316,7 +6316,7 @@ var require_format2 = __commonJS(function(exports) {
   exports.default = format;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/metadata.js
+// node_modules/ajv/dist/vocabularies/metadata.js
 var require_metadata = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.contentVocabulary = exports.metadataVocabulary = undefined;
@@ -6336,7 +6336,7 @@ var require_metadata = __commonJS(function(exports) {
   ];
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/draft7.js
+// node_modules/ajv/dist/vocabularies/draft7.js
 var require_draft7 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var core_1 = require_core2();
@@ -6355,7 +6355,7 @@ var require_draft7 = __commonJS(function(exports) {
   exports.default = draft7Vocabularies;
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/discriminator/types.js
+// node_modules/ajv/dist/vocabularies/discriminator/types.js
 var require_types = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.DiscrError = undefined;
@@ -6366,7 +6366,7 @@ var require_types = __commonJS(function(exports) {
   })(DiscrError || (exports.DiscrError = DiscrError = {}));
 });
 
-// ../../../node_modules/ajv/dist/vocabularies/discriminator/index.js
+// node_modules/ajv/dist/vocabularies/discriminator/index.js
 var require_discriminator = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
@@ -6468,7 +6468,7 @@ var require_discriminator = __commonJS(function(exports) {
   exports.default = def;
 });
 
-// ../../../node_modules/ajv/dist/refs/json-schema-draft-07.json
+// node_modules/ajv/dist/refs/json-schema-draft-07.json
 var require_json_schema_draft_07 = __commonJS(function(exports, module) {
   module.exports = {
     $schema: "http://json-schema.org/draft-07/schema#",
@@ -6623,7 +6623,7 @@ var require_json_schema_draft_07 = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/ajv/dist/ajv.js
+// node_modules/ajv/dist/ajv.js
 var require_ajv = __commonJS(function(exports, module) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MissingRefError = exports.ValidationError = exports.CodeGen = exports.Name = exports.nil = exports.stringify = exports.str = exports._ = exports.KeywordCxt = exports.Ajv = undefined;
@@ -6691,7 +6691,7 @@ var require_ajv = __commonJS(function(exports, module) {
   } });
 });
 
-// ../../../node_modules/ajv-formats/dist/formats.js
+// node_modules/ajv-formats/dist/formats.js
 var require_formats = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.formatNames = exports.fastFormats = exports.fullFormats = undefined;
@@ -6868,7 +6868,7 @@ var require_formats = __commonJS(function(exports) {
   }
 });
 
-// ../../../node_modules/ajv-formats/dist/limit.js
+// node_modules/ajv-formats/dist/limit.js
 var require_limit = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.formatLimitDefinition = undefined;
@@ -6937,7 +6937,7 @@ var require_limit = __commonJS(function(exports) {
   exports.default = formatLimitPlugin;
 });
 
-// ../../../node_modules/ajv-formats/dist/index.js
+// node_modules/ajv-formats/dist/index.js
 var require_dist = __commonJS(function(exports, module) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var formats_1 = require_formats();
@@ -6976,14 +6976,14 @@ var require_dist = __commonJS(function(exports, module) {
   exports.default = formatsPlugin;
 });
 
-// ../../../node_modules/qrcode/lib/can-promise.js
+// node_modules/qrcode/lib/can-promise.js
 var require_can_promise = __commonJS(function(exports, module) {
   module.exports = function() {
     return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/utils.js
+// node_modules/qrcode/lib/core/utils.js
 var require_utils2 = __commonJS(function(exports) {
   var toSJISFunction;
   var CODEWORDS_COUNT = [
@@ -7061,7 +7061,7 @@ var require_utils2 = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/error-correction-level.js
+// node_modules/qrcode/lib/core/error-correction-level.js
 var require_error_correction_level = __commonJS(function(exports) {
   exports.L = { bit: 1 };
   exports.M = { bit: 0 };
@@ -7104,7 +7104,7 @@ var require_error_correction_level = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/bit-buffer.js
+// node_modules/qrcode/lib/core/bit-buffer.js
 var require_bit_buffer = __commonJS(function(exports, module) {
   function BitBuffer() {
     this.buffer = [];
@@ -7137,7 +7137,7 @@ var require_bit_buffer = __commonJS(function(exports, module) {
   module.exports = BitBuffer;
 });
 
-// ../../../node_modules/qrcode/lib/core/bit-matrix.js
+// node_modules/qrcode/lib/core/bit-matrix.js
 var require_bit_matrix = __commonJS(function(exports, module) {
   function BitMatrix(size) {
     if (!size || size < 1) {
@@ -7165,7 +7165,7 @@ var require_bit_matrix = __commonJS(function(exports, module) {
   module.exports = BitMatrix;
 });
 
-// ../../../node_modules/qrcode/lib/core/alignment-pattern.js
+// node_modules/qrcode/lib/core/alignment-pattern.js
 var require_alignment_pattern = __commonJS(function(exports) {
   var getSymbolSize = require_utils2().getSymbolSize;
   exports.getRowColCoords = function getRowColCoords(version) {
@@ -7197,7 +7197,7 @@ var require_alignment_pattern = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/finder-pattern.js
+// node_modules/qrcode/lib/core/finder-pattern.js
 var require_finder_pattern = __commonJS(function(exports) {
   var getSymbolSize = require_utils2().getSymbolSize;
   var FINDER_PATTERN_SIZE = 7;
@@ -7211,7 +7211,7 @@ var require_finder_pattern = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/mask-pattern.js
+// node_modules/qrcode/lib/core/mask-pattern.js
 var require_mask_pattern = __commonJS(function(exports) {
   exports.Patterns = {
     PATTERN000: 0,
@@ -7360,7 +7360,7 @@ var require_mask_pattern = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/error-correction-code.js
+// node_modules/qrcode/lib/core/error-correction-code.js
 var require_error_correction_code = __commonJS(function(exports) {
   var ECLevel = require_error_correction_level();
   var EC_BLOCKS_TABLE = [
@@ -7717,7 +7717,7 @@ var require_error_correction_code = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/galois-field.js
+// node_modules/qrcode/lib/core/galois-field.js
 var require_galois_field = __commonJS(function(exports) {
   var EXP_TABLE = new Uint8Array(512);
   var LOG_TABLE = new Uint8Array(256);
@@ -7750,7 +7750,7 @@ var require_galois_field = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/polynomial.js
+// node_modules/qrcode/lib/core/polynomial.js
 var require_polynomial = __commonJS(function(exports) {
   var GF = require_galois_field();
   exports.mul = function mul2(p1, p2) {
@@ -7785,7 +7785,7 @@ var require_polynomial = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/reed-solomon-encoder.js
+// node_modules/qrcode/lib/core/reed-solomon-encoder.js
 var require_reed_solomon_encoder = __commonJS(function(exports, module) {
   var Polynomial = require_polynomial();
   function ReedSolomonEncoder(degree) {
@@ -7816,14 +7816,14 @@ var require_reed_solomon_encoder = __commonJS(function(exports, module) {
   module.exports = ReedSolomonEncoder;
 });
 
-// ../../../node_modules/qrcode/lib/core/version-check.js
+// node_modules/qrcode/lib/core/version-check.js
 var require_version_check = __commonJS(function(exports) {
   exports.isValid = function isValid(version) {
     return !isNaN(version) && version >= 1 && version <= 40;
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/regex.js
+// node_modules/qrcode/lib/core/regex.js
 var require_regex = __commonJS(function(exports) {
   var numeric = "[0-9]+";
   var alphanumeric = "[A-Z $%*+\\-./:]+";
@@ -7850,7 +7850,7 @@ var require_regex = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/mode.js
+// node_modules/qrcode/lib/core/mode.js
 var require_mode = __commonJS(function(exports) {
   var VersionCheck = require_version_check();
   var Regex = require_regex();
@@ -7937,7 +7937,7 @@ var require_mode = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/version.js
+// node_modules/qrcode/lib/core/version.js
 var require_version = __commonJS(function(exports) {
   var Utils = require_utils2();
   var ECCode = require_error_correction_code();
@@ -8032,7 +8032,7 @@ var require_version = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/format-info.js
+// node_modules/qrcode/lib/core/format-info.js
 var require_format_info = __commonJS(function(exports) {
   var Utils = require_utils2();
   var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
@@ -8048,7 +8048,7 @@ var require_format_info = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/numeric-data.js
+// node_modules/qrcode/lib/core/numeric-data.js
 var require_numeric_data = __commonJS(function(exports, module) {
   var Mode = require_mode();
   function NumericData(data) {
@@ -8081,7 +8081,7 @@ var require_numeric_data = __commonJS(function(exports, module) {
   module.exports = NumericData;
 });
 
-// ../../../node_modules/qrcode/lib/core/alphanumeric-data.js
+// node_modules/qrcode/lib/core/alphanumeric-data.js
 var require_alphanumeric_data = __commonJS(function(exports, module) {
   var Mode = require_mode();
   var ALPHA_NUM_CHARS = [
@@ -8158,7 +8158,7 @@ var require_alphanumeric_data = __commonJS(function(exports, module) {
   module.exports = AlphanumericData;
 });
 
-// ../../../node_modules/qrcode/lib/core/byte-data.js
+// node_modules/qrcode/lib/core/byte-data.js
 var require_byte_data = __commonJS(function(exports, module) {
   var Mode = require_mode();
   function ByteData(data) {
@@ -8186,7 +8186,7 @@ var require_byte_data = __commonJS(function(exports, module) {
   module.exports = ByteData;
 });
 
-// ../../../node_modules/qrcode/lib/core/kanji-data.js
+// node_modules/qrcode/lib/core/kanji-data.js
 var require_kanji_data = __commonJS(function(exports, module) {
   var Mode = require_mode();
   var Utils = require_utils2();
@@ -8222,7 +8222,7 @@ var require_kanji_data = __commonJS(function(exports, module) {
   module.exports = KanjiData;
 });
 
-// ../../../node_modules/dijkstrajs/dijkstra.js
+// node_modules/dijkstrajs/dijkstra.js
 var require_dijkstra = __commonJS(function(exports, module) {
   var dijkstra = {
     single_source_shortest_paths: function(graph, s, d) {
@@ -8307,7 +8307,7 @@ var require_dijkstra = __commonJS(function(exports, module) {
   }
 });
 
-// ../../../node_modules/qrcode/lib/core/segments.js
+// node_modules/qrcode/lib/core/segments.js
 var require_segments = __commonJS(function(exports) {
   var Mode = require_mode();
   var NumericData = require_numeric_data();
@@ -8491,7 +8491,7 @@ var require_segments = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/core/qrcode.js
+// node_modules/qrcode/lib/core/qrcode.js
 var require_qrcode = __commonJS(function(exports) {
   var Utils = require_utils2();
   var ECLevel = require_error_correction_level();
@@ -8751,7 +8751,7 @@ var require_qrcode = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/chunkstream.js
+// node_modules/pngjs/lib/chunkstream.js
 var require_chunkstream = __commonJS(function(exports, module) {
   var util = __require("util");
   var Stream = __require("stream");
@@ -8883,7 +8883,7 @@ var require_chunkstream = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/interlace.js
+// node_modules/pngjs/lib/interlace.js
 var require_interlace = __commonJS(function(exports) {
   var imagePasses = [
     {
@@ -8956,7 +8956,7 @@ var require_interlace = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/paeth-predictor.js
+// node_modules/pngjs/lib/paeth-predictor.js
 var require_paeth_predictor = __commonJS(function(exports, module) {
   module.exports = function paethPredictor(left, above, upLeft) {
     let paeth = left + above - upLeft;
@@ -8973,7 +8973,7 @@ var require_paeth_predictor = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/filter-parse.js
+// node_modules/pngjs/lib/filter-parse.js
 var require_filter_parse = __commonJS(function(exports, module) {
   var interlaceUtils = require_interlace();
   var paethPredictor = require_paeth_predictor();
@@ -9108,7 +9108,7 @@ var require_filter_parse = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/filter-parse-async.js
+// node_modules/pngjs/lib/filter-parse-async.js
 var require_filter_parse_async = __commonJS(function(exports, module) {
   var util = __require("util");
   var ChunkStream = require_chunkstream();
@@ -9131,7 +9131,7 @@ var require_filter_parse_async = __commonJS(function(exports, module) {
   util.inherits(FilterAsync, ChunkStream);
 });
 
-// ../../../node_modules/pngjs/lib/constants.js
+// node_modules/pngjs/lib/constants.js
 var require_constants = __commonJS(function(exports, module) {
   module.exports = {
     PNG_SIGNATURE: [137, 80, 78, 71, 13, 10, 26, 10],
@@ -9158,7 +9158,7 @@ var require_constants = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/crc.js
+// node_modules/pngjs/lib/crc.js
 var require_crc = __commonJS(function(exports, module) {
   var crcTable = [];
   (function() {
@@ -9195,7 +9195,7 @@ var require_crc = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/parser.js
+// node_modules/pngjs/lib/parser.js
 var require_parser = __commonJS(function(exports, module) {
   var constants = require_constants();
   var CrcCalculator = require_crc();
@@ -9412,7 +9412,7 @@ var require_parser = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/bitmapper.js
+// node_modules/pngjs/lib/bitmapper.js
 var require_bitmapper = __commonJS(function(exports) {
   var interlaceUtils = require_interlace();
   var pixelBppMapper = [
@@ -9623,7 +9623,7 @@ var require_bitmapper = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/format-normaliser.js
+// node_modules/pngjs/lib/format-normaliser.js
 var require_format_normaliser = __commonJS(function(exports, module) {
   function dePalette(indata, outdata, width, height, palette) {
     let pxPos = 0;
@@ -9699,7 +9699,7 @@ var require_format_normaliser = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/parser-async.js
+// node_modules/pngjs/lib/parser-async.js
 var require_parser_async = __commonJS(function(exports, module) {
   var util = __require("util");
   var zlib = __require("zlib");
@@ -9821,7 +9821,7 @@ var require_parser_async = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/bitpacker.js
+// node_modules/pngjs/lib/bitpacker.js
 var require_bitpacker = __commonJS(function(exports, module) {
   var constants = require_constants();
   module.exports = function(dataIn, width, height, options) {
@@ -9950,7 +9950,7 @@ var require_bitpacker = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/filter-pack.js
+// node_modules/pngjs/lib/filter-pack.js
 var require_filter_pack = __commonJS(function(exports, module) {
   var paethPredictor = require_paeth_predictor();
   function filterNone(pxData, pxPos, byteWidth, rawData, rawPos) {
@@ -10089,7 +10089,7 @@ var require_filter_pack = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/packer.js
+// node_modules/pngjs/lib/packer.js
 var require_packer = __commonJS(function(exports, module) {
   var constants = require_constants();
   var CrcStream = require_crc();
@@ -10177,7 +10177,7 @@ var require_packer = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/packer-async.js
+// node_modules/pngjs/lib/packer-async.js
 var require_packer_async = __commonJS(function(exports, module) {
   var util = __require("util");
   var Stream = __require("stream");
@@ -10210,7 +10210,7 @@ var require_packer_async = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/sync-inflate.js
+// node_modules/pngjs/lib/sync-inflate.js
 var require_sync_inflate = __commonJS(function(exports, module) {
   var assert = __require("assert").ok;
   var zlib = __require("zlib");
@@ -10329,7 +10329,7 @@ var require_sync_inflate = __commonJS(function(exports, module) {
   exports.inflateSync = inflateSync;
 });
 
-// ../../../node_modules/pngjs/lib/sync-reader.js
+// node_modules/pngjs/lib/sync-reader.js
 var require_sync_reader = __commonJS(function(exports, module) {
   var SyncReader = module.exports = function(buffer) {
     this._buffer = buffer;
@@ -10363,7 +10363,7 @@ var require_sync_reader = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/filter-parse-sync.js
+// node_modules/pngjs/lib/filter-parse-sync.js
 var require_filter_parse_sync = __commonJS(function(exports) {
   var SyncReader = require_sync_reader();
   var Filter = require_filter_parse();
@@ -10383,7 +10383,7 @@ var require_filter_parse_sync = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/parser-sync.js
+// node_modules/pngjs/lib/parser-sync.js
 var require_parser_sync = __commonJS(function(exports, module) {
   var hasSyncZlib = true;
   var zlib = __require("zlib");
@@ -10469,7 +10469,7 @@ var require_parser_sync = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/packer-sync.js
+// node_modules/pngjs/lib/packer-sync.js
 var require_packer_sync = __commonJS(function(exports, module) {
   var hasSyncZlib = true;
   var zlib = __require("zlib");
@@ -10502,7 +10502,7 @@ var require_packer_sync = __commonJS(function(exports, module) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/png-sync.js
+// node_modules/pngjs/lib/png-sync.js
 var require_png_sync = __commonJS(function(exports) {
   var parse = require_parser_sync();
   var pack = require_packer_sync();
@@ -10514,7 +10514,7 @@ var require_png_sync = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/pngjs/lib/png.js
+// node_modules/pngjs/lib/png.js
 var require_png = __commonJS(function(exports) {
   var util = __require("util");
   var Stream = __require("stream");
@@ -10638,7 +10638,7 @@ var require_png = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/renderer/utils.js
+// node_modules/qrcode/lib/renderer/utils.js
 var require_utils3 = __commonJS(function(exports) {
   function hex2rgba(hex) {
     if (typeof hex === "number") {
@@ -10719,7 +10719,7 @@ var require_utils3 = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/renderer/png.js
+// node_modules/qrcode/lib/renderer/png.js
 var require_png2 = __commonJS(function(exports) {
   var fs = __require("fs");
   var PNG = require_png().PNG;
@@ -10786,7 +10786,7 @@ var require_png2 = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/renderer/utf8.js
+// node_modules/qrcode/lib/renderer/utf8.js
 var require_utf8 = __commonJS(function(exports) {
   var Utils = require_utils3();
   var BLOCK_CHAR = {
@@ -10851,7 +10851,7 @@ var require_utf8 = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/renderer/terminal/terminal.js
+// node_modules/qrcode/lib/renderer/terminal/terminal.js
 var require_terminal = __commonJS(function(exports) {
   exports.render = function(qrData, options, cb) {
     const size = qrData.modules.size;
@@ -10880,7 +10880,7 @@ var require_terminal = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/renderer/terminal/terminal-small.js
+// node_modules/qrcode/lib/renderer/terminal/terminal-small.js
 var require_terminal_small = __commonJS(function(exports) {
   var backgroundWhite = "\x1B[47m";
   var backgroundBlack = "\x1B[40m";
@@ -10939,7 +10939,7 @@ var require_terminal_small = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/renderer/terminal.js
+// node_modules/qrcode/lib/renderer/terminal.js
 var require_terminal2 = __commonJS(function(exports) {
   var big = require_terminal();
   var small = require_terminal_small();
@@ -10951,7 +10951,7 @@ var require_terminal2 = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/renderer/svg-tag.js
+// node_modules/qrcode/lib/renderer/svg-tag.js
 var require_svg_tag = __commonJS(function(exports) {
   var Utils = require_utils3();
   function getColorAttrib(color, attrib) {
@@ -11010,7 +11010,7 @@ var require_svg_tag = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/renderer/svg.js
+// node_modules/qrcode/lib/renderer/svg.js
 var require_svg = __commonJS(function(exports) {
   var svgTagRenderer = require_svg_tag();
   exports.render = svgTagRenderer.render;
@@ -11026,7 +11026,7 @@ var require_svg = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/renderer/canvas.js
+// node_modules/qrcode/lib/renderer/canvas.js
 var require_canvas = __commonJS(function(exports) {
   var Utils = require_utils3();
   function clearCanvas(ctx, canvas, size) {
@@ -11079,7 +11079,7 @@ var require_canvas = __commonJS(function(exports) {
   };
 });
 
-// ../../../node_modules/qrcode/lib/browser.js
+// node_modules/qrcode/lib/browser.js
 var require_browser = __commonJS(function(exports) {
   var canPromise = require_can_promise();
   var QRCode = require_qrcode();
@@ -11147,7 +11147,7 @@ var require_browser = __commonJS(function(exports) {
   });
 });
 
-// ../../../node_modules/zod/v3/helpers/util.js
+// node_modules/zod/v3/helpers/util.js
 var util;
 (function(util) {
   util.assertEqual = (_) => {};
@@ -11278,7 +11278,7 @@ var getParsedType = (data) => {
   }
 };
 
-// ../../../node_modules/zod/v3/ZodError.js
+// node_modules/zod/v3/ZodError.js
 var ZodIssueCode = util.arrayToEnum([
   "invalid_type",
   "invalid_literal",
@@ -11407,7 +11407,7 @@ ZodError.create = (issues) => {
   return error;
 };
 
-// ../../../node_modules/zod/v3/locales/en.js
+// node_modules/zod/v3/locales/en.js
 var errorMap = (issue, _ctx) => {
   let message;
   switch (issue.code) {
@@ -11510,13 +11510,13 @@ var errorMap = (issue, _ctx) => {
 };
 var en_default = errorMap;
 
-// ../../../node_modules/zod/v3/errors.js
+// node_modules/zod/v3/errors.js
 var overrideErrorMap = en_default;
 function getErrorMap() {
   return overrideErrorMap;
 }
 
-// ../../../node_modules/zod/v3/helpers/parseUtil.js
+// node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
   const { data, path, errorMaps, issueData } = params;
   const fullPath = [...path, ...issueData.path || []];
@@ -11622,14 +11622,14 @@ var isDirty = (x) => x.status === "dirty";
 var isValid = (x) => x.status === "valid";
 var isAsync = (x) => typeof Promise !== "undefined" && x instanceof Promise;
 
-// ../../../node_modules/zod/v3/helpers/errorUtil.js
+// node_modules/zod/v3/helpers/errorUtil.js
 var errorUtil;
 (function(errorUtil) {
   errorUtil.errToObj = (message) => typeof message === "string" ? { message } : message || {};
   errorUtil.toString = (message) => typeof message === "string" ? message : message?.message;
 })(errorUtil || (errorUtil = {}));
 
-// ../../../node_modules/zod/v3/types.js
+// node_modules/zod/v3/types.js
 class ParseInputLazyPath {
   constructor(parent, value, path, key) {
     this._cachedPath = [];
@@ -14977,7 +14977,7 @@ var nullableType = ZodNullable.create;
 var preprocessType = ZodEffects.createWithPreprocess;
 var pipelineType = ZodPipeline.create;
 
-// ../../../node_modules/zod/v4/core/util.js
+// node_modules/zod/v4/core/util.js
 function getEnumValues(entries) {
   const numericValues = Object.values(entries).filter((v) => typeof v === "number");
   const values = Object.entries(entries).filter(([k, _]) => numericValues.indexOf(+k) === -1).map(([_, v]) => v);
@@ -15532,7 +15532,7 @@ function constantCatch(value) {
   return fn;
 }
 
-// ../../../node_modules/zod/v4/core/core.js
+// node_modules/zod/v4/core/core.js
 var _a;
 var _zodDesc = { value: undefined, enumerable: false };
 var _E = "captureStackTrace" in Error ? Error : null;
@@ -15650,7 +15650,7 @@ function config(newConfig) {
     Object.assign(globalConfig, newConfig);
   return globalConfig;
 }
-// ../../../node_modules/zod/v4/core/errors.js
+// node_modules/zod/v4/core/errors.js
 function _getMessage() {
   const internals = this._zod;
   internals.message ?? (internals.message = JSON.stringify(internals.def, jsonStringifyReplacer, 2));
@@ -15765,7 +15765,7 @@ function formatError(error, mapper = (issue) => issue.message) {
   return fieldErrors;
 }
 
-// ../../../node_modules/zod/v4/core/parse.js
+// node_modules/zod/v4/core/parse.js
 function finalizeParams(callee, params) {
   return { callee: params?.callee ?? callee, Err: params?.Err };
 }
@@ -15916,7 +15916,7 @@ var _safeEncodeAsync = (_Err) => async (schema, value, _ctx) => {
 var _safeDecodeAsync = (_Err) => async (schema, value, _ctx) => {
   return _safeParseAsync(_Err)(schema, value, _ctx);
 };
-// ../../../node_modules/zod/v4/core/regexes.js
+// node_modules/zod/v4/core/regexes.js
 var cuid = /^[cC][0-9a-z]{6,}$/;
 var cuid2 = /^[0-9a-z]+$/;
 var ulid = /^[0-7][0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{25}$/;
@@ -15975,7 +15975,7 @@ var _null = /^null$/i;
 var lowercase = /^[^A-Z]*$/;
 var uppercase = /^[^a-z]*$/;
 
-// ../../../node_modules/zod/v4/core/checks.js
+// node_modules/zod/v4/core/checks.js
 var $ZodCheck = /* @__PURE__ */ $constructor("$ZodCheck", (inst, def) => {
   var _a;
   inst._zod ?? (inst._zod = {});
@@ -16291,7 +16291,7 @@ var $ZodCheckOverwrite = /* @__PURE__ */ $constructor("$ZodCheckOverwrite", (ins
   };
 });
 
-// ../../../node_modules/zod/v4/core/doc.js
+// node_modules/zod/v4/core/doc.js
 class Doc {
   constructor(args = [], closed = {}) {
     this.content = [];
@@ -16333,14 +16333,14 @@ ${content.join(`
   }
 }
 
-// ../../../node_modules/zod/v4/core/versions.js
+// node_modules/zod/v4/core/versions.js
 var version = {
   major: 4,
   minor: 6,
   patch: 7
 };
 
-// ../../../node_modules/zod/v4/core/schemas.js
+// node_modules/zod/v4/core/schemas.js
 var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
   var _a;
   inst ?? (inst = {});
@@ -17996,7 +17996,7 @@ function handleRefineResult(result, payload, input, inst) {
     payload.issues.push(issue(_iss));
   }
 }
-// ../../../node_modules/zod/v4/core/memoizer.js
+// node_modules/zod/v4/core/memoizer.js
 class $ZodCyclicError extends Error {
   constructor() {
     super(`Cannot parse a reference cycle that closes through a transform`);
@@ -18265,7 +18265,7 @@ function isBackEdge(ctx, value) {
   const backEdges = ctx[STATE]?.backEdges;
   return backEdges !== undefined && isRef(value) && backEdges.has(value);
 }
-// ../../../node_modules/zod/v4/locales/en.js
+// node_modules/zod/v4/locales/en.js
 var error = () => {
   const Sizable = {
     string: { unit: "characters", verb: "to have" },
@@ -18387,7 +18387,7 @@ function en_default2() {
     localeError: error()
   };
 }
-// ../../../node_modules/zod/v4/core/registries.js
+// node_modules/zod/v4/core/registries.js
 var _a2;
 class $ZodRegistry {
   constructor() {
@@ -18434,7 +18434,7 @@ function registry() {
 }
 (_a2 = globalThis).__zod_globalRegistry ?? (_a2.__zod_globalRegistry = registry());
 var globalRegistry = globalThis.__zod_globalRegistry;
-// ../../../node_modules/zod/v4/core/api.js
+// node_modules/zod/v4/core/api.js
 function snapshotChecks(def) {
   if (def.checks)
     def.checks = [...def.checks];
@@ -18899,7 +18899,7 @@ function _check(fn, params) {
   ch._zod.check = fn;
   return ch;
 }
-// ../../../node_modules/zod/v4/core/to-json-schema.js
+// node_modules/zod/v4/core/to-json-schema.js
 function assignProps(target, ...sources) {
   for (const source of sources) {
     for (const key of Reflect.ownKeys(source)) {
@@ -19422,7 +19422,7 @@ var createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) =
   extractDefs(ctx, schema);
   return finalize(ctx, schema);
 };
-// ../../../node_modules/zod/v4/core/json-schema-processors.js
+// node_modules/zod/v4/core/json-schema-processors.js
 var narrowMin = (agg, key, value) => {
   if (agg[key] === undefined || value > agg[key])
     agg[key] = value;
@@ -20165,7 +20165,7 @@ function toJSONSchema(input, params) {
   extractDefs(ctx, input);
   return finalize(ctx, input);
 }
-// ../../../node_modules/zod/v4/mini/schemas.js
+// node_modules/zod/v4/mini/schemas.js
 var ZodMiniType = /* @__PURE__ */ $constructor("ZodMiniType", (inst, def) => {
   if (!inst._zod)
     throw new Error("Uninitialized schema in ZodMiniType.");
@@ -20228,7 +20228,7 @@ function object(shape, params) {
   };
   return new ZodMiniObject(def);
 }
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-compat.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-compat.js
 function isZ4Schema(s) {
   const schema = s;
   return !!schema._zod;
@@ -20388,7 +20388,7 @@ function getLiteralValue(schema) {
     return directValue;
   return;
 }
-// ../../../node_modules/zod/v4/classic/errors.js
+// node_modules/zod/v4/classic/errors.js
 var _installedErrorProtos = /* @__PURE__ */ new WeakSet([Object.prototype, Error.prototype]);
 function _lazyMethod(proto, key, make) {
   Object.defineProperty(proto, key, {
@@ -20433,7 +20433,7 @@ var ZodRealError = /* @__PURE__ */ $constructor("ZodError", initializer2, undefi
   Parent: Error
 });
 
-// ../../../node_modules/zod/v4/classic/parse.js
+// node_modules/zod/v4/classic/parse.js
 var parse4 = /* @__PURE__ */ _parse(ZodRealError);
 var parseAsync2 = /* @__PURE__ */ _parseAsync(ZodRealError);
 var safeParse3 = /* @__PURE__ */ _safeParse(ZodRealError);
@@ -20447,7 +20447,7 @@ var safeDecode2 = /* @__PURE__ */ _safeDecode(ZodRealError);
 var safeEncodeAsync2 = /* @__PURE__ */ _safeEncodeAsync(ZodRealError);
 var safeDecodeAsync2 = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
 
-// ../../../node_modules/zod/v4/classic/schemas.js
+// node_modules/zod/v4/classic/schemas.js
 function _ensureDefaultLocale() {
   if (!globalConfig.localeError)
     config(en_default2());
@@ -21377,11 +21377,11 @@ function preprocess(fn, schema) {
     out: schema
   });
 }
-// ../../../node_modules/zod/v4/classic/iso.js
+// node_modules/zod/v4/classic/iso.js
 function datetime2(params) {
   return _isoDateTime(ZodISODateTime, params);
 }
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
 var LATEST_PROTOCOL_VERSION = "2025-11-25";
 var SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
 var RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
@@ -22226,12 +22226,12 @@ class UrlElicitationRequiredError extends McpError {
   }
 }
 
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/interfaces.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/interfaces.js
 function isTerminal(status) {
   return status === "completed" || status === "failed" || status === "cancelled";
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/Options.js
+// node_modules/zod-to-json-schema/dist/esm/Options.js
 var ignoreOverride = Symbol("Let zodToJsonSchema decide on which parser to use");
 var defaultOptions = {
   name: undefined,
@@ -22264,7 +22264,7 @@ var getDefaultOptions = (options) => typeof options === "string" ? {
   ...defaultOptions,
   ...options
 };
-// ../../../node_modules/zod-to-json-schema/dist/esm/Refs.js
+// node_modules/zod-to-json-schema/dist/esm/Refs.js
 var getRefs = (options) => {
   const _options = getDefaultOptions(options);
   const currentPath = _options.name !== undefined ? [..._options.basePath, _options.definitionPath, _options.name] : _options.basePath;
@@ -22283,7 +22283,7 @@ var getRefs = (options) => {
     ]))
   };
 };
-// ../../../node_modules/zod-to-json-schema/dist/esm/errorMessages.js
+// node_modules/zod-to-json-schema/dist/esm/errorMessages.js
 function addErrorMessage(res, key, errorMessage, refs) {
   if (!refs?.errorMessages)
     return;
@@ -22298,7 +22298,7 @@ function setResponseValueAndErrors(res, key, value, errorMessage, refs) {
   res[key] = value;
   addErrorMessage(res, key, errorMessage, refs);
 }
-// ../../../node_modules/zod-to-json-schema/dist/esm/getRelativePath.js
+// node_modules/zod-to-json-schema/dist/esm/getRelativePath.js
 var getRelativePath = (pathA, pathB) => {
   let i = 0;
   for (;i < pathA.length && i < pathB.length; i++) {
@@ -22307,7 +22307,7 @@ var getRelativePath = (pathA, pathB) => {
   }
   return [(pathA.length - i).toString(), ...pathB.slice(i)].join("/");
 };
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/any.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/any.js
 function parseAnyDef(refs) {
   if (refs.target !== "openAi") {
     return {};
@@ -22323,7 +22323,7 @@ function parseAnyDef(refs) {
   };
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/array.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/array.js
 function parseArrayDef(def, refs) {
   const res = {
     type: "array"
@@ -22347,7 +22347,7 @@ function parseArrayDef(def, refs) {
   return res;
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/bigint.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/bigint.js
 function parseBigintDef(def, refs) {
   const res = {
     type: "integer",
@@ -22393,24 +22393,24 @@ function parseBigintDef(def, refs) {
   return res;
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/boolean.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/boolean.js
 function parseBooleanDef() {
   return {
     type: "boolean"
   };
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/branded.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/branded.js
 function parseBrandedDef(_def, refs) {
   return parseDef(_def.type._def, refs);
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/catch.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/catch.js
 var parseCatchDef = (def, refs) => {
   return parseDef(def.innerType._def, refs);
 };
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/date.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/date.js
 function parseDateDef(def, refs, overrideDateStrategy) {
   const strategy = overrideDateStrategy ?? refs.dateStrategy;
   if (Array.isArray(strategy)) {
@@ -22455,7 +22455,7 @@ var integerDateParser = (def, refs) => {
   return res;
 };
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/default.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/default.js
 function parseDefaultDef(_def, refs) {
   return {
     ...parseDef(_def.innerType._def, refs),
@@ -22463,12 +22463,12 @@ function parseDefaultDef(_def, refs) {
   };
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/effects.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/effects.js
 function parseEffectsDef(_def, refs) {
   return refs.effectStrategy === "input" ? parseDef(_def.schema._def, refs) : parseAnyDef(refs);
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/enum.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/enum.js
 function parseEnumDef(def) {
   return {
     type: "string",
@@ -22476,7 +22476,7 @@ function parseEnumDef(def) {
   };
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/intersection.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/intersection.js
 var isJsonSchema7AllOfType = (type) => {
   if ("type" in type && type.type === "string")
     return false;
@@ -22518,7 +22518,7 @@ function parseIntersectionDef(def, refs) {
   } : undefined;
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/literal.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/literal.js
 function parseLiteralDef(def, refs) {
   const parsedType = typeof def.value;
   if (parsedType !== "bigint" && parsedType !== "number" && parsedType !== "boolean" && parsedType !== "string") {
@@ -22538,7 +22538,7 @@ function parseLiteralDef(def, refs) {
   };
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/string.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/string.js
 var emojiRegex2 = undefined;
 var zodPatterns = {
   cuid: /^[cC][^\s-]{8,}$/,
@@ -22835,7 +22835,7 @@ function stringifyRegExpWithFlags(regex, refs) {
   return pattern;
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/record.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/record.js
 function parseRecordDef(def, refs) {
   if (refs.target === "openAi") {
     console.warn("Warning: OpenAI may not support records in schemas! Try an array of key-value pairs instead.");
@@ -22887,7 +22887,7 @@ function parseRecordDef(def, refs) {
   return schema;
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/map.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/map.js
 function parseMapDef(def, refs) {
   if (refs.mapStrategy === "record") {
     return parseRecordDef(def, refs);
@@ -22912,7 +22912,7 @@ function parseMapDef(def, refs) {
   };
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/nativeEnum.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/nativeEnum.js
 function parseNativeEnumDef(def) {
   const object = def.values;
   const actualKeys = Object.keys(def.values).filter((key) => {
@@ -22926,7 +22926,7 @@ function parseNativeEnumDef(def) {
   };
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/never.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/never.js
 function parseNeverDef(refs) {
   return refs.target === "openAi" ? undefined : {
     not: parseAnyDef({
@@ -22936,7 +22936,7 @@ function parseNeverDef(refs) {
   };
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/null.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/null.js
 function parseNullDef(refs) {
   return refs.target === "openApi3" ? {
     enum: ["null"],
@@ -22946,7 +22946,7 @@ function parseNullDef(refs) {
   };
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/union.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/union.js
 var primitiveMappings = {
   ZodString: "string",
   ZodNumber: "number",
@@ -23014,7 +23014,7 @@ var asAnyOf = (def, refs) => {
   return anyOf.length ? { anyOf } : undefined;
 };
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/nullable.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/nullable.js
 function parseNullableDef(def, refs) {
   if (["ZodString", "ZodNumber", "ZodBigInt", "ZodBoolean", "ZodNull"].includes(def.innerType._def.typeName) && (!def.innerType._def.checks || !def.innerType._def.checks.length)) {
     if (refs.target === "openApi3") {
@@ -23046,7 +23046,7 @@ function parseNullableDef(def, refs) {
   return base && { anyOf: [base, { type: "null" }] };
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/number.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/number.js
 function parseNumberDef(def, refs) {
   const res = {
     type: "number"
@@ -23095,7 +23095,7 @@ function parseNumberDef(def, refs) {
   return res;
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/object.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/object.js
 function parseObjectDef(def, refs) {
   const forceOptionalIntoNullable = refs.target === "openAi";
   const result = {
@@ -23165,7 +23165,7 @@ function safeIsOptional(schema) {
   }
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/optional.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/optional.js
 var parseOptionalDef = (def, refs) => {
   if (refs.currentPath.toString() === refs.propertyPath?.toString()) {
     return parseDef(def.innerType._def, refs);
@@ -23184,7 +23184,7 @@ var parseOptionalDef = (def, refs) => {
   } : parseAnyDef(refs);
 };
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/pipeline.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/pipeline.js
 var parsePipelineDef = (def, refs) => {
   if (refs.pipeStrategy === "input") {
     return parseDef(def.in._def, refs);
@@ -23204,12 +23204,12 @@ var parsePipelineDef = (def, refs) => {
   };
 };
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/promise.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/promise.js
 function parsePromiseDef(def, refs) {
   return parseDef(def.type._def, refs);
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/set.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/set.js
 function parseSetDef(def, refs) {
   const items = parseDef(def.valueType._def, {
     ...refs,
@@ -23229,7 +23229,7 @@ function parseSetDef(def, refs) {
   return schema;
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/tuple.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/tuple.js
 function parseTupleDef(def, refs) {
   if (def.rest) {
     return {
@@ -23257,24 +23257,24 @@ function parseTupleDef(def, refs) {
   }
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/undefined.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/undefined.js
 function parseUndefinedDef(refs) {
   return {
     not: parseAnyDef(refs)
   };
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/unknown.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/unknown.js
 function parseUnknownDef(refs) {
   return parseAnyDef(refs);
 }
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parsers/readonly.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/readonly.js
 var parseReadonlyDef = (def, refs) => {
   return parseDef(def.innerType._def, refs);
 };
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/selectParser.js
+// node_modules/zod-to-json-schema/dist/esm/selectParser.js
 var selectParser = (def, typeName, refs) => {
   switch (typeName) {
     case ZodFirstPartyTypeKind.ZodString:
@@ -23352,7 +23352,7 @@ var selectParser = (def, typeName, refs) => {
   }
 };
 
-// ../../../node_modules/zod-to-json-schema/dist/esm/parseDef.js
+// node_modules/zod-to-json-schema/dist/esm/parseDef.js
 function parseDef(def, refs, forceResolution = false) {
   const seenItem = refs.seen.get(def);
   if (refs.override) {
@@ -23407,7 +23407,7 @@ var addMeta = (def, refs, jsonSchema) => {
   }
   return jsonSchema;
 };
-// ../../../node_modules/zod-to-json-schema/dist/esm/zodToJsonSchema.js
+// node_modules/zod-to-json-schema/dist/esm/zodToJsonSchema.js
 var zodToJsonSchema = (schema, options) => {
   const refs = getRefs(options);
   let definitions = typeof options === "object" && options.definitions ? Object.entries(options.definitions).reduce((acc, [name, schema]) => ({
@@ -23467,7 +23467,7 @@ var zodToJsonSchema = (schema, options) => {
   }
   return combined;
 };
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-json-schema-compat.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-json-schema-compat.js
 function mapMiniTarget(t) {
   if (!t)
     return "draft-7";
@@ -23509,7 +23509,7 @@ function parseWithCompat(schema, data) {
   return result.data;
 }
 
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/shared/protocol.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/shared/protocol.js
 var DEFAULT_REQUEST_TIMEOUT_MSEC = 60000;
 
 class Protocol {
@@ -24372,7 +24372,7 @@ function mergeCapabilities(base, additional) {
   return result;
 }
 
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/validation/ajv-provider.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/validation/ajv-provider.js
 var import_ajv = __toESM(require_ajv(), 1);
 var import_ajv_formats = __toESM(require_dist(), 1);
 function createDefaultAjvInstance() {
@@ -24412,7 +24412,7 @@ class AjvJsonSchemaValidator {
   }
 }
 
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/server.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/server.js
 class ExperimentalServerTasks {
   constructor(_server) {
     this._server = _server;
@@ -24490,7 +24490,7 @@ class ExperimentalServerTasks {
   }
 }
 
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/helpers.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/helpers.js
 function assertToolsCallTaskCapability(requests, method, entityName) {
   if (!requests) {
     throw new Error(`${entityName} does not support task creation (required for ${method})`);
@@ -24525,7 +24525,7 @@ function assertClientRequestTaskCapability(requests, method, entityName) {
   }
 }
 
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js
 class Server extends Protocol {
   constructor(_serverInfo, options) {
     super(options);
@@ -24849,7 +24849,7 @@ class Server extends Protocol {
   }
 }
 
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/server/completable.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/completable.js
 var COMPLETABLE_SYMBOL = Symbol.for("mcp.completable");
 function isCompletable(schema) {
   return !!schema && typeof schema === "object" && COMPLETABLE_SYMBOL in schema;
@@ -24863,7 +24863,7 @@ var McpZodTypeKind;
   McpZodTypeKind["Completable"] = "McpCompletable";
 })(McpZodTypeKind || (McpZodTypeKind = {}));
 
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/shared/toolNameValidation.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/shared/toolNameValidation.js
 var TOOL_NAME_REGEX = /^[A-Za-z0-9._-]{1,128}$/;
 function validateToolName(name) {
   const warnings = [];
@@ -24921,7 +24921,7 @@ function validateAndWarnToolName(name) {
   return result.isValid;
 }
 
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/mcp-server.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/mcp-server.js
 class ExperimentalMcpServerTasks {
   constructor(_mcpServer) {
     this._mcpServer = _mcpServer;
@@ -24935,7 +24935,7 @@ class ExperimentalMcpServerTasks {
     return mcpServerInternal._createRegisteredTool(name, config.title, config.description, config.inputSchema, config.outputSchema, config.annotations, execution, config._meta, handler);
   }
 }
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/server/mcp.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/mcp.js
 function toolInputElementCount(value, max) {
   let count = 0;
   const stack = [value];
@@ -25711,10 +25711,10 @@ var EMPTY_COMPLETION_RESULT = {
   }
 };
 
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 import process2 from "process";
 
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
 var STDIO_DEFAULT_MAX_BUFFER_SIZE = 10 * 1024 * 1024;
 
 class ReadBuffer {
@@ -25754,7 +25754,7 @@ function serializeMessage(message) {
 `;
 }
 
-// ../../../node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 class StdioServerTransport {
   constructor(_stdin = process2.stdin, _stdout = process2.stdout, options) {
     this._stdin = _stdin;
@@ -25817,7 +25817,7 @@ class StdioServerTransport {
   }
 }
 
-// ../../../node_modules/open/index.js
+// node_modules/open/index.js
 import process9 from "process";
 import { Buffer as Buffer2 } from "buffer";
 import path from "path";
@@ -25826,19 +25826,19 @@ import { promisify as promisify5 } from "util";
 import childProcess from "child_process";
 import fs5, { constants as fsConstants2 } from "fs/promises";
 
-// ../../../node_modules/wsl-utils/index.js
+// node_modules/wsl-utils/index.js
 import process4 from "process";
 import fs4, { constants as fsConstants } from "fs/promises";
 
-// ../../../node_modules/is-wsl/index.js
+// node_modules/is-wsl/index.js
 import process3 from "process";
 import os from "os";
 import fs3 from "fs";
 
-// ../../../node_modules/is-inside-container/index.js
+// node_modules/is-inside-container/index.js
 import fs2 from "fs";
 
-// ../../../node_modules/is-docker/index.js
+// node_modules/is-docker/index.js
 import fs from "fs";
 var isDockerCached;
 function hasDockerEnv() {
@@ -25863,7 +25863,7 @@ function isDocker() {
   return isDockerCached;
 }
 
-// ../../../node_modules/is-inside-container/index.js
+// node_modules/is-inside-container/index.js
 var cachedResult;
 var hasContainerEnv = () => {
   try {
@@ -25880,7 +25880,7 @@ function isInsideContainer() {
   return cachedResult;
 }
 
-// ../../../node_modules/is-wsl/index.js
+// node_modules/is-wsl/index.js
 var isWsl = () => {
   if (process3.platform !== "linux") {
     return false;
@@ -25903,7 +25903,7 @@ var isWsl = () => {
 };
 var is_wsl_default = process3.env.__IS_WSL_TEST__ ? isWsl : isWsl();
 
-// ../../../node_modules/wsl-utils/index.js
+// node_modules/wsl-utils/index.js
 var wslDrivesMountPoint = (() => {
   const defaultMountPoint = "/mnt/";
   let mountPoint;
@@ -25941,7 +25941,7 @@ var powerShellPath = async () => {
   return `${process4.env.SYSTEMROOT || process4.env.windir || String.raw`C:\Windows`}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
 };
 
-// ../../../node_modules/define-lazy-prop/index.js
+// node_modules/define-lazy-prop/index.js
 function defineLazyProperty(object, propertyName, valueGetter) {
   const define = (value) => Object.defineProperty(object, propertyName, { value, enumerable: true, writable: true });
   Object.defineProperty(object, propertyName, {
@@ -25959,12 +25959,12 @@ function defineLazyProperty(object, propertyName, valueGetter) {
   return object;
 }
 
-// ../../../node_modules/default-browser/index.js
+// node_modules/default-browser/index.js
 import { promisify as promisify4 } from "util";
 import process8 from "process";
 import { execFile as execFile4 } from "child_process";
 
-// ../../../node_modules/default-browser-id/index.js
+// node_modules/default-browser-id/index.js
 import { promisify } from "util";
 import process5 from "process";
 import { execFile } from "child_process";
@@ -25982,7 +25982,7 @@ async function defaultBrowserId() {
   return browserId;
 }
 
-// ../../../node_modules/run-applescript/index.js
+// node_modules/run-applescript/index.js
 import process6 from "process";
 import { promisify as promisify2 } from "util";
 import { execFile as execFile2, execFileSync } from "child_process";
@@ -26000,7 +26000,7 @@ async function runAppleScript(script, { humanReadableOutput = true, signal } = {
   return stdout.trim();
 }
 
-// ../../../node_modules/bundle-name/index.js
+// node_modules/bundle-name/index.js
 var bundleIdentifierPattern = /^[^\n\r"\\]+$/u;
 async function bundleName(bundleId) {
   if (typeof bundleId !== "string") {
@@ -26013,7 +26013,7 @@ async function bundleName(bundleId) {
 tell application "System Events" to get value of property list item "CFBundleName" of property list file (app_path & ":Contents:Info.plist")`);
 }
 
-// ../../../node_modules/default-browser/windows.js
+// node_modules/default-browser/windows.js
 import process7 from "process";
 import { promisify as promisify3 } from "util";
 import { execFile as execFile3 } from "child_process";
@@ -26060,7 +26060,7 @@ async function defaultBrowser(_execFileAsync = execFileAsync3) {
   return windowsBrowserProgIds[id] ?? windowsBrowserProgIds[baseIdByDot] ?? windowsBrowserProgIds[baseIdByHyphen] ?? { name: id, id };
 }
 
-// ../../../node_modules/default-browser/index.js
+// node_modules/default-browser/index.js
 var execFileAsync4 = promisify4(execFile4);
 var titleize = (string) => string.toLowerCase().replaceAll(/(?:^|\s|-)\S/g, (x) => x.toUpperCase());
 async function defaultBrowser2() {
@@ -26081,7 +26081,7 @@ async function defaultBrowser2() {
   throw new Error("Only macOS, Linux, and Windows are supported");
 }
 
-// ../../../node_modules/open/index.js
+// node_modules/open/index.js
 var execFile5 = promisify5(childProcess.execFile);
 var __dirname2 = path.dirname(fileURLToPath(import.meta.url));
 var localXdgOpenPath = path.join(__dirname2, "xdg-open");
@@ -26348,7 +26348,7 @@ function log(msg) {
 }
 
 // lib/core.ts
-import * as fs10 from "fs";
+import * as fs11 from "fs";
 
 // lib/auth.ts
 import * as path2 from "path";
@@ -26359,10 +26359,12 @@ import * as fs6 from "fs";
 class ApiError extends Error {
   status;
   rawBodyData;
-  constructor(status, rawBodyData, message) {
+  retryAfterSeconds;
+  constructor(status, rawBodyData, message, retryAfterSeconds) {
     super(message);
     this.status = status;
     this.rawBodyData = rawBodyData;
+    this.retryAfterSeconds = retryAfterSeconds;
     this.name = "ApiError";
   }
 }
@@ -26491,7 +26493,9 @@ class ApiClient {
       errorMessage = response.statusText;
     }
     log(`[api] status=${response.status} body=${sensitive ? "<omitted: request carried a secret>" : rawBody || response.statusText}`);
-    throw new ApiError(response.status, parsedBody, `API error ${response.status}: ${errorMessage}`);
+    const retryHeader = response.headers.get("retry-after");
+    const retryAfter = retryHeader === null || retryHeader.trim() === "" ? NaN : Number(retryHeader);
+    throw new ApiError(response.status, parsedBody, `API error ${response.status}: ${errorMessage}`, Number.isFinite(retryAfter) && retryAfter >= 0 ? retryAfter : undefined);
   }
 }
 
@@ -26740,6 +26744,258 @@ function checkBunRuntime(version) {
   }
   return null;
 }
+// lib/templates.ts
+import * as nodeFs from "fs";
+import * as path4 from "path";
+import { fileURLToPath as fileURLToPath2 } from "url";
+function templatesRoot(fromUrl = import.meta.url) {
+  return fileURLToPath2(new URL("../templates/", fromUrl)).replace(/[\\/]$/, "");
+}
+var fail = (code, error) => ({ success: false, code, error });
+var errMessage = (err) => err instanceof Error ? err.message : String(err);
+var errCode = (err) => err?.code;
+var fold = (name) => name.normalize("NFC").toLowerCase();
+function parseManifest(raw, expectedName) {
+  let m;
+  try {
+    m = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const o = m;
+  const isStr = (v) => typeof v === "string" && v.length > 0;
+  if (!o || o.name !== expectedName || !isStr(o.title) || !isStr(o.description) || !Array.isArray(o.placeholders))
+    return null;
+  if (!o.placeholders.every((p) => p && isStr(p.token) && typeof p.hint === "string"))
+    return null;
+  return { name: o.name, title: o.title, description: o.description, placeholders: o.placeholders };
+}
+function readCatalog(root, fs) {
+  let entries;
+  try {
+    entries = fs.readdirSync(root).sort();
+  } catch (err) {
+    return fail("bad_template", `Cannot read the templates folder ${root}: ${errMessage(err)}`);
+  }
+  const manifests = [];
+  for (const file of entries) {
+    if (!file.endsWith(".json"))
+      continue;
+    const name = file.slice(0, -".json".length);
+    try {
+      if (!fs.lstatSync(path4.join(root, name)).isDirectory())
+        continue;
+    } catch {
+      continue;
+    }
+    const manifest = parseManifest(String(fs.readFileSync(path4.join(root, file), "utf8")), name);
+    if (!manifest)
+      return fail("bad_template", `The template manifest ${file} is invalid.`);
+    manifests.push(manifest);
+  }
+  return { success: true, manifests };
+}
+function listTemplates(deps = {}) {
+  const fs = deps.fs ?? nodeFs;
+  try {
+    const catalog = readCatalog(deps.root ?? templatesRoot(), fs);
+    if (!catalog.success)
+      return catalog;
+    return { success: true, templates: catalog.manifests.map(({ name, title, description }) => ({ name, title, description })) };
+  } catch (err) {
+    return fail("bad_template", `Cannot read the templates: ${errMessage(err)}`);
+  }
+}
+function readTemplateFiles(dir, fs, rel = "") {
+  const out = [];
+  for (const name of fs.readdirSync(dir).sort()) {
+    if (name === ".DS_Store")
+      continue;
+    const full = path4.join(dir, name);
+    const childRel = rel ? `${rel}/${name}` : name;
+    const st = fs.lstatSync(full);
+    if (st.isDirectory())
+      out.push({ rel: childRel, dir: true }, ...readTemplateFiles(full, fs, childRel));
+    else if (st.isFile())
+      out.push({ rel: childRel, dir: false, bytes: Buffer.from(fs.readFileSync(full)) });
+    else
+      throw new Error(`template entry ${childRel} is not a regular file or folder`);
+  }
+  return out;
+}
+function isInside(parent, child) {
+  const rel = path4.relative(parent, child);
+  return rel !== "" && rel !== ".." && !rel.startsWith(`..${path4.sep}`) && !path4.isAbsolute(rel);
+}
+function resolveTarget(abs, fs) {
+  const { root } = path4.parse(abs);
+  const parts = abs.slice(root.length).split(path4.sep).filter(Boolean);
+  let current = root;
+  for (let i = 0;i < parts.length; i++) {
+    const next = path4.join(current, parts[i]);
+    let st;
+    try {
+      st = fs.lstatSync(next);
+    } catch (err) {
+      if (errCode(err) === "ENOENT")
+        return { success: true, realBase: fs.realpathSync(current), missing: parts.slice(i), targetExists: false };
+      if (errCode(err) === "ENOTDIR")
+        return fail("not_a_directory", `${current} is a file, not a folder.`);
+      throw err;
+    }
+    if (st.isSymbolicLink()) {
+      let real;
+      try {
+        real = fs.realpathSync(next);
+      } catch {
+        return fail("symlink_escape", `${next} is a symlink that points nowhere. Choose another folder.`);
+      }
+      if (!isInside(fs.realpathSync(current), real)) {
+        return fail("symlink_escape", `${next} is a symlink to ${real}, outside ${current}. Refusing to write through it; pass the real folder instead if that is where you want the site.`);
+      }
+    }
+    if (!fs.statSync(next).isDirectory()) {
+      return fail("not_a_directory", `${next} is a file, not a folder. Choose a folder (new or empty) for the template.`);
+    }
+    current = next;
+  }
+  return { success: true, realBase: fs.realpathSync(current), missing: [], targetExists: true };
+}
+function findClashes(realTarget, entries, fs) {
+  const listings = new Map([["", fs.readdirSync(realTarget)]]);
+  const existingDirs = new Set;
+  const clashes = [];
+  for (const e of entries) {
+    const slash = e.rel.lastIndexOf("/");
+    const parentRel = slash === -1 ? "" : e.rel.slice(0, slash);
+    const listing = listings.get(parentRel);
+    if (!listing)
+      continue;
+    const base = e.rel.slice(slash + 1);
+    const match = listing.find((n) => fold(n) === fold(base));
+    if (match === undefined)
+      continue;
+    const existing = path4.join(realTarget, parentRel, match);
+    if (e.dir && match === base && fs.lstatSync(existing).isDirectory()) {
+      existingDirs.add(e.rel);
+      listings.set(e.rel, fs.readdirSync(existing));
+    } else {
+      clashes.push(parentRel ? `${parentRel}/${match}` : match);
+    }
+  }
+  return { clashes, existingDirs };
+}
+var HREF_HINT = /data-placeholder-href="([^"]*)"/g;
+function createFromTemplate(args, deps = {}) {
+  const fs = deps.fs ?? nodeFs;
+  const root = deps.root ?? templatesRoot();
+  const { name, directory, allowNonEmpty = false } = args;
+  let catalog;
+  try {
+    catalog = readCatalog(root, fs);
+  } catch (err) {
+    return fail("bad_template", `Cannot read the templates: ${errMessage(err)}`);
+  }
+  if (!catalog.success)
+    return catalog;
+  const valid = catalog.manifests.map((m) => m.name);
+  const manifest = catalog.manifests.find((m) => m.name === name);
+  if (!manifest) {
+    return fail("unknown_template", `${name ? `There is no template named "${name}".` : "Name a template."} Choose one of: ${valid.join(", ")}.`);
+  }
+  if (typeof directory !== "string" || directory.trim() === "") {
+    return fail("missing_directory", "Give a directory to create the site in (a new or empty folder, e.g. ./my-site).");
+  }
+  if (directory.includes("\x00"))
+    return fail("missing_directory", "The directory path contains a NUL character.");
+  let entries;
+  try {
+    entries = readTemplateFiles(path4.join(root, manifest.name), fs);
+  } catch (err) {
+    return fail("bad_template", `Cannot read the "${manifest.name}" template: ${errMessage(err)}`);
+  }
+  const abs = path4.resolve(deps.cwd ?? process.cwd(), directory);
+  let realBase;
+  let realTarget;
+  let missing;
+  let existingDirs = new Set;
+  try {
+    const resolved = resolveTarget(abs, fs);
+    if (!resolved.success)
+      return resolved;
+    realBase = resolved.realBase;
+    realTarget = path4.join(realBase, ...resolved.missing);
+    missing = resolved.missing;
+    if (resolved.targetExists) {
+      const present = fs.readdirSync(realTarget);
+      if (present.length > 0 && !allowNonEmpty) {
+        return fail("not_empty", `${abs} is not empty (${present.length} entr${present.length === 1 ? "y" : "ies"}). Choose a new or empty folder, or pass allow_non_empty: true to add the template beside what is there.`);
+      }
+      const check = findClashes(realTarget, entries, fs);
+      if (check.clashes.length > 0) {
+        return fail("clash", `Nothing was written: ${abs} already has ${check.clashes.join(", ")}, which the template would overwrite.`);
+      }
+      existingDirs = check.existingDirs;
+    }
+  } catch (err) {
+    return fail("io_error", `Cannot check ${abs}: ${errMessage(err)}`);
+  }
+  const created = [];
+  try {
+    let dir = realBase;
+    for (const part of missing) {
+      dir = path4.join(dir, part);
+      fs.mkdirSync(dir);
+      created.push({ path: dir, dir: true });
+    }
+    if (fs.realpathSync(realTarget) !== realTarget)
+      throw new Error(`${abs} changed while the template was being created`);
+    for (const e of entries) {
+      const dest = path4.join(realTarget, ...e.rel.split("/"));
+      if (e.dir) {
+        if (existingDirs.has(e.rel))
+          continue;
+        fs.mkdirSync(dest);
+        created.push({ path: dest, dir: true });
+        continue;
+      }
+      const fd = fs.openSync(dest, "wx");
+      created.push({ path: dest, dir: false });
+      try {
+        const bytes = e.bytes;
+        for (let off = 0;off < bytes.length; )
+          off += fs.writeSync(fd, bytes, off, bytes.length - off);
+      } finally {
+        fs.closeSync(fd);
+      }
+    }
+  } catch (err) {
+    const leftovers = [];
+    for (const c of created.reverse()) {
+      try {
+        if (c.dir)
+          fs.rmdirSync(c.path);
+        else
+          fs.unlinkSync(c.path);
+      } catch (cleanupErr) {
+        leftovers.push(`${c.path} (${errMessage(cleanupErr)})`);
+      }
+    }
+    const tail = leftovers.length ? ` Could not remove: ${leftovers.join(", ")}.` : " Everything this call created was removed; nothing that was there before was touched.";
+    return fail("io_error", `Creating the "${manifest.name}" template in ${abs} failed: ${errMessage(err)}.${tail}`);
+  }
+  const files = entries.filter((e) => !e.dir);
+  const placeholderHrefs = files.filter((e) => e.rel.endsWith(".html")).flatMap((e) => [...e.bytes.toString("utf8").matchAll(HREF_HINT)].map((m) => ({ file: e.rel, hint: m[1] })));
+  return {
+    success: true,
+    name: manifest.name,
+    directory: abs,
+    realDirectory: realTarget,
+    files: files.map((e) => e.rel),
+    placeholders: manifest.placeholders,
+    placeholderHrefs
+  };
+}
 // lib/types.ts
 var VISIBILITIES = ["public", "passcode", "gated", "signed", "identity"];
 function asVisibility(v) {
@@ -26775,7 +27031,7 @@ import {
   readSync,
   statSync
 } from "fs";
-import { join as join4, relative, sep } from "path";
+import { join as join5, relative as relative2, sep as sep2 } from "path";
 
 // lib/billing-text.ts
 var ACCOUNT_PAST_DUE_CODE = "account_past_due";
@@ -26920,7 +27176,7 @@ var REPO_SIGNAL_FILES = new Set([
 ]);
 var BUILD_DIRS = ["dist", "build", "out", "public", "_site"];
 function preflightCheck(files, excluded, opts) {
-  const paths = files.map((f) => f.relPath.split(sep).join("/"));
+  const paths = files.map((f) => f.relPath.split(sep2).join("/"));
   const topLevel = new Set(paths.map((p) => p.split("/")[0]));
   const buildDirs = BUILD_DIRS.filter((d) => paths.includes(`${d}/index.html`));
   const hint = buildDirs.length > 0 ? ` Found ${buildDirs.map((d) => `'${d}/'`).join(", ")} with an index.html, which is probably what you want to publish.` : "";
@@ -27074,8 +27330,8 @@ async function hashFileChunkedYielding(fullPath, yieldEvery, bytesSinceYield) {
 function walkFiles(rootDir, currentDir, result, ignorePatterns, includeSourcemaps) {
   const entries = readdirSync(currentDir, { withFileTypes: true });
   for (const entry of entries) {
-    const fullPath = join4(currentDir, entry.name);
-    const relPath = relative(rootDir, fullPath);
+    const fullPath = join5(currentDir, entry.name);
+    const relPath = relative2(rootDir, fullPath);
     if (isDefaultExcluded(entry.name, entry.isDirectory(), includeSourcemaps)) {
       result.excluded.push(entry.isDirectory() ? `${relPath}/` : relPath);
       continue;
@@ -27096,7 +27352,7 @@ function walkFiles(rootDir, currentDir, result, ignorePatterns, includeSourcemap
 }
 function listFiles(dirPath, opts) {
   let ignorePatterns = [];
-  const ignoreFile = join4(dirPath, ".upublishignore");
+  const ignoreFile = join5(dirPath, ".upublishignore");
   try {
     if (existsSync2(ignoreFile)) {
       ignorePatterns = parseIgnoreFile(readFileSync3(ignoreFile, "utf-8"));
@@ -27829,9 +28085,9 @@ async function revokeInvite(apiClient, nsId, inviteId) {
 
 // lib/qrcode.ts
 import * as fs8 from "fs";
-import * as path4 from "path";
+import * as path5 from "path";
 
-// ../../../node_modules/qrcode/lib/server.js
+// node_modules/qrcode/lib/server.js
 var canPromise = require_can_promise();
 var QRCode = require_qrcode();
 var PngRenderer = require_png2();
@@ -27946,8 +28202,8 @@ async function qrCode(args, deps) {
     errorCorrectionLevel: "M"
   });
   const targetDir = outputDir ?? process.cwd();
-  const svgPath = path4.join(targetDir, "qr.svg");
-  const pngPath = path4.join(targetDir, "qr.png");
+  const svgPath = path5.join(targetDir, "qr.svg");
+  const pngPath = path5.join(targetDir, "qr.png");
   const svgContent = await $toString(encodedUrl, {
     type: "svg",
     errorCorrectionLevel: "M"
@@ -28044,6 +28300,446 @@ async function adminDomains(apiClient, args) {
       return apiClient.delete(`/api/admin/domains/${args.domainId}`);
     }
   }
+}
+
+// lib/site-export.ts
+import { createHash as createHash2, randomBytes } from "crypto";
+import * as fs9 from "fs/promises";
+import * as path6 from "path";
+var EXPORT_CONCURRENCY = 8;
+var MAX_PATH_BYTES = 4096;
+var MAX_SEGMENT_BYTES = 255;
+var MAX_PAGES = 1e4;
+var MAX_EXPORT_BYTES = 5 * 1024 ** 3;
+var MAX_RETRY_WAIT_S = 120;
+var DEFAULT_RETRY_WAIT_S = 5;
+var MD5_RE = /^[0-9a-f]{32}$/;
+var WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9\u00B9\u00B2\u00B3]|lpt[0-9\u00B9\u00B2\u00B3])$/i;
+var CONTROL_RE = /[\u0000-\u001f\u007f]/;
+function redact(text) {
+  return text.replace(/(https?:\/\/[^\s"'<>?#]*)[?#][^\s"'<>]*/gi, "$1").replace(/X-Amz-[A-Za-z-]+=[^&\s"'<>]*/gi, "[redacted]");
+}
+function errMsg(err) {
+  return redact(err instanceof Error ? err.message : String(err));
+}
+
+class FileError extends Error {
+}
+
+class ExpiredError extends Error {
+}
+function validateExportPath(p) {
+  if (typeof p !== "string" || p === "")
+    return "empty path";
+  if (Buffer.byteLength(p) > MAX_PATH_BYTES)
+    return `path longer than ${MAX_PATH_BYTES} bytes`;
+  if (CONTROL_RE.test(p))
+    return "control or NUL character";
+  if (p.includes("\\"))
+    return "backslash";
+  if (p.includes(":"))
+    return "colon (drive letter or alternate data stream)";
+  if (p.startsWith("/"))
+    return "absolute path";
+  for (const seg of p.split("/")) {
+    if (seg === "")
+      return "empty path segment";
+    if (seg === ".")
+      return "'.' segment";
+    if (seg === "..")
+      return "'..' segment";
+    if (Buffer.byteLength(seg) > MAX_SEGMENT_BYTES)
+      return `segment longer than ${MAX_SEGMENT_BYTES} bytes`;
+    if (seg.endsWith(".") || seg.endsWith(" "))
+      return "segment ends with a dot or space";
+    if (WINDOWS_RESERVED.test(seg.split(".")[0].trimEnd()))
+      return "Windows reserved name";
+  }
+  return null;
+}
+function foldKey(p) {
+  return p.normalize("NFD").toLowerCase().normalize("NFD");
+}
+function findPathCollision(paths) {
+  const seen = new Map;
+  for (const p of paths) {
+    const k = foldKey(p);
+    const prev = seen.get(k);
+    if (prev !== undefined)
+      return `${JSON.stringify(p)} collides with ${JSON.stringify(prev)}`;
+    seen.set(k, p);
+  }
+  for (const p of paths) {
+    const segs = p.split("/");
+    for (let i = 1;i < segs.length; i++) {
+      const prefix = segs.slice(0, i).join("/");
+      const hit = seen.get(foldKey(prefix));
+      if (hit !== undefined)
+        return `${JSON.stringify(hit)} is a file but ${JSON.stringify(p)} needs it to be a directory`;
+    }
+  }
+  return null;
+}
+function show(p) {
+  const s = JSON.stringify(typeof p === "string" ? p : String(p));
+  return s.length > 200 ? `${s.slice(0, 200)}..."` : s;
+}
+var isInt = (n) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+function urlOk(u) {
+  if (typeof u !== "string")
+    return false;
+  try {
+    const url = new URL(u);
+    if (url.username || url.password)
+      return false;
+    return url.protocol === "https:" || url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+function parsePage(raw) {
+  const bad = (why) => {
+    throw new Error(`The export API returned a malformed page (${why}).`);
+  };
+  if (typeof raw !== "object" || raw === null)
+    return bad("not an object");
+  const r = raw;
+  if (!isInt(r.version) || r.version < 1)
+    bad("version");
+  if (!isInt(r.file_count))
+    bad("file_count");
+  if (!Array.isArray(r.files))
+    bad("files");
+  if (r.next_cursor !== null && (typeof r.next_cursor !== "string" || r.next_cursor === ""))
+    bad("next_cursor");
+  const expiresAtMs = typeof r.expires_at === "string" ? Date.parse(r.expires_at) : NaN;
+  if (Number.isNaN(expiresAtMs))
+    bad("expires_at");
+  const files = r.files.map((f) => {
+    const e = typeof f === "object" && f !== null ? f : {};
+    if (typeof e.path !== "string" || !isInt(e.size) || typeof e.md5 !== "string" || !MD5_RE.test(e.md5) || !urlOk(e.url)) {
+      return bad("a file entry has a missing or invalid field");
+    }
+    return { path: e.path, size: e.size, md5: e.md5, url: e.url };
+  });
+  return { version: r.version, fileCount: r.file_count, files, nextCursor: r.next_cursor, expiresAtMs };
+}
+async function fetchPage(api, nsId, slug, q, deps) {
+  const params = new URLSearchParams;
+  if (q.version !== undefined)
+    params.set("version", String(q.version));
+  if (q.cursor !== undefined)
+    params.set("cursor", q.cursor);
+  const qs = params.toString() ? `?${params}` : "";
+  const url = `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/export${qs}`;
+  for (let attempt = 0;; attempt++) {
+    try {
+      return parsePage(await api.get(url));
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.status !== 429)
+        throw err;
+      const wait = err.retryAfterSeconds ?? DEFAULT_RETRY_WAIT_S;
+      if (attempt >= 1 || wait > MAX_RETRY_WAIT_S) {
+        throw new Error(`Export is rate limited; try again in about ${wait}s.`);
+      }
+      log(`[export] rate limited; waiting ${wait}s`);
+      await deps.sleep(wait * 1000);
+    }
+  }
+}
+async function checkExistingTree(root, paths) {
+  const verifiedDirs = new Set;
+  for (const p of paths) {
+    const segs = p.split("/");
+    let cur = root;
+    for (let i = 0;i < segs.length; i++) {
+      cur = path6.join(cur, segs[i]);
+      const last = i === segs.length - 1;
+      if (!last && verifiedDirs.has(cur))
+        continue;
+      let st;
+      try {
+        st = await fs9.lstat(cur);
+      } catch (err) {
+        if (err.code === "ENOENT")
+          break;
+        throw err;
+      }
+      if (st.isSymbolicLink())
+        throw new Error(`Refusing to export: ${show(p)} passes through an existing symlink in the target directory.`);
+      if (!last && !st.isDirectory())
+        throw new Error(`Refusing to export: ${show(p)} needs a directory where a file already exists.`);
+      if (last && st.isDirectory())
+        throw new Error(`Refusing to export: ${show(p)} is a file but a directory exists there.`);
+      if (!last)
+        verifiedDirs.add(cur);
+    }
+  }
+}
+async function assertParentInside(parent, expected) {
+  const real = await fs9.realpath(parent);
+  if (foldKey(real) !== foldKey(expected))
+    throw new FileError("target directory changed during export (symlink?); refused");
+}
+async function writeAll(fh, chunk) {
+  let off = 0;
+  while (off < chunk.byteLength) {
+    const { bytesWritten } = await fh.write(chunk, off, chunk.byteLength - off);
+    off += bytesWritten;
+  }
+}
+async function writeVerified(res, entry, rootReal) {
+  const segs = entry.path.split("/");
+  const expectedParent = path6.join(rootReal, ...segs.slice(0, -1));
+  const dest = path6.join(rootReal, ...segs);
+  await fs9.mkdir(expectedParent, { recursive: true });
+  await assertParentInside(expectedParent, expectedParent);
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > entry.size)
+    throw new FileError(`body larger than the manifest size (${entry.size} bytes)`);
+  const tmp = path6.join(expectedParent, `.upublish-export-${randomBytes(8).toString("hex")}.tmp`);
+  const fh = await fs9.open(tmp, "wx", 420);
+  let closed = false;
+  try {
+    const md5 = createHash2("md5");
+    let n = 0;
+    if (res.body) {
+      const reader = res.body.getReader();
+      try {
+        for (;; ) {
+          const { done, value } = await reader.read();
+          if (done)
+            break;
+          n += value.byteLength;
+          if (n > entry.size)
+            throw new FileError(`body larger than the manifest size (${entry.size} bytes)`);
+          md5.update(value);
+          await writeAll(fh, value);
+        }
+      } catch (err) {
+        await reader.cancel().catch((e) => log(`[export] reader cancel: ${errMsg(e)}`));
+        throw err;
+      }
+    }
+    if (n !== entry.size)
+      throw new FileError(`size mismatch (got ${n} bytes, expected ${entry.size})`);
+    if (md5.digest("hex") !== entry.md5)
+      throw new FileError("MD5 mismatch");
+    await fh.chmod(420);
+    await fh.close();
+    closed = true;
+    await assertParentInside(expectedParent, expectedParent);
+    const existing = await fs9.lstat(dest).catch((e) => {
+      if (e.code === "ENOENT")
+        return null;
+      throw e;
+    });
+    if (existing?.isSymbolicLink())
+      throw new FileError("destination is a symlink; not replaced");
+    if (existing?.isDirectory())
+      throw new FileError("destination is a directory; not replaced");
+    await fs9.rename(tmp, dest);
+  } catch (err) {
+    if (!closed)
+      await fh.close().catch((e) => log(`[export] close: ${errMsg(e)}`));
+    await fs9.unlink(tmp).catch((e) => {
+      if (e.code !== "ENOENT")
+        log(`[export] temp cleanup failed: ${errMsg(e)}`);
+    });
+    throw err;
+  }
+}
+async function downloadOnce(entry, url, ctx, rootReal, deps) {
+  const res = await deps.fetchFn(url, {
+    redirect: "error",
+    headers: { "Accept-Encoding": "identity" },
+    signal: AbortSignal.timeout(deps.fileTimeoutMs)
+  });
+  if (!res.ok) {
+    if (res.status === 404)
+      throw new FileError("blob not found (HTTP 404)");
+    if (res.status === 400 || res.status === 403) {
+      const body = (await res.text().catch(() => "")).slice(0, 2048);
+      if (deps.now() >= ctx.expiresAtMs || /expired|signature/i.test(body))
+        throw new ExpiredError(`HTTP ${res.status}`);
+    }
+    await res.body?.cancel().catch(() => log("[export] body cancel failed"));
+    throw new FileError(`download failed (HTTP ${res.status})`);
+  }
+  await writeVerified(res, entry, rootReal);
+}
+async function runSiteExport(api, nsId, args, userDeps) {
+  try {
+    return await runInner(api, nsId, args, userDeps);
+  } catch (err) {
+    throw new Error(errMsg(err));
+  }
+}
+async function runInner(api, nsId, args, userDeps) {
+  const deps = {
+    concurrency: Math.max(1, userDeps.concurrency ?? EXPORT_CONCURRENCY),
+    sleep: userDeps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
+    now: userDeps.now ?? Date.now,
+    fileTimeoutMs: userDeps.fileTimeoutMs ?? 600000,
+    fetchFn: userDeps.fetchFn
+  };
+  if (!args.slug)
+    throw new Error("slug is required");
+  if (args.version !== undefined && !(Number.isSafeInteger(args.version) && args.version >= 1))
+    throw new Error("version must be a positive integer");
+  if (typeof args.directory !== "string" || args.directory.trim() === "" || args.directory.includes("\x00"))
+    throw new Error("directory is required");
+  const target = path6.resolve(args.directory);
+  let rootExisted = false;
+  try {
+    const st = await fs9.stat(target);
+    if (!st.isDirectory())
+      throw new Error(`${target} exists and is not a directory.`);
+    rootExisted = true;
+    if (!args.overwrite && (await fs9.readdir(target)).length > 0) {
+      throw new Error(`${target} is not empty. Pass overwrite: true to export into it, or choose an empty or new directory.`);
+    }
+  } catch (err) {
+    if (err.code !== "ENOENT")
+      throw err;
+  }
+  const manifest = new Map;
+  let first;
+  let last;
+  let pageCount = 0;
+  let version = args.version;
+  let cursor;
+  for (const seen = new Set;; ) {
+    if (++pageCount > MAX_PAGES)
+      throw new Error("The export listing has too many pages; aborting.");
+    const page = await fetchPage(api, nsId, args.slug, { version, cursor }, deps);
+    if (args.version !== undefined && page.version !== args.version)
+      throw new Error(`The export API returned version ${page.version}, not ${args.version}.`);
+    version = page.version;
+    first ??= page;
+    last = page;
+    for (const f of page.files) {
+      const bad = validateExportPath(f.path);
+      if (bad)
+        throw new Error(`Refusing to export: unsafe path ${show(f.path)} (${bad}). Nothing was written.`);
+      if (manifest.has(f.path))
+        throw new Error(`Refusing to export: duplicate path ${show(f.path)}. Nothing was written.`);
+      manifest.set(f.path, { size: f.size, md5: f.md5 });
+    }
+    if (page.nextCursor === null)
+      break;
+    if (seen.has(page.nextCursor))
+      throw new Error("The export API repeated a page cursor; aborting.");
+    seen.add(page.nextCursor);
+    cursor = page.nextCursor;
+  }
+  const allPaths = [...manifest.keys()];
+  const totalBytes = [...manifest.values()].reduce((n, f) => n + f.size, 0);
+  if (totalBytes > (userDeps.maxBytes ?? MAX_EXPORT_BYTES))
+    throw new Error(`Refusing to export: the site is ${fmtBytes(totalBytes)}, over the ${fmtBytes(userDeps.maxBytes ?? MAX_EXPORT_BYTES)} export limit. Nothing was written.`);
+  const fileCount = first.fileCount;
+  const collision = findPathCollision(allPaths);
+  if (collision)
+    throw new Error(`Refusing to export: path collision (${collision}). Nothing was written.`);
+  if (allPaths.length !== fileCount)
+    throw new Error(`The export listing is incomplete (${allPaths.length} listed, ${fileCount} expected). Nothing was written.`);
+  await fs9.mkdir(target, { recursive: true });
+  const rootReal = await fs9.realpath(target);
+  if (rootExisted)
+    await checkExistingTree(rootReal, allPaths);
+  const failed = [];
+  let written = 0;
+  let bytes = 0;
+  const reuse = first === last && first.nextCursor === null ? first : undefined;
+  let pageCursor;
+  for (let pages = 0;; pages++) {
+    const page = pages === 0 && reuse ? reuse : await fetchPage(api, nsId, args.slug, { version, cursor: pageCursor }, deps);
+    if (page.version !== version)
+      throw new Error("The export API changed version mid-export; aborting.");
+    const ctx = { cursor: pageCursor, urls: new Map(page.files.map((f) => [f.path, f.url])), expiresAtMs: page.expiresAtMs, gen: 0 };
+    await processPage(api, nsId, args.slug, version, page.files, manifest, ctx, rootReal, deps, (n) => {
+      written++;
+      bytes += n;
+    }, failed);
+    if (page.nextCursor === null)
+      break;
+    pageCursor = page.nextCursor;
+  }
+  return { slug: args.slug, version, directory: rootReal, fileCount, written, bytes, failed };
+}
+async function processPage(api, nsId, slug, version, files, manifest, ctx, rootReal, deps, onDone, failed) {
+  let next = 0;
+  const worker = async () => {
+    while (next < files.length) {
+      const entry = files[next++];
+      try {
+        const known = manifest.get(entry.path);
+        if (validateExportPath(entry.path) || !known || known.size !== entry.size || known.md5 !== entry.md5) {
+          throw new FileError("the file list changed between requests");
+        }
+        await attempt(entry);
+        onDone(entry.size);
+      } catch (err) {
+        failed.push({ path: entry.path, reason: errMsg(err) });
+      }
+    }
+  };
+  const attempt = async (entry) => {
+    for (let n = 0;n < 2; n++) {
+      const seenGen = ctx.gen;
+      const url = ctx.urls.get(entry.path);
+      if (!url)
+        throw new FileError("no download link after the page was re-requested");
+      try {
+        return await downloadOnce(entry, url, ctx, rootReal, deps);
+      } catch (err) {
+        if (!(err instanceof ExpiredError))
+          throw err;
+        if (n === 1)
+          throw new FileError("download link expired again after the page was re-requested");
+        await refreshOnce(seenGen);
+      }
+    }
+  };
+  const refreshOnce = async (seenGen) => {
+    if (ctx.gen > seenGen)
+      return;
+    if (ctx.gen >= 1)
+      throw new FileError("download link expired again after the page was re-requested");
+    ctx.refresh ??= (async () => {
+      const page = await fetchPage(api, nsId, slug, { version, cursor: ctx.cursor }, deps);
+      if (page.version !== version)
+        throw new FileError("the export version changed; aborting this page");
+      ctx.urls = new Map(page.files.map((f) => [f.path, f.url]));
+      ctx.expiresAtMs = page.expiresAtMs;
+      ctx.gen = 1;
+    })();
+    await ctx.refresh;
+  };
+  await Promise.all(Array.from({ length: Math.min(deps.concurrency, files.length) }, worker));
+}
+var MAX_LISTED_FAILURES = 20;
+function fmtBytes(n) {
+  if (n < 1024)
+    return `${n} B`;
+  if (n < 1024 * 1024)
+    return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+function formatExportResult(r) {
+  const lines = [
+    r.failed.length === 0 ? `Exported '${r.slug}' v${r.version} to ${r.directory}` : `Export of '${r.slug}' v${r.version} to ${r.directory} finished with failures`,
+    `Files written: ${r.written} of ${r.fileCount} (${fmtBytes(r.bytes)})`
+  ];
+  if (r.failed.length > 0) {
+    lines.push(`Failed: ${r.failed.length}`);
+    for (const f of r.failed.slice(0, MAX_LISTED_FAILURES))
+      lines.push(`  - ${show(f.path)}: ${redact(f.reason)}`);
+    if (r.failed.length > MAX_LISTED_FAILURES)
+      lines.push(`  ...and ${r.failed.length - MAX_LISTED_FAILURES} more`);
+  }
+  return lines.join(`
+`);
 }
 
 // lib/namespace.ts
@@ -28271,10 +28967,10 @@ function displayMsg(s) {
 
 // lib/site-data-text.ts
 var CONTROL_CLASS = "[\\u0000-\\u001F\\u007F-\\u009F\\u2028\\u2029]";
-var CONTROL_RE = new RegExp(CONTROL_CLASS);
+var CONTROL_RE2 = new RegExp(CONTROL_CLASS);
 var CONTROL_RE_G = new RegExp(CONTROL_CLASS, "g");
 var hex4 = (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`;
-var hasControlChars = (s) => CONTROL_RE.test(s);
+var hasControlChars = (s) => CONTROL_RE2.test(s);
 var quoteText = (s) => JSON.stringify(s).replace(CONTROL_RE_G, hex4);
 var safeText = (s) => {
   const text = String(s);
@@ -28821,8 +29517,8 @@ async function runDataCollection(apiClient, ns, args) {
 }
 
 // lib/site-data-rows.ts
-import * as fs9 from "fs";
-import * as path5 from "path";
+import * as fs10 from "fs";
+import * as path7 from "path";
 import { Readable, Transform } from "stream";
 import { pipeline as pipeline2 } from "stream/promises";
 var validCollection = (args) => assertCollectionName(requireArg(args.collection, "collection", args.action));
@@ -28846,7 +29542,7 @@ function lineCounter() {
   return { stream, state };
 }
 var EXPORT_EXTENSION = /\.(ndjson|jsonl)$/i;
-var exists = async (p) => fs9.promises.lstat(p).then(() => true, (err) => {
+var exists = async (p) => fs10.promises.lstat(p).then(() => true, (err) => {
   if (err.code === "ENOENT")
     return false;
   throw err;
@@ -28856,23 +29552,23 @@ var LINK_UNSUPPORTED = new Set(["EXDEV", "EPERM", "ENOTSUP", "EOPNOTSUPP"]);
 var appearedError = (target) => new Error(`'${safeText(target)}' appeared during the export and was not replaced. Pass overwrite: true to replace it.`);
 async function publishWithoutOverwrite(partial, target) {
   try {
-    await fs9.promises.link(partial, target);
+    await fs10.promises.link(partial, target);
     return;
   } catch (err) {
     if (!LINK_UNSUPPORTED.has(err.code ?? ""))
       throw err;
   }
-  const dest = await fs9.promises.open(target, "wx", 384);
+  const dest = await fs10.promises.open(target, "wx", 384);
   try {
-    await pipeline2(fs9.createReadStream(partial), dest.createWriteStream());
+    await pipeline2(fs10.createReadStream(partial), dest.createWriteStream());
   } catch (err) {
     await dest.close().catch(() => {});
-    await fs9.promises.rm(target, { force: true });
+    await fs10.promises.rm(target, { force: true });
     throw err;
   }
 }
 async function exportRows(apiClient, ns, collection, dest, overwrite) {
-  const target = path5.resolve(dest);
+  const target = path7.resolve(dest);
   if (!EXPORT_EXTENSION.test(target)) {
     throw new Error(`export path must end in .ndjson or .jsonl (got '${safeText(dest)}'). Nothing was written.`);
   }
@@ -28888,7 +29584,7 @@ async function exportRows(apiClient, ns, collection, dest, overwrite) {
   const counter = lineCounter();
   let handle;
   try {
-    handle = await fs9.promises.open(partial, "wx", 384);
+    handle = await fs10.promises.open(partial, "wx", 384);
   } catch (err) {
     if (err.code === "EEXIST")
       throw partialExistsError(partial);
@@ -28897,16 +29593,16 @@ async function exportRows(apiClient, ns, collection, dest, overwrite) {
   try {
     await pipeline2(Readable.from(response.body, { objectMode: false }), counter.stream, handle.createWriteStream());
     if (overwrite) {
-      await fs9.promises.rename(partial, target);
+      await fs10.promises.rename(partial, target);
     } else {
       await publishWithoutOverwrite(partial, target).catch((err) => {
         throw err.code === "EEXIST" ? appearedError(target) : err;
       });
-      await fs9.promises.rm(partial);
+      await fs10.promises.rm(partial);
     }
   } catch (err) {
     await handle.close().catch(() => {});
-    await fs9.promises.rm(partial, { force: true });
+    await fs10.promises.rm(partial, { force: true });
     throw err;
   }
   const { lines, bytes, lastByte } = counter.state;
@@ -29414,7 +30110,7 @@ async function withRedaction(values, fn) {
 // lib/backend-bundle.ts
 import { existsSync as existsSync3, realpathSync, statSync as statSync2 } from "fs";
 import { builtinModules } from "module";
-import { dirname as dirname3, join as join6, resolve as resolve2, sep as sep2 } from "path";
+import { dirname as dirname3, join as join8, resolve as resolve4, sep as sep3 } from "path";
 var MAX_COMPILER_MESSAGES = 10;
 var INLINE_ENTRY = "/__upublish_inline__/entry.ts";
 var DEFAULT_EXPORT_RE = /\bexport\s+default\b|\bas\s+default\b/;
@@ -29422,13 +30118,13 @@ var NODE_BUILTIN_RE = new RegExp(`^(node:.+|${builtinModules.filter((m) => !m.st
 var URL_SPECIFIER_RE = /^[a-z][a-z0-9+.-]*:/i;
 function projectRoot(realEntry) {
   for (let dir = dirname3(realEntry), up = dirname3(dir);; dir = up, up = dirname3(dir)) {
-    if (existsSync3(join6(dir, "package.json")))
+    if (existsSync3(join8(dir, "package.json")))
       return dir;
     if (up === dir)
       return dirname3(realEntry);
   }
 }
-var isInside = (root, file) => file === root || file.startsWith(root.endsWith(sep2) ? root : root + sep2);
+var isInside2 = (root, file) => file === root || file.startsWith(root.endsWith(sep3) ? root : root + sep3);
 var sha256Hex = (s) => new Bun.CryptoHasher("sha256").update(s).digest("hex");
 function describe2(m) {
   const p = m.position;
@@ -29463,7 +30159,7 @@ async function bundleBackend(input, opts = {}) {
     files = { [INLINE_ENTRY]: input.code };
     inlineCode = input.code;
   } else {
-    entrypoint = resolve2(opts.cwd ?? process.cwd(), input.entry);
+    entrypoint = resolve4(opts.cwd ?? process.cwd(), input.entry);
     let isFile = false;
     try {
       isFile = statSync2(entrypoint).isFile();
@@ -29511,7 +30207,7 @@ async function bundleBackend(input, opts = {}) {
                 forbid(`${a.path} (inline code cannot read files)`);
               return { contents: inlineCode, loader: "ts" };
             }
-            if (!isInside(root, realpathSync(a.path)))
+            if (!isInside2(root, realpathSync(a.path)))
               forbid(`${a.path} (outside the project folder)`);
             return;
           });
@@ -30174,7 +30870,12 @@ async function qrCode2(args, deps) {
     }
   });
 }
-async function rename(opts, deps) {
+async function exportSite(args, deps) {
+  const apiClient = await buildApiClient(deps);
+  const ns = await resolveNamespace(apiClient, args.namespace);
+  return runSiteExport(apiClient, ns.id, args, { fetchFn: deps?.fetchFn ?? fetch });
+}
+async function rename2(opts, deps) {
   let apiClient;
   try {
     apiClient = await buildApiClient(deps);
@@ -30296,7 +30997,7 @@ async function logout(deps) {
     });
   } catch {}
   try {
-    fs10.unlinkSync(credFile);
+    fs11.unlinkSync(credFile);
   } catch (err) {
     return { loggedOut: false, error: err.message };
   }
@@ -30304,7 +31005,7 @@ async function logout(deps) {
 }
 
 // mcp/index.ts
-var LOCAL_ONLY_TOOLS = ["publish", "qrcode", "login", "logout", "upgrade"];
+var LOCAL_ONLY_TOOLS = ["publish", "qrcode", "login", "logout", "upgrade", "template", "export"];
 var ADMIN_TOOLS = ["admin_user", "admin_site", "admin_stats", "admin_storage", "admin_domains"];
 var LOCAL_ONLY_MESSAGE = "This tool is only available in the local upublish plugin.";
 async function openUrlIfLocal(url, localFiles, opener = open_default) {
@@ -31373,6 +32074,70 @@ ${lines.join(`
       return errResponse(err);
     }
   });
+  local.registerTool("template", {
+    title: "Starter Template",
+    description: "Starts a site from a starter template, written to a local folder for you to fill in and then publish. " + 'action "list" shows the templates (portfolio, landing page, resume, docs, coming soon, link in bio). ' + 'action "create" copies one into `directory` (a new or empty folder); it never overwrites: a non-empty ' + "folder is refused unless allow_non_empty is true, and even then any name clash fails before anything is " + "written. The result lists every [[...]] placeholder and every link whose href is # (data-placeholder-href " + "says what goes there). Replace them all with the user's content, show the user, then publish the folder.",
+    inputSchema: {
+      action: _enum(["list", "create"]).describe("list the templates, or create one in a folder."),
+      name: string2().optional().describe('Template name from list (required for create), e.g. "portfolio".'),
+      directory: string2().optional().describe("Folder to create the site in (required for create). Absolute or relative to the current working directory; created if missing."),
+      allow_non_empty: boolean2().optional().describe("Add the template to a folder that already has files. Any file name clash is still refused, with nothing written.")
+    }
+  }, async ({ action, name, directory, allow_non_empty }) => {
+    if (action === "list") {
+      const r = listTemplates();
+      if (!r.success)
+        return errResponse(new Error(r.error));
+      return okResponse(`Starter templates (create one with template action:"create", name, directory):
+` + r.templates.map((t) => `- ${t.name}: ${t.title}. ${t.description}`).join(`
+`));
+    }
+    const r = createFromTemplate({
+      name,
+      directory,
+      allowNonEmpty: allow_non_empty === true
+    });
+    if (!r.success)
+      return errResponse(new Error(r.error));
+    const hrefs = r.placeholderHrefs.length ? r.placeholderHrefs.map((h) => `- ${h.file}: ${h.hint}`).join(`
+`) : "- none";
+    return okResponse(`Created the "${r.name}" template in ${r.directory}` + (r.realDirectory !== r.directory ? ` (really ${r.realDirectory})` : "") + `
+Files: ${r.files.join(", ")}
+
+` + `Placeholders to replace:
+${r.placeholders.map((p) => `- ${p.token}: ${p.hint}`).join(`
+`)}
+
+` + `Links with href "#" to point at a real address (data-placeholder-href says what goes there):
+${hrefs}
+
+` + `Next: replace every [[...]] and every data-placeholder-href \`#\`, show the user, then publish this folder (${r.directory}).`);
+  });
+  local.registerTool("export", {
+    title: "Export Site",
+    description: "Downloads a published site's original files from upubli.sh into a local directory and verifies each " + "file's size and MD5. Local only. The live version by default; a specific version needs a paid plan. " + "Refuses a non-empty directory unless `overwrite` is true, and refuses unsafe or colliding file paths " + "before writing anything. Partial failures are listed in the report.",
+    inputSchema: {
+      slug: string2().describe("The URL-safe identifier of the site to export. Use the `list` tool to find slugs."),
+      directory: string2().describe("Directory to write the files into. Created if missing; must be empty unless `overwrite` is true."),
+      version: number2().int().positive().optional().describe("Version number to export (see `versions_list`). Defaults to the live version; non-live versions need a paid plan."),
+      namespace: string2().optional().describe("Address name the site belongs to. When omitted, the default address is used."),
+      overwrite: boolean2().optional().describe("Export into a non-empty directory, replacing files with the same path. Never follows or replaces symlinks.")
+    }
+  }, async ({ slug, directory, version, namespace, overwrite }) => {
+    try {
+      const result = await exportSite({
+        slug,
+        directory,
+        version,
+        namespace,
+        overwrite: overwrite === true
+      }, coreDeps);
+      const response = okResponse(formatExportResult(result));
+      return result.failed.length > 0 ? { ...response, isError: true } : response;
+    } catch (err) {
+      return errResponse(err);
+    }
+  });
   local.registerTool("logout", {
     title: "Logout",
     description: "Signs out of upubli.sh by revoking the refresh token server-side and " + "deleting local credentials. Safe to call even when not logged in or " + "when the server is unreachable (local credentials are always cleared).",
@@ -31605,7 +32370,7 @@ ${lines.join(`
       if (!nsIdStr) {
         return errResponse(new Error("nsId is required"));
       }
-      const result = await rename({
+      const result = await rename2({
         nsId: nsIdStr,
         site,
         newName: newNameStr,

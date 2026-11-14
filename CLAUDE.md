@@ -19,7 +19,7 @@ There is no build step for development — Bun runs TypeScript directly. The `di
 ## Architecture
 
 ```
-mcp/index.ts       MCP server adapter — registers 31 always-on tools plus 5 env-gated admin tools:
+mcp/index.ts       MCP server adapter — registers 33 always-on tools plus 5 env-gated admin tools:
                    • auth/account: login, status, logout, namespace_create, domain, rename, upgrade
                    • sites: publish, list, delete, promote, qrcode, analytics
                    • versions: versions_list, versions_delete, versions_restore, versions_limit
@@ -30,6 +30,8 @@ mcp/index.ts       MCP server adapter — registers 31 always-on tools plus 5 en
                    • user backends (paid add-on; server-side handler at {site}/_api/*): publish_backend (bundles an entry file
                      or inline code locally with Bun.build, deploys it), backend (status/versions/rollback/enable/disable/access/
                      delete/addon_status/addon_enable/addon_disable), backend_secret (set/list/delete), backend_logs
+                   • local-only helpers (never on the hosted server): template (list/create starter sites in a local folder), export (download a
+                     site version's files, verified, into a local folder)
                    • admin (only when UPUBLISH_ADMIN=1): admin_user, admin_site, admin_stats, admin_storage, admin_domains
 lib/core.ts        Facade — all user-facing operations, wires credentials + ApiClient per call
 lib/auth.ts        Unified OAuth login (PKCE auth-code + token exchange), token refresh, credential read/write (~/.upublish/credentials)

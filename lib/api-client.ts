@@ -28,6 +28,8 @@ export class ApiError extends Error {
     /** Parsed JSON body, or null when the body could not be parsed. */
     public readonly rawBodyData: unknown,
     message: string,
+    /** Parsed `Retry-After` header (seconds) when the response carried a valid one. */
+    public readonly retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = "ApiError";
@@ -284,6 +286,13 @@ export class ApiClient {
     }
 
     log(`[api] status=${response.status} body=${sensitive ? "<omitted: request carried a secret>" : rawBody || response.statusText}`);
-    throw new ApiError(response.status, parsedBody, `API error ${response.status}: ${errorMessage}`);
+    const retryHeader = response.headers.get("retry-after");
+    const retryAfter = retryHeader === null || retryHeader.trim() === "" ? NaN : Number(retryHeader);
+    throw new ApiError(
+      response.status,
+      parsedBody,
+      `API error ${response.status}: ${errorMessage}`,
+      Number.isFinite(retryAfter) && retryAfter >= 0 ? retryAfter : undefined,
+    );
   }
 }

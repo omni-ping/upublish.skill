@@ -149,10 +149,10 @@ describe("DW-2.1: server registers publish, list, delete tools", () => {
     const { deps } = makeDeps();
     const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
-    // 32 tools (22 + visibility + the 4 site data tools data, data_collection, data_rows, data_jwt + the 4 backend tools publish_backend, backend, backend_secret, backend_logs + template): publish, list, delete, versions_list, versions_delete, versions_restore,
+    // 33 tools (22 + visibility + the 4 site data tools data, data_collection, data_rows, data_jwt + the 4 backend tools publish_backend, backend, backend_secret, backend_logs + template + export): publish, list, delete, versions_list, versions_delete, versions_restore,
     // versions_limit, passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
     // promote, logout, login, upgrade, status, namespace_create, domain, rename, analytics
-    expect(Object.keys(tools).length).toBe(32);
+    expect(Object.keys(tools).length).toBe(33);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
@@ -920,10 +920,10 @@ describe("DW-1.7: tool count assertions are correct", () => {
     const { deps } = makeDeps();
     const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
-    // 32 tools (22 + visibility + the 4 site data tools data, data_collection, data_rows, data_jwt + the 4 backend tools publish_backend, backend, backend_secret, backend_logs + template): publish, list, delete, versions_list, versions_delete, versions_restore,
+    // 33 tools (22 + visibility + the 4 site data tools data, data_collection, data_rows, data_jwt + the 4 backend tools publish_backend, backend, backend_secret, backend_logs + template + export): publish, list, delete, versions_list, versions_delete, versions_restore,
     // versions_limit, passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
     // promote, logout, login, upgrade, status, namespace_create, domain, rename, analytics
-    expect(Object.keys(tools).length).toBe(32);
+    expect(Object.keys(tools).length).toBe(33);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
@@ -936,10 +936,10 @@ describe("server structure", () => {
     const server = createServer(deps, { localFiles: true });
     expect(server).toBeDefined();
     const tools = getTools(server);
-    // 32 tools (22 + visibility + the 4 site data tools data, data_collection, data_rows, data_jwt + the 4 backend tools publish_backend, backend, backend_secret, backend_logs + template): publish, list, delete, versions_list, versions_delete, versions_restore,
+    // 33 tools (22 + visibility + the 4 site data tools data, data_collection, data_rows, data_jwt + the 4 backend tools publish_backend, backend, backend_secret, backend_logs + template + export): publish, list, delete, versions_list, versions_delete, versions_restore,
     // versions_limit, passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
     // promote, logout, login, upgrade, status, namespace_create, domain, rename, analytics
-    expect(Object.keys(tools).length).toBe(32);
+    expect(Object.keys(tools).length).toBe(33);
     fs.unlinkSync(deps.credentialsPath!);
   });
 
@@ -1521,10 +1521,10 @@ describe("DW-6.2: rename tool registered", () => {
     const { deps } = makeDeps();
     const server = createServer(deps, { localFiles: true });
     const tools = getTools(server);
-    // 32 tools (22 + visibility + the 4 site data tools data, data_collection, data_rows, data_jwt + the 4 backend tools publish_backend, backend, backend_secret, backend_logs + template): publish, list, delete, versions_list, versions_delete, versions_restore,
+    // 33 tools (22 + visibility + the 4 site data tools data, data_collection, data_rows, data_jwt + the 4 backend tools publish_backend, backend, backend_secret, backend_logs + template + export): publish, list, delete, versions_list, versions_delete, versions_restore,
     // versions_limit, passcode_add, passcode_list, passcode_revoke, gate, members, qrcode,
     // promote, logout, login, upgrade, status, namespace_create, domain, rename, analytics
-    expect(Object.keys(tools).length).toBe(32);
+    expect(Object.keys(tools).length).toBe(33);
     fs.unlinkSync(deps.credentialsPath!);
   });
 });
@@ -2014,8 +2014,8 @@ async function listTools(): Promise<Record<string, JsonSchema>> {
 describe("tools/list input schemas", () => {
   test("test_DW_1_4_every_tool_lists_an_object_input_schema", async () => {
     const schemas = await listTools();
-    // 32 always-on tools, plus 5 admin tools when UPUBLISH_ADMIN=1.
-    expect(Object.keys(schemas).length).toBe(process.env.UPUBLISH_ADMIN === "1" ? 37 : 32);
+    // 33 always-on tools, plus 5 admin tools when UPUBLISH_ADMIN=1.
+    expect(Object.keys(schemas).length).toBe(process.env.UPUBLISH_ADMIN === "1" ? 38 : 33);
     for (const [name, schema] of Object.entries(schemas)) {
       expect({ name, type: schema.type }).toEqual({ name, type: "object" });
       expect(schema.properties).toBeDefined();

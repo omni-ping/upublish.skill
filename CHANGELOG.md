@@ -5,6 +5,7 @@
 ### Added
 
 - `template`: starter templates. `list` shows six (portfolio, landing page, resume, docs, coming soon, links page); `create` copies one into a new or empty folder for the agent to fill in and publish. Local AI tools only (not hosted MCP clients). It never overwrites: a non-empty folder needs `allow_non_empty: true`, and any file name clash is refused with nothing written. Guide: `references/templates.md`.
+- `export` (local plugin only): downloads a site's published files into a folder, verifying each file's size and MD5. Pages through the new `GET /api/ns/:nsId/sites/:slug/export` route with 8 parallel downloads, refuses unsafe or colliding paths and non-empty folders (unless `overwrite: true`) before writing, never follows symlinks, and never prints presigned URL query strings. `export` is in `LOCAL_ONLY_TOOLS`, so the hosted server does not list it. Guide: `references/managing.md`.
 
 ### Security
 

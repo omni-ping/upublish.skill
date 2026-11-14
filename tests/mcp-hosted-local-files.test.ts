@@ -34,7 +34,7 @@ const STDIO_TOOLS = [
   "publish", "list", "delete", "versions_list", "versions_delete", "versions_restore", "versions_limit", "analytics",
   "passcode_add", "visibility", "passcode_list", "passcode_revoke", "gate", "data", "data_collection", "data_rows",
   "data_jwt", "publish_backend", "backend", "backend_secret", "backend_logs", "members", "promote", "qrcode", "logout",
-  "login", "upgrade", "status", "namespace_create", "domain", "rename", "template",
+  "login", "upgrade", "status", "namespace_create", "domain", "rename", "template", "export",
 ];
 
 const HOSTED: CoreDeps = { tokenProvider: async () => "t" };
@@ -102,7 +102,7 @@ describe("DW-1.1: hosted tool list has no local-only or admin tool", () => {
   const forbidden = [...LOCAL_ONLY_TOOLS, ...ADMIN_TOOLS];
 
   test("LOCAL_ONLY_TOOLS and ADMIN_TOOLS are the pinned name lists", () => {
-    expect([...LOCAL_ONLY_TOOLS]).toEqual(["publish", "qrcode", "login", "logout", "upgrade", "template"]);
+    expect([...LOCAL_ONLY_TOOLS]).toEqual(["publish", "qrcode", "login", "logout", "upgrade", "template", "export"]);
     expect([...ADMIN_TOOLS]).toEqual(["admin_user", "admin_site", "admin_stats", "admin_storage", "admin_domains"]);
   });
 
@@ -123,7 +123,7 @@ describe("DW-1.1: hosted tool list has no local-only or admin tool", () => {
     expect(listed).toContain("data_rows");
   });
 
-  test("the hosted set is exactly the stdio set minus the six local-only tools", () => {
+  test("the hosted set is exactly the stdio set minus the local-only tools", () => {
     delete process.env.UPUBLISH_ADMIN;
     const hosted = names(createHostedServer(HOSTED));
     expect(hosted.sort()).toEqual(STDIO_TOOLS.filter((n) => !(LOCAL_ONLY_TOOLS as readonly string[]).includes(n)).sort());
@@ -155,6 +155,7 @@ describe("DW-1.2: a local-only call is refused with no side effect", () => {
     logout: {},
     upgrade: { plan: "pro" },
     template: { action: "create", name: "links", directory: "" },
+    export: { slug: "x", directory: "" }, // directory is pointed at the harness's outDir below
   };
 
   /** Spies and fixtures shared by the "nothing happened" assertions. */
@@ -183,7 +184,7 @@ describe("DW-1.2: a local-only call is refused with no side effect", () => {
   test.each(LOCAL_ONLY_TOOLS)("hosted: tools/call %s is an error and nothing is read, written, opened or bound", async (name) => {
     const h = harness();
     const client = await connect(createServer(h.deps, { openBrowser: h.openBrowser, localFiles: false }));
-    const args = { ...ARGS[name], ...(name === "qrcode" ? { outputDir: h.outDir } : name === "template" ? { directory: h.outDir } : {}) };
+    const args = { ...ARGS[name], ...(name === "qrcode" ? { outputDir: h.outDir } : name === "template" || name === "export" ? { directory: h.outDir } : {}) };
     const r = await call(client, name, args);
     expect(r.isError).toBe(true);
     expect(text(r)).toMatch(/not found|unknown|disabled/i);
@@ -195,7 +196,7 @@ describe("DW-1.2: a local-only call is refused with no side effect", () => {
     const opts: CreateServerOpts = { openBrowser: h.openBrowser, localFiles: true };
     const client = await connect(createServer(h.deps, opts));
     opts.localFiles = false; // the handler re-reads the flag on every call
-    const args = { ...ARGS[name], ...(name === "qrcode" ? { outputDir: h.outDir } : name === "template" ? { directory: h.outDir } : {}) };
+    const args = { ...ARGS[name], ...(name === "qrcode" ? { outputDir: h.outDir } : name === "template" || name === "export" ? { directory: h.outDir } : {}) };
     const r = await call(client, name, args);
     expect(r.isError).toBe(true);
     expect(text(r)).toContain("only available in the local upublish plugin");
