@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Introduction · [[Project name]] docs</title>
+  <meta name="description" content="[[One sentence on what your project does]]">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#content">Skip to content</a>
+  <header class="site-header">
+    <div class="bar">
+      <a class="brand" href="index.html">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18" rx="5" class="logo"/><path d="M8 9h8M8 12h8M8 15h5" class="logo-lines"/></svg>
+        <span>[[Project name]]</span>
+      </a>
+      <span class="version">[[Version, e.g. v1.0]]</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar" aria-label="Documentation">
+      <p class="nav-title">Docs</p>
+      <ul>
+        <li><a href="index.html" aria-current="page">Introduction</a></li>
+        <li><a href="guide.html">Guide</a></li>
+      </ul>
+      <p class="nav-title">On this page</p>
+      <ul>
+        <li><a href="#install">Install</a></li>
+        <li><a href="#quick-start">Quick start</a></li>
+        <li><a href="#next">Where next</a></li>
+      </ul>
+    </nav>
+
+    <main id="content" class="content">
+      <p class="crumb">Docs / Introduction</p>
+      <h1>[[Project name]]</h1>
+      <p class="lede">[[One sentence on what your project does]]</p>
+      <p>[[A short paragraph on who the project is for and the problem it solves]]</p>
+
+      <h2 id="install">Install</h2>
+      <p>[[One line on what people need before installing, e.g. a runtime or an account]]</p>
+      <pre tabindex="0"><code>[[Install command, e.g. npm install my-project]]</code></pre>
+
+      <h2 id="quick-start">Quick start</h2>
+      <ol class="steps">
+        <li>
+          <h3>[[First step]]</h3>
+          <p>[[What the reader does in the first step]]</p>
+        </li>
+        <li>
+          <h3>[[Second step]]</h3>
+          <p>[[What the reader does in the second step]]</p>
+          <pre tabindex="0"><code>[[A short code example for the second step]]</code></pre>
+        </li>
+        <li>
+          <h3>[[Third step]]</h3>
+          <p>[[What the reader sees when it works]]</p>
+        </li>
+      </ol>
+
+      <aside class="note" aria-label="Note">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01" class="note-mark"/></svg>
+        <p>[[A tip or warning worth calling out, e.g. a common mistake]]</p>
+      </aside>
+
+      <h2 id="next">Where next</h2>
+      <p>The guide covers configuration and everyday use.</p>
+
+      <nav class="pager" aria-label="Pages">
+        <a class="next" href="guide.html"><span>Next</span> Guide</a>
+      </nav>
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    <p>&copy; [[Year]] [[Project name]] · <a href="#" data-placeholder-href="where people report problems or ask questions">[[Where to get help, e.g. Issue tracker]]</a></p>
+  </footer>
+</body>
+</html>

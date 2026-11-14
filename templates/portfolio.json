@@ -1,0 +1,99 @@
+{
+  "name": "portfolio",
+  "title": "Portfolio",
+  "description": "A calm, editorial portfolio: your name up front, four project cards, a short about section and a contact call to action.",
+  "placeholders": [
+    {
+      "token": "[[Your name]]",
+      "hint": "Your full name as you want visitors to see it. Used in the title, the heading and the footer."
+    },
+    {
+      "token": "[[One line about what you do]]",
+      "hint": "One sentence on what you make and for whom. Also used as the page description in search results."
+    },
+    {
+      "token": "[[Your role, e.g. Designer and illustrator]]",
+      "hint": "Your role or discipline in a few words."
+    },
+    {
+      "token": "[[Project one title]]",
+      "hint": "The name of your strongest project. Each project card links to # for now: set its href to the project (see data-placeholder-href)."
+    },
+    {
+      "token": "[[Project one summary: what it was and your part in it]]",
+      "hint": "One or two sentences on the project and what you did on it."
+    },
+    {
+      "token": "[[Project one year]]",
+      "hint": "The year, or a short label such as a client name."
+    },
+    {
+      "token": "[[Project two title]]",
+      "hint": "The name of your second project."
+    },
+    {
+      "token": "[[Project two summary: what it was and your part in it]]",
+      "hint": "One or two sentences on the project and what you did on it."
+    },
+    {
+      "token": "[[Project two year]]",
+      "hint": "The year, or a short label such as a client name."
+    },
+    {
+      "token": "[[Project three title]]",
+      "hint": "The name of your third project."
+    },
+    {
+      "token": "[[Project three summary: what it was and your part in it]]",
+      "hint": "One or two sentences on the project and what you did on it."
+    },
+    {
+      "token": "[[Project three year]]",
+      "hint": "The year, or a short label such as a client name."
+    },
+    {
+      "token": "[[Project four title]]",
+      "hint": "The name of your fourth project. Delete the whole card if you only have three."
+    },
+    {
+      "token": "[[Project four summary: what it was and your part in it]]",
+      "hint": "One or two sentences on the project and what you did on it."
+    },
+    {
+      "token": "[[Project four year]]",
+      "hint": "The year, or a short label such as a client name."
+    },
+    {
+      "token": "[[A short paragraph about you: how you work, what you care about, and who you like working with]]",
+      "hint": "Three or four sentences, written in the first person."
+    },
+    {
+      "token": "[[First thing you do]]",
+      "hint": "A service or skill, e.g. Brand identity."
+    },
+    {
+      "token": "[[Second thing you do]]",
+      "hint": "A service or skill."
+    },
+    {
+      "token": "[[Third thing you do]]",
+      "hint": "A service or skill."
+    },
+    {
+      "token": "[[Your email address]]",
+      "hint": "The email address people should write to, shown as the link text. The link is # for now: set it to mailto:your address (the element's data-placeholder-href says what goes there)."
+    },
+    {
+      "token": "[[Year]]",
+      "hint": "The current year, for the copyright line."
+    },
+    {
+      "token": "[[First profile, e.g. Instagram]]",
+      "hint": "The name of a profile you want to list. Its link is # for now: point it at the real address (the element's data-placeholder-href says what goes there)."
+    },
+    {
+      "token": "[[Second profile, e.g. LinkedIn]]",
+      "hint": "The name of another profile, or delete the item. Its link is # for now: point it at the real address (the element's data-placeholder-href says what goes there)."
+    }
+  ]
+}

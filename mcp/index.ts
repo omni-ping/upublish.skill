@@ -82,6 +82,8 @@ import {
   SITE_DATA_LIMITS,
   checkForUpdate,
   formatUpdateNote,
+  listTemplates,
+  createFromTemplate,
 } from "../lib/core.ts";
 import type {
   CoreDeps,
@@ -116,7 +118,7 @@ export type { CoreDeps, TokenProvider };
  * Tools that read or write the machine the server runs on, spawn a browser or bind a port. They exist only on a
  * LOCAL server (`opts.localFiles === true`, i.e. stdio). A hosted server must never register or run them.
  */
-export const LOCAL_ONLY_TOOLS = ["publish", "qrcode", "login", "logout", "upgrade"] as const;
+export const LOCAL_ONLY_TOOLS = ["publish", "qrcode", "login", "logout", "upgrade", "template"] as const;
 /** The env-gated admin tools: registered only on a local server with UPUBLISH_ADMIN=1. */
 export const ADMIN_TOOLS = ["admin_user", "admin_site", "admin_stats", "admin_storage", "admin_domains"] as const;
 
@@ -2173,6 +2175,59 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
       } catch (err) {
         return errResponse(err);
       }
+    },
+  );
+
+  local.registerTool(
+    "template",
+    {
+      title: "Starter Template",
+      description:
+        "Starts a site from a starter template, written to a local folder for you to fill in and then publish. " +
+        "action \"list\" shows the templates (portfolio, landing page, resume, docs, coming soon, link in bio). " +
+        "action \"create\" copies one into `directory` (a new or empty folder); it never overwrites: a non-empty " +
+        "folder is refused unless allow_non_empty is true, and even then any name clash fails before anything is " +
+        "written. The result lists every [[...]] placeholder and every link whose href is # (data-placeholder-href " +
+        "says what goes there). Replace them all with the user's content, show the user, then publish the folder.",
+      inputSchema: {
+        action: z.enum(["list", "create"]).describe("list the templates, or create one in a folder."),
+        name: z.string().optional().describe("Template name from list (required for create), e.g. \"portfolio\"."),
+        directory: z
+          .string()
+          .optional()
+          .describe("Folder to create the site in (required for create). Absolute or relative to the current working directory; created if missing."),
+        allow_non_empty: z
+          .boolean()
+          .optional()
+          .describe("Add the template to a folder that already has files. Any file name clash is still refused, with nothing written."),
+      },
+    },
+    async ({ action, name, directory, allow_non_empty }) => {
+      if (action === "list") {
+        const r = listTemplates();
+        if (!r.success) return errResponse(new Error(r.error));
+        return okResponse(
+          `Starter templates (create one with template action:"create", name, directory):\n` +
+            r.templates.map((t) => `- ${t.name}: ${t.title}. ${t.description}`).join("\n"),
+        );
+      }
+      const r = createFromTemplate({
+        name: name as string | undefined,
+        directory: directory as string | undefined,
+        allowNonEmpty: allow_non_empty === true,
+      });
+      if (!r.success) return errResponse(new Error(r.error));
+      const hrefs = r.placeholderHrefs.length
+        ? r.placeholderHrefs.map((h) => `- ${h.file}: ${h.hint}`).join("\n")
+        : "- none";
+      return okResponse(
+        `Created the "${r.name}" template in ${r.directory}` +
+          (r.realDirectory !== r.directory ? ` (really ${r.realDirectory})` : "") +
+          `\nFiles: ${r.files.join(", ")}\n\n` +
+          `Placeholders to replace:\n${r.placeholders.map((p) => `- ${p.token}: ${p.hint}`).join("\n")}\n\n` +
+          `Links with href "#" to point at a real address (data-placeholder-href says what goes there):\n${hrefs}\n\n` +
+          `Next: replace every [[...]] and every data-placeholder-href \`#\`, show the user, then publish this folder (${r.directory}).`,
+      );
     },
   );
 

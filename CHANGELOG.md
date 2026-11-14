@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `template`: starter templates. `list` shows six (portfolio, landing page, resume, docs, coming soon, links page); `create` copies one into a new or empty folder for the agent to fill in and publish. Local AI tools only (not hosted MCP clients). It never overwrites: a non-empty folder needs `allow_non_empty: true`, and any file name clash is refused with nothing written. Guide: `references/templates.md`.
+
 ### Security
 
 - A server created without `localFiles: true` (the hosted `/mcp` router) no longer exposes any tool that acts on the machine it runs on. `publish`, `qrcode`, `login`, `logout`, `upgrade` and the `admin_*` tools are not registered (and refuse if called anyway), `data_rows` drops `path`/`overwrite` and refuses `export`, the default browser opener refuses, and `status` uses the injected `tokenProvider` instead of reading the host's credentials file. New exports: `LOCAL_ONLY_TOOLS`, `ADMIN_TOOLS`, `HostedServerUnsafeError`, `assertHostedServerSafe` and `createHostedServer(coreDeps)`, which forces `localFiles: false` and throws if a local-only or admin tool is registered. The stdio server (`stdioServerOptions()`) is unchanged.

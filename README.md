@@ -74,12 +74,13 @@ gemini extensions update upublish
 1. Install the plugin (see above)
 2. Restart your session to load the MCP tools
 3. Ask the agent to publish, make a site private, undo a publish, put a site on your domain, or manage sites with upublish
+4. No site yet? Ask for a portfolio, landing page, resume, docs site, coming-soon page or links page, and the agent starts from a template, fills in your details and publishes it
 
 ## What gets installed
 
 - `skills/upublish/` provides the guided workflow and reference documentation.
 - `dist/mcp.js` provides login, publishing, site management, addresses,
-  passcodes, visibility, versions, previews, promotion, custom domains, and member-management tools, plus the site data and user backends
+  passcodes, visibility, versions, previews, promotion, custom domains, starter templates (`template`), and member-management tools, plus the site data and user backends
   add-ons (`publish_backend`, `backend`, `backend_secret`, `backend_logs`; guide: `references/backends.md`).
 - `.claude-plugin/`, `.codex-plugin/`, `.agents/plugins/marketplace.json`,
   `.mcp.json`, `gemini-extension.json`, `plugin.json`, and `mcp_config.json` adapt the same implementation to
