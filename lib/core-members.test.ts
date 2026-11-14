@@ -351,3 +351,60 @@ describe("DW-4.1: core.members() role action", () => {
     expect(result.member.role).toBe("admin");
   });
 });
+
+describe("Phase 4: core members() leave", () => {
+  it("test_DW_4_1_core_leave_returns_address_and_ok", async () => {
+    const f = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(f);
+    const fetchFn = makeMockFetch("user", { "/members/me": { status: 200, body: { ok: true } } });
+    const result = await members({ action: "leave", namespace: NS_NAME }, { credentialsPath: f, fetchFn });
+    expect(result).toEqual({ action: "leave", address: NS_NAME, ok: true });
+  });
+});
+
+describe("Phase 3 (invites): core members() invite/invites/revoke", () => {
+  const TOKEN43 = "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCdE";
+  /** Method-aware stub for the invite routes (the shared helper matches by substring only). */
+  const inviteFetch = (calls: string[]) => {
+    const base = makeMockFetch("admin");
+    return async (url: string, init?: RequestInit): Promise<Response> => {
+      const method = init?.method ?? "GET";
+      if (!url.includes(`/api/ns/${NS_ID}/invites`)) return base(url, init);
+      calls.push(`${method} ${url.slice(url.indexOf("/api/"))} ${init?.body ?? ""}`.trim());
+      const json = (status: number, body: unknown) =>
+        new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+      if (method === "POST") {
+        return json(201, {
+          invite: { id: "inv-1", role: "user", created_at: "c", expires_at: "e" },
+          token: TOKEN43,
+          url: `https://upubli.sh/join#${TOKEN43}`,
+        });
+      }
+      if (method === "GET") return json(200, { invites: [] });
+      return json(200, { ok: true });
+    };
+  };
+
+  it("test_DW_3_1_core_invite_defaults_role_user_and_returns_url_but_no_token", async () => {
+    const f = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(f);
+    const calls: string[] = [];
+    const result = await members({ action: "invite", namespace: NS_NAME }, { credentialsPath: f, fetchFn: inviteFetch(calls) });
+    expect(calls).toEqual([`POST /api/ns/${NS_ID}/invites {"role":"user"}`]);
+    expect(result.action).toBe("invite");
+    if (result.action !== "invite") return;
+    expect(result.address).toBe(NS_NAME);
+    expect(result.url).toBe(`https://upubli.sh/join#${TOKEN43}`);
+    expect("token" in result).toBe(false);
+  });
+
+  it("test_DW_3_1_core_invites_and_revoke_dispatch", async () => {
+    const f = writeTempCredentials(REFRESH_TOKEN);
+    tmpFiles.push(f);
+    const calls: string[] = [];
+    const deps: CoreDeps = { credentialsPath: f, fetchFn: inviteFetch(calls) };
+    expect(await members({ action: "invites", namespace: NS_NAME }, deps)).toEqual({ action: "invites", address: NS_NAME, invites: [] });
+    expect(await members({ action: "revoke", invite_id: "3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b", namespace: NS_NAME }, deps)).toEqual({ action: "revoke", address: NS_NAME, ok: true });
+    expect(calls).toEqual([`GET /api/ns/${NS_ID}/invites`, `DELETE /api/ns/${NS_ID}/invites/3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b`]);
+  });
+});

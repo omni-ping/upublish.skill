@@ -59,7 +59,9 @@ Needs Pro or Max. A connected domain becomes its own address, so sites serve at 
 
 ## Team members
 
-On a shared address (Max plan), `members` lists, adds, removes and re-roles members: `action` is `list`, `add`, `remove` or `role`, with `username` (the member's sign-in email) and `role` (`admin` or `user`).
+On a shared address (Max plan), `members` lists, adds, removes and re-roles members: `action` is `list`, `add`, `remove` or `role`, with `username` (the member's sign-in email) and `role` (`admin` or `user`). `action: "leave"` (`namespace` required) lets a non-owner member leave the address themselves; the owner cannot leave.
+
+Invite links: `action: "invite"` creates a single-use link for someone to join the address. `role` is `user` by default or `admin`, never owner. The link works once and expires in 7 days. It is shown only when created, so copy it then. Admin links give full control of this address's team to whoever opens them first. `action: "invites"` lists pending links: id, role, who created it and expiry; a link is marked paused while the address owner is not on Max. It never shows the links themselves. `action: "revoke"` with `invite_id` cancels a pending link. The invitee opens the link in a browser and signs in to join; the tool has no claim action. Pending links count toward the seat limit.
 
 ## Checking site status
 

@@ -94,6 +94,10 @@ import {
   addMember as domainAddMember,
   removeMember as domainRemoveMember,
   changeMemberRole as domainChangeMemberRole,
+  leaveMember as domainLeaveMember,
+  createInvite as domainCreateInvite,
+  listInvites as domainListInvites,
+  revokeInvite as domainRevokeInvite,
 } from "./members.ts";
 import type {
   Member,
@@ -101,6 +105,11 @@ import type {
   AddMemberResult,
   RemoveMemberResult,
   ChangeMemberRoleResult,
+  InviteRole,
+  PendingInvite,
+  CreateInviteResult,
+  ListInvitesResult,
+  RevokeInviteResult,
 } from "./members.ts";
 import { qrCode as domainQrCode } from "./qrcode.ts";
 import type { QrCodeArgs, QrCodeResult } from "./qrcode.ts";
@@ -180,6 +189,7 @@ export type { SetVisibilityResult, GateRemoveVisibility };
 export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
 export { formatGateFields };
 export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, ChangeMemberRoleResult };
+export type { InviteRole, PendingInvite, CreateInviteResult, ListInvitesResult, RevokeInviteResult };
 export type { QrCodeArgs, QrCodeResult };
 export type { Namespace, Site, Visibility, GateConfig, GateFieldType, GateSubmission };
 export type { NamespaceCreateResult };
@@ -930,7 +940,11 @@ export type MembersArgs =
   | { action: "list"; namespace?: string }
   | { action: "add"; username: string; role: "admin" | "user"; namespace?: string }
   | { action: "remove"; username: string; namespace?: string }
-  | { action: "role"; username: string; role: "admin" | "user"; namespace?: string };
+  | { action: "role"; username: string; role: "admin" | "user"; namespace?: string }
+  | { action: "leave"; namespace?: string }
+  | { action: "invite"; role?: InviteRole; namespace?: string }
+  | { action: "invites"; namespace?: string }
+  | { action: "revoke"; invite_id: string; namespace?: string };
 
 /**
  * Discriminated union of results returned by members().
@@ -940,7 +954,11 @@ export type MembersResult =
   | ({ action: "list" } & ListMembersResult)
   | ({ action: "add" } & AddMemberResult)
   | ({ action: "remove" } & RemoveMemberResult)
-  | ({ action: "role" } & ChangeMemberRoleResult);
+  | ({ action: "role" } & ChangeMemberRoleResult)
+  | ({ action: "leave"; address: string } & RemoveMemberResult)
+  | ({ action: "invite"; address: string } & CreateInviteResult)
+  | ({ action: "invites"; address: string } & ListInvitesResult)
+  | ({ action: "revoke"; address: string } & RevokeInviteResult);
 
 /**
  * Single dispatch function for all member management operations.
@@ -979,6 +997,22 @@ export async function members(args: MembersArgs, deps?: CoreDeps): Promise<Membe
     case "role": {
       const result = await domainChangeMemberRole(apiClient, ns.id, args.username, args.role);
       return { action: "role", ...result };
+    }
+    case "leave": {
+      const result = await domainLeaveMember(apiClient, ns.id);
+      return { action: "leave", address: ns.name, ...result };
+    }
+    case "invite": {
+      const result = await domainCreateInvite(apiClient, ns.id, args.role ?? "user");
+      return { action: "invite", address: ns.name, ...result };
+    }
+    case "invites": {
+      const result = await domainListInvites(apiClient, ns.id);
+      return { action: "invites", address: ns.name, ...result };
+    }
+    case "revoke": {
+      const result = await domainRevokeInvite(apiClient, ns.id, args.invite_id);
+      return { action: "revoke", address: ns.name, ...result };
     }
   }
 }
