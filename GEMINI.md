@@ -71,6 +71,7 @@ Tell the user before relying on these; the server refuses them on the free plan 
 - **Custom domain** needs Pro or Max (`domain`).
 - **Turning analytics off** needs a paid plan (`analytics`, `publish(analytics_enabled: false)`).
 - **Form gate** needs the Max plan (`gate`), and so do team `members`.
+- **Backends** (`publish_backend`) are a Pro or Max add-on; the price is shown before you agree.
 
 ## Available tools
 
