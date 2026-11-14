@@ -31014,7 +31014,7 @@ async function openUrlIfLocal(url, localFiles, opener = open_default) {
   await opener(url);
 }
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.50";
+var PACKAGE_VERSION = "0.12.51";
 function formatBytes(bytes) {
   if (bytes < 1024)
     return `${bytes} B`;
