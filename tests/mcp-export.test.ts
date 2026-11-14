@@ -10,6 +10,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { LOCAL_ONLY_TOOLS, createHostedServer, createServer } from "../mcp/index.ts";
 import type { CoreDeps } from "../lib/core.ts";
+import { setFileLogging } from "../lib/log.ts";
 
 type Result = { content: Array<{ type: string; text: string }>; isError?: boolean };
 type Tools = Record<string, { handler: (a: Record<string, unknown>) => Promise<Result>; inputSchema?: unknown }>;
@@ -18,6 +19,7 @@ const tools = (s: unknown): Tools => (s as { _registeredTools: Tools })._registe
 const md5 = (s: string) => createHash("md5").update(s).digest("hex");
 const dirs: string[] = [];
 afterEach(() => {
+  setFileLogging(true); // createHostedServer flips this process-wide; leaking it silences the log for later files
   for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
 });
 const tmp = () => {
