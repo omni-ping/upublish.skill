@@ -55,7 +55,6 @@ import {
   adminStats,
   adminStorage,
   adminDomains,
-  displayMsg,
   appendUpgradeHint,
   renderFilenameWarning,
   renderReplaceLine,
@@ -88,6 +87,7 @@ import {
   log,
   setFileLogging,
 } from "../lib/core.ts";
+import { errResponse, guarded, okResponse, wrapToolResults } from "./tool-response.ts";
 import type {
   CoreDeps,
   TokenProvider,
@@ -205,29 +205,6 @@ function formatSiteEntry(site: Site): string {
   );
 }
 
-// ─── MCP content helpers ──────────────────────────────────────────────────────
-
-type McpContent = Array<{ type: "text"; text: string }>;
-
-type ToolResponse = {
-  content: McpContent;
-  isError?: boolean;
-};
-
-function okResponse(text: string): ToolResponse {
-  return { content: [{ type: "text" as const, text }] };
-}
-
-function errResponse(err: unknown): ToolResponse {
-  // Apply displayMsg at the single MCP error-display boundary so backend-originated
-  // "namespace" error text (from lib/*.ts) is translated to "address" for users.
-  // lib/* functions stay raw (for testability and correctness); translation happens here.
-  return {
-    content: [{ type: "text" as const, text: displayMsg((err as Error).message) }],
-    isError: true,
-  };
-}
-
 // ─── Callback server (for OAuth login) ───────────────────────────────────────
 
 /**
@@ -326,25 +303,12 @@ function installUpdateNote(server: McpServer, callerDeps?: CoreDeps): void {
     () => undefined,
   );
 
-  const register = server.registerTool.bind(server) as (
-    name: string,
-    config: unknown,
-    cb: (...args: unknown[]) => unknown,
-  ) => unknown;
-  (server as { registerTool: unknown }).registerTool = (
-    name: string,
-    config: unknown,
-    cb: (...args: unknown[]) => unknown,
-  ) =>
-    register(name, config, async (...args: unknown[]) => {
-      const result = (await cb(...args)) as ToolResponse;
-      if (pendingNote !== null && Array.isArray(result?.content)) {
-        const text = pendingNote;
-        pendingNote = null;
-        return { ...result, content: [...result.content, { type: "text" as const, text }] };
-      }
-      return result;
-    });
+  wrapToolResults(server, (result) => {
+    if (pendingNote === null) return result;
+    const text = pendingNote;
+    pendingNote = null;
+    return { ...result, content: [...result.content, { type: "text" as const, text }] };
+  });
 }
 
 /**
@@ -356,21 +320,10 @@ function installUpdateNote(server: McpServer, callerDeps?: CoreDeps): void {
 function installRuntimeNote(server: McpServer, version: string | undefined): void {
   const note = checkBunRuntime(version);
   if (note === null) return;
-  const register = server.registerTool.bind(server) as (
-    name: string,
-    config: unknown,
-    cb: (...args: unknown[]) => unknown,
-  ) => unknown;
-  (server as { registerTool: unknown }).registerTool = (
-    name: string,
-    config: unknown,
-    cb: (...args: unknown[]) => unknown,
-  ) =>
-    register(name, config, async (...args: unknown[]) => {
-      const result = (await cb(...args)) as ToolResponse;
-      if (!Array.isArray(result?.content)) return result;
-      return { ...result, content: [{ type: "text" as const, text: note }, ...result.content] };
-    });
+  wrapToolResults(server, (result) => ({
+    ...result,
+    content: [{ type: "text" as const, text: note }, ...result.content],
+  }));
 }
 
 /** Options accepted by createServer() beyond the CoreDeps bag. */
@@ -578,7 +531,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
       },
     },
     async ({ directory, slug, path_prefix, title, visibility, passcode, namespace, preview, force, analytics_enabled, spa, allow_no_index, allow_project_files, include_sourcemaps }, extra) => {
-      log(`[publish] tool entry slug=${slug as string} dir=${directory as string}`);
+      log(`[publish] tool entry slug=${slug} dir=${directory}`);
 
       // Only emit MCP progress when the client supplied a progressToken in _meta.
       // When absent (or extra is omitted, e.g. in tests), onProgress stays
@@ -692,13 +645,13 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
       try {
         const result = await publish(
           {
-            directory: directory as string,
-            slug: slug as string,
-            pathPrefix: path_prefix as string | undefined,
-            title: title as string | undefined,
+            directory,
+            slug,
+            pathPrefix: path_prefix,
+            title,
             visibility: visibility as "public" | "passcode" | undefined,
-            passcode: passcode as string | undefined,
-            namespace: namespace as string | undefined,
+            passcode,
+            namespace,
             preview: preview as boolean | undefined,
             force: force as boolean | undefined,
             analyticsEnabled: analytics_enabled as boolean | undefined,
@@ -715,7 +668,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         const site = result.site;
         const visibilityLine =
           visibility && visibility !== "public"
-            ? `\nVisibility: ${visibility as string}`
+            ? `\nVisibility: ${visibility}`
             : "";
 
         const replaceLine = renderReplaceLine(result);
@@ -786,7 +739,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           storageOverageLine,
         );
       } catch (err) {
-        log(`[publish] tool error slug=${slug as string} err=${(err as Error).message}`);
+        log(`[publish] tool error slug=${slug} err=${(err as Error).message}`);
         // 402 needs_storage_approval: surface the approval URL and pack pricing.
         // Never send accept_overage — that flag is reserved for explicit human
         // consent on a surface we control. Agents must always forward the approval
@@ -838,29 +791,25 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ namespace }) => {
-      try {
-        const result = await list(namespace as string | undefined, coreDeps);
-        const { sites } = result;
+    guarded(async ({ namespace }) => {
+      const result = await list(namespace, coreDeps);
+      const { sites } = result;
 
-        const ns = result.namespace;
-        // Show role marker for shared namespaces (admin/user). Owner is the
-        // default state — no marker keeps the output clean for most users.
-        const roleMarker = ns.role && ns.role !== "owner" ? ` [${ns.role}]` : "";
+      const ns = result.namespace;
+      // Show role marker for shared namespaces (admin/user). Owner is the
+      // default state — no marker keeps the output clean for most users.
+      const roleMarker = ns.role && ns.role !== "owner" ? ` [${ns.role}]` : "";
 
-        if (sites.length === 0) {
-          return okResponse(
-            `No sites published yet in address "${ns.name}" (${ns.domain})${roleMarker}. ` +
-            "Use the `publish` tool to deploy your first site.",
-          );
-        }
-        const header = `Sites in address "${ns.name}" (${ns.domain})${roleMarker}`;
-        const lines = sites.map((site) => formatSiteEntry(site));
-        return okResponse(`${header}\n\n${lines.join("\n\n")}`);
-      } catch (err) {
-        return errResponse(err);
+      if (sites.length === 0) {
+        return okResponse(
+          `No sites published yet in address "${ns.name}" (${ns.domain})${roleMarker}. ` +
+          "Use the `publish` tool to deploy your first site.",
+        );
       }
-    },
+      const header = `Sites in address "${ns.name}" (${ns.domain})${roleMarker}`;
+      const lines = sites.map((site) => formatSiteEntry(site));
+      return okResponse(`${header}\n\n${lines.join("\n\n")}`);
+    }),
   );
 
   server.registerTool(
@@ -885,14 +834,10 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ slug, namespace }) => {
-      try {
-        const result = await deleteOp(slug as string, namespace as string | undefined, coreDeps);
-        return okResponse(result.message);
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async ({ slug, namespace }) => {
+      const result = await deleteOp(slug, namespace, coreDeps);
+      return okResponse(result.message);
+    }),
   );
 
   server.registerTool(
@@ -918,25 +863,21 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ slug, namespace }) => {
-      try {
-        const result = await listSiteVersions(
-          slug as string,
-          namespace as string | undefined,
-          coreDeps,
-        );
+    guarded(async ({ slug, namespace }) => {
+      const result = await listSiteVersions(
+        slug,
+        namespace,
+        coreDeps,
+      );
 
-        if (result.versions.length === 0) {
-          return okResponse(`No versions found for site '${slug as string}'.`);
-        }
-
-        const header = `Versions for '${slug as string}'`;
-        const lines = result.versions.map((version) => formatVersionEntry(version));
-        return okResponse(`${header}\n\n${lines.join("\n")}`);
-      } catch (err) {
-        return errResponse(err);
+      if (result.versions.length === 0) {
+        return okResponse(`No versions found for site '${slug}'.`);
       }
-    },
+
+      const header = `Versions for '${slug}'`;
+      const lines = result.versions.map((version) => formatVersionEntry(version));
+      return okResponse(`${header}\n\n${lines.join("\n")}`);
+    }),
   );
 
   server.registerTool(
@@ -970,23 +911,19 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ slug, versionNumber, namespace }) => {
-      try {
-        const result = await deleteSiteVersion(
-          slug as string,
-          versionNumber as number,
-          namespace as string | undefined,
-          coreDeps,
-        );
-        return okResponse(
-          `Deleted version v${result.version_number} of '${slug as string}'.\n` +
-          `Reclaimed: ${formatBytes(result.freed_bytes)}\n` +
-          `Usage: ${formatUsage(result.usage)}`,
-        );
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async ({ slug, versionNumber, namespace }) => {
+      const result = await deleteSiteVersion(
+        slug,
+        versionNumber as number,
+        namespace,
+        coreDeps,
+      );
+      return okResponse(
+        `Deleted version v${result.version_number} of '${slug}'.\n` +
+        `Reclaimed: ${formatBytes(result.freed_bytes)}\n` +
+        `Usage: ${formatUsage(result.usage)}`,
+      );
+    }),
   );
 
   server.registerTool(
@@ -1021,22 +958,18 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ slug, version, namespace }) => {
-      try {
-        const result = await restoreSiteVersion(
-          slug as string,
-          version as number,
-          namespace as string | undefined,
-          coreDeps,
-        );
-        return okResponse(
-          `Restored '${slug as string}' to version v${result.version_number}, now live.\n` +
-          `URL: ${result.url}`,
-        );
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async ({ slug, version, namespace }) => {
+      const result = await restoreSiteVersion(
+        slug,
+        version as number,
+        namespace,
+        coreDeps,
+      );
+      return okResponse(
+        `Restored '${slug}' to version v${result.version_number}, now live.\n` +
+        `URL: ${result.url}`,
+      );
+    }),
   );
 
   server.registerTool(
@@ -1072,30 +1005,26 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ slug, limit, namespace }) => {
-      try {
-        const resolvedLimit: number | null = (limit === undefined ? null : limit) as number | null;
-        const result: SetVersionsLimitResult = await setSiteVersionsLimit(
-          slug as string,
-          resolvedLimit,
-          namespace as string | undefined,
-          coreDeps,
-        );
-        const limitDisplay =
-          result.site.max_versions !== null
-            ? `Limit set to ${result.site.max_versions} version${result.site.max_versions === 1 ? "" : "s"}.`
-            : "Retention limit cleared (unlimited).";
-        const prunedDisplay =
-          result.pruned.length > 0
-            ? `Pruned versions: ${result.pruned.map((v) => `v${v}`).join(", ")}\n` +
-              `Reclaimed: ${formatBytes(result.freed_bytes)}\n` +
-              `Usage: ${formatUsage(result.usage)}`
-            : "No versions were pruned.";
-        return okResponse(`${limitDisplay}\n${prunedDisplay}`);
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async ({ slug, limit, namespace }) => {
+      const resolvedLimit: number | null = (limit === undefined ? null : limit) as number | null;
+      const result: SetVersionsLimitResult = await setSiteVersionsLimit(
+        slug,
+        resolvedLimit,
+        namespace,
+        coreDeps,
+      );
+      const limitDisplay =
+        result.site.max_versions !== null
+          ? `Limit set to ${result.site.max_versions} version${result.site.max_versions === 1 ? "" : "s"}.`
+          : "Retention limit cleared (unlimited).";
+      const prunedDisplay =
+        result.pruned.length > 0
+          ? `Pruned versions: ${result.pruned.map((v) => `v${v}`).join(", ")}\n` +
+            `Reclaimed: ${formatBytes(result.freed_bytes)}\n` +
+            `Usage: ${formatUsage(result.usage)}`
+          : "No versions were pruned.";
+      return okResponse(`${limitDisplay}\n${prunedDisplay}`);
+    }),
   );
 
   server.registerTool(
@@ -1127,26 +1056,22 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ slug, enabled, namespace }) => {
-      try {
-        const result = await analytics(
-          slug as string,
-          enabled as boolean,
-          namespace as string | undefined,
-          coreDeps,
-        );
-        const state = result.site.analytics_enabled === false ? "OFF" : "ON";
-        return okResponse(
-          `Analytics is now ${state} for "${result.site.slug}". ` +
-          (state === "OFF"
-            ? "New page views will no longer be tracked; the analytics script is no longer injected."
-            : "The analytics script will be injected on future page loads.") +
-          "\nNo republish was needed — this took effect immediately.",
-        );
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async ({ slug, enabled, namespace }) => {
+      const result = await analytics(
+        slug,
+        enabled as boolean,
+        namespace,
+        coreDeps,
+      );
+      const state = result.site.analytics_enabled === false ? "OFF" : "ON";
+      return okResponse(
+        `Analytics is now ${state} for "${result.site.slug}". ` +
+        (state === "OFF"
+          ? "New page views will no longer be tracked; the analytics script is no longer injected."
+          : "The analytics script will be injected on future page loads.") +
+        "\nNo republish was needed — this took effect immediately.",
+      );
+    }),
   );
 
   server.registerTool(
@@ -1181,25 +1106,21 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ slug, code, label, namespace }) => {
-      try {
-        const result = await addPasscode(
-          slug as string,
-          code as string,
-          label as string | undefined,
-          namespace as string | undefined,
-          coreDeps,
-        );
-        if (result.existed) return okResponse(existingPasscodeMessage(result.passcode));
-        return okResponse(
-          `Passcode added to ${slug as string}\n` +
-          `ID:    ${result.passcode.id}\n` +
-          `Label: ${result.passcode.label}`,
-        );
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async ({ slug, code, label, namespace }) => {
+      const result = await addPasscode(
+        slug,
+        code,
+        label,
+        namespace,
+        coreDeps,
+      );
+      if (result.existed) return okResponse(existingPasscodeMessage(result.passcode));
+      return okResponse(
+        `Passcode added to ${slug}\n` +
+        `ID:    ${result.passcode.id}\n` +
+        `Label: ${result.passcode.label}`,
+      );
+    }),
   );
 
   server.registerTool(
@@ -1240,38 +1161,34 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           .describe("Address name the site belongs to. When omitted, the default address is used."),
       },
     },
-    async ({ slug, visibility, passcode, label, namespace }) => {
-      try {
-        const r = await setVisibility(
-          {
-            slug: slug as string,
-            visibility: visibility as "public" | "passcode",
-            passcode: passcode as string | undefined,
-            label: label as string | undefined,
-            namespace: namespace as string | undefined,
-          },
-          coreDeps,
-        );
-        const lines = [
-          `Visibility of "${r.slug}" is now ${r.visibility.toUpperCase()} (was ${r.previous.toUpperCase()}).` +
-            (r.visibility === "passcode" ? ` Active passcodes: ${r.activePasscodes}.` : ""),
-        ];
-        if (r.addedPasscode) lines.push(`Added passcode "${r.addedPasscode.label}" (id ${r.addedPasscode.id}).`);
-        if (r.existingPasscode) lines.push(existingPasscodeMessage(r.existingPasscode));
-        if (r.visibility === "public") {
-          lines.push("Anyone with the link can now view it. Stored passcodes are kept but not enforced while public.");
-        }
-        if (r.previous === "gated") {
-          lines.push(
-            "The form gate is no longer enforced, but its settings and submissions remain. " +
-            "Run `gate` with action 'remove' (and visibility_after) to clear them.",
-          );
-        }
-        return okResponse(lines.join("\n"));
-      } catch (err) {
-        return errResponse(err);
+    guarded(async ({ slug, visibility, passcode, label, namespace }) => {
+      const r = await setVisibility(
+        {
+          slug,
+          visibility: visibility as "public" | "passcode",
+          passcode,
+          label,
+          namespace,
+        },
+        coreDeps,
+      );
+      const lines = [
+        `Visibility of "${r.slug}" is now ${r.visibility.toUpperCase()} (was ${r.previous.toUpperCase()}).` +
+          (r.visibility === "passcode" ? ` Active passcodes: ${r.activePasscodes}.` : ""),
+      ];
+      if (r.addedPasscode) lines.push(`Added passcode "${r.addedPasscode.label}" (id ${r.addedPasscode.id}).`);
+      if (r.existingPasscode) lines.push(existingPasscodeMessage(r.existingPasscode));
+      if (r.visibility === "public") {
+        lines.push("Anyone with the link can now view it. Stored passcodes are kept but not enforced while public.");
       }
-    },
+      if (r.previous === "gated") {
+        lines.push(
+          "The form gate is no longer enforced, but its settings and submissions remain. " +
+          "Run `gate` with action 'remove' (and visibility_after) to clear them.",
+        );
+      }
+      return okResponse(lines.join("\n"));
+    }),
   );
 
   server.registerTool(
@@ -1293,31 +1210,27 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ slug, namespace }) => {
-      try {
-        const result = await listPasscodes(
-          slug as string,
-          namespace as string | undefined,
-          coreDeps,
-        );
+    guarded(async ({ slug, namespace }) => {
+      const result = await listPasscodes(
+        slug,
+        namespace,
+        coreDeps,
+      );
 
-        if (result.passcodes.length === 0) {
-          return okResponse(`No passcodes found for site '${slug as string}'.`);
-        }
-
-        const lines = result.passcodes.map((pc) => {
-          const created = new Date(pc.created_at).toLocaleDateString();
-          return `  ID: ${pc.id}\n  Label: ${pc.label}\n  Created: ${created}`;
-        });
-
-        return okResponse(
-          `Passcodes for ${slug as string} (${result.passcodes.length}):\n\n` +
-          lines.join("\n\n"),
-        );
-      } catch (err) {
-        return errResponse(err);
+      if (result.passcodes.length === 0) {
+        return okResponse(`No passcodes found for site '${slug}'.`);
       }
-    },
+
+      const lines = result.passcodes.map((pc) => {
+        const created = new Date(pc.created_at).toLocaleDateString();
+        return `  ID: ${pc.id}\n  Label: ${pc.label}\n  Created: ${created}`;
+      });
+
+      return okResponse(
+        `Passcodes for ${slug} (${result.passcodes.length}):\n\n` +
+        lines.join("\n\n"),
+      );
+    }),
   );
 
   server.registerTool(
@@ -1351,22 +1264,18 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ slug, id, label, namespace }) => {
-      try {
-        const result = await revokePasscode(
-          slug as string,
-          { id: id as string | undefined, label: label as string | undefined },
-          namespace as string | undefined,
-          coreDeps,
-        );
-        const identifier = id ? `id=${id as string}` : `label="${label as string}"`;
-        return okResponse(
-          `Passcode revoked from ${slug as string} (${identifier})\n${result.message}`,
-        );
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async ({ slug, id, label, namespace }) => {
+      const result = await revokePasscode(
+        slug,
+        { id, label },
+        namespace,
+        coreDeps,
+      );
+      const identifier = id ? `id=${id}` : `label="${label}"`;
+      return okResponse(
+        `Passcode revoked from ${slug} (${identifier})\n${result.message}`,
+      );
+    }),
   );
 
   server.registerTool(
@@ -1422,99 +1331,95 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ action, slug, fields, visibility_after, namespace }) => {
-      try {
-        const actionStr = action as "set" | "get" | "remove" | "submissions" | "clear";
-        const slugStr = slug as string;
+    guarded(async ({ action, slug, fields, visibility_after, namespace }) => {
+      const actionStr = action as "set" | "get" | "remove" | "submissions" | "clear";
+      const slugStr = slug;
 
-        if (actionStr === "set") {
-          const fieldsArr = fields as GateFieldType[] | undefined;
-          if (!fieldsArr || fieldsArr.length === 0) {
-            return errResponse(new Error("fields is required when action is 'set'"));
-          }
-          const result = await gate(
-            { action: "set", slug: slugStr, fields: fieldsArr, namespace: namespace as string | undefined },
-            coreDeps,
-          );
-          if (result.action !== "set") return errResponse(new Error("Unexpected result"));
-          const fieldsList = formatGateFields(result.gate.fields);
-          const replaced =
-            result.previous_visibility === "passcode"
-              ? `\nWarning: passcode protection replaced by form gate (was: passcode)`
-              : "";
-          return okResponse(
-            `Gate set for '${slugStr}'\nFields: ${fieldsList}${replaced}`,
-          );
+      if (actionStr === "set") {
+        const fieldsArr = fields as GateFieldType[] | undefined;
+        if (!fieldsArr || fieldsArr.length === 0) {
+          return errResponse(new Error("fields is required when action is 'set'"));
         }
-
-        if (actionStr === "get") {
-          const result = await gate(
-            { action: "get", slug: slugStr, namespace: namespace as string | undefined },
-            coreDeps,
-          );
-          if (result.action !== "get") return errResponse(new Error("Unexpected result"));
-          const fieldsList = formatGateFields(result.gate.fields);
-          return okResponse(
-            `Gate for '${slugStr}'\nFields: ${fieldsList}\nSubmissions: ${result.submission_count}`,
-          );
-        }
-
-        if (actionStr === "remove") {
-          const after = visibility_after as "public" | "passcode" | undefined;
-          if (after !== "public" && after !== "passcode") {
-            return errResponse(
-              new Error(
-                `Nothing was changed. Removing a gate must say what the site becomes: call gate again with ` +
-                `action "remove" and visibility_after "public" (visible to everyone) or "passcode" ` +
-                `(stays private; needs at least one passcode).`,
-              ),
-            );
-          }
-          const result = await gate(
-            { action: "remove", slug: slugStr, visibilityAfter: after, namespace: namespace as string | undefined },
-            coreDeps,
-          );
-          if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
-          return okResponse(
-            `${result.message}\nSite is now ${result.visibility.toUpperCase()}.` +
-            (result.visibility === "public" ? " Anyone with the link can view it." : ""),
-          );
-        }
-
-        if (actionStr === "submissions") {
-          const result = await gate(
-            { action: "submissions", slug: slugStr, namespace: namespace as string | undefined },
-            coreDeps,
-          );
-          if (result.action !== "submissions") return errResponse(new Error("Unexpected result"));
-          const { submissions } = result;
-          if (submissions.length === 0) {
-            return okResponse(`No submissions found for gate on '${slugStr}'.`);
-          }
-          const lines = submissions.map((sub: GateSubmission) => {
-            const date = new Date(sub.submitted_at).toLocaleDateString();
-            const fields = Object.entries(sub.data)
-              .map(([k, v]) => `  ${k}: ${v}`)
-              .join("\n");
-            return `Submitted: ${date}\n${fields}`;
-          });
-          return okResponse(
-            `Gate submissions for '${slugStr}' (${submissions.length}):\n\n` +
-            lines.join("\n\n"),
-          );
-        }
-
-        // action === "clear"
         const result = await gate(
-          { action: "clear", slug: slugStr, namespace: namespace as string | undefined },
+          { action: "set", slug: slugStr, fields: fieldsArr, namespace },
           coreDeps,
         );
-        if (result.action !== "clear") return errResponse(new Error("Unexpected result"));
-        return okResponse(result.message);
-      } catch (err) {
-        return errResponse(err);
+        if (result.action !== "set") return errResponse(new Error("Unexpected result"));
+        const fieldsList = formatGateFields(result.gate.fields);
+        const replaced =
+          result.previous_visibility === "passcode"
+            ? `\nWarning: passcode protection replaced by form gate (was: passcode)`
+            : "";
+        return okResponse(
+          `Gate set for '${slugStr}'\nFields: ${fieldsList}${replaced}`,
+        );
       }
-    },
+
+      if (actionStr === "get") {
+        const result = await gate(
+          { action: "get", slug: slugStr, namespace },
+          coreDeps,
+        );
+        if (result.action !== "get") return errResponse(new Error("Unexpected result"));
+        const fieldsList = formatGateFields(result.gate.fields);
+        return okResponse(
+          `Gate for '${slugStr}'\nFields: ${fieldsList}\nSubmissions: ${result.submission_count}`,
+        );
+      }
+
+      if (actionStr === "remove") {
+        const after = visibility_after as "public" | "passcode" | undefined;
+        if (after !== "public" && after !== "passcode") {
+          return errResponse(
+            new Error(
+              `Nothing was changed. Removing a gate must say what the site becomes: call gate again with ` +
+              `action "remove" and visibility_after "public" (visible to everyone) or "passcode" ` +
+              `(stays private; needs at least one passcode).`,
+            ),
+          );
+        }
+        const result = await gate(
+          { action: "remove", slug: slugStr, visibilityAfter: after, namespace },
+          coreDeps,
+        );
+        if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
+        return okResponse(
+          `${result.message}\nSite is now ${result.visibility.toUpperCase()}.` +
+          (result.visibility === "public" ? " Anyone with the link can view it." : ""),
+        );
+      }
+
+      if (actionStr === "submissions") {
+        const result = await gate(
+          { action: "submissions", slug: slugStr, namespace },
+          coreDeps,
+        );
+        if (result.action !== "submissions") return errResponse(new Error("Unexpected result"));
+        const { submissions } = result;
+        if (submissions.length === 0) {
+          return okResponse(`No submissions found for gate on '${slugStr}'.`);
+        }
+        const lines = submissions.map((sub: GateSubmission) => {
+          const date = new Date(sub.submitted_at).toLocaleDateString();
+          const fields = Object.entries(sub.data)
+            .map(([k, v]) => `  ${k}: ${v}`)
+            .join("\n");
+          return `Submitted: ${date}\n${fields}`;
+        });
+        return okResponse(
+          `Gate submissions for '${slugStr}' (${submissions.length}):\n\n` +
+          lines.join("\n\n"),
+        );
+      }
+
+      // action === "clear"
+      const result = await gate(
+        { action: "clear", slug: slugStr, namespace },
+        coreDeps,
+      );
+      if (result.action !== "clear") return errResponse(new Error("Unexpected result"));
+      return okResponse(result.message);
+    }),
   );
 
   // ─── Site data (add-on): data, data_collection, data_rows, data_jwt ─────────
@@ -1579,13 +1484,9 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         namespace: namespaceArg,
       },
     },
-    async (args) => {
-      try {
-        return okResponse(formatDataResult(await data(args, coreDeps)));
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async (args) => {
+      return okResponse(formatDataResult(await data(args, coreDeps)));
+    }),
   );
 
   server.registerTool(
@@ -1640,13 +1541,9 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         namespace: namespaceArg,
       },
     },
-    async (args) => {
-      try {
-        return okResponse(formatCollectionResult(await dataCollection(args, coreDeps)));
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async (args) => {
+      return okResponse(formatCollectionResult(await dataCollection(args, coreDeps)));
+    }),
   );
 
   const importRow = z.object({
@@ -1701,19 +1598,15 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         namespace: namespaceArg,
       },
     },
-    async (args) => {
+    guarded(async (args) => {
       // Belt and braces: the hosted schema has no path/overwrite, but a call must still never reach the file writer.
       if (args.action === "export" && !localFiles()) {
         return errResponse(
           new Error("Export to a file is only available in the local upublish plugin; use list to page through rows."),
         );
       }
-      try {
-        return okResponse(formatRowsResult(await dataRows(args, coreDeps)));
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+      return okResponse(formatRowsResult(await dataRows(args, coreDeps)));
+    }),
   );
 
   server.registerTool(
@@ -1735,13 +1628,9 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         namespace: namespaceArg,
       },
     },
-    async (args) => {
-      try {
-        return okResponse(formatJwtResult(await dataJwt(args, coreDeps)));
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async (args) => {
+      return okResponse(formatJwtResult(await dataJwt(args, coreDeps)));
+    }),
   );
 
   // ─── User backends: publish_backend, backend, backend_secret, backend_logs ──
@@ -1773,16 +1662,12 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         namespace: namespaceArg,
       },
     },
-    async (args) => {
-      try {
-        const result = await publishBackend(args, coreDeps, { allowEntry: opts?.localFiles === true });
-        const text = formatPublishBackend(result);
-        // A bundle that could not be built means nothing was deployed: flag it as a failure.
-        return result.state === "bundle_failed" ? errResponse(new Error(text)) : okResponse(text);
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async (args) => {
+      const result = await publishBackend(args, coreDeps, { allowEntry: opts?.localFiles === true });
+      const text = formatPublishBackend(result);
+      // A bundle that could not be built means nothing was deployed: flag it as a failure.
+      return result.state === "bundle_failed" ? errResponse(new Error(text)) : okResponse(text);
+    }),
   );
 
   server.registerTool(
@@ -1837,13 +1722,9 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         namespace: namespaceArg,
       },
     },
-    async (args) => {
-      try {
-        return okResponse(formatBackendResult(await backend(args, coreDeps)));
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async (args) => {
+      return okResponse(formatBackendResult(await backend(args, coreDeps)));
+    }),
   );
 
   server.registerTool(
@@ -1866,13 +1747,9 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         namespace: namespaceArg,
       },
     },
-    async (args) => {
-      try {
-        return okResponse(formatBackendSecret(await backendSecret(args, coreDeps)));
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async (args) => {
+      return okResponse(formatBackendSecret(await backendSecret(args, coreDeps)));
+    }),
   );
 
   server.registerTool(
@@ -1888,13 +1765,9 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         namespace: namespaceArg,
       },
     },
-    async (args) => {
-      try {
-        return okResponse(formatBackendLogs(await backendLogs(args, coreDeps)));
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async (args) => {
+      return okResponse(formatBackendLogs(await backendLogs(args, coreDeps)));
+    }),
   );
 
   server.registerTool(
@@ -1952,138 +1825,134 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ action, username, role, namespace, invite_id }) => {
-      try {
-        const actionStr = action as "list" | "add" | "remove" | "role" | "leave" | "invite" | "invites" | "revoke";
-        const nsStr = namespace as string | undefined;
+    guarded(async ({ action, username, role, namespace, invite_id }) => {
+      const actionStr = action as "list" | "add" | "remove" | "role" | "leave" | "invite" | "invites" | "revoke";
+      const nsStr = namespace;
 
-        if (actionStr === "list") {
-          const result = await members({ action: "list", namespace: nsStr }, coreDeps);
-          if (result.action !== "list") return errResponse(new Error("Unexpected result"));
-          if (result.members.length === 0) {
-            return okResponse("No members found. The address owner has sole access.");
-          }
-          const lines = result.members.map(
-            (m: Member) => `  ${m.username} — ${m.role}`,
-          );
-          return okResponse(`Members:\n${lines.join("\n")}`);
+      if (actionStr === "list") {
+        const result = await members({ action: "list", namespace: nsStr }, coreDeps);
+        if (result.action !== "list") return errResponse(new Error("Unexpected result"));
+        if (result.members.length === 0) {
+          return okResponse("No members found. The address owner has sole access.");
         }
+        const lines = result.members.map(
+          (m: Member) => `  ${m.username} — ${m.role}`,
+        );
+        return okResponse(`Members:\n${lines.join("\n")}`);
+      }
 
-        if (actionStr === "add") {
-          const usernameStr = username as string | undefined;
-          const roleStr = role as "admin" | "user" | undefined;
-          if (!usernameStr) {
-            return errResponse(new Error("username is required for the add action"));
-          }
-          if (!roleStr) {
-            return errResponse(new Error("role is required for the add action"));
-          }
-          const result = await members(
-            { action: "add", username: usernameStr, role: roleStr, namespace: nsStr },
-            coreDeps,
-          );
-          if (result.action !== "add") return errResponse(new Error("Unexpected result"));
-          return okResponse(
-            `Added ${result.member.username} as ${result.member.role}`,
-          );
-        }
-
-        if (actionStr === "remove") {
-          const usernameStr = username as string | undefined;
-          if (!usernameStr) {
-            return errResponse(new Error("username is required for the remove action"));
-          }
-          const result = await members(
-            { action: "remove", username: usernameStr, namespace: nsStr },
-            coreDeps,
-          );
-          if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
-          return okResponse(`Removed ${usernameStr} from address`);
-        }
-
-        if (actionStr === "leave") {
-          if (!nsStr) {
-            return errResponse(new Error("namespace is required for the leave action (name the address to leave)"));
-          }
-          const result = await members({ action: "leave", namespace: nsStr }, coreDeps);
-          if (result.action !== "leave") return errResponse(new Error("Unexpected result"));
-          return okResponse(`You left ${result.address}. You no longer have access to it.`);
-        }
-
-        if (actionStr === "invite") {
-          const roleStr = (role as string | undefined) ?? "user";
-          if (roleStr !== "user" && roleStr !== "admin") {
-            return errResponse(new Error("An invite link can make someone a member ('user') or an 'admin', never an owner."));
-          }
-          const result = await members({ action: "invite", role: roleStr, namespace: nsStr }, coreDeps);
-          if (result.action !== "invite") return errResponse(new Error("Unexpected result"));
-          const isAdmin = result.invite.role === "admin";
-          const lines = [
-            `Invite link for ${result.address} (${isAdmin ? "Admin" : "Member"}):`,
-            result.url,
-            "",
-            "This link works once and expires in 7 days.",
-          ];
-          if (isAdmin) {
-            lines.push("Admin links give full control of this address's team to whoever opens them first.");
-          }
-          lines.push(
-            "Share it only with the person you are inviting. They open it in a browser and sign in to join.",
-            `Invite id: ${result.invite.id} (use action 'revoke' with this invite_id to cancel it).`,
-          );
-          return okResponse(lines.join("\n"));
-        }
-
-        if (actionStr === "invites") {
-          const result = await members({ action: "invites", namespace: nsStr }, coreDeps);
-          if (result.action !== "invites") return errResponse(new Error("Unexpected result"));
-          if (result.invites.length === 0) {
-            return okResponse(`No pending invite links for ${result.address}.`);
-          }
-          // Whitelisted fields only: a listing never shows a link or token (they exist only at creation).
-          const lines = result.invites.map((i: PendingInvite) => {
-            const roleLabel = i.role === "admin" ? "Admin" : "Member";
-            const by = i.created_by_username ?? "a deleted account";
-            const paused = i.paused ? " — paused until the owner is on Max" : "";
-            return `  ${i.id} — ${roleLabel}, created by ${by}, expires ${i.expires_at}${paused}`;
-          });
-          return okResponse(
-            `Pending invite links for ${result.address}:\n${lines.join("\n")}\n` +
-            "Links are shown only once, when created. To replace one, revoke it and create a new invite.",
-          );
-        }
-
-        if (actionStr === "revoke") {
-          const idStr = invite_id as string | undefined;
-          if (!idStr || idStr.trim() === "") {
-            return errResponse(new Error("invite_id is required for the revoke action (use action 'invites' to see the pending ones)"));
-          }
-          const result = await members({ action: "revoke", invite_id: idStr, namespace: nsStr }, coreDeps);
-          if (result.action !== "revoke") return errResponse(new Error("Unexpected result"));
-          return okResponse(`Revoked invite ${idStr.trim()} on ${result.address}. That link no longer works.`);
-        }
-
-        // action === "role"
-        const usernameStr = username as string | undefined;
+      if (actionStr === "add") {
+        const usernameStr = username;
         const roleStr = role as "admin" | "user" | undefined;
         if (!usernameStr) {
-          return errResponse(new Error("username is required for the role action"));
+          return errResponse(new Error("username is required for the add action"));
         }
         if (!roleStr) {
-          return errResponse(new Error("role is required for the role action"));
+          return errResponse(new Error("role is required for the add action"));
         }
         const result = await members(
-          { action: "role", username: usernameStr, role: roleStr, namespace: nsStr },
+          { action: "add", username: usernameStr, role: roleStr, namespace: nsStr },
           coreDeps,
         );
-        if (result.action !== "role") return errResponse(new Error("Unexpected result"));
+        if (result.action !== "add") return errResponse(new Error("Unexpected result"));
         return okResponse(
-          `Changed ${usernameStr} role to ${result.member.role}`,
+          `Added ${result.member.username} as ${result.member.role}`,
         );
-      } catch (err) {
-        return errResponse(err);
       }
-    },
+
+      if (actionStr === "remove") {
+        const usernameStr = username;
+        if (!usernameStr) {
+          return errResponse(new Error("username is required for the remove action"));
+        }
+        const result = await members(
+          { action: "remove", username: usernameStr, namespace: nsStr },
+          coreDeps,
+        );
+        if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
+        return okResponse(`Removed ${usernameStr} from address`);
+      }
+
+      if (actionStr === "leave") {
+        if (!nsStr) {
+          return errResponse(new Error("namespace is required for the leave action (name the address to leave)"));
+        }
+        const result = await members({ action: "leave", namespace: nsStr }, coreDeps);
+        if (result.action !== "leave") return errResponse(new Error("Unexpected result"));
+        return okResponse(`You left ${result.address}. You no longer have access to it.`);
+      }
+
+      if (actionStr === "invite") {
+        const roleStr = role ?? "user";
+        if (roleStr !== "user" && roleStr !== "admin") {
+          return errResponse(new Error("An invite link can make someone a member ('user') or an 'admin', never an owner."));
+        }
+        const result = await members({ action: "invite", role: roleStr, namespace: nsStr }, coreDeps);
+        if (result.action !== "invite") return errResponse(new Error("Unexpected result"));
+        const isAdmin = result.invite.role === "admin";
+        const lines = [
+          `Invite link for ${result.address} (${isAdmin ? "Admin" : "Member"}):`,
+          result.url,
+          "",
+          "This link works once and expires in 7 days.",
+        ];
+        if (isAdmin) {
+          lines.push("Admin links give full control of this address's team to whoever opens them first.");
+        }
+        lines.push(
+          "Share it only with the person you are inviting. They open it in a browser and sign in to join.",
+          `Invite id: ${result.invite.id} (use action 'revoke' with this invite_id to cancel it).`,
+        );
+        return okResponse(lines.join("\n"));
+      }
+
+      if (actionStr === "invites") {
+        const result = await members({ action: "invites", namespace: nsStr }, coreDeps);
+        if (result.action !== "invites") return errResponse(new Error("Unexpected result"));
+        if (result.invites.length === 0) {
+          return okResponse(`No pending invite links for ${result.address}.`);
+        }
+        // Whitelisted fields only: a listing never shows a link or token (they exist only at creation).
+        const lines = result.invites.map((i: PendingInvite) => {
+          const roleLabel = i.role === "admin" ? "Admin" : "Member";
+          const by = i.created_by_username ?? "a deleted account";
+          const paused = i.paused ? " — paused until the owner is on Max" : "";
+          return `  ${i.id} — ${roleLabel}, created by ${by}, expires ${i.expires_at}${paused}`;
+        });
+        return okResponse(
+          `Pending invite links for ${result.address}:\n${lines.join("\n")}\n` +
+          "Links are shown only once, when created. To replace one, revoke it and create a new invite.",
+        );
+      }
+
+      if (actionStr === "revoke") {
+        const idStr = invite_id;
+        if (!idStr || idStr.trim() === "") {
+          return errResponse(new Error("invite_id is required for the revoke action (use action 'invites' to see the pending ones)"));
+        }
+        const result = await members({ action: "revoke", invite_id: idStr, namespace: nsStr }, coreDeps);
+        if (result.action !== "revoke") return errResponse(new Error("Unexpected result"));
+        return okResponse(`Revoked invite ${idStr.trim()} on ${result.address}. That link no longer works.`);
+      }
+
+      // action === "role"
+      const usernameStr = username;
+      const roleStr = role as "admin" | "user" | undefined;
+      if (!usernameStr) {
+        return errResponse(new Error("username is required for the role action"));
+      }
+      if (!roleStr) {
+        return errResponse(new Error("role is required for the role action"));
+      }
+      const result = await members(
+        { action: "role", username: usernameStr, role: roleStr, namespace: nsStr },
+        coreDeps,
+      );
+      if (result.action !== "role") return errResponse(new Error("Unexpected result"));
+      return okResponse(
+        `Changed ${usernameStr} role to ${result.member.role}`,
+      );
+    }),
   );
 
   server.registerTool(
@@ -2110,21 +1979,17 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ slug, namespace }) => {
-      try {
-        const result = await promote(
-          slug as string,
-          namespace as string | undefined,
-          coreDeps,
-        );
-        return okResponse(
-          `Preview promoted to live!\n` +
-          `URL: ${result.url}`,
-        );
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async ({ slug, namespace }) => {
+      const result = await promote(
+        slug,
+        namespace,
+        coreDeps,
+      );
+      return okResponse(
+        `Preview promoted to live!\n` +
+        `URL: ${result.url}`,
+      );
+    }),
   );
 
   local.registerTool(
@@ -2159,26 +2024,22 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ slug, namespace, outputDir }) => {
-      try {
-        const result = await qrCode(
-          {
-            slug: slug as string,
-            namespace: namespace as string | undefined,
-            outputDir: outputDir as string | undefined,
-          },
-          coreDeps,
-        );
-        return okResponse(
-          `QR code for: ${result.siteUrl}\n\n` +
-          `${result.unicodeQr}\n` +
-          `SVG: ${result.svgPath}\n` +
-          `PNG: ${result.pngPath}`,
-        );
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async ({ slug, namespace, outputDir }) => {
+      const result = await qrCode(
+        {
+          slug,
+          namespace,
+          outputDir,
+        },
+        coreDeps,
+      );
+      return okResponse(
+        `QR code for: ${result.siteUrl}\n\n` +
+        `${result.unicodeQr}\n` +
+        `SVG: ${result.svgPath}\n` +
+        `PNG: ${result.pngPath}`,
+      );
+    }),
   );
 
   local.registerTool(
@@ -2215,8 +2076,8 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         );
       }
       const r = createFromTemplate({
-        name: name as string | undefined,
-        directory: directory as string | undefined,
+        name,
+        directory,
         allowNonEmpty: allow_non_empty === true,
       });
       if (!r.success) return errResponse(new Error(r.error));
@@ -2256,24 +2117,20 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         overwrite: z.boolean().optional().describe("Export into a non-empty directory, replacing files with the same path. Never follows or replaces symlinks."),
       },
     },
-    async ({ slug, directory, version, namespace, overwrite }) => {
-      try {
-        const result = await exportSite(
-          {
-            slug: slug as string,
-            directory: directory as string,
-            version: version as number | undefined,
-            namespace: namespace as string | undefined,
-            overwrite: overwrite === true,
-          },
-          coreDeps,
-        );
-        const response = okResponse(formatExportResult(result));
-        return result.failed.length > 0 ? { ...response, isError: true } : response;
-      } catch (err) {
-        return errResponse(err);
-      }
-    },
+    guarded(async ({ slug, directory, version, namespace, overwrite }) => {
+      const result = await exportSite(
+        {
+          slug,
+          directory,
+          version: version as number | undefined,
+          namespace,
+          overwrite: overwrite === true,
+        },
+        coreDeps,
+      );
+      const response = okResponse(formatExportResult(result));
+      return result.failed.length > 0 ? { ...response, isError: true } : response;
+    }),
   );
 
   local.registerTool(
@@ -2543,71 +2400,67 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ action, hostname, id }) => {
-      try {
-        const act = action as "add" | "status" | "list" | "remove";
+    guarded(async ({ action, hostname, id }) => {
+      const act = action as "add" | "status" | "list" | "remove";
 
-        if (act === "add") {
-          if (!hostname) {
-            return errResponse(new Error("hostname is required when action is 'add'"));
-          }
-          const result = await domain({ action: "add", hostname: hostname as string }, coreDeps);
-          if (result.action !== "add") return errResponse(new Error("Unexpected result"));
-          const records = result.records
-            .map((r) => `  ${r.type}  name: ${r.name}  value: ${r.value}`)
-            .join("\n");
-          return okResponse(
-            `Connected "${result.hostname}" (id: ${result.namespace.id}).\n\n` +
-            `Add these DNS record(s) at your registrar:\n${records}\n\n` +
-            `${result.note}`,
-          );
+      if (act === "add") {
+        if (!hostname) {
+          return errResponse(new Error("hostname is required when action is 'add'"));
         }
-
-        if (act === "status") {
-          if (!id) {
-            return errResponse(new Error("id is required when action is 'status'"));
-          }
-          const result = await domain({ action: "status", id: id as string }, coreDeps);
-          if (result.action !== "status") return errResponse(new Error("Unexpected result"));
-          const state = result.active ? "ACTIVE" : "PENDING";
-          const errLine = result.validationErrors
-            ? `\nValidation errors: ${result.validationErrors}`
-            : "";
-          return okResponse(
-            `Custom domain "${result.hostname}" is ${state}.` +
-            (result.active
-              ? " It's live — publish to it like any address."
-              : " DNS is still propagating, or the record(s) need a fix. Re-check shortly.") +
-            errLine,
-          );
-        }
-
-        if (act === "remove") {
-          if (!id) {
-            return errResponse(new Error("id is required when action is 'remove'"));
-          }
-          const result = await domain({ action: "remove", id: id as string }, coreDeps);
-          if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
-          return okResponse(result.message);
-        }
-
-        // action === "list"
-        const result = await domain({ action: "list" }, coreDeps);
-        if (result.action !== "list") return errResponse(new Error("Unexpected result"));
-        if (result.domains.length === 0) {
-          return okResponse("No custom domains connected. Use the 'add' action to connect one.");
-        }
-        const lines = result.domains.map((d) => {
-          const state = d.verified ? "active" : "pending";
-          return `  ${d.hostname} — ${state} (id: ${d.id})`;
-        });
+        const result = await domain({ action: "add", hostname }, coreDeps);
+        if (result.action !== "add") return errResponse(new Error("Unexpected result"));
+        const records = result.records
+          .map((r) => `  ${r.type}  name: ${r.name}  value: ${r.value}`)
+          .join("\n");
         return okResponse(
-          `Custom domains (${result.domains.length}):\n${lines.join("\n")}`,
+          `Connected "${result.hostname}" (id: ${result.namespace.id}).\n\n` +
+          `Add these DNS record(s) at your registrar:\n${records}\n\n` +
+          `${result.note}`,
         );
-      } catch (err) {
-        return errResponse(err);
       }
-    },
+
+      if (act === "status") {
+        if (!id) {
+          return errResponse(new Error("id is required when action is 'status'"));
+        }
+        const result = await domain({ action: "status", id }, coreDeps);
+        if (result.action !== "status") return errResponse(new Error("Unexpected result"));
+        const state = result.active ? "ACTIVE" : "PENDING";
+        const errLine = result.validationErrors
+          ? `\nValidation errors: ${result.validationErrors}`
+          : "";
+        return okResponse(
+          `Custom domain "${result.hostname}" is ${state}.` +
+          (result.active
+            ? " It's live — publish to it like any address."
+            : " DNS is still propagating, or the record(s) need a fix. Re-check shortly.") +
+          errLine,
+        );
+      }
+
+      if (act === "remove") {
+        if (!id) {
+          return errResponse(new Error("id is required when action is 'remove'"));
+        }
+        const result = await domain({ action: "remove", id }, coreDeps);
+        if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
+        return okResponse(result.message);
+      }
+
+      // action === "list"
+      const result = await domain({ action: "list" }, coreDeps);
+      if (result.action !== "list") return errResponse(new Error("Unexpected result"));
+      if (result.domains.length === 0) {
+        return okResponse("No custom domains connected. Use the 'add' action to connect one.");
+      }
+      const lines = result.domains.map((d) => {
+        const state = d.verified ? "active" : "pending";
+        return `  ${d.hostname} — ${state} (id: ${d.id})`;
+      });
+      return okResponse(
+        `Custom domains (${result.domains.length}):\n${lines.join("\n")}`,
+      );
+    }),
   );
 
   server.registerTool(
@@ -2664,55 +2517,51 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           ),
       },
     },
-    async ({ nsId, site, newName, path_prefix, redirect }) => {
-      try {
-        const nsIdStr = nsId as string;
-        const newNameStr = newName as string | undefined;
+    guarded(async ({ nsId, site, newName, path_prefix, redirect }) => {
+      const nsIdStr = nsId;
+      const newNameStr = newName;
 
-        if (!newNameStr) {
-          return errResponse(new Error("newName is required"));
-        }
-
-        if (!nsIdStr) {
-          return errResponse(new Error("nsId is required"));
-        }
-
-        const result = await rename(
-          {
-            nsId: nsIdStr,
-            site: site as string | undefined,
-            newName: newNameStr,
-            // undefined ⇒ omit (keep prefix); null/"" ⇒ clear; string ⇒ set.
-            // The distinction is preserved end-to-end so a client can clear a
-            // prefix without accidentally clearing it on every unrelated rename.
-            pathPrefix: path_prefix as string | null | undefined,
-            redirect: redirect as "off" | "30d" | "permanent" | undefined,
-          },
-          coreDeps,
-        );
-
-        if (!result.success) {
-          return errResponse(new Error(result.error));
-        }
-
-        const target = site ? `site '${site as string}'` : "address";
-        const effectiveRedirect = (redirect as string | undefined) ?? "30d";
-        const redirectLine =
-          result.redirectExpiresAt
-            ? `\nRedirect expires: ${result.redirectExpiresAt}`
-            : effectiveRedirect === "off"
-              ? "\nRedirect: none"
-              : "\nRedirect: permanent";
-
-        return okResponse(
-          `Renamed ${target} to '${newNameStr}'.\n` +
-          `New URL: ${result.url}` +
-          redirectLine,
-        );
-      } catch (err) {
-        return errResponse(err);
+      if (!newNameStr) {
+        return errResponse(new Error("newName is required"));
       }
-    },
+
+      if (!nsIdStr) {
+        return errResponse(new Error("nsId is required"));
+      }
+
+      const result = await rename(
+        {
+          nsId: nsIdStr,
+          site,
+          newName: newNameStr,
+          // undefined ⇒ omit (keep prefix); null/"" ⇒ clear; string ⇒ set.
+          // The distinction is preserved end-to-end so a client can clear a
+          // prefix without accidentally clearing it on every unrelated rename.
+          pathPrefix: path_prefix as string | null | undefined,
+          redirect: redirect as "off" | "30d" | "permanent" | undefined,
+        },
+        coreDeps,
+      );
+
+      if (!result.success) {
+        return errResponse(new Error(result.error));
+      }
+
+      const target = site ? `site '${site}'` : "address";
+      const effectiveRedirect = redirect ?? "30d";
+      const redirectLine =
+        result.redirectExpiresAt
+          ? `\nRedirect expires: ${result.redirectExpiresAt}`
+          : effectiveRedirect === "off"
+            ? "\nRedirect: none"
+            : "\nRedirect: permanent";
+
+      return okResponse(
+        `Renamed ${target} to '${newNameStr}'.\n` +
+        `New URL: ${result.url}` +
+        redirectLine,
+      );
+    }),
   );
 
   // ─── Admin tools (env-gated) ────────────────────────────────────────────────
@@ -2757,91 +2606,87 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             .describe("Reason for status change. Recommended for suspend and ban actions."),
         },
       },
-      async ({ action, email, userId, role, reason }) => {
-        try {
-          const actionStr = action as "lookup" | "inspect" | "role" | "suspend" | "ban" | "reinstate";
+      guarded(async ({ action, email, userId, role, reason }) => {
+        const actionStr = action as "lookup" | "inspect" | "role" | "suspend" | "ban" | "reinstate";
 
-          if (actionStr === "lookup") {
-            if (!email) return errResponse(new Error("email is required for lookup action"));
-            const result = await adminUser(
-              { action: "lookup", email: email as string },
-              coreDeps,
-            ) as AdminUserSummary;
-            return okResponse(
-              `User: ${result.username} (${result.email})\n` +
-              `ID: ${result.id}\n` +
-              `Role: ${result.role}\n` +
-              `Status: ${result.status}${result.status_reason ? ` — ${result.status_reason}` : ""}`,
-            );
-          }
-
-          if (actionStr === "inspect") {
-            if (!userId) return errResponse(new Error("userId is required for inspect action"));
-            const result = await adminUser(
-              { action: "inspect", userId: userId as string },
-              coreDeps,
-            ) as AdminUserInspect;
-            const sitesLine = result.sites.length > 0
-              ? `\nSites (${result.sites.length}): ${result.sites.map((s) => s.slug).join(", ")}`
-              : "\nSites: none";
-            return okResponse(
-              `User: ${result.user.username} (${result.user.email})\n` +
-              `Status: ${result.user.status}${result.user.status_reason ? ` — ${result.user.status_reason}` : ""}\n` +
-              `Tier: ${result.space?.tier ?? "none"}\n` +
-              `Storage: ${formatBytes(result.storage_bytes)}` +
-              sitesLine,
-            );
-          }
-
-          if (actionStr === "role") {
-            if (!userId) return errResponse(new Error("userId is required for role action"));
-            if (!role) return errResponse(new Error("role is required for role action"));
-            const result = await adminUser(
-              { action: "role", userId: userId as string, role: role as "user" | "admin" },
-              coreDeps,
-            ) as { id: string; role: string };
-            return okResponse(`Role updated: ${result.id} → ${result.role}`);
-          }
-
-          if (actionStr === "suspend") {
-            if (!userId) return errResponse(new Error("userId is required for suspend action"));
-            const result = await adminUser(
-              { action: "suspend", userId: userId as string, reason: reason as string | undefined },
-              coreDeps,
-            ) as AdminStatusResult;
-            return okResponse(
-              `User ${result.id} suspended.\n` +
-              `Reason: ${result.status_reason ?? "(none)"}`,
-            );
-          }
-
-          if (actionStr === "ban") {
-            if (!userId) return errResponse(new Error("userId is required for ban action"));
-            const result = await adminUser(
-              { action: "ban", userId: userId as string, reason: reason as string | undefined },
-              coreDeps,
-            ) as AdminStatusResult;
-            const reconcileLine = result.reconcile
-              ? `\nKV reconcile: written=${result.reconcile.written} verified=${result.reconcile.verified} failed=${result.reconcile.failed.length}`
-              : "";
-            return okResponse(
-              `User ${result.id} banned.\n` +
-              `Reason: ${result.status_reason ?? "(none)"}` +
-              reconcileLine,
-            );
-          }
-
-          // reinstate
-          if (!userId) return errResponse(new Error("userId is required for reinstate action"));
+        if (actionStr === "lookup") {
+          if (!email) return errResponse(new Error("email is required for lookup action"));
           const result = await adminUser(
-            { action: "reinstate", userId: userId as string },
+            { action: "lookup", email },
+            coreDeps,
+          ) as AdminUserSummary;
+          return okResponse(
+            `User: ${result.username} (${result.email})\n` +
+            `ID: ${result.id}\n` +
+            `Role: ${result.role}\n` +
+            `Status: ${result.status}${result.status_reason ? ` — ${result.status_reason}` : ""}`,
+          );
+        }
+
+        if (actionStr === "inspect") {
+          if (!userId) return errResponse(new Error("userId is required for inspect action"));
+          const result = await adminUser(
+            { action: "inspect", userId },
+            coreDeps,
+          ) as AdminUserInspect;
+          const sitesLine = result.sites.length > 0
+            ? `\nSites (${result.sites.length}): ${result.sites.map((s) => s.slug).join(", ")}`
+            : "\nSites: none";
+          return okResponse(
+            `User: ${result.user.username} (${result.user.email})\n` +
+            `Status: ${result.user.status}${result.user.status_reason ? ` — ${result.user.status_reason}` : ""}\n` +
+            `Tier: ${result.space?.tier ?? "none"}\n` +
+            `Storage: ${formatBytes(result.storage_bytes)}` +
+            sitesLine,
+          );
+        }
+
+        if (actionStr === "role") {
+          if (!userId) return errResponse(new Error("userId is required for role action"));
+          if (!role) return errResponse(new Error("role is required for role action"));
+          const result = await adminUser(
+            { action: "role", userId: userId, role: role as "user" | "admin" },
+            coreDeps,
+          ) as { id: string; role: string };
+          return okResponse(`Role updated: ${result.id} → ${result.role}`);
+        }
+
+        if (actionStr === "suspend") {
+          if (!userId) return errResponse(new Error("userId is required for suspend action"));
+          const result = await adminUser(
+            { action: "suspend", userId: userId, reason },
             coreDeps,
           ) as AdminStatusResult;
-          return okResponse(`User ${result.id} reinstated (status: ${result.status}).`);
-        } catch (err) {
-          return errResponse(err);
+          return okResponse(
+            `User ${result.id} suspended.\n` +
+            `Reason: ${result.status_reason ?? "(none)"}`,
+          );
         }
-      },
+
+        if (actionStr === "ban") {
+          if (!userId) return errResponse(new Error("userId is required for ban action"));
+          const result = await adminUser(
+            { action: "ban", userId: userId, reason },
+            coreDeps,
+          ) as AdminStatusResult;
+          const reconcileLine = result.reconcile
+            ? `\nKV reconcile: written=${result.reconcile.written} verified=${result.reconcile.verified} failed=${result.reconcile.failed.length}`
+            : "";
+          return okResponse(
+            `User ${result.id} banned.\n` +
+            `Reason: ${result.status_reason ?? "(none)"}` +
+            reconcileLine,
+          );
+        }
+
+        // reinstate
+        if (!userId) return errResponse(new Error("userId is required for reinstate action"));
+        const result = await adminUser(
+          { action: "reinstate", userId },
+          coreDeps,
+        ) as AdminStatusResult;
+        return okResponse(`User ${result.id} reinstated (status: ${result.status}).`);
+      }),
     );
 
     admin.registerTool(
@@ -2866,32 +2711,28 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             .describe("Reason for blocking. Recommended for block action."),
         },
       },
-      async ({ action, siteId, reason }) => {
-        try {
-          const actionStr = action as "block" | "unblock";
-          const siteIdStr = siteId as string;
+      guarded(async ({ action, siteId, reason }) => {
+        const actionStr = action as "block" | "unblock";
+        const siteIdStr = siteId;
 
-          if (actionStr === "block") {
-            const result = await adminSite(
-              { action: "block", siteId: siteIdStr, reason: reason as string | undefined },
-              coreDeps,
-            ) as AdminSiteBlockResult;
-            return okResponse(
-              `Site ${siteIdStr} blocked.\n` +
-              `Blocked at: ${result.site.blocked_at ?? "unknown"}`,
-            );
-          }
-
-          // unblock
+        if (actionStr === "block") {
           const result = await adminSite(
-            { action: "unblock", siteId: siteIdStr },
+            { action: "block", siteId: siteIdStr, reason },
             coreDeps,
           ) as AdminSiteBlockResult;
-          return okResponse(`Site ${siteIdStr} unblocked (blocked_at: ${result.site.blocked_at ?? "null"}).`);
-        } catch (err) {
-          return errResponse(err);
+          return okResponse(
+            `Site ${siteIdStr} blocked.\n` +
+            `Blocked at: ${result.site.blocked_at ?? "unknown"}`,
+          );
         }
-      },
+
+        // unblock
+        const result = await adminSite(
+          { action: "unblock", siteId: siteIdStr },
+          coreDeps,
+        ) as AdminSiteBlockResult;
+        return okResponse(`Site ${siteIdStr} unblocked (blocked_at: ${result.site.blocked_at ?? "null"}).`);
+      }),
     );
 
     admin.registerTool(
@@ -2904,28 +2745,24 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           "total storage, and blob deduplication ratio.",
         inputSchema: {},
       },
-      async () => {
-        try {
-          const result = await adminStats(coreDeps) as AdminStats;
-          const tierLines = Object.entries(result.users_by_tier)
-            .map(([tier, count]) => `  ${tier}: ${count}`)
-            .join("\n");
-          const statusLines = Object.entries(result.users_by_status)
-            .map(([status, count]) => `  ${status}: ${count}`)
-            .join("\n");
-          return okResponse(
-            `Platform Stats\n\n` +
-            `Users by tier:\n${tierLines}\n\n` +
-            `Users by status:\n${statusLines}\n\n` +
-            `Sites: ${result.site_count}\n` +
-            `Addresses: ${result.namespace_count}\n` +
-            `Total storage: ${formatBytes(result.total_storage_bytes)}\n` +
-            `Blob dedup ratio: ${(result.blob_dedup_ratio * 100).toFixed(1)}%`,
-          );
-        } catch (err) {
-          return errResponse(err);
-        }
-      },
+      guarded(async () => {
+        const result = await adminStats(coreDeps) as AdminStats;
+        const tierLines = Object.entries(result.users_by_tier)
+          .map(([tier, count]) => `  ${tier}: ${count}`)
+          .join("\n");
+        const statusLines = Object.entries(result.users_by_status)
+          .map(([status, count]) => `  ${status}: ${count}`)
+          .join("\n");
+        return okResponse(
+          `Platform Stats\n\n` +
+          `Users by tier:\n${tierLines}\n\n` +
+          `Users by status:\n${statusLines}\n\n` +
+          `Sites: ${result.site_count}\n` +
+          `Addresses: ${result.namespace_count}\n` +
+          `Total storage: ${formatBytes(result.total_storage_bytes)}\n` +
+          `Blob dedup ratio: ${(result.blob_dedup_ratio * 100).toFixed(1)}%`,
+        );
+      }),
     );
 
     admin.registerTool(
@@ -2968,48 +2805,44 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             ),
         },
       },
-      async ({ action, dryRun, graceSeconds, scope, id }) => {
-        try {
-          const actionStr = action as "sweep" | "resync";
+      guarded(async ({ action, dryRun, graceSeconds, scope, id }) => {
+        const actionStr = action as "sweep" | "resync";
 
-          if (actionStr === "sweep") {
-            const result = await adminStorage(
-              {
-                action: "sweep",
-                dryRun: dryRun as boolean | undefined,
-                graceSeconds: graceSeconds as number | undefined,
-              },
-              coreDeps,
-            ) as AdminSweepReport;
-            const mode = result.dry_run ? "DRY RUN" : "LIVE";
-            return okResponse(
-              `Storage sweep (${mode})\n` +
-              `Orphaned blobs: ${result.orphaned_blobs.length}\n` +
-              `Abandoned prefixes: ${result.abandoned_prefixes.length}\n` +
-              `Deleted bytes: ${formatBytes(result.deleted_bytes)}`,
-            );
-          }
-
-          // resync
-          if (!scope) return errResponse(new Error("scope is required for resync action"));
+        if (actionStr === "sweep") {
           const result = await adminStorage(
             {
-              action: "resync",
-              scope: scope as "site" | "user" | "all",
-              id: id as string | undefined,
+              action: "sweep",
+              dryRun: dryRun as boolean | undefined,
+              graceSeconds: graceSeconds as number | undefined,
             },
             coreDeps,
-          ) as AdminResyncReport;
+          ) as AdminSweepReport;
+          const mode = result.dry_run ? "DRY RUN" : "LIVE";
           return okResponse(
-            `KV resync complete\n` +
-            `Written: ${result.written}\n` +
-            `Verified: ${result.verified}\n` +
-            `Failed: ${result.failed.length}${result.failed.length > 0 ? `\n  ${result.failed.join("\n  ")}` : ""}`,
+            `Storage sweep (${mode})\n` +
+            `Orphaned blobs: ${result.orphaned_blobs.length}\n` +
+            `Abandoned prefixes: ${result.abandoned_prefixes.length}\n` +
+            `Deleted bytes: ${formatBytes(result.deleted_bytes)}`,
           );
-        } catch (err) {
-          return errResponse(err);
         }
-      },
+
+        // resync
+        if (!scope) return errResponse(new Error("scope is required for resync action"));
+        const result = await adminStorage(
+          {
+            action: "resync",
+            scope: scope as "site" | "user" | "all",
+            id,
+          },
+          coreDeps,
+        ) as AdminResyncReport;
+        return okResponse(
+          `KV resync complete\n` +
+          `Written: ${result.written}\n` +
+          `Verified: ${result.verified}\n` +
+          `Failed: ${result.failed.length}${result.failed.length > 0 ? `\n  ${result.failed.join("\n  ")}` : ""}`,
+        );
+      }),
     );
 
     admin.registerTool(
@@ -3040,43 +2873,39 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             .describe("Domain ID to remove. Required for remove action."),
         },
       },
-      async ({ action, hostname, accessPolicy, domainId }) => {
-        try {
-          const actionStr = action as "list" | "add" | "remove";
+      guarded(async ({ action, hostname, accessPolicy, domainId }) => {
+        const actionStr = action as "list" | "add" | "remove";
 
-          if (actionStr === "list") {
-            const result = await adminDomains({ action: "list" }, coreDeps) as AdminDomain[];
-            if (result.length === 0) {
-              return okResponse("No custom domains registered.");
-            }
-            const lines = result.map(
-              (d) => `  ${d.hostname} (${d.access_policy}) — ${d.namespace_count} address(es) [id: ${d.id}]`,
-            );
-            return okResponse(`Custom domains (${result.length}):\n${lines.join("\n")}`);
+        if (actionStr === "list") {
+          const result = await adminDomains({ action: "list" }, coreDeps) as AdminDomain[];
+          if (result.length === 0) {
+            return okResponse("No custom domains registered.");
           }
-
-          if (actionStr === "add") {
-            if (!hostname) return errResponse(new Error("hostname is required for add action"));
-            if (!accessPolicy) return errResponse(new Error("accessPolicy is required for add action"));
-            const result = await adminDomains(
-              { action: "add", hostname: hostname as string, accessPolicy: accessPolicy as string },
-              coreDeps,
-            ) as AdminDomain;
-            return okResponse(
-              `Domain registered: ${result.hostname}\n` +
-              `ID: ${result.id}\n` +
-              `Access policy: ${result.access_policy}`,
-            );
-          }
-
-          // remove
-          if (!domainId) return errResponse(new Error("domainId is required for remove action"));
-          await adminDomains({ action: "remove", domainId: domainId as string }, coreDeps);
-          return okResponse(`Domain ${domainId as string} removed.`);
-        } catch (err) {
-          return errResponse(err);
+          const lines = result.map(
+            (d) => `  ${d.hostname} (${d.access_policy}) — ${d.namespace_count} address(es) [id: ${d.id}]`,
+          );
+          return okResponse(`Custom domains (${result.length}):\n${lines.join("\n")}`);
         }
-      },
+
+        if (actionStr === "add") {
+          if (!hostname) return errResponse(new Error("hostname is required for add action"));
+          if (!accessPolicy) return errResponse(new Error("accessPolicy is required for add action"));
+          const result = await adminDomains(
+            { action: "add", hostname: hostname, accessPolicy },
+            coreDeps,
+          ) as AdminDomain;
+          return okResponse(
+            `Domain registered: ${result.hostname}\n` +
+            `ID: ${result.id}\n` +
+            `Access policy: ${result.access_policy}`,
+          );
+        }
+
+        // remove
+        if (!domainId) return errResponse(new Error("domainId is required for remove action"));
+        await adminDomains({ action: "remove", domainId }, coreDeps);
+        return okResponse(`Domain ${domainId} removed.`);
+      }),
     );
   }
 
