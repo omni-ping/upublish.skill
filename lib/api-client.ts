@@ -44,6 +44,26 @@ export function clientHeader(clientVersion?: string): Record<string, string> {
   return clientVersion ? { [CLIENT_HEADER]: `upublish-mcp/${clientVersion}` } : {};
 }
 
+/** Response of `POST /api/ns/:nsId/sites/:slug/manifest`. */
+interface ManifestResponse {
+  needed: Array<{ path: string; upload_url: string }>;
+  version: number;
+  session_id: string;
+  base_version: number | null;
+  /**
+   * Present when this manifest response charged storage-pack blocks.
+   * Returned by the backend when the publish exceeds the tier storage cap
+   * and the user has pre-authorized the recurring block charge.
+   */
+  storage_overage?: {
+    charged: boolean;
+    block_gb: number;
+    blocks: number;
+    price: number;
+    interval: "month" | "year";
+  };
+}
+
 export class ApiClient {
   constructor(
     /** API base URL, e.g. https://api.upubli.sh */
@@ -198,42 +218,13 @@ export class ApiClient {
        */
       path_prefix?: string | null;
     },
-  ): Promise<{
-    needed: Array<{ path: string; upload_url: string }>;
-    version: number;
-    session_id: string;
-    base_version: number | null;
-    /**
-     * Present when this manifest response charged storage-pack blocks.
-     * Returned by the backend when the publish exceeds the tier storage cap
-     * and the user has pre-authorized the recurring block charge.
-     */
-    storage_overage?: {
-      charged: boolean;
-      block_gb: number;
-      blocks: number;
-      price: number;
-      interval: "month" | "year";
-    };
-  }> {
+  ): Promise<ManifestResponse> {
     // Server expects files as Record<path, {hash, size}>, not an Array.
     const filesRecord: Record<string, { hash: string; size: number }> = {};
     for (const f of body.files) {
       filesRecord[f.path] = { hash: f.hash, size: f.size };
     }
-    const result = await this.post<{
-      needed: Array<{ path: string; upload_url: string }>;
-      version: number;
-      session_id: string;
-      base_version: number | null;
-      storage_overage?: {
-        charged: boolean;
-        block_gb: number;
-        blocks: number;
-        price: number;
-        interval: "month" | "year";
-      };
-    }>(
+    const result = await this.post<ManifestResponse>(
       `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/manifest`,
       { ...body, files: filesRecord },
     );

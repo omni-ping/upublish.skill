@@ -421,6 +421,19 @@ async function buildApiClient(deps?: CoreDeps): Promise<ApiClient> {
   return new ApiClient(API_BASE_URL, tokenProvider, fetchFn ?? fetch, deps?.clientVersion);
 }
 
+/**
+ * Opens a namespace-scoped op: builds the client first (so "Not authenticated"
+ * wins over any namespace error), then resolves the namespace, then runs `fn`.
+ */
+async function withNamespace<T>(
+  deps: CoreDeps | undefined,
+  namespaceName: string | undefined,
+  fn: (apiClient: ApiClient, ns: Namespace) => Promise<T>,
+): Promise<T> {
+  const apiClient = await buildApiClient(deps);
+  return fn(apiClient, await resolveNamespace(apiClient, namespaceName));
+}
+
 // ─── Core operations ──────────────────────────────────────────────────────────
 
 /**
@@ -431,10 +444,10 @@ async function buildApiClient(deps?: CoreDeps): Promise<ApiClient> {
  * @param deps - Optional CoreDeps for test injection.
  */
 export async function list(namespaceName?: string, deps?: CoreDeps): Promise<ListResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, namespaceName);
-  const result = await listSites(apiClient, ns.id);
-  return { ...result, namespace: ns };
+  return withNamespace(deps, namespaceName, async (apiClient, ns) => {
+    const result = await listSites(apiClient, ns.id);
+    return { ...result, namespace: ns };
+  });
 }
 
 /**
@@ -480,45 +493,45 @@ export async function publish(
   args: PublishArgs,
   deps?: CoreDeps,
 ): Promise<PublishResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, args.namespace);
+  return withNamespace(deps, args.namespace, async (apiClient, ns) => {
 
-  // Scoped lookup: only a _root publish with no explicit title needs the
-  // existing title (an explicit title always wins and would discard it
-  // anyway; a non-_root publish never consults it) — so ordinary publishes
-  // never pay for the extra request.
-  const existingTitle =
-    args.slug === "_root" && args.title === undefined
-      ? await lookupExistingRootTitle(apiClient, ns.id)
-      : undefined;
+    // Scoped lookup: only a _root publish with no explicit title needs the
+    // existing title (an explicit title always wins and would discard it
+    // anyway; a non-_root publish never consults it) — so ordinary publishes
+    // never pay for the extra request.
+    const existingTitle =
+      args.slug === "_root" && args.title === undefined
+        ? await lookupExistingRootTitle(apiClient, ns.id)
+        : undefined;
 
-  log(`[publish] slug=${args.slug} dir=${args.directory} namespace=${ns.name}`);
+    log(`[publish] slug=${args.slug} dir=${args.directory} namespace=${ns.name}`);
 
-  return domainPublish({
-    apiClient,
-    nsId: ns.id,
-    directory: args.directory,
-    slug: args.slug,
-    pathPrefix: args.pathPrefix,
-    title: args.title,
-    namespaceName: ns.name,
-    existingTitle,
-    visibility: args.visibility,
-    passcode: args.passcode,
-    passcodeLabel: args.passcodeLabel,
-    preview: args.preview,
-    force: args.force,
-    analyticsEnabled: args.analyticsEnabled,
-    spa: args.spa,
-    allowNoIndex: args.allowNoIndex,
-    allowProjectFiles: args.allowProjectFiles,
-    includeSourcemaps: args.includeSourcemaps,
-    namespaceRole: ns.role,
-    // Pass fetchFn so presigned R2 uploads use the injected fetch in tests
-    fetchFn: deps?.fetchFn,
-    // Thread progress callbacks down (adapter supplies them)
-    onProgress: args.onProgress,
-    onHashProgress: args.onHashProgress,
+    return domainPublish({
+      apiClient,
+      nsId: ns.id,
+      directory: args.directory,
+      slug: args.slug,
+      pathPrefix: args.pathPrefix,
+      title: args.title,
+      namespaceName: ns.name,
+      existingTitle,
+      visibility: args.visibility,
+      passcode: args.passcode,
+      passcodeLabel: args.passcodeLabel,
+      preview: args.preview,
+      force: args.force,
+      analyticsEnabled: args.analyticsEnabled,
+      spa: args.spa,
+      allowNoIndex: args.allowNoIndex,
+      allowProjectFiles: args.allowProjectFiles,
+      includeSourcemaps: args.includeSourcemaps,
+      namespaceRole: ns.role,
+      // Pass fetchFn so presigned R2 uploads use the injected fetch in tests
+      fetchFn: deps?.fetchFn,
+      // Thread progress callbacks down (adapter supplies them)
+      onProgress: args.onProgress,
+      onHashProgress: args.onHashProgress,
+    });
   });
 }
 
@@ -535,9 +548,9 @@ export async function deleteOp(
   namespaceName?: string,
   deps?: CoreDeps,
 ): Promise<DeleteResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, namespaceName);
-  return deleteSite(apiClient, ns.id, slug);
+  return withNamespace(deps, namespaceName, async (apiClient, ns) => {
+    return deleteSite(apiClient, ns.id, slug);
+  });
 }
 
 /**
@@ -553,9 +566,9 @@ export async function promote(
   namespaceName?: string,
   deps?: CoreDeps,
 ): Promise<PromoteResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, namespaceName);
-  return domainPromote(apiClient, ns.id, slug);
+  return withNamespace(deps, namespaceName, async (apiClient, ns) => {
+    return domainPromote(apiClient, ns.id, slug);
+  });
 }
 
 /**
@@ -571,9 +584,9 @@ export async function listSiteVersions(
   namespaceName?: string,
   deps?: CoreDeps,
 ): Promise<ListVersionsResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, namespaceName);
-  return domainListVersions(apiClient, ns.id, slug);
+  return withNamespace(deps, namespaceName, async (apiClient, ns) => {
+    return domainListVersions(apiClient, ns.id, slug);
+  });
 }
 
 /**
@@ -592,9 +605,9 @@ export async function deleteSiteVersion(
   namespaceName?: string,
   deps?: CoreDeps,
 ): Promise<DeleteVersionResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, namespaceName);
-  return domainDeleteVersion(apiClient, ns.id, slug, versionNumber);
+  return withNamespace(deps, namespaceName, async (apiClient, ns) => {
+    return domainDeleteVersion(apiClient, ns.id, slug, versionNumber);
+  });
 }
 
 /**
@@ -616,9 +629,9 @@ export async function restoreSiteVersion(
   namespaceName?: string,
   deps?: CoreDeps,
 ): Promise<RestoreVersionResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, namespaceName);
-  return domainRestoreVersion(apiClient, ns.id, slug, versionNumber);
+  return withNamespace(deps, namespaceName, async (apiClient, ns) => {
+    return domainRestoreVersion(apiClient, ns.id, slug, versionNumber);
+  });
 }
 
 /**
@@ -642,9 +655,9 @@ export async function setSiteVersionsLimit(
   namespaceName?: string,
   deps?: CoreDeps,
 ): Promise<SetVersionsLimitResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, namespaceName);
-  return domainSetVersionsLimit(apiClient, ns.id, slug, limit);
+  return withNamespace(deps, namespaceName, async (apiClient, ns) => {
+    return domainSetVersionsLimit(apiClient, ns.id, slug, limit);
+  });
 }
 
 /**
@@ -664,9 +677,9 @@ export async function analytics(
   namespaceName?: string,
   deps?: CoreDeps,
 ): Promise<SetAnalyticsResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, namespaceName);
-  return domainSetAnalyticsEnabled(apiClient, ns.id, slug, enabled);
+  return withNamespace(deps, namespaceName, async (apiClient, ns) => {
+    return domainSetAnalyticsEnabled(apiClient, ns.id, slug, enabled);
+  });
 }
 
 /**
@@ -687,9 +700,9 @@ export async function addPasscode(
   namespaceName?: string,
   deps?: CoreDeps,
 ): Promise<AddPasscodeResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, namespaceName);
-  return domainAddPasscode(apiClient, ns.id, slug, code, label);
+  return withNamespace(deps, namespaceName, async (apiClient, ns) => {
+    return domainAddPasscode(apiClient, ns.id, slug, code, label);
+  });
 }
 
 /**
@@ -704,9 +717,9 @@ export async function setVisibility(
   args: { slug: string; visibility: "public" | "passcode"; passcode?: string; label?: string; namespace?: string },
   deps?: CoreDeps,
 ): Promise<SetVisibilityResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, args.namespace);
-  return domainSetVisibility(apiClient, ns.id, args);
+  return withNamespace(deps, args.namespace, async (apiClient, ns) => {
+    return domainSetVisibility(apiClient, ns.id, args);
+  });
 }
 
 /**
@@ -722,9 +735,9 @@ export async function listPasscodes(
   namespaceName?: string,
   deps?: CoreDeps,
 ): Promise<ListPasscodesResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, namespaceName);
-  return domainListPasscodes(apiClient, ns.id, slug);
+  return withNamespace(deps, namespaceName, async (apiClient, ns) => {
+    return domainListPasscodes(apiClient, ns.id, slug);
+  });
 }
 
 /**
@@ -744,27 +757,27 @@ export async function revokePasscode(
   namespaceName?: string,
   deps?: CoreDeps,
 ): Promise<RevokePasscodeResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, namespaceName);
+  return withNamespace(deps, namespaceName, async (apiClient, ns) => {
 
-  if (opts.id) {
-    return domainRevokePasscode(apiClient, ns.id, slug, opts.id);
-  }
-
-  if (opts.label) {
-    // Resolve label to ID
-    const { passcodes } = await domainListPasscodes(apiClient, ns.id, slug);
-    const found = passcodes.find((p) => p.label === opts.label);
-    if (!found) {
-      const available = passcodes.map((p) => `"${p.label}"`).join(", ") || "(none)";
-      throw new Error(
-        `No passcode with label "${opts.label}" found. Available labels: ${available}`,
-      );
+    if (opts.id) {
+      return domainRevokePasscode(apiClient, ns.id, slug, opts.id);
     }
-    return domainRevokePasscode(apiClient, ns.id, slug, found.id);
-  }
 
-  throw new Error("Either id or label must be provided to revoke a passcode.");
+    if (opts.label) {
+      // Resolve label to ID
+      const { passcodes } = await domainListPasscodes(apiClient, ns.id, slug);
+      const found = passcodes.find((p) => p.label === opts.label);
+      if (!found) {
+        const available = passcodes.map((p) => `"${p.label}"`).join(", ") || "(none)";
+        throw new Error(
+          `No passcode with label "${opts.label}" found. Available labels: ${available}`,
+        );
+      }
+      return domainRevokePasscode(apiClient, ns.id, slug, found.id);
+    }
+
+    throw new Error("Either id or label must be provided to revoke a passcode.");
+  });
 }
 
 // ─── Gate ─────────────────────────────────────────────────────────────────────
@@ -806,31 +819,31 @@ export type GateResult =
  * @throws Error on API failure.
  */
 export async function gate(args: GateArgs, deps?: CoreDeps): Promise<GateResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, args.namespace);
+  return withNamespace(deps, args.namespace, async (apiClient, ns) => {
 
-  switch (args.action) {
-    case "get": {
-      const result = await domainGetGate(apiClient, ns.id, args.slug);
-      return { action: "get", ...result };
+    switch (args.action) {
+      case "get": {
+        const result = await domainGetGate(apiClient, ns.id, args.slug);
+        return { action: "get", ...result };
+      }
+      case "set": {
+        const result = await domainSetGate(apiClient, ns.id, args.slug, args.fields);
+        return { action: "set", ...result };
+      }
+      case "remove": {
+        const result = await domainRemoveGate(apiClient, ns.id, args.slug, args.visibilityAfter);
+        return { action: "remove", ...result };
+      }
+      case "submissions": {
+        const result = await domainGetSubmissions(apiClient, ns.id, args.slug);
+        return { action: "submissions", ...result };
+      }
+      case "clear": {
+        const result = await domainClearSubmissions(apiClient, ns.id, args.slug);
+        return { action: "clear", ...result };
+      }
     }
-    case "set": {
-      const result = await domainSetGate(apiClient, ns.id, args.slug, args.fields);
-      return { action: "set", ...result };
-    }
-    case "remove": {
-      const result = await domainRemoveGate(apiClient, ns.id, args.slug, args.visibilityAfter);
-      return { action: "remove", ...result };
-    }
-    case "submissions": {
-      const result = await domainGetSubmissions(apiClient, ns.id, args.slug);
-      return { action: "submissions", ...result };
-    }
-    case "clear": {
-      const result = await domainClearSubmissions(apiClient, ns.id, args.slug);
-      return { action: "clear", ...result };
-    }
-  }
+  });
 }
 
 // ─── Site data ────────────────────────────────────────────────────────────────
@@ -844,32 +857,28 @@ export async function gate(args: GateArgs, deps?: CoreDeps): Promise<GateResult>
  */
 export async function data(args: DataArgs, deps?: CoreDeps): Promise<DataResult> {
   return sanitizeErrors(async () => {
-    const apiClient = await buildApiClient(deps);
-    return runData(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+    return withNamespace(deps, args.namespace, (apiClient, ns) => runData(apiClient, ns, args));
   });
 }
 
 /** Site data collections: list, get, set (create or update), delete. Sites are named by slug. */
 export async function dataCollection(args: DataCollectionArgs, deps?: CoreDeps): Promise<DataCollectionResult> {
   return sanitizeErrors(async () => {
-    const apiClient = await buildApiClient(deps);
-    return runDataCollection(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+    return withNamespace(deps, args.namespace, (apiClient, ns) => runDataCollection(apiClient, ns, args));
   });
 }
 
 /** Site data rows: list, export (streamed to a file), archive, delete, create, put, import. */
 export async function dataRows(args: DataRowsArgs, deps?: CoreDeps): Promise<DataRowsResult> {
   return sanitizeErrors(async () => {
-    const apiClient = await buildApiClient(deps);
-    return runDataRows(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+    return withNamespace(deps, args.namespace, (apiClient, ns) => runDataRows(apiClient, ns, args));
   });
 }
 
 /** Site data bring-your-own JWT issuer: set, clear. */
 export async function dataJwt(args: DataJwtArgs, deps?: CoreDeps): Promise<DataJwtResult> {
   return sanitizeErrors(async () => {
-    const apiClient = await buildApiClient(deps);
-    return runDataJwt(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+    return withNamespace(deps, args.namespace, (apiClient, ns) => runDataJwt(apiClient, ns, args));
   });
 }
 
@@ -884,32 +893,28 @@ export async function dataJwt(args: DataJwtArgs, deps?: CoreDeps): Promise<DataJ
  */
 export async function publishBackend(args: PublishBackendArgs, deps?: CoreDeps, opts?: { allowEntry?: boolean }): Promise<PublishBackendResult> {
   return sanitizeErrors(async () => {
-    const apiClient = await buildApiClient(deps);
-    return runPublishBackend(apiClient, await resolveNamespace(apiClient, args.namespace), args, { allowEntry: opts?.allowEntry });
+    return withNamespace(deps, args.namespace, (apiClient, ns) => runPublishBackend(apiClient, ns, args, { allowEntry: opts?.allowEntry }));
   });
 }
 
 /** Backend operations: status, versions, rollback, enable, disable, access, and the add-on (consent-gated enable). */
 export async function backend(args: BackendArgs, deps?: CoreDeps): Promise<BackendResult> {
   return sanitizeErrors(async () => {
-    const apiClient = await buildApiClient(deps);
-    return runBackend(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+    return withNamespace(deps, args.namespace, (apiClient, ns) => runBackend(apiClient, ns, args));
   });
 }
 
 /** Backend secrets: set, list names, delete. A value is sent once and never returned, logged or stored. */
 export async function backendSecret(args: BackendSecretArgs, deps?: CoreDeps): Promise<BackendSecretResult> {
   return sanitizeErrors(async () => {
-    const apiClient = await buildApiClient(deps);
-    return runBackendSecret(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+    return withNamespace(deps, args.namespace, (apiClient, ns) => runBackendSecret(apiClient, ns, args));
   });
 }
 
 /** The last log lines of a site's backend. */
 export async function backendLogs(args: BackendLogsArgs, deps?: CoreDeps): Promise<BackendLogsResult> {
   return sanitizeErrors(async () => {
-    const apiClient = await buildApiClient(deps);
-    return runBackendLogs(apiClient, await resolveNamespace(apiClient, args.namespace), args);
+    return withNamespace(deps, args.namespace, (apiClient, ns) => runBackendLogs(apiClient, ns, args));
   });
 }
 
@@ -961,43 +966,43 @@ export type MembersResult =
  * @throws Error if a username cannot be resolved for remove/role actions.
  */
 export async function members(args: MembersArgs, deps?: CoreDeps): Promise<MembersResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, args.namespace);
+  return withNamespace(deps, args.namespace, async (apiClient, ns) => {
 
-  switch (args.action) {
-    case "list": {
-      const result = await domainListMembers(apiClient, ns.id);
-      return { action: "list", ...result };
+    switch (args.action) {
+      case "list": {
+        const result = await domainListMembers(apiClient, ns.id);
+        return { action: "list", ...result };
+      }
+      case "add": {
+        const result = await domainAddMember(apiClient, ns.id, args.username, args.role);
+        return { action: "add", ...result };
+      }
+      case "remove": {
+        const result = await domainRemoveMember(apiClient, ns.id, args.username);
+        return { action: "remove", ...result };
+      }
+      case "role": {
+        const result = await domainChangeMemberRole(apiClient, ns.id, args.username, args.role);
+        return { action: "role", ...result };
+      }
+      case "leave": {
+        const result = await domainLeaveMember(apiClient, ns.id);
+        return { action: "leave", address: ns.name, ...result };
+      }
+      case "invite": {
+        const result = await domainCreateInvite(apiClient, ns.id, args.role ?? "user");
+        return { action: "invite", address: ns.name, ...result };
+      }
+      case "invites": {
+        const result = await domainListInvites(apiClient, ns.id);
+        return { action: "invites", address: ns.name, ...result };
+      }
+      case "revoke": {
+        const result = await domainRevokeInvite(apiClient, ns.id, args.invite_id);
+        return { action: "revoke", address: ns.name, ...result };
+      }
     }
-    case "add": {
-      const result = await domainAddMember(apiClient, ns.id, args.username, args.role);
-      return { action: "add", ...result };
-    }
-    case "remove": {
-      const result = await domainRemoveMember(apiClient, ns.id, args.username);
-      return { action: "remove", ...result };
-    }
-    case "role": {
-      const result = await domainChangeMemberRole(apiClient, ns.id, args.username, args.role);
-      return { action: "role", ...result };
-    }
-    case "leave": {
-      const result = await domainLeaveMember(apiClient, ns.id);
-      return { action: "leave", address: ns.name, ...result };
-    }
-    case "invite": {
-      const result = await domainCreateInvite(apiClient, ns.id, args.role ?? "user");
-      return { action: "invite", address: ns.name, ...result };
-    }
-    case "invites": {
-      const result = await domainListInvites(apiClient, ns.id);
-      return { action: "invites", address: ns.name, ...result };
-    }
-    case "revoke": {
-      const result = await domainRevokeInvite(apiClient, ns.id, args.invite_id);
-      return { action: "revoke", address: ns.name, ...result };
-    }
-  }
+  });
 }
 
 /**
@@ -1012,17 +1017,17 @@ export async function members(args: MembersArgs, deps?: CoreDeps): Promise<Membe
  * @throws Error if the site has no canonical URL.
  */
 export async function qrCode(args: QrCodeArgs, deps?: CoreDeps): Promise<QrCodeResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, args.namespace);
-  return domainQrCode(
-    { slug: args.slug, namespace: args.namespace, outputDir: args.outputDir },
-    {
-      listFn: async () => {
-        const result = await listSites(apiClient, ns.id);
-        return { ...result, namespace: ns };
+  return withNamespace(deps, args.namespace, async (apiClient, ns) => {
+    return domainQrCode(
+      { slug: args.slug, namespace: args.namespace, outputDir: args.outputDir },
+      {
+        listFn: async () => {
+          const result = await listSites(apiClient, ns.id);
+          return { ...result, namespace: ns };
+        },
       },
-    },
-  );
+    );
+  });
 }
 
 // ─── Site export ──────────────────────────────────────────────────────────────
@@ -1037,9 +1042,9 @@ export async function qrCode(args: QrCodeArgs, deps?: CoreDeps): Promise<QrCodeR
  * @param deps - Optional CoreDeps for test injection.
  */
 export async function exportSite(args: ExportArgs & { namespace?: string }, deps?: CoreDeps): Promise<ExportResult> {
-  const apiClient = await buildApiClient(deps);
-  const ns = await resolveNamespace(apiClient, args.namespace);
-  return runSiteExport(apiClient, ns.id, args, { fetchFn: deps?.fetchFn ?? fetch });
+  return withNamespace(deps, args.namespace, async (apiClient, ns) => {
+    return runSiteExport(apiClient, ns.id, args, { fetchFn: deps?.fetchFn ?? fetch });
+  });
 }
 
 // ─── Rename ───────────────────────────────────────────────────────────────────

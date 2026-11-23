@@ -59,22 +59,22 @@ interface VisibilityPatchResponse {
  * @param enabled - The value that was attempted (false = disable attempt).
  */
 export function enrichAnalyticsError(err: Error, enabled: boolean): Error {
-  if (
-    enabled === false &&
-    err instanceof ApiError &&
-    err.status === 403
-  ) {
-    const body = err.rawBodyData as Record<string, unknown> | null;
-    const serverMsg = typeof body?.error === "string" ? body.error : "";
-    // Only rewrite when the body identifies the analytics gate.
-    // A suspended-user 403 has a different error body and will NOT match here.
-    if (serverMsg.toLowerCase().includes("analytics")) {
-      return new Error(
-        `${serverMsg} Upgrade to a Pro or Max plan at ${ANALYTICS_UPGRADE_URL} to disable analytics.`,
-      );
-    }
-  }
-  return err;
+  return (enabled === false && rewriteAnalyticsGate403(err)) || err;
+}
+
+/**
+ * Rewrites a 403 whose body identifies the analytics gate into a friendly
+ * upgrade message. Returns null for anything else — including a suspended-user
+ * 403, whose body has different text — so callers pass the original through.
+ */
+export function rewriteAnalyticsGate403(err: Error): Error | null {
+  if (!(err instanceof ApiError) || err.status !== 403) return null;
+  const body = err.rawBodyData as Record<string, unknown> | null;
+  const serverMsg = typeof body?.error === "string" ? body.error : "";
+  if (!serverMsg.toLowerCase().includes("analytics")) return null;
+  return new Error(
+    `${serverMsg} Upgrade to a Pro or Max plan at ${ANALYTICS_UPGRADE_URL} to disable analytics.`,
+  );
 }
 
 /**
