@@ -35,9 +35,13 @@ export function createProgressReporter(extra: ProgressExtra | undefined, interva
   let lastProgress: UploadProgress | null = null;
   let lastHashProgress: HashProgress | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
+  // Set by stop(). A sibling upload (Promise.all) can still report after the publish has failed; it must not
+  // notify or restart a timer that nothing would ever stop.
+  let stopped = false;
 
   /** Sends one best-effort notification. A dropped one (client gone, transport closed) must never break the publish. */
   function sendProgress(p: Counts, message: string): void {
+    if (stopped) return;
     // Drive the percentage off bytes when we have them; fall back to file counts when every
     // needed file is zero-length (totalBytes === 0 would divide by zero).
     const useBytes = p.totalBytes > 0;
@@ -71,7 +75,7 @@ export function createProgressReporter(extra: ProgressExtra | undefined, interva
   }
 
   const startHeartbeat = (): void => {
-    timer ??= setInterval(tick, intervalMs);
+    if (!stopped) timer ??= setInterval(tick, intervalMs);
   };
 
   return {
@@ -87,6 +91,7 @@ export function createProgressReporter(extra: ProgressExtra | undefined, interva
       startHeartbeat();
     },
     stop() {
+      stopped = true;
       if (timer !== null) clearInterval(timer);
       timer = null;
     },

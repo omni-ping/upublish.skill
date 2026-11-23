@@ -88,6 +88,16 @@ describe("createProgressReporter", () => {
     expect(notes.length).toBe(n);
   });
 
+  test("progress_after_stop_sends_nothing_and_starts_no_timer", async () => {
+    const { notes, extra } = collector();
+    const r = createProgressReporter(extra, HB);
+    r.stop();
+    r.onHashProgress!(snap(1, 2, 1, 2));
+    r.onProgress!(snap(1, 2, 1, 2));
+    await sleep(HB * 3);
+    expect(notes.length).toBe(0);
+  });
+
   test("a_rejected_notification_never_throws", async () => {
     const r = createProgressReporter(
       { _meta: { progressToken: 1 }, sendNotification: async () => Promise.reject(new Error("gone")) },
@@ -154,6 +164,29 @@ describe("publish tool stops the heartbeat on failure", () => {
     });
     expect(res.isError).toBe(true);
     expect(atResponse).toBeGreaterThanOrEqual(1);
+    expect(after).toBe(atResponse);
+  });
+
+  test("sibling_upload_finishing_after_failure_restarts_no_heartbeat", async () => {
+    fs.writeFileSync(path.join(tmpDir, "b.css"), "body{}");
+    const { res, atResponse, after } = await run(async (url) => {
+      if (url.includes("/manifest")) {
+        return json({
+          needed: [
+            { path: "index.html", upload_url: "https://r2.example.com/p/index.html" },
+            { path: "b.css", upload_url: "https://r2.example.com/p/b.css" },
+          ],
+          copied: [],
+        });
+      }
+      if (url.includes("/p/index.html")) return new Response("expired", { status: 403 });
+      if (url.includes("/p/b.css")) {
+        await sleep(HB * 2); // finishes after the publish has already failed
+        return new Response("", { status: 200 });
+      }
+      return undefined;
+    });
+    expect(res.isError).toBe(true);
     expect(after).toBe(atResponse);
   });
 
