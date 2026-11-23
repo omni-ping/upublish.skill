@@ -154,16 +154,17 @@ describe("DW-7.1: tool count 33 without UPUBLISH_ADMIN, 38 with it", () => {
 
 // ─── DW-7.2: mcp/index.ts imports only lib/core.ts ───────────────────────────
 
-describe("DW-7.2: mcp/index.ts imports only lib/core.ts, not lib/admin.ts", () => {
-  test("test_DW_7_2_mcp_index_imports_only_core", () => {
-    const mcpIndexPath = path.join(import.meta.dir, "../mcp/index.ts");
-    const source = fs.readFileSync(mcpIndexPath, "utf-8");
-    // Must not import from lib/admin.ts directly
-    expect(source).not.toMatch(/from ['"]\.\.\/lib\/admin\.ts['"]/);
-    expect(source).not.toMatch(/from ['"]\.\.\/lib\/admin['"]/);
-    // Must import from lib/core.ts
-    expect(source).toMatch(/from ['"]\.\.\/lib\/core\.ts['"]/);
-  });
+describe("DW-7.2: the admin tool modules import only lib/core.ts, not lib/admin.ts", () => {
+  // The admin handlers live in mcp/tools/admin.ts; mcp/index.ts only registers them.
+  for (const rel of ["../mcp/index.ts", "../mcp/tools/admin.ts"]) {
+    test(`test_DW_7_2_${path.basename(rel)}_imports_only_core`, () => {
+      const source = fs.readFileSync(path.join(import.meta.dir, rel), "utf-8");
+      // Must not import from lib/admin.ts directly
+      expect(source).not.toMatch(/from ['"](\.\.\/)+lib\/admin(\.ts)?['"]/);
+      // Must import from lib/core.ts
+      expect(source).toMatch(/from ['"](\.\.\/)+lib\/core\.ts['"]/);
+    });
+  }
 });
 
 // ─── DW-7.4: UPUBLISH_ADMIN=1 unauthenticated → standard not-authenticated path

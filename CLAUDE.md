@@ -19,7 +19,8 @@ There is no build step for development — Bun runs TypeScript directly. The `di
 ## Architecture
 
 ```
-mcp/index.ts       MCP server adapter — registers 33 always-on tools plus 5 env-gated admin tools:
+mcp/index.ts       MCP server entry (createServer, createHostedServer, main): builds a ToolContext, calls the register* functions in
+                   tool order; registers 33 always-on tools plus 5 env-gated admin tools:
                    • auth/account: login, status, logout, namespace_create, domain, rename, upgrade
                    • sites: publish, list, delete, promote, qrcode, analytics
                    • versions: versions_list, versions_delete, versions_restore, versions_limit
@@ -33,6 +34,12 @@ mcp/index.ts       MCP server adapter — registers 33 always-on tools plus 5 en
                    • local-only helpers (never on the hosted server): template (list/create starter sites in a local folder), export (download a
                      site version's files, verified, into a local folder)
                    • admin (only when UPUBLISH_ADMIN=1): admin_user, admin_site, admin_stats, admin_storage, admin_domains
+mcp/tools/*.ts     One tool module per job (publish, sites, versions, access, data, backend, members, account, namespace, admin):
+                   each exports register<Tool>(ctx), with per-action handlers behind an action -> handler record
+mcp/context.ts     ToolContext handed to every registrar (server, host-only/admin registrars, coreDeps, flags)
+mcp/tool-response.ts  okResponse/errResponse, guarded(), wrapToolResults    mcp/fields.ts  shared zod input fields
+mcp/format.ts      text formatting helpers    mcp/progress.ts  publish progress + heartbeat
+mcp/callback-server.ts  loopback OAuth callback server for login
 lib/core.ts        Facade — all user-facing operations, wires credentials + ApiClient per call
 lib/auth.ts        Unified OAuth login (PKCE auth-code + token exchange), token refresh, credential read/write (~/.upublish/credentials)
 lib/api-client.ts  Thin HTTP client — Bearer token injection via async TokenProvider
