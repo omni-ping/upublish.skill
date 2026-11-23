@@ -87,6 +87,7 @@ import {
   log,
   setFileLogging,
 } from "../lib/core.ts";
+import { claimMatchers, namespaceField, siteNamespaceField, siteSlugField } from "./fields.ts";
 import { errResponse, guarded, okResponse, wrapToolResults } from "./tool-response.ts";
 import type {
   CoreDeps,
@@ -826,12 +827,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             "The URL-safe identifier of the site to delete. " +
             "Use the `list` tool to find available slugs.",
           ),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name the site belongs to. When omitted, the default address is used.",
-          ),
+        namespace: siteNamespaceField,
       },
     },
     guarded(async ({ slug, namespace }) => {
@@ -849,18 +845,8 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         "Shows each version's number, status, and which one is currently live. " +
         "Use `versions_delete` to remove an archived version and reclaim storage.",
       inputSchema: {
-        slug: z
-          .string()
-          .describe(
-            "The URL-safe identifier of the site. " +
-            "Use the `list` tool to find available slugs.",
-          ),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name the site belongs to. When omitted, the default address is used.",
-          ),
+        slug: siteSlugField,
+        namespace: siteNamespaceField,
       },
     },
     guarded(async ({ slug, namespace }) => {
@@ -889,12 +875,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         "reclaim storage. The currently live version cannot be deleted. " +
         "Returns the space reclaimed and your updated storage usage.",
       inputSchema: {
-        slug: z
-          .string()
-          .describe(
-            "The URL-safe identifier of the site. " +
-            "Use the `list` tool to find available slugs.",
-          ),
+        slug: siteSlugField,
         versionNumber: z
           .number()
           .int()
@@ -903,12 +884,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             "The version number to delete (a positive integer). " +
             "Use `versions_list` to see available version numbers.",
           ),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name the site belongs to. When omitted, the default address is used.",
-          ),
+        namespace: siteNamespaceField,
       },
     },
     guarded(async ({ slug, versionNumber, namespace }) => {
@@ -936,12 +912,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         "and their dates/sizes. Returns the now-live version number and live URL. " +
         "Restoring versions requires a paid plan.",
       inputSchema: {
-        slug: z
-          .string()
-          .describe(
-            "The URL-safe identifier of the site. " +
-            "Use the `list` tool to find available slugs.",
-          ),
+        slug: siteSlugField,
         version: z
           .number()
           .int()
@@ -950,12 +921,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             "The version number to restore (a positive integer). " +
             "Use `versions_list` to see available version numbers.",
           ),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name the site belongs to. When omitted, the default address is used.",
-          ),
+        namespace: siteNamespaceField,
       },
     },
     guarded(async ({ slug, version, namespace }) => {
@@ -983,12 +949,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         "Omit or pass null for `limit` to clear the limit (unlimited retention). " +
         "Returns the updated limit, pruned version numbers, and storage freed.",
       inputSchema: {
-        slug: z
-          .string()
-          .describe(
-            "The URL-safe identifier of the site. " +
-            "Use the `list` tool to find available slugs.",
-          ),
+        slug: siteSlugField,
         limit: z
           .union([z.number().int().min(1), z.null()])
           .optional()
@@ -997,12 +958,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             "Omit or pass null to clear the limit (unlimited retention). " +
             "The live version is always preserved regardless of the limit.",
           ),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name the site belongs to. When omitted, the default address is used.",
-          ),
+        namespace: siteNamespaceField,
       },
     },
     guarded(async ({ slug, limit, namespace }) => {
@@ -1038,22 +994,13 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         "Analytics is on by default; to publish a new site with analytics off, use the " +
         "publish tool's analytics_enabled option instead.",
       inputSchema: {
-        slug: z
-          .string()
-          .describe(
-            "The URL-safe identifier of the site. Use the `list` tool to find available slugs.",
-          ),
+        slug: siteSlugField,
         enabled: z
           .boolean()
           .describe(
             "true to enable analytics (inject the script), false to disable it.",
           ),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name the site belongs to. When omitted, the default address is used.",
-          ),
+        namespace: siteNamespaceField,
       },
     },
     guarded(async ({ slug, enabled, namespace }) => {
@@ -1098,12 +1045,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             "Human-readable label for this passcode (e.g. 'Client A', 'Team B'). " +
             "Used to identify and revoke specific passcodes. Defaults to 'default' when omitted or blank.",
           ),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name the site belongs to. When omitted, the default address is used.",
-          ),
+        namespace: siteNamespaceField,
       },
     },
     guarded(async ({ slug, code, label, namespace }) => {
@@ -1155,10 +1097,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           .string()
           .optional()
           .describe("Label for the added passcode (e.g. 'Client A'). Defaults to 'default'."),
-        namespace: z
-          .string()
-          .optional()
-          .describe("Address name the site belongs to. When omitted, the default address is used."),
+        namespace: siteNamespaceField,
       },
     },
     guarded(async ({ slug, visibility, passcode, label, namespace }) => {
@@ -1202,12 +1141,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         slug: z
           .string()
           .describe("The URL-safe identifier of the site to list passcodes for."),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name the site belongs to. When omitted, the default address is used.",
-          ),
+        namespace: siteNamespaceField,
       },
     },
     guarded(async ({ slug, namespace }) => {
@@ -1256,12 +1190,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             "The passcode label to revoke (resolved to ID via list). " +
             "Used only when id is not provided.",
           ),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name the site belongs to. When omitted, the default address is used.",
-          ),
+        namespace: siteNamespaceField,
       },
     },
     guarded(async ({ slug, id, label, namespace }) => {
@@ -1323,12 +1252,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             "Required when action is 'remove': what the site becomes once the gate is gone. " +
             "'public' = visible to everyone; 'passcode' = stays private (needs >= 1 passcode).",
           ),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name the site belongs to. When omitted, the default address is used.",
-          ),
+        namespace: siteNamespaceField,
       },
     },
     guarded(async ({ action, slug, fields, visibility_after, namespace }) => {
@@ -1424,22 +1348,6 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
 
   // ─── Site data (add-on): data, data_collection, data_rows, data_jwt ─────────
 
-  const namespaceArg = z
-    .string()
-    .optional()
-    .describe("Address name. When omitted, the default address is used.");
-
-  // Mirrors the server's claim matcher (lib/site-data-types.ts ClaimMatcher).
-  const claimMatcher = z.object({
-    kind: z.enum(["passcode", "jwt"]),
-    claims: z
-      .record(z.string().min(1).max(SITE_DATA_LIMITS.maxClaimKeyLength), z.union([z.string().min(1).max(128), z.boolean()]))
-      .refine((c) => Object.keys(c).length >= 1 && Object.keys(c).length <= SITE_DATA_LIMITS.maxClaimsPerMatcher, {
-        message: `1 to ${SITE_DATA_LIMITS.maxClaimsPerMatcher} claims`,
-      }),
-  });
-  const claimMatchers = z.array(claimMatcher).max(SITE_DATA_LIMITS.maxClaimMatchers);
-
   server.registerTool(
     "data",
     {
@@ -1481,7 +1389,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           .string()
           .optional()
           .describe("wipe only: must equal the address name exactly (type-to-confirm)."),
-        namespace: namespaceArg,
+        namespace: namespaceField,
       },
     },
     guarded(async (args) => {
@@ -1538,7 +1446,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         max_rows: z.number().int().min(1).max(SITE_DATA_LIMITS.maxRowsCeiling).optional().describe("Active row cap (default 10000)."),
         max_row_bytes: z.number().int().min(1).max(SITE_DATA_LIMITS.maxRowBytesCeiling).optional().describe("Max bytes per row (default 16384)."),
         writes_per_min: z.number().int().min(1).max(SITE_DATA_LIMITS.writesPerMinCeiling).optional().describe("Writes per minute per visitor (default 60)."),
-        namespace: namespaceArg,
+        namespace: namespaceField,
       },
     },
     guarded(async (args) => {
@@ -1595,7 +1503,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             }
           : {}),
         rows: z.array(importRow).max(SITE_DATA_LIMITS.maxImportRowsPerCall).optional().describe("import: the rows to import."),
-        namespace: namespaceArg,
+        namespace: namespaceField,
       },
     },
     guarded(async (args) => {
@@ -1625,7 +1533,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         jwks_uri: z.string().min(1).max(512).optional().describe("set: https URL of the provider's JWKS (no port, no credentials)."),
         audience: z.string().min(1).max(256).optional().describe("set: required 'aud' of the tokens."),
         algorithms: z.array(z.enum(JWT_ALGORITHMS)).min(1).optional().describe("set: accepted signing algorithms, e.g. ['ES256','RS256']."),
-        namespace: namespaceArg,
+        namespace: namespaceField,
       },
     },
     guarded(async (args) => {
@@ -1659,7 +1567,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           .refine((v) => Object.keys(v).length <= BACKEND_LIMITS.varsPerBackend, { message: `at most ${BACKEND_LIMITS.varsPerBackend} vars` })
           .optional()
           .describe("Plain-text configuration (NOT secrets), available as env.NAME and versioned with the bundle. Omit to keep the live version's vars."),
-        namespace: namespaceArg,
+        namespace: namespaceField,
       },
     },
     guarded(async (args) => {
@@ -1719,7 +1627,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           .strict()
           .optional()
           .describe("addon_enable only, with accept_charge: the `expected` object exactly as the consent printed it."),
-        namespace: namespaceArg,
+        namespace: namespaceField,
       },
     },
     guarded(async (args) => {
@@ -1744,7 +1652,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
         site: siteArg,
         name: z.string().regex(BINDING_NAME_RE).optional().describe("set / delete: letters, digits and underscores, not starting with a digit, up to 64 characters."),
         value: z.string().min(1).max(BACKEND_LIMITS.bindingValueBytes).optional().describe("set only: the secret value (up to 5 KB)."),
-        namespace: namespaceArg,
+        namespace: namespaceField,
       },
     },
     guarded(async (args) => {
@@ -1762,7 +1670,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
       inputSchema: {
         site: siteArg,
         limit: z.number().int().min(1).max(BACKEND_LIMITS.logLines).optional().describe("How many lines (1-100). Default 100."),
-        namespace: namespaceArg,
+        namespace: namespaceField,
       },
     },
     guarded(async (args) => {
@@ -1971,12 +1879,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             "The URL-safe identifier of the site to promote. " +
             "Use the list tool to find available slugs.",
           ),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name the site belongs to. When omitted, the default address is used.",
-          ),
+        namespace: siteNamespaceField,
       },
     },
     guarded(async ({ slug, namespace }) => {
@@ -2009,12 +1912,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
             "The URL-safe identifier of the site to generate a QR code for. " +
             "Use the list tool to find available slugs.",
           ),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name the site belongs to. When omitted, the default address is used.",
-          ),
+        namespace: siteNamespaceField,
         outputDir: z
           .string()
           .optional()
@@ -2113,7 +2011,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
           .positive()
           .optional()
           .describe("Version number to export (see `versions_list`). Defaults to the live version; non-live versions need a paid plan."),
-        namespace: z.string().optional().describe("Address name the site belongs to. When omitted, the default address is used."),
+        namespace: siteNamespaceField,
         overwrite: z.boolean().optional().describe("Export into a non-empty directory, replacing files with the same path. Never follows or replaces symlinks."),
       },
     },
