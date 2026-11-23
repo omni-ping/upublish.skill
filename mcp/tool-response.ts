@@ -6,7 +6,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { displayMsg } from "../lib/core.ts";
 
-export type McpContent = Array<{ type: "text"; text: string }>;
+type McpContent = Array<{ type: "text"; text: string }>;
 
 export type ToolResponse = {
   content: McpContent;
