@@ -89,13 +89,14 @@ import {
 } from "../lib/core.ts";
 import { claimMatchers, namespaceField, siteNamespaceField, siteSlugField } from "./fields.ts";
 import { errResponse, guarded, okResponse, wrapToolResults } from "./tool-response.ts";
+import { type ToolContext, LOCAL_ONLY_MESSAGE, hostOnly } from "./context.ts";
+import { formatBytes, formatSiteEntry, formatUsage, formatVersionEntry } from "./format.ts";
+import { createCallbackServer } from "./callback-server.ts";
 import type {
   CoreDeps,
   TokenProvider,
   Site,
-  SiteVersion,
   SetVersionsLimitResult,
-  CallbackServer,
   NamespaceCreateResult,
   HashProgress,
   GateFieldType,
@@ -126,8 +127,6 @@ export const LOCAL_ONLY_TOOLS = ["publish", "qrcode", "login", "logout", "upgrad
 /** The env-gated admin tools: registered only on a local server with UPUBLISH_ADMIN=1. */
 export const ADMIN_TOOLS = ["admin_user", "admin_site", "admin_stats", "admin_storage", "admin_domains"] as const;
 
-const LOCAL_ONLY_MESSAGE = "This tool is only available in the local upublish plugin.";
-
 /**
  * The default browser opener: launches the system browser only on a local server. On a hosted server it
  * rejects, because the "system" would be the backend host. `opener` is a test seam.
@@ -147,127 +146,6 @@ export const PACKAGE_NAME = "@omniping/upublish";
 export const PACKAGE_VERSION = "0.12.51";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
-
-/** Formats bytes into a human-readable string (B / KB / MB / GB). */
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-/**
- * Formats a single site version as a one-line entry: number, status, live
- * marker, and — when the backend supplies them — the metadata a user needs to
- * pick a version to restore (created date, file count, size).
- */
-function formatVersionEntry(version: SiteVersion): string {
-  const liveMarker = version.is_live ? " (LIVE)" : "";
-  const meta: string[] = [];
-  if (version.created_at) meta.push(new Date(version.created_at).toLocaleString());
-  if (typeof version.file_count === "number") meta.push(`${version.file_count} files`);
-  if (typeof version.total_size === "number") meta.push(formatBytes(version.total_size));
-  const metaSuffix = meta.length > 0 ? `\n    ${meta.join(" · ")}` : "";
-  return `v${version.version_number} — ${version.status}${liveMarker}${metaSuffix}`;
-}
-
-/**
- * Formats the storage-usage object echoed by a version delete into a readable
- * line. Renders used/limit as a "X of Y" byte figure when both are present,
- * otherwise falls back to whatever numeric fields the API returned.
- */
-function formatUsage(usage: Record<string, number | undefined>): string {
-  if (typeof usage.used_bytes === "number" && typeof usage.limit_bytes === "number") {
-    return `${formatBytes(usage.used_bytes)} of ${formatBytes(usage.limit_bytes)}`;
-  }
-  if (typeof usage.used_bytes === "number") {
-    return formatBytes(usage.used_bytes);
-  }
-  const parts = Object.entries(usage)
-    .filter(([, value]) => typeof value === "number")
-    .map(([key, value]) => `${key}=${value}`);
-  return parts.length > 0 ? parts.join(", ") : "(unavailable)";
-}
-
-/** Formats a single site as a human-readable block with labeled fields. */
-function formatSiteEntry(site: Site): string {
-  const size = formatBytes(site.total_size);
-  const updated = new Date(site.updated_at).toLocaleDateString();
-  const visibility =
-    site.visibility !== "public" ? `\nVisibility: ${site.visibility}` : "";
-
-  return (
-    `Title: ${site.title}\n` +
-    `Slug: ${site.slug}\n` +
-    `URL: ${site.url ?? `(URL unavailable — check slug: ${site.slug})`}\n` +
-    `Files: ${site.file_count} (${size})\n` +
-    `Updated: ${updated}` +
-    visibility
-  );
-}
-
-// ─── Callback server (for OAuth login) ───────────────────────────────────────
-
-/**
- * Creates a localhost HTTP server that waits for the unified OAuth callback.
- * The unified flow redirects back with a single-use authorization `code` (or an
- * `error`) on the /callback path — never tokens. The server resolves with that
- * code; login() exchanges it for tokens out of band. New users finish browser
- * onboarding first, so this may wait a while; there is no hard timeout.
- * Returns port, a promise that resolves with the code, and a close fn.
- */
-async function createCallbackServer(): Promise<CallbackServer> {
-  let resolveCode: (code: string) => void;
-  let rejectCode: (err: Error) => void;
-
-  const codePromise = new Promise<string>((resolve, reject) => {
-    resolveCode = resolve;
-    rejectCode = reject;
-  });
-
-  const server = Bun.serve({
-    port: 0,
-    fetch(req) {
-      const url = new URL(req.url);
-
-      if (url.pathname === "/callback") {
-        const code = url.searchParams.get("code");
-        const error = url.searchParams.get("error");
-
-        if (error) {
-          rejectCode(new Error(`OAuth error: ${error}`));
-          return new Response(
-            "<html><body><h2>Sign-in failed.</h2><p>You can close this tab and return to your terminal.</p></body></html>",
-            { headers: { "Content-Type": "text/html" } },
-          );
-        }
-
-        if (!code) {
-          rejectCode(new Error("OAuth callback missing the authorization code"));
-          return new Response(
-            "<html><body><h2>Sign-in error.</h2><p>Missing authorization code. You can close this tab.</p></body></html>",
-            { headers: { "Content-Type": "text/html" } },
-          );
-        }
-
-        resolveCode(code);
-
-        return new Response(
-          "<html><body><h2>Signed in!</h2><p>You can close this tab and return to your terminal.</p></body></html>",
-          { headers: { "Content-Type": "text/html" } },
-        );
-      }
-
-      return new Response("Not found", { status: 404 });
-    },
-  });
-
-  return {
-    port: server.port as number, // always set once Bun.serve({ port: 0 }) is listening
-    waitForCode: () => codePromise,
-    close: async () => server.stop(),
-  };
-}
 
 // ─── Server factory ───────────────────────────────────────────────────────────
 
@@ -393,20 +271,16 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
     name: PACKAGE_NAME,
     version: PACKAGE_VERSION,
   });
-  // Registrar for tools that touch the host machine. Omits the tool unless `enabled`, and wraps its handler so
-  // a call that still arrives with localFiles off is refused before any work (belt and braces).
-  const hostOnly = (enabled: boolean): Pick<McpServer, "registerTool"> => ({
-    registerTool: ((name: string, config: never, cb: (...a: unknown[]) => unknown) => {
-      if (!enabled) return undefined;
-      return server.registerTool(
-        name,
-        config,
-        (async (...a: unknown[]) => (localFiles() ? cb(...a) : errResponse(new Error(LOCAL_ONLY_MESSAGE)))) as never,
-      );
-    }) as McpServer["registerTool"],
-  });
-  const local = hostOnly(localFiles());
-  const admin = hostOnly(localFiles() && process.env.UPUBLISH_ADMIN === "1");
+  const ctx: ToolContext = {
+    server,
+    local: hostOnly(server, localFiles, localFiles()),
+    admin: hostOnly(server, localFiles, localFiles() && process.env.UPUBLISH_ADMIN === "1"),
+    coreDeps,
+    localFiles,
+    openBrowser,
+    heartbeatIntervalMs,
+  };
+  const { local, admin } = ctx;
 
   if (opts?.updateCheck) installUpdateNote(server, callerDeps);
   if (opts?.runtimeCheck) installRuntimeNote(server, opts.runtimeCheck.version);
