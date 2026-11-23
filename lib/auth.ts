@@ -18,7 +18,7 @@ import { clientHeader } from "./api-client.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface TokenResponse {
+interface TokenResponse {
   access_token: string;
   refresh_token: string;
   expires_in: number;

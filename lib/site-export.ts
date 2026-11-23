@@ -49,7 +49,7 @@ export interface ExportDeps {
   maxBytes?: number;
 }
 
-export interface ExportFailure {
+interface ExportFailure {
   path: string;
   reason: string;
 }

@@ -162,7 +162,6 @@ import type {
   BackendLogsArgs, BackendLogsResult,
 } from "./backend.ts";
 import { formatPublishBackend, formatBackendResult, formatBackendSecret, formatBackendLogs } from "./backend-format.ts";
-import { BackendError } from "./backend-errors.ts";
 import { BACKEND_LIMITS, BACKEND_ACCESS, BINDING_NAME_RE } from "./backend-shape.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
