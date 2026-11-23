@@ -25,12 +25,6 @@ import {
   packChargeLine,
   packApprovalPriceLine,
   domain,
-  addPasscode,
-  existingPasscodeMessage,
-  setVisibility,
-  listPasscodes,
-  revokePasscode,
-  gate,
   members,
   rename,
   upgrade,
@@ -39,7 +33,6 @@ import {
   adminStats,
   adminStorage,
   adminDomains,
-  formatGateFields,
   data,
   dataCollection,
   dataRows,
@@ -67,11 +60,18 @@ import {
   createFromTemplate,
   setFileLogging,
 } from "../lib/core.ts";
-import { claimMatchers, namespaceField, siteNamespaceField } from "./fields.ts";
+import { claimMatchers, namespaceField } from "./fields.ts";
 import { errResponse, guarded, okResponse, wrapToolResults } from "./tool-response.ts";
 import { type ToolContext, LOCAL_ONLY_MESSAGE, hostOnly } from "./context.ts";
 import { formatBytes } from "./format.ts";
 import { createCallbackServer } from "./callback-server.ts";
+import {
+  registerGate,
+  registerPasscodeAdd,
+  registerPasscodeList,
+  registerPasscodeRevoke,
+  registerVisibility,
+} from "./tools/access.ts";
 import { registerPublish } from "./tools/publish.ts";
 import {
   registerAnalytics,
@@ -92,8 +92,6 @@ import type {
   TokenProvider,
   Site,
   NamespaceCreateResult,
-  GateFieldType,
-  GateSubmission,
   Member,
   PendingInvite,
   AdminUserSummary,
@@ -293,330 +291,15 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
 
   registerAnalytics(ctx);
 
-  server.registerTool(
-    "passcode_add",
-    {
-      title: "Add Passcode",
-      description:
-        "Adds a passcode to a site that is ALREADY passcode-protected on upubli.sh. " +
-        "Each passcode can have a label for identification (e.g. 'Client A'); it defaults to 'default' when omitted. " +
-        "This does NOT make a site private: on a public or gated site the tool refuses " +
-        "(nothing is added) because the passcode would not be enforced. To make a public " +
-        "site private, use the `visibility` tool with visibility 'passcode' and a passcode.",
-      inputSchema: {
-        slug: z
-          .string()
-          .describe("The URL-safe identifier of the site to add a passcode to."),
-        code: z
-          .string()
-          .describe("The passcode string that visitors will use to access the site."),
-        label: z
-          .string()
-          .optional()
-          .describe(
-            "Human-readable label for this passcode (e.g. 'Client A', 'Team B'). " +
-            "Used to identify and revoke specific passcodes. Defaults to 'default' when omitted or blank.",
-          ),
-        namespace: siteNamespaceField,
-      },
-    },
-    guarded(async ({ slug, code, label, namespace }) => {
-      const result = await addPasscode(
-        slug,
-        code,
-        label,
-        namespace,
-        coreDeps,
-      );
-      if (result.existed) return okResponse(existingPasscodeMessage(result.passcode));
-      return okResponse(
-        `Passcode added to ${slug}\n` +
-        `ID:    ${result.passcode.id}\n` +
-        `Label: ${result.passcode.label}`,
-      );
-    }),
-  );
+  registerPasscodeAdd(ctx);
 
-  server.registerTool(
-    "visibility",
-    {
-      title: "Set Site Visibility",
-      description:
-        "Switches a site on upubli.sh between PUBLIC (anyone with the link) and PASSCODE (visitors need a code). " +
-        "This is the only tool that changes a site's visibility.\n\n" +
-        "Side effects:\n" +
-        "  - 'passcode' needs at least one passcode. Pass `passcode` to add one in the same call: the code is " +
-        "added FIRST, then visibility is changed, so the site is never locked with zero codes. With no `passcode` " +
-        "and no existing codes the call is refused and nothing changes. Passcode protection needs a paid plan.\n" +
-        "  - 'public' makes the site visible to everyone. Stored passcodes are kept but not enforced while public.\n" +
-        "  - On a form-gated site, either switch succeeds but the form gate stops being enforced; its settings " +
-        "and submissions remain until you run `gate` with action 'remove'.\n" +
-        "  - If the code is added but the switch then fails, the error says the code was added and what the " +
-        "visibility still is.",
-      inputSchema: {
-        slug: z.string().describe("The URL-safe identifier of the site."),
-        visibility: z
-          .enum(["public", "passcode"])
-          .describe("The visibility to switch to: 'public' or 'passcode'."),
-        passcode: z
-          .string()
-          .optional()
-          .describe(
-            "A passcode to add before switching to 'passcode' (min 4 characters). " +
-            "Required when the site has no passcodes yet. Not allowed with 'public'.",
-          ),
-        label: z
-          .string()
-          .optional()
-          .describe("Label for the added passcode (e.g. 'Client A'). Defaults to 'default'."),
-        namespace: siteNamespaceField,
-      },
-    },
-    guarded(async ({ slug, visibility, passcode, label, namespace }) => {
-      const r = await setVisibility(
-        {
-          slug,
-          visibility: visibility as "public" | "passcode",
-          passcode,
-          label,
-          namespace,
-        },
-        coreDeps,
-      );
-      const lines = [
-        `Visibility of "${r.slug}" is now ${r.visibility.toUpperCase()} (was ${r.previous.toUpperCase()}).` +
-          (r.visibility === "passcode" ? ` Active passcodes: ${r.activePasscodes}.` : ""),
-      ];
-      if (r.addedPasscode) lines.push(`Added passcode "${r.addedPasscode.label}" (id ${r.addedPasscode.id}).`);
-      if (r.existingPasscode) lines.push(existingPasscodeMessage(r.existingPasscode));
-      if (r.visibility === "public") {
-        lines.push("Anyone with the link can now view it. Stored passcodes are kept but not enforced while public.");
-      }
-      if (r.previous === "gated") {
-        lines.push(
-          "The form gate is no longer enforced, but its settings and submissions remain. " +
-          "Run `gate` with action 'remove' (and visibility_after) to clear them.",
-        );
-      }
-      return okResponse(lines.join("\n"));
-    }),
-  );
+  registerVisibility(ctx);
 
-  server.registerTool(
-    "passcode_list",
-    {
-      title: "List Passcodes",
-      description:
-        "Lists all passcodes for a passcode-protected site on upubli.sh. " +
-        "Shows each passcode's ID, label, and creation date.",
-      inputSchema: {
-        slug: z
-          .string()
-          .describe("The URL-safe identifier of the site to list passcodes for."),
-        namespace: siteNamespaceField,
-      },
-    },
-    guarded(async ({ slug, namespace }) => {
-      const result = await listPasscodes(
-        slug,
-        namespace,
-        coreDeps,
-      );
+  registerPasscodeList(ctx);
 
-      if (result.passcodes.length === 0) {
-        return okResponse(`No passcodes found for site '${slug}'.`);
-      }
+  registerPasscodeRevoke(ctx);
 
-      const lines = result.passcodes.map((pc) => {
-        const created = new Date(pc.created_at).toLocaleDateString();
-        return `  ID: ${pc.id}\n  Label: ${pc.label}\n  Created: ${created}`;
-      });
-
-      return okResponse(
-        `Passcodes for ${slug} (${result.passcodes.length}):\n\n` +
-        lines.join("\n\n"),
-      );
-    }),
-  );
-
-  server.registerTool(
-    "passcode_revoke",
-    {
-      title: "Revoke Passcode",
-      description:
-        "Revokes (removes) a passcode from a passcode-protected site on upubli.sh. " +
-        "Specify either the passcode ID or its label. " +
-        "Use the passcode_list tool to find available IDs and labels.",
-      inputSchema: {
-        slug: z
-          .string()
-          .describe("The URL-safe identifier of the site to revoke a passcode from."),
-        id: z
-          .string()
-          .optional()
-          .describe("The passcode ID to revoke. Takes precedence over label."),
-        label: z
-          .string()
-          .optional()
-          .describe(
-            "The passcode label to revoke (resolved to ID via list). " +
-            "Used only when id is not provided.",
-          ),
-        namespace: siteNamespaceField,
-      },
-    },
-    guarded(async ({ slug, id, label, namespace }) => {
-      const result = await revokePasscode(
-        slug,
-        { id, label },
-        namespace,
-        coreDeps,
-      );
-      const identifier = id ? `id=${id}` : `label="${label}"`;
-      return okResponse(
-        `Passcode revoked from ${slug} (${identifier})\n${result.message}`,
-      );
-    }),
-  );
-
-  server.registerTool(
-    "gate",
-    {
-      title: "Form Gate",
-      description:
-        "Manages a form gate for a site on upubli.sh. " +
-        "A form gate prompts visitors to submit information (email, name, etc.) " +
-        "before accessing the site. Use this tool to set up, inspect, remove, " +
-        "view submissions from, or clear submissions for a gate.\n\n" +
-        "Actions:\n" +
-        "  set         — Create or update a form gate with the given fields. SIDE EFFECT: the site's " +
-        "visibility becomes 'gated'; this REPLACES passcode protection (the result says so when it did)\n" +
-        "  get         — Get the current gate config and submission count\n" +
-        "  remove      — Remove the gate. REQUIRES visibility_after ('public' or 'passcode'): " +
-        "without it nothing is changed. 'public' makes the site visible to everyone; 'passcode' keeps it " +
-        "private and needs at least one passcode (the result states the resulting visibility)\n" +
-        "  submissions — List visitor submissions captured by the gate\n" +
-        "  clear       — Delete all submissions for a gate",
-      inputSchema: {
-        action: z
-          .enum(["set", "get", "remove", "submissions", "clear"])
-          .describe(
-            "The gate operation to perform: " +
-            "'set' to create/update, 'get' to retrieve config, " +
-            "'remove' to delete the gate (needs visibility_after), 'submissions' to list visitor data, " +
-            "'clear' to delete all submissions.",
-          ),
-        slug: z
-          .string()
-          .describe("The URL-safe identifier of the site."),
-        fields: z
-          .array(z.enum(["email", "name", "company", "phone"]))
-          .optional()
-          .describe(
-            "Fields to collect from visitors. Required when action is 'set'. " +
-            "Valid values: 'email', 'name', 'company', 'phone'. " +
-            "Every field is set as required.",
-          ),
-        visibility_after: z
-          .enum(["public", "passcode"])
-          .optional()
-          .describe(
-            "Required when action is 'remove': what the site becomes once the gate is gone. " +
-            "'public' = visible to everyone; 'passcode' = stays private (needs >= 1 passcode).",
-          ),
-        namespace: siteNamespaceField,
-      },
-    },
-    guarded(async ({ action, slug, fields, visibility_after, namespace }) => {
-      const actionStr = action as "set" | "get" | "remove" | "submissions" | "clear";
-      const slugStr = slug;
-
-      if (actionStr === "set") {
-        const fieldsArr = fields as GateFieldType[] | undefined;
-        if (!fieldsArr || fieldsArr.length === 0) {
-          return errResponse(new Error("fields is required when action is 'set'"));
-        }
-        const result = await gate(
-          { action: "set", slug: slugStr, fields: fieldsArr, namespace },
-          coreDeps,
-        );
-        if (result.action !== "set") return errResponse(new Error("Unexpected result"));
-        const fieldsList = formatGateFields(result.gate.fields);
-        const replaced =
-          result.previous_visibility === "passcode"
-            ? `\nWarning: passcode protection replaced by form gate (was: passcode)`
-            : "";
-        return okResponse(
-          `Gate set for '${slugStr}'\nFields: ${fieldsList}${replaced}`,
-        );
-      }
-
-      if (actionStr === "get") {
-        const result = await gate(
-          { action: "get", slug: slugStr, namespace },
-          coreDeps,
-        );
-        if (result.action !== "get") return errResponse(new Error("Unexpected result"));
-        const fieldsList = formatGateFields(result.gate.fields);
-        return okResponse(
-          `Gate for '${slugStr}'\nFields: ${fieldsList}\nSubmissions: ${result.submission_count}`,
-        );
-      }
-
-      if (actionStr === "remove") {
-        const after = visibility_after as "public" | "passcode" | undefined;
-        if (after !== "public" && after !== "passcode") {
-          return errResponse(
-            new Error(
-              `Nothing was changed. Removing a gate must say what the site becomes: call gate again with ` +
-              `action "remove" and visibility_after "public" (visible to everyone) or "passcode" ` +
-              `(stays private; needs at least one passcode).`,
-            ),
-          );
-        }
-        const result = await gate(
-          { action: "remove", slug: slugStr, visibilityAfter: after, namespace },
-          coreDeps,
-        );
-        if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
-        return okResponse(
-          `${result.message}\nSite is now ${result.visibility.toUpperCase()}.` +
-          (result.visibility === "public" ? " Anyone with the link can view it." : ""),
-        );
-      }
-
-      if (actionStr === "submissions") {
-        const result = await gate(
-          { action: "submissions", slug: slugStr, namespace },
-          coreDeps,
-        );
-        if (result.action !== "submissions") return errResponse(new Error("Unexpected result"));
-        const { submissions } = result;
-        if (submissions.length === 0) {
-          return okResponse(`No submissions found for gate on '${slugStr}'.`);
-        }
-        const lines = submissions.map((sub: GateSubmission) => {
-          const date = new Date(sub.submitted_at).toLocaleDateString();
-          const fields = Object.entries(sub.data)
-            .map(([k, v]) => `  ${k}: ${v}`)
-            .join("\n");
-          return `Submitted: ${date}\n${fields}`;
-        });
-        return okResponse(
-          `Gate submissions for '${slugStr}' (${submissions.length}):\n\n` +
-          lines.join("\n\n"),
-        );
-      }
-
-      // action === "clear"
-      const result = await gate(
-        { action: "clear", slug: slugStr, namespace },
-        coreDeps,
-      );
-      if (result.action !== "clear") return errResponse(new Error("Unexpected result"));
-      return okResponse(result.message);
-    }),
-  );
+  registerGate(ctx);
 
   // ─── Site data (add-on): data, data_collection, data_rows, data_jwt ─────────
 
