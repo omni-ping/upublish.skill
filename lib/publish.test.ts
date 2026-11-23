@@ -62,6 +62,11 @@ const SAMPLE_URL = "https://testuser.upubli.sh/my-site/";
 
 // ─── parseIgnoreFile unit tests ─────────────────────────────────────────────
 
+/** Source text of the publish pipeline: lib/publish.ts plus the files it is split into (explicit list, not a glob). */
+const PUBLISH_SOURCE_FILES = ["publish.ts", "publish-errors.ts", "publish-files.ts", "publish-hash.ts", "publish-types.ts", "publish-upload.ts"];
+const readPublishSource = (): string =>
+  PUBLISH_SOURCE_FILES.map((f) => readFileSync(join(dirname(import.meta.path), f), "utf-8")).join("\n");
+
 describe("parseIgnoreFile", () => {
   it("parses lines, skipping comments and blanks", () => {
     const content = "# comment\n\nfoo.txt\n*.log\n  bar/  \n";
@@ -227,8 +232,8 @@ describe("DW-1.1: collectFilesWithHashes returns the files contract", () => {
   });
 
   it("test_DW_1_1_no_filemap_field_in_publish_source", () => {
-    // Source guard: no `fileMap` token remains anywhere in lib/publish.ts.
-    const src = readFileSync(join(dirname(import.meta.path), "publish.ts"), "utf-8");
+    // Source guard: no `fileMap` token remains anywhere in the publish source files.
+    const src = readPublishSource();
     expect(src.includes("fileMap")).toBe(false);
   });
 });
@@ -286,7 +291,7 @@ describe("DW-1.2/1.3: chunked hashing matches a full-buffer reference", () => {
     // file with readFileSync. The only readFileSync left in the source is the
     // tiny .upublishignore control file (and the transitional upload-body read,
     // swapped in Phase 2) — assert collectFiles uses readSync.
-    const src = readFileSync(join(dirname(import.meta.path), "publish.ts"), "utf-8");
+    const src = readPublishSource();
     expect(src.includes("readSync(")).toBe(true);
   });
 
