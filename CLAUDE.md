@@ -35,7 +35,7 @@ mcp/index.ts       MCP server entry (createServer, createHostedServer, main): bu
                      site version's files, verified, into a local folder)
                    • admin (only when UPUBLISH_ADMIN=1): admin_user, admin_site, admin_stats, admin_storage, admin_domains
 mcp/tools/*.ts     One tool module per job (publish, sites, versions, access, data, backend, members, account, namespace, admin):
-                   each exports register<Tool>(ctx), with per-action handlers behind an action -> handler record
+                   each exports register<Tool>(ctx); multi-action tools use an action -> handler record where it simplifies
 mcp/context.ts     ToolContext handed to every registrar (server, host-only/admin registrars, coreDeps, flags)
 mcp/tool-response.ts  okResponse/errResponse, guarded(), wrapToolResults    mcp/fields.ts  shared zod input fields
 mcp/format.ts      text formatting helpers    mcp/progress.ts  publish progress + heartbeat
