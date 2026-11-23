@@ -1,0 +1,9 @@
+{
+  "isError": true,
+  "content": [
+    {
+      "type": "text",
+      "text": "MCP error -32602: Tool publish not found"
+    }
+  ]
+}
