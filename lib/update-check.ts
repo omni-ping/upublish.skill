@@ -27,7 +27,7 @@ const DEFAULT_TIMEOUT_MS = 3000;
 const MAX_BODY_CHARS = 64 * 1024;
 const SEMVER = /^\d+\.\d+\.\d+$/;
 
-export type UpdateStatus =
+type UpdateStatus =
   | { status: "behind"; latest: string }
   | { status: "current" }
   | { status: "unknown" };

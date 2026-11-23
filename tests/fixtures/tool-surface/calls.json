@@ -1,0 +1,335 @@
+{
+  "publish": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "list": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "delete": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "versions_list": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "versions_delete": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "versions_restore": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "versions_limit": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "analytics": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "passcode_add": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "visibility": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "passcode_list": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "passcode_revoke": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "gate": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "data": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "data_collection": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "data_rows": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "data_jwt": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "publish_backend": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "backend": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "backend_secret": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "backend_logs": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "members": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "promote": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "qrcode": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "template": {
+    "isError": false,
+    "content": [
+      {
+        "type": "text",
+        "text": "Starter templates (create one with template action:\"create\", name, directory):\n- coming-soon: Coming soon. A calm coming-soon page with a launch date, a one-line pitch and an email link for people who want to hear more.\n- docs: Documentation. A two-page documentation site with a sidebar, an introduction with install and quick start, and a guide with configuration, options and troubleshooting.\n- landing: Landing page. A product or project landing page in ink and signal lime: a big type-led headline, three numbered benefits, a how-it-works strip, an FAQ and a closing call to action.\n- links: Link in bio. A single-column link-in-bio page in forest and cream: your initials, name and short bio, a highlighted latest link, four more links, your profiles and email.\n- portfolio: Portfolio. A calm, editorial portfolio: your name up front, four project cards, a short about section and a contact call to action.\n- resume: Résumé / CV. A clean one-page résumé with experience, education, skills and languages. Prints neatly to paper or PDF."
+      }
+    ]
+  },
+  "export": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "logout": {
+    "isError": false,
+    "content": [
+      {
+        "type": "text",
+        "text": "Logged out successfully. Local credentials have been removed."
+      }
+    ]
+  },
+  "upgrade": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "status": {
+    "isError": false,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "namespace_create": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "domain": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "rename": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "admin_user": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "admin_site": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "admin_stats": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "admin_storage": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  },
+  "admin_domains": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Not authenticated. Use the login tool to sign in."
+      }
+    ]
+  }
+}

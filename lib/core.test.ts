@@ -36,10 +36,11 @@ import {
   listPasscodes,
   revokePasscode,
   gate,
+  dataJwt,
 } from "./core.ts";
 import type { CoreDeps, GateConfig, StatusResult } from "./core.ts";
 import type { LoginDeps } from "./auth.ts";
-import type { Namespace } from "./types.ts";
+import type { FetchFn, Namespace } from "./types.ts";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -1557,5 +1558,33 @@ describe("DW-1.4: status() result includes namespaces", () => {
       // Should still be authenticated, just with empty namespaces
       expect(result.namespaces).toEqual([]);
     }
+  });
+});
+
+// ─── withNamespace preamble (shared by every namespace-scoped op) ────────────
+
+describe("withNamespace preamble", () => {
+  const NS_LIST = { namespaces: [{ id: "ns-1", name: "mine" }] };
+  const fetchOk: FetchFn = async (input) =>
+    new Response(JSON.stringify(String(input).endsWith("/api/ns") ? NS_LIST : { space: {}, sites: [] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+
+  it("missing credentials plus a bad namespace name still yields Not authenticated", async () => {
+    let fetched = 0;
+    const deps: CoreDeps = {
+      credentialsPath: "/does/not/exist/credentials",
+      fetchFn: async (...a) => { fetched++; return fetchOk(...a); },
+    };
+    await expect(list("no-such-ns", deps)).rejects.toThrow("Not authenticated");
+    await expect(dataJwt({ action: "clear", namespace: "no-such-ns" }, deps)).rejects.toThrow("Not authenticated");
+    expect(fetched).toBe(0);
+  });
+
+  it("with credentials, a bad namespace name surfaces the not-found error", async () => {
+    const deps: CoreDeps = { tokenProvider: async () => "tok", fetchFn: fetchOk };
+    await expect(list("no-such-ns", deps)).rejects.toThrow("Namespace 'no-such-ns' not found. Available namespaces: mine");
+    await expect(dataJwt({ action: "clear", namespace: "no-such-ns" }, deps)).rejects.toThrow("Namespace 'no-such-ns' not found");
   });
 });

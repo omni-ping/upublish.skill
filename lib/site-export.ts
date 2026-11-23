@@ -23,6 +23,12 @@ import type { ApiClient } from "./api-client.ts";
 import { ApiError } from "./api-client.ts";
 import type { FetchFn } from "./types.ts";
 import { log } from "./log.ts";
+import { fetchPage } from "./site-export-page.ts";
+import type { ExportEntry, ExportPage } from "./site-export-page.ts";
+import { findPathCollision, foldKey, show, validateExportPath } from "./site-export-paths.ts";
+
+// The pure path checks live in site-export-paths.ts; re-exported so this module's surface is unchanged.
+export { findPathCollision, validateExportPath } from "./site-export-paths.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -49,7 +55,7 @@ export interface ExportDeps {
   maxBytes?: number;
 }
 
-export interface ExportFailure {
+interface ExportFailure {
   path: string;
   reason: string;
 }
@@ -66,36 +72,12 @@ export interface ExportResult {
   failed: ExportFailure[];
 }
 
-interface ExportEntry {
-  path: string;
-  size: number;
-  md5: string;
-  url: string;
-}
-
-interface ExportPage {
-  version: number;
-  fileCount: number;
-  files: ExportEntry[];
-  nextCursor: string | null;
-  expiresAtMs: number;
-}
-
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 export const EXPORT_CONCURRENCY = 8;
-const MAX_PATH_BYTES = 4096;
-const MAX_SEGMENT_BYTES = 255;
 const MAX_PAGES = 10_000;
 /** Refuse an export whose listed files total more than this (a hostile or buggy listing must not fill the disk). */
-export const MAX_EXPORT_BYTES = 5 * 1024 ** 3;
-/** Longest Retry-After we are willing to sleep through; a longer one is reported instead. */
-const MAX_RETRY_WAIT_S = 120;
-const DEFAULT_RETRY_WAIT_S = 5;
-const MD5_RE = /^[0-9a-f]{32}$/;
-const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])$/i;
-// eslint-disable-next-line no-control-regex
-const CONTROL_RE = /[\u0000-\u001f\u007f]/;
+const MAX_EXPORT_BYTES = 5 * 1024 ** 3;
 
 // ─── Redaction (R8) ──────────────────────────────────────────────────────────
 
@@ -114,128 +96,6 @@ function errMsg(err: unknown): string {
 class FileError extends Error {}
 /** The presigned URL looks expired (R9): the only failure that triggers a page re-request. */
 class ExpiredError extends Error {}
-
-// ─── Path safety (R10, R11) ──────────────────────────────────────────────────
-
-/** Why `p` is not a safe relative file path, or null when it is. Pure. */
-export function validateExportPath(p: unknown): string | null {
-  if (typeof p !== "string" || p === "") return "empty path";
-  if (Buffer.byteLength(p) > MAX_PATH_BYTES) return `path longer than ${MAX_PATH_BYTES} bytes`;
-  if (CONTROL_RE.test(p)) return "control or NUL character";
-  if (p.includes("\\")) return "backslash";
-  if (p.includes(":")) return "colon (drive letter or alternate data stream)";
-  if (p.startsWith("/")) return "absolute path";
-  for (const seg of p.split("/")) {
-    if (seg === "") return "empty path segment";
-    if (seg === ".") return "'.' segment";
-    if (seg === "..") return "'..' segment";
-    if (Buffer.byteLength(seg) > MAX_SEGMENT_BYTES) return `segment longer than ${MAX_SEGMENT_BYTES} bytes`;
-    if (seg.endsWith(".") || seg.endsWith(" ")) return "segment ends with a dot or space";
-    if (WINDOWS_RESERVED.test(seg.split(".")[0]!.trimEnd())) return "Windows reserved name";
-  }
-  return null;
-}
-
-/** Case-fold + canonical-normalise: two paths with the same key are the same file on a case/normalisation-folding disk. */
-function foldKey(p: string): string {
-  return p.normalize("NFD").toLowerCase().normalize("NFD");
-}
-
-/**
- * First collision across the whole path set, or null: case-fold / NFC-NFD duplicates (`A.html` vs `a.html`)
- * and file-vs-directory prefixes (`a` and `a/b`).
- */
-export function findPathCollision(paths: readonly string[]): string | null {
-  const seen = new Map<string, string>();
-  for (const p of paths) {
-    const k = foldKey(p);
-    const prev = seen.get(k);
-    if (prev !== undefined) return `${JSON.stringify(p)} collides with ${JSON.stringify(prev)}`;
-    seen.set(k, p);
-  }
-  for (const p of paths) {
-    const segs = p.split("/");
-    for (let i = 1; i < segs.length; i++) {
-      const prefix = segs.slice(0, i).join("/");
-      const hit = seen.get(foldKey(prefix));
-      if (hit !== undefined) return `${JSON.stringify(hit)} is a file but ${JSON.stringify(p)} needs it to be a directory`;
-    }
-  }
-  return null;
-}
-
-/** Short, quoted, control-free rendering of an untrusted path for messages. */
-function show(p: unknown): string {
-  const s = JSON.stringify(typeof p === "string" ? p : String(p));
-  return s.length > 200 ? `${s.slice(0, 200)}..."` : s;
-}
-
-// ─── Response parsing (external input) ───────────────────────────────────────
-
-const isInt = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
-
-function urlOk(u: unknown): u is string {
-  if (typeof u !== "string") return false;
-  try {
-    const url = new URL(u);
-    if (url.username || url.password) return false; // no embedded credentials / host-confusion (https://good@evil)
-    return url.protocol === "https:" || (url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname));
-  } catch {
-    return false;
-  }
-}
-
-function parsePage(raw: unknown): ExportPage {
-  const bad = (why: string): never => {
-    throw new Error(`The export API returned a malformed page (${why}).`);
-  };
-  if (typeof raw !== "object" || raw === null) return bad("not an object");
-  const r = raw as Record<string, unknown>;
-  if (!isInt(r.version) || r.version < 1) bad("version");
-  if (!isInt(r.file_count)) bad("file_count");
-  if (!Array.isArray(r.files)) bad("files");
-  if (r.next_cursor !== null && (typeof r.next_cursor !== "string" || r.next_cursor === "")) bad("next_cursor");
-  const expiresAtMs = typeof r.expires_at === "string" ? Date.parse(r.expires_at) : NaN;
-  if (Number.isNaN(expiresAtMs)) bad("expires_at");
-  const files: ExportEntry[] = (r.files as unknown[]).map((f) => {
-    const e = (typeof f === "object" && f !== null ? f : {}) as Record<string, unknown>;
-    // The path is validated separately (with a precise reason) by the caller; only the shape is checked here.
-    if (typeof e.path !== "string" || !isInt(e.size) || typeof e.md5 !== "string" || !MD5_RE.test(e.md5) || !urlOk(e.url)) {
-      return bad("a file entry has a missing or invalid field");
-    }
-    return { path: e.path, size: e.size, md5: e.md5, url: e.url };
-  });
-  return { version: r.version as number, fileCount: r.file_count as number, files, nextCursor: r.next_cursor as string | null, expiresAtMs };
-}
-
-// ─── Page requests ───────────────────────────────────────────────────────────
-
-async function fetchPage(
-  api: ApiClient,
-  nsId: string,
-  slug: string,
-  q: { version?: number; cursor?: string },
-  deps: Required<Pick<ExportDeps, "sleep">>,
-): Promise<ExportPage> {
-  const params = new URLSearchParams();
-  if (q.version !== undefined) params.set("version", String(q.version));
-  if (q.cursor !== undefined) params.set("cursor", q.cursor);
-  const qs = params.toString() ? `?${params}` : "";
-  const url = `/api/ns/${nsId}/sites/${encodeURIComponent(slug)}/export${qs}`;
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return parsePage(await api.get<unknown>(url));
-    } catch (err) {
-      if (!(err instanceof ApiError) || err.status !== 429) throw err;
-      const wait = err.retryAfterSeconds ?? DEFAULT_RETRY_WAIT_S;
-      if (attempt >= 1 || wait > MAX_RETRY_WAIT_S) {
-        throw new Error(`Export is rate limited; try again in about ${wait}s.`);
-      }
-      log(`[export] rate limited; waiting ${wait}s`);
-      await deps.sleep(wait * 1000);
-    }
-  }
-}
 
 // ─── Existing-tree preflight (R12) ───────────────────────────────────────────
 
@@ -373,34 +233,43 @@ export async function runSiteExport(api: ApiClient, nsId: string, args: ExportAr
   }
 }
 
-async function runInner(api: ApiClient, nsId: string, args: ExportArgs, userDeps: ExportDeps): Promise<ExportResult> {
-  const deps: Required<Omit<ExportDeps, "maxBytes">> = {
+type DlDeps = Required<Omit<ExportDeps, "maxBytes">>;
+type ListedFiles = Map<string, { size: number; md5: string }>;
+
+function resolveDeps(userDeps: ExportDeps): DlDeps {
+  return {
     concurrency: Math.max(1, userDeps.concurrency ?? EXPORT_CONCURRENCY),
     sleep: userDeps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
     now: userDeps.now ?? Date.now,
     fileTimeoutMs: userDeps.fileTimeoutMs ?? 600_000,
     fetchFn: userDeps.fetchFn,
   };
+}
+
+function validateArgs(args: ExportArgs): void {
   if (!args.slug) throw new Error("slug is required");
   if (args.version !== undefined && !(Number.isSafeInteger(args.version) && args.version >= 1)) throw new Error("version must be a positive integer");
   if (typeof args.directory !== "string" || args.directory.trim() === "" || args.directory.includes("\0")) throw new Error("directory is required");
+}
 
-  // 1. Target directory: refuse before any request.
-  const target = path.resolve(args.directory);
-  let rootExisted = false;
+/** Step 1: refuses a bad or non-empty target before any request. Returns whether the directory already existed. */
+async function checkTarget(target: string, overwrite: boolean | undefined): Promise<boolean> {
   try {
     const st = await fs.stat(target);
     if (!st.isDirectory()) throw new Error(`${target} exists and is not a directory.`);
-    rootExisted = true;
-    if (!args.overwrite && (await fs.readdir(target)).length > 0) {
+    if (!overwrite && (await fs.readdir(target)).length > 0) {
       throw new Error(`${target} is not empty. Pass overwrite: true to export into it, or choose an empty or new directory.`);
     }
+    return true;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    return false;
   }
+}
 
-  // 2. Scan pass: every page, metadata only. Nothing is written.
-  const manifest = new Map<string, { size: number; md5: string }>();
+/** Step 2a: pages through the whole listing (metadata only), validating every entry. Nothing is written. */
+async function scanListing(api: ApiClient, nsId: string, args: ExportArgs, deps: DlDeps) {
+  const manifest: ListedFiles = new Map();
   let first: ExportPage | undefined;
   let last: ExportPage | undefined;
   let pageCount = 0;
@@ -424,37 +293,66 @@ async function runInner(api: ApiClient, nsId: string, args: ExportArgs, userDeps
     seen.add(page.nextCursor);
     cursor = page.nextCursor;
   }
+  return { manifest, first: first!, last: last!, version: version! };
+}
+
+/** Step 2b: whole-listing checks (size cap, collisions, completeness) before anything is written. */
+function assertListingSafe(manifest: ListedFiles, fileCount: number, maxBytes: number): void {
   const allPaths = [...manifest.keys()];
   const totalBytes = [...manifest.values()].reduce((n, f) => n + f.size, 0);
-  if (totalBytes > (userDeps.maxBytes ?? MAX_EXPORT_BYTES)) throw new Error(`Refusing to export: the site is ${fmtBytes(totalBytes)}, over the ${fmtBytes(userDeps.maxBytes ?? MAX_EXPORT_BYTES)} export limit. Nothing was written.`);
-  const fileCount = first!.fileCount;
+  if (totalBytes > maxBytes) throw new Error(`Refusing to export: the site is ${fmtBytes(totalBytes)}, over the ${fmtBytes(maxBytes)} export limit. Nothing was written.`);
   const collision = findPathCollision(allPaths);
   if (collision) throw new Error(`Refusing to export: path collision (${collision}). Nothing was written.`);
   if (allPaths.length !== fileCount) throw new Error(`The export listing is incomplete (${allPaths.length} listed, ${fileCount} expected). Nothing was written.`);
+}
 
-  // 3. Create the directory; refuse symlinks/type conflicts that already exist under it.
-  await fs.mkdir(target, { recursive: true });
-  const rootReal = await fs.realpath(target);
-  if (rootExisted) await checkExistingTree(rootReal, allPaths);
-
-  // 4. Download pass: pages just in time. A single-page export reuses the scan page (it is seconds old).
+/** Step 4: downloads page by page, just in time. A single-page export reuses the scan page (it is seconds old). */
+async function downloadPages(
+  api: ApiClient,
+  nsId: string,
+  args: ExportArgs,
+  scan: { manifest: ListedFiles; first: ExportPage; last: ExportPage; version: number },
+  rootReal: string,
+  deps: DlDeps,
+): Promise<{ written: number; bytes: number; failed: ExportFailure[] }> {
+  const { manifest, first, last, version } = scan;
   const failed: ExportFailure[] = [];
   let written = 0;
   let bytes = 0;
-  const reuse = first === last && first!.nextCursor === null ? first : undefined;
+  const reuse = first === last && first.nextCursor === null ? first : undefined;
   let pageCursor: string | undefined;
   for (let pages = 0; ; pages++) {
     const page: ExportPage = pages === 0 && reuse ? reuse : await fetchPage(api, nsId, args.slug, { version, cursor: pageCursor }, deps);
     if (page.version !== version) throw new Error("The export API changed version mid-export; aborting.");
     const ctx: PageCtx = { cursor: pageCursor, urls: new Map(page.files.map((f) => [f.path, f.url])), expiresAtMs: page.expiresAtMs, gen: 0 };
-    await processPage(api, nsId, args.slug, version!, page.files, manifest, ctx, rootReal, deps, (n) => {
+    await processPage(api, nsId, args.slug, version, page.files, manifest, ctx, rootReal, deps, (n) => {
       written++;
       bytes += n;
     }, failed);
     if (page.nextCursor === null) break;
     pageCursor = page.nextCursor;
   }
-  return { slug: args.slug, version: version!, directory: rootReal, fileCount, written, bytes, failed };
+  return { written, bytes, failed };
+}
+
+async function runInner(api: ApiClient, nsId: string, args: ExportArgs, userDeps: ExportDeps): Promise<ExportResult> {
+  const deps = resolveDeps(userDeps);
+  validateArgs(args);
+
+  const target = path.resolve(args.directory);
+  const rootExisted = await checkTarget(target, args.overwrite);
+
+  const scan = await scanListing(api, nsId, args, deps);
+  const fileCount = scan.first.fileCount;
+  assertListingSafe(scan.manifest, fileCount, userDeps.maxBytes ?? MAX_EXPORT_BYTES);
+
+  // 3. Create the directory; refuse symlinks/type conflicts that already exist under it.
+  await fs.mkdir(target, { recursive: true });
+  const rootReal = await fs.realpath(target);
+  if (rootExisted) await checkExistingTree(rootReal, [...scan.manifest.keys()]);
+
+  const { written, bytes, failed } = await downloadPages(api, nsId, args, scan, rootReal, deps);
+  return { slug: args.slug, version: scan.version, directory: rootReal, fileCount, written, bytes, failed };
 }
 
 async function processPage(
@@ -463,7 +361,7 @@ async function processPage(
   slug: string,
   version: number,
   files: ExportEntry[],
-  manifest: Map<string, { size: number; md5: string }>,
+  manifest: ListedFiles,
   ctx: PageCtx,
   rootReal: string,
   deps: Required<Omit<ExportDeps, "maxBytes">>,

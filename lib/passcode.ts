@@ -75,7 +75,7 @@ export function withPaidPlanHint(err: unknown): unknown {
 }
 
 /** Label used when a caller omits one (matches the server default). */
-export const DEFAULT_PASSCODE_LABEL = "default";
+const DEFAULT_PASSCODE_LABEL = "default";
 
 /** Defaults an omitted, empty or whitespace-only label; an explicit label passes through unchanged. */
 export function normalizeLabel(label?: string): string {

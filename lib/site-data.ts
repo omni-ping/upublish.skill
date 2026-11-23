@@ -52,7 +52,7 @@ export interface EnableExpectation {
   year_cents: number | null;
 }
 
-export type PlanTier = "free" | "pro" | "max";
+type PlanTier = "free" | "pro" | "max";
 
 export interface DataArgs {
   action: "status" | "enable" | "disable" | "wipe";

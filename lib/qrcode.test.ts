@@ -308,16 +308,18 @@ describe("DW-5.3: encodes canonical URL + ?ref=qr per contract", () => {
 describe("DW-5.4: hexagonal boundary preserved", () => {
   it("test_DW_5_4_mcp_imports_only_from_core", () => {
     const mcpDir = join(import.meta.dir, "..", "mcp");
-    const mcpIndex = readFileSync(join(mcpDir, "index.ts"), "utf-8");
+    const files = (readdirSync(mcpDir, { recursive: true }) as string[])
+      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
+    expect(files).toContain("index.ts");
+    const mcpSrc = files.map((f) => readFileSync(join(mcpDir, f), "utf-8")).join("\n");
 
     // The qrcode tool must NOT import from lib/qrcode directly —
     // it must go through lib/core.ts (hexagonal boundary).
-    expect(mcpIndex).not.toContain('from "../lib/qrcode');
-    expect(mcpIndex).not.toContain("from '../lib/qrcode");
+    expect(mcpSrc).not.toContain('from "../lib/qrcode');
+    expect(mcpSrc).not.toContain("from '../lib/qrcode");
 
-    // Must not import from any domain lib/ submodule other than core.ts and log.ts.
-    // (log.ts is a pre-existing leaf utility import allowed by the established codebase pattern.)
-    const libImports = mcpIndex.match(/from ['"]\.\.\/lib\/(?!core\.ts|log\.ts)[^'"]+['"]/g) ?? [];
+    // Must not import from any lib/ module other than core.ts.
+    const libImports = mcpSrc.match(/from ['"](?:\.\.\/)+lib\/(?!core\.ts)[^'"]+['"]/g) ?? [];
     expect(libImports).toEqual([]);
   });
 

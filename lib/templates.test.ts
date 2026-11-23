@@ -160,6 +160,14 @@ describe("argument errors", () => {
     expect(createFromTemplate({ name: "links", directory })).toMatchObject({ success: false, code: "missing_directory" });
   });
 
+  test("D10: an unreadable templates folder fails as bad_template and writes nothing", () => {
+    const parent = tmp();
+    const r = createFromTemplate({ name: "links", directory: path.join(parent, "s") }, { root: path.join(parent, "nope") });
+    expect(r).toMatchObject({ success: false, code: "bad_template" });
+    if (!r.success) expect(r.error).toContain("Cannot read the templates folder");
+    expect(fs.readdirSync(parent)).toEqual([]);
+  });
+
   test("a NUL in the directory is refused", () => {
     expect(createFromTemplate({ name: "links", directory: "a\0b" })).toMatchObject({ success: false, code: "missing_directory" });
   });

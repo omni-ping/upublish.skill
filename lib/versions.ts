@@ -35,7 +35,7 @@ export interface SiteVersion {
  * optional because the domain only passes this through to the adapter — it
  * does not interpret it, and the API may include additional fields.
  */
-export interface StorageUsage {
+interface StorageUsage {
   /** Bytes currently used after the delete. */
   used_bytes?: number;
   /** Storage quota in bytes for the tier. */

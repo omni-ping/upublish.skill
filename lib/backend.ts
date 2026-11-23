@@ -161,7 +161,7 @@ export interface AddonExpectation {
   year_cents: number | null;
 }
 
-export type BackendAction =
+type BackendAction =
   | "status" | "versions" | "rollback" | "enable" | "disable" | "access" | "delete" | "addon_status" | "addon_enable" | "addon_disable";
 
 export interface BackendArgs {

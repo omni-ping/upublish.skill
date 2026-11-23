@@ -44,6 +44,11 @@ afterAll(() => {
 
 // ─── DW-2.1: Body is a ReadableStream (Bun.file stream), content matches disk ──
 
+/** Source text of the publish pipeline: lib/publish.ts plus the files it is split into (explicit list, not a glob). */
+const PUBLISH_SOURCE_FILES = ["publish.ts", "publish-errors.ts", "publish-files.ts", "publish-hash.ts", "publish-types.ts", "publish-upload.ts"];
+const readPublishSource = (): string =>
+  PUBLISH_SOURCE_FILES.map((f) => readFileSync(join(import.meta.dir, f), "utf-8")).join("\n");
+
 describe("DW-2.1: PUT body is a Bun.file stream with correct disk content", () => {
   it("test_DW_2_1_body_is_readable_stream_with_ondisk_content", async () => {
     let capturedInit: RequestInit | undefined;
@@ -76,12 +81,9 @@ describe("DW-2.1: PUT body is a Bun.file stream with correct disk content", () =
   });
 
   it("test_DW_2_1_no_uint8array_body_in_source", () => {
-    // Source guard: no Uint8Array body construction remains in lib/publish.ts
+    // Source guard: no Uint8Array body construction remains in the publish source files
     // (the transitional readFileSync + Uint8Array from Phase 1 must be gone)
-    const src = readFileSync(
-      join(import.meta.dir, "publish.ts"),
-      "utf-8"
-    );
+    const src = readPublishSource();
     // The transitional comment from Phase 1 must be gone
     expect(src).not.toContain("Transitional: eagerly read the body from disk");
     // No new Uint8Array construction in the upload path

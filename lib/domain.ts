@@ -86,7 +86,7 @@ export type DomainArgs =
   | { action: "list" }
   | { action: "remove"; id: string };
 
-export interface DomainAddResult {
+interface DomainAddResult {
   action: "add";
   /** The hostname that was connected. */
   hostname: string;
@@ -98,7 +98,7 @@ export interface DomainAddResult {
   note: string;
 }
 
-export interface DomainStatusResult {
+interface DomainStatusResult {
   action: "status";
   hostname: string;
   /** true once the hostname AND SSL are active (verified). */
@@ -107,12 +107,12 @@ export interface DomainStatusResult {
   validationErrors: string | null;
 }
 
-export interface DomainListResult {
+interface DomainListResult {
   action: "list";
   domains: CustomDomain[];
 }
 
-export interface DomainRemoveResult {
+interface DomainRemoveResult {
   action: "remove";
   message: string;
 }

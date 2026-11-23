@@ -25,10 +25,10 @@ export type Shape = ReadonlyArray<readonly [path: string, check: Check]>;
 export const isObj: Check = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 export const isBool: Check = (v) => typeof v === "boolean";
 export const isStr: Check = (v) => typeof v === "string";
-export const isArr: Check = (v) => Array.isArray(v);
+const isArr: Check = (v) => Array.isArray(v);
 export const intMin = (min: number): Check => (v) => Number.isInteger(v) && (v as number) >= min;
 export const nullable = (c: Check): Check => (v) => v === null || c(v);
-export const optionalOf = (c: Check): Check => (v) => v === undefined || c(v);
+const optionalOf = (c: Check): Check => (v) => v === undefined || c(v);
 export const oneOf = (...allowed: readonly unknown[]): Check => (v) => allowed.includes(v);
 export const arrOf = (c: Check): Check => (v) => Array.isArray(v) && v.every(c);
 
@@ -42,7 +42,7 @@ const isClaimMatcher: Check = (v) =>
   isObj((v as { claims: unknown }).claims) &&
   Object.values((v as { claims: Record<string, unknown> }).claims).every((x) => isStr(x) || isBool(x));
 
-export const under = (prefix: string, shape: Shape): Shape => shape.map(([p, c]) => [`${prefix}.${p}`, c] as const);
+const under = (prefix: string, shape: Shape): Shape => shape.map(([p, c]) => [`${prefix}.${p}`, c] as const);
 
 /** `CollectionConfig`. */
 const CONFIG_SHAPE: Shape = [

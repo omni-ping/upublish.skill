@@ -34,8 +34,8 @@ export const UPGRADE_HINT =
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-export type Plan = (typeof VALID_PLANS)[number];
-export type Interval = (typeof VALID_INTERVALS)[number];
+type Plan = (typeof VALID_PLANS)[number];
+type Interval = (typeof VALID_INTERVALS)[number];
 
 /** Arguments accepted by startUpgrade — both optional, defaulted pro/month. */
 export interface UpgradeArgs {

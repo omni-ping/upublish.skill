@@ -18,7 +18,7 @@ import { clientHeader } from "./api-client.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface TokenResponse {
+interface TokenResponse {
   access_token: string;
   refresh_token: string;
   expires_in: number;
@@ -176,7 +176,7 @@ export function createTokenProvider(opts: TokenProviderOptions): TokenProvider {
  * Generates a PKCE (RFC 7636) code_verifier and code_challenge pair.
  * Uses Web Crypto API (no node:crypto).
  */
-export async function generatePkce(): Promise<{
+async function generatePkce(): Promise<{
   codeVerifier: string;
   codeChallenge: string;
 }> {
@@ -230,7 +230,7 @@ export function buildAuthUrl(opts: {
 }
 
 /** Builds the localhost callback URL for a given port. */
-export function buildCallbackUrl(port: number): string {
+function buildCallbackUrl(port: number): string {
   return `http://localhost:${port}/callback`;
 }
 

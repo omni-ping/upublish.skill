@@ -29,6 +29,7 @@
  * unless the caller opted in.
  */
 
+import type { BunPlugin } from "bun";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { dirname, join, resolve, sep } from "node:path";
@@ -96,45 +97,94 @@ function forbiddenResult(forbidden: ReadonlySet<string>): BundleResult {
   };
 }
 
-/**
- * Bundles a backend entry file (relative paths resolve against `cwd`) or inline code
- * into the single ES module the deploy route takes.
- */
-export async function bundleBackend(input: BundleInput, opts: { cwd?: string } = {}): Promise<BundleResult> {
-  let entrypoint: string;
-  let files: Record<string, string> | undefined;
+/** What the sandbox plugin needs to know about the input. */
+interface BundleTarget {
+  entrypoint: string;
+  /** Virtual files for inline mode (nothing on disk). */
+  files?: Record<string, string>;
   /** Real directory entry-mode files must live under; null in inline mode (no filesystem imports at all). */
-  let root: string | null = null;
-  let inlineCode = "";
+  root: string | null;
+  inlineCode: string;
+}
+
+/** Validates the input and locates the entry (or the inline code); a failure is returned as a result value. */
+function resolveBundleTarget(input: BundleInput, cwd: string | undefined): BundleTarget | Extract<BundleResult, { ok: false }> {
   if (input.code !== undefined) {
     if (input.code.trim() === "") return { ok: false, kind: "empty", message: "The inline code is empty." };
-    entrypoint = INLINE_ENTRY;
-    files = { [INLINE_ENTRY]: input.code };
-    inlineCode = input.code;
-  } else {
-    entrypoint = resolve(opts.cwd ?? process.cwd(), input.entry);
-    let isFile = false;
-    try {
-      isFile = statSync(entrypoint).isFile();
-    } catch {
-      // handled below
-    }
-    if (!isFile) return { ok: false, kind: "entry_not_found", message: `Entry file not found: ${safeText(entrypoint)}` };
-    root = projectRoot(realpathSync(entrypoint));
+    return { entrypoint: INLINE_ENTRY, files: { [INLINE_ENTRY]: input.code }, root: null, inlineCode: input.code };
   }
+  const entrypoint = resolve(cwd ?? process.cwd(), input.entry);
+  let isFile = false;
+  try {
+    isFile = statSync(entrypoint).isFile();
+  } catch {
+    // handled below
+  }
+  if (!isFile) return { ok: false, kind: "entry_not_found", message: `Entry file not found: ${safeText(entrypoint)}` };
+  return { entrypoint, root: projectRoot(realpathSync(entrypoint)), inlineCode: "" };
+}
 
-  const nodeBuiltins = new Set<string>();
-  const forbidden = new Set<string>();
+/** The sandbox plugin: records node built-ins into `nodeBuiltins` and violations into `forbidden`, aborting the build on the latter. */
+function sandboxPlugin({ root, inlineCode }: BundleTarget, nodeBuiltins: Set<string>, forbidden: Set<string>): BunPlugin {
   /** Records a violation and aborts that resolve / load (the build then fails; the set explains why). */
   const forbid = (what: string): never => {
     forbidden.add(what);
     throw new Error(`forbidden import: ${what}`);
   };
+  return {
+    name: "sandbox",
+    setup(b) {
+      b.onResolve({ filter: /.*/ }, (a) => {
+        // The virtual inline entry must be claimed here: with a plugin present Bun no longer finds it in `files`.
+        if (a.kind === "entry-point-build") return root === null ? { path: a.path } : undefined;
+        if (a.path.startsWith("cloudflare:")) return undefined;
+        if (NODE_BUILTIN_RE.test(a.path)) return (nodeBuiltins.add(a.path), { path: a.path, external: true });
+        if (URL_SPECIFIER_RE.test(a.path)) forbid(`${a.path} (URL imports are not allowed)`);
+        // Inline code has no project: it may import nothing from disk (relative, absolute or bare).
+        if (root === null) forbid(`${a.path} (inline code cannot import files or packages; bundle a file with 'entry' instead)`);
+        return undefined; // entry mode: allowed here, confirmed by the real-path check at load time
+      });
+      b.onLoad({ filter: /.*/ }, (a) => {
+        // Inline mode: the only file that may load is the virtual entry, served from memory here (a plugin that
+        // handles loading takes over from the `files` map).
+        if (root === null) {
+          if (a.path !== INLINE_ENTRY) forbid(`${a.path} (inline code cannot read files)`);
+          return { contents: inlineCode, loader: "ts" };
+        }
+        if (!isInside(root, realpathSync(a.path))) forbid(`${a.path} (outside the project folder)`);
+        return undefined;
+      });
+    },
+  };
+}
+
+/** The size and default-export preflights on the finished bundle text. */
+function checkBundleSource(source: string): BundleResult {
+  const bytes = new TextEncoder().encode(source).length;
+  if (bytes > BACKEND_LIMITS.bundleBytes) {
+    return { ok: false, kind: "too_large", message: `The bundle is ${bytes} bytes; the limit is ${BACKEND_LIMITS.bundleBytes} (1 MB). Nothing was uploaded. Drop large dependencies or move that work elsewhere.` };
+  }
+  if (!DEFAULT_EXPORT_RE.test(source)) {
+    return { ok: false, kind: "no_default_export", message: "The module has no default export. Export an object with a fetch handler: `export default { async fetch(request, env, ctx) { ... } }`." };
+  }
+  return { ok: true, source, bytes, sha256: sha256Hex(source) };
+}
+
+/**
+ * Bundles a backend entry file (relative paths resolve against `cwd`) or inline code
+ * into the single ES module the deploy route takes.
+ */
+export async function bundleBackend(input: BundleInput, opts: { cwd?: string } = {}): Promise<BundleResult> {
+  const target = resolveBundleTarget(input, opts.cwd);
+  if ("ok" in target) return target;
+
+  const nodeBuiltins = new Set<string>();
+  const forbidden = new Set<string>();
   let build: Awaited<ReturnType<typeof Bun.build>>;
   try {
     build = await Bun.build({
-      entrypoints: [entrypoint],
-      ...(files ? { files } : {}),
+      entrypoints: [target.entrypoint],
+      ...(target.files ? { files: target.files } : {}),
       target: "browser",
       format: "esm",
       external: ["cloudflare:*"],
@@ -142,31 +192,7 @@ export async function bundleBackend(input: BundleInput, opts: { cwd?: string } =
       throw: false,
       // Not in Bun's BuildConfig typings (as of 1.4.4) but honoured: a macro import then fails with "Macros are disabled".
       ...({ macros: false } as object),
-      plugins: [{
-        name: "sandbox",
-        setup(b) {
-          b.onResolve({ filter: /.*/ }, (a) => {
-            // The virtual inline entry must be claimed here: with a plugin present Bun no longer finds it in `files`.
-            if (a.kind === "entry-point-build") return root === null ? { path: a.path } : undefined;
-            if (a.path.startsWith("cloudflare:")) return undefined;
-            if (NODE_BUILTIN_RE.test(a.path)) return (nodeBuiltins.add(a.path), { path: a.path, external: true });
-            if (URL_SPECIFIER_RE.test(a.path)) forbid(`${a.path} (URL imports are not allowed)`);
-            // Inline code has no project: it may import nothing from disk (relative, absolute or bare).
-            if (root === null) forbid(`${a.path} (inline code cannot import files or packages; bundle a file with 'entry' instead)`);
-            return undefined; // entry mode: allowed here, confirmed by the real-path check at load time
-          });
-          b.onLoad({ filter: /.*/ }, (a) => {
-            // Inline mode: the only file that may load is the virtual entry, served from memory here (a plugin that
-            // handles loading takes over from the `files` map).
-            if (root === null) {
-              if (a.path !== INLINE_ENTRY) forbid(`${a.path} (inline code cannot read files)`);
-              return { contents: inlineCode, loader: "ts" };
-            }
-            if (!isInside(root, realpathSync(a.path))) forbid(`${a.path} (outside the project folder)`);
-            return undefined;
-          });
-        },
-      }],
+      plugins: [sandboxPlugin(target, nodeBuiltins, forbidden)],
     });
   } catch (err) {
     if (forbidden.size > 0) return forbiddenResult(forbidden);
@@ -185,15 +211,5 @@ export async function bundleBackend(input: BundleInput, opts: { cwd?: string } =
 
   const output = build.outputs.find((o) => o.kind === "entry-point");
   if (!output) return compileFailure([{ message: "the bundler produced no entry output" }]);
-  const source = await output.text();
-
-  const bytes = new TextEncoder().encode(source).length;
-  if (bytes > BACKEND_LIMITS.bundleBytes) {
-    return { ok: false, kind: "too_large", message: `The bundle is ${bytes} bytes; the limit is ${BACKEND_LIMITS.bundleBytes} (1 MB). Nothing was uploaded. Drop large dependencies or move that work elsewhere.` };
-  }
-  if (!DEFAULT_EXPORT_RE.test(source)) {
-    return { ok: false, kind: "no_default_export", message: "The module has no default export. Export an object with a fetch handler: `export default { async fetch(request, env, ctx) { ... } }`." };
-  }
-
-  return { ok: true, source, bytes, sha256: sha256Hex(source) };
+  return checkBundleSource(await output.text());
 }

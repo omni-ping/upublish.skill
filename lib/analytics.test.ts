@@ -16,7 +16,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { setAnalyticsEnabled, enrichAnalyticsError } from "./analytics.ts";
+import { setAnalyticsEnabled, enrichAnalyticsError, rewriteAnalyticsGate403 } from "./analytics.ts";
 import { publish, enrichPublishError, StorageApprovalError } from "./publish.ts";
 import { ApiClient, ApiError } from "./api-client.ts";
 
@@ -314,5 +314,31 @@ describe("enrichPublishError — 403 analytics gate on publish path", () => {
     const err = new ApiError(403, null, "API error 403: Forbidden");
     const result = enrichPublishError(err);
     expect(result).toBe(err);
+  });
+});
+
+// ─── rewriteAnalyticsGate403 — shared by enrichAnalyticsError + enrichPublishError ─
+
+describe("rewriteAnalyticsGate403", () => {
+  it("rewrites a 403 whose body names the analytics gate", () => {
+    const err = new ApiError(403, { error: "Analytics is a paid feature." }, "API error 403");
+    const out = rewriteAnalyticsGate403(err);
+    expect(out?.message).toBe(
+      "Analytics is a paid feature. Upgrade to a Pro or Max plan at https://upubli.sh/pricing to disable analytics.",
+    );
+  });
+
+  it("returns null for a suspended-user 403 body (dirty path)", () => {
+    const err = new ApiError(403, { error: "account_suspended" }, "API error 403: account_suspended");
+    expect(rewriteAnalyticsGate403(err)).toBeNull();
+  });
+
+  it("returns null for a 403 with no body", () => {
+    expect(rewriteAnalyticsGate403(new ApiError(403, null, "API error 403"))).toBeNull();
+  });
+
+  it("returns null for a non-403 analytics body and for a non-ApiError", () => {
+    expect(rewriteAnalyticsGate403(new ApiError(500, { error: "analytics down" }, "API error 500"))).toBeNull();
+    expect(rewriteAnalyticsGate403(new Error("analytics"))).toBeNull();
   });
 });
