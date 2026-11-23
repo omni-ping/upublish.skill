@@ -82,7 +82,7 @@ export async function openUrlIfLocal(
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PACKAGE_NAME = "@omniping/upublish";
-export const PACKAGE_VERSION = "0.12.51";
+export const PACKAGE_VERSION = "0.12.52";
 
 // ─── Server factory ───────────────────────────────────────────────────────────
 
