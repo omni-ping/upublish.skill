@@ -88,7 +88,7 @@ const MAX_PATH_BYTES = 4096;
 const MAX_SEGMENT_BYTES = 255;
 const MAX_PAGES = 10_000;
 /** Refuse an export whose listed files total more than this (a hostile or buggy listing must not fill the disk). */
-export const MAX_EXPORT_BYTES = 5 * 1024 ** 3;
+const MAX_EXPORT_BYTES = 5 * 1024 ** 3;
 /** Longest Retry-After we are willing to sleep through; a longer one is reported instead. */
 const MAX_RETRY_WAIT_S = 120;
 const DEFAULT_RETRY_WAIT_S = 5;

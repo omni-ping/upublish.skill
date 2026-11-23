@@ -13,7 +13,7 @@
 export type Visibility = "public" | "passcode" | "gated" | "signed" | "identity";
 
 /** Every value the platform can report, for runtime validation of API responses. */
-export const VISIBILITIES: readonly Visibility[] = ["public", "passcode", "gated", "signed", "identity"];
+const VISIBILITIES: readonly Visibility[] = ["public", "passcode", "gated", "signed", "identity"];
 
 /** Narrows an untrusted API value to a known Visibility (never guesses). */
 export function asVisibility(v: unknown): Visibility | undefined {

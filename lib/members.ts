@@ -220,7 +220,7 @@ export async function leaveMember(
 export type InviteRole = "admin" | "user";
 
 /** A created invite as returned to callers. The raw token is never kept — only the join URL. */
-export interface CreatedInvite {
+interface CreatedInvite {
   id: string;
   role: InviteRole;
   created_at: string;

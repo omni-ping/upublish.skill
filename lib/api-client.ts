@@ -37,7 +37,7 @@ export class ApiError extends Error {
 }
 
 /** Header identifying this client build on every request to the upublish API. */
-export const CLIENT_HEADER = "X-Upublish-Client";
+const CLIENT_HEADER = "X-Upublish-Client";
 
 /** `{ "X-Upublish-Client": "upublish-mcp/<v>" }` when a version is set, else `{}` (no default). */
 export function clientHeader(clientVersion?: string): Record<string, string> {

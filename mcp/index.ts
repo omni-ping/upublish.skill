@@ -16,7 +16,6 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import type { ProgressNotification } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import open from "open";
-import { log, setFileLogging } from "../lib/log.ts";
 import {
   checkBunRuntime,
   list,
@@ -86,6 +85,8 @@ import {
   formatUpdateNote,
   listTemplates,
   createFromTemplate,
+  log,
+  setFileLogging,
 } from "../lib/core.ts";
 import type {
   CoreDeps,

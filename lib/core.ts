@@ -29,11 +29,10 @@ import {
   createTokenProvider,
   login as authLogin,
 } from "./auth.ts";
-import type { LoginDeps, LoginResult, CallbackServer, TokenResponse } from "./auth.ts";
+import type { LoginDeps, LoginResult, CallbackServer } from "./auth.ts";
 
 import { ApiClient, clientHeader } from "./api-client.ts";
 export { checkForUpdate, formatUpdateNote } from "./update-check.ts";
-export type { UpdateStatus } from "./update-check.ts";
 export { checkBunRuntime, MIN_BUN_VERSION } from "./runtime-check.ts";
 export { listTemplates, createFromTemplate } from "./templates.ts";
 import { listSites } from "./list.ts";
@@ -42,6 +41,7 @@ import type { PublishResult, UploadProgress, HashProgress, FilenameWarnings } fr
 import { StorageApprovalError, renderFilenameWarning, renderReplaceLine } from "./publish.ts";
 import { deleteSite } from "./delete.ts";
 import { log } from "./log.ts";
+export { log, setFileLogging } from "./log.ts";
 import type { DeleteResult } from "./delete.ts";
 import { promote as domainPromote } from "./promote.ts";
 import type { PromoteResult } from "./promote.ts";
@@ -72,7 +72,6 @@ import type {
   AddPasscodeResult,
   ListPasscodesResult,
   RevokePasscodeResult,
-  SitePasscode,
 } from "./passcode.ts";
 import {
   getGate as domainGetGate,
@@ -137,20 +136,11 @@ import type {
   AdminDomain,
 } from "./admin.ts";
 import { runSiteExport, formatExportResult } from "./site-export.ts";
-import type { ExportArgs, ExportResult, ExportFailure } from "./site-export.ts";
+import type { ExportArgs, ExportResult } from "./site-export.ts";
 import { resolveNamespace, resolveNamespaceRef, namespaceCreate as domainNamespaceCreate, OverageApprovalError } from "./namespace.ts";
 import type { NamespaceCreateResult } from "./namespace.ts";
 import { domain as domainDomain } from "./domain.ts";
-import type {
-  DomainArgs,
-  DomainResult,
-  DomainAddResult,
-  DomainStatusResult,
-  DomainListResult,
-  DomainRemoveResult,
-  CustomDomain,
-  DnsRecord,
-} from "./domain.ts";
+import type { DomainArgs, DomainResult, CustomDomain, DnsRecord } from "./domain.ts";
 import { renameSite, renameNamespace } from "./rename.ts";
 import type { RedirectMode } from "./rename.ts";
 import { startUpgrade as domainStartUpgrade, appendUpgradeHint } from "./upgrade.ts";
@@ -169,7 +159,7 @@ import { JWT_ALGORITHMS, SITE_DATA_LIMITS } from "./site-data-types.ts";
 import { runPublishBackend, runBackend, runBackendSecret, runBackendLogs } from "./backend.ts";
 import type {
   PublishBackendArgs, PublishBackendResult, BackendArgs, BackendResult, BackendSecretArgs, BackendSecretResult,
-  BackendLogsArgs, BackendLogsResult, AddonExpectation,
+  BackendLogsArgs, BackendLogsResult,
 } from "./backend.ts";
 import { formatPublishBackend, formatBackendResult, formatBackendSecret, formatBackendLogs } from "./backend-format.ts";
 import { BackendError } from "./backend-errors.ts";
@@ -179,7 +169,7 @@ import { BACKEND_LIMITS, BACKEND_ACCESS, BINDING_NAME_RE } from "./backend-shape
 
 // Adapters import only from core.ts — re-export types they need so they
 // don't have to reach into lib/auth.ts or other submodules.
-export type { LoginDeps, LoginResult, CallbackServer, TokenResponse };
+export type { LoginDeps, LoginResult, CallbackServer };
 export type { PublishResult, UploadProgress, HashProgress, FilenameWarnings };
 export { StorageApprovalError, renderFilenameWarning, renderReplaceLine };
 export type { DeleteResult };
@@ -187,31 +177,20 @@ export type { PromoteResult };
 export type { ListVersionsResult, DeleteVersionResult, RestoreVersionResult, SetVersionsLimitResult, SiteVersion };
 export type { SetAnalyticsResult };
 export { existingPasscodeMessage };
-export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult, SitePasscode };
-export type { SetVisibilityResult, GateRemoveVisibility };
-export type { GetGateResult, SetGateResult, RemoveGateResult, GetSubmissionsResult, ClearSubmissionsResult };
+export type { AddPasscodeResult, ListPasscodesResult, RevokePasscodeResult };
+export type { SetVisibilityResult };
 export { formatGateFields };
-export type { Member, ListMembersResult, AddMemberResult, RemoveMemberResult, ChangeMemberRoleResult };
-export type { InviteRole, PendingInvite, CreateInviteResult, ListInvitesResult, RevokeInviteResult };
+export type { Member };
+export type { PendingInvite };
 export type { QrCodeArgs, QrCodeResult };
-export type { ExportArgs, ExportResult, ExportFailure };
+export type { ExportArgs, ExportResult };
 export { formatExportResult };
-export type { Namespace, Site, Visibility, GateConfig, GateFieldType, GateSubmission };
+export type { Site, GateConfig, GateFieldType, GateSubmission };
 export type { NamespaceCreateResult };
 export { OverageApprovalError };
 export { storageChargeLine, storageApprovalPriceLine, packChargeLine, packApprovalPriceLine } from "./billing-text.ts";
-export type {
-  DomainArgs,
-  DomainResult,
-  DomainAddResult,
-  DomainStatusResult,
-  DomainListResult,
-  DomainRemoveResult,
-  CustomDomain,
-  DnsRecord,
-};
-export type { NamespaceRole, TokenProvider } from "./types.ts";
-export type { RedirectMode };
+export type { CustomDomain, DnsRecord };
+export type { TokenProvider } from "./types.ts";
 export type { UpgradeArgs, UpgradeResult };
 export { appendUpgradeHint };
 export { displayMsg };
@@ -219,9 +198,9 @@ export type { DataArgs, DataResult, DataJwtArgs, DataJwtResult, DataCollectionAr
 export { formatDataResult, formatCollectionResult, formatRowsResult, formatJwtResult, SiteDataError, JWT_ALGORITHMS, SITE_DATA_LIMITS };
 export type {
   PublishBackendArgs, PublishBackendResult, BackendArgs, BackendResult, BackendSecretArgs, BackendSecretResult,
-  BackendLogsArgs, BackendLogsResult, AddonExpectation,
+  BackendLogsArgs, BackendLogsResult,
 };
-export { formatPublishBackend, formatBackendResult, formatBackendSecret, formatBackendLogs, BackendError, BACKEND_LIMITS, BACKEND_ACCESS, BINDING_NAME_RE };
+export { formatPublishBackend, formatBackendResult, formatBackendSecret, formatBackendLogs, BACKEND_LIMITS, BACKEND_ACCESS, BINDING_NAME_RE };
 export type {
   AdminUserArgs,
   AdminSiteArgs,

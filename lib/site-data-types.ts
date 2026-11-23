@@ -67,8 +67,8 @@ export type ApiRole = "member" | "admin" | "owner";
 
 // ─── Collection config ────────────────────────────────────────────────────────
 
-export type RulePreset = "append-only" | "own-rows" | "inbox" | "owner-only";
-export type WriterKind = "anonymous" | "passcode" | "jwt";
+type RulePreset = "append-only" | "own-rows" | "inbox" | "owner-only";
+type WriterKind = "anonymous" | "passcode" | "jwt";
 
 /** Matches visitor identities of one kind whose claims equal ALL listed values (OR across matchers). */
 export interface ClaimMatcher {
@@ -186,7 +186,7 @@ export interface WipeResponse { collections: number; rows: number }
 
 export type JsonObject = Record<string, unknown>;
 
-export interface RowAuthor {
+interface RowAuthor {
   kind: "anonymous" | "passcode" | "jwt" | "owner";
   subject: string;
   label?: string;

@@ -112,16 +112,16 @@ describe("DW-5.3: namespace_create MCP tool", () => {
 
 describe("DW-5.5: adapters import only core.ts", () => {
   test("test_DW_5_5_mcp_index_imports_only_core_from_lib", () => {
-    const src = readRepoFile("mcp/index.ts");
-    // Every relative import of a lib/ module must be lib/core.ts (or lib/log.ts,
-    // the shared logger the adapter is allowed to use). No reaching into auth.ts,
-    // api-client.ts, namespace.ts, publish.ts, etc.
-    const importLines = src
-      .split("\n")
-      .filter((l) => /from\s+["']\.\.\/lib\//.test(l));
-    for (const line of importLines) {
-      const ok = /from\s+["']\.\.\/lib\/core\.ts["']/.test(line) || /from\s+["']\.\.\/lib\/log\.ts["']/.test(line);
-      expect(ok).toBe(true);
+    // Every non-test .ts under mcp/ (recursively): any relative import of a
+    // lib/ module must be lib/core.ts. No reaching into auth.ts, log.ts, etc.
+    const files = (fs.readdirSync(path.join(REPO_ROOT, "mcp"), { recursive: true }) as string[])
+      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
+    expect(files).toContain("index.ts");
+    for (const f of files) {
+      const importLines = readRepoFile(path.join("mcp", f))
+        .split("\n")
+        .filter((l) => /from\s+["'](?:\.\.\/)+lib\//.test(l));
+      for (const line of importLines) expect(line).toMatch(/from\s+["'](?:\.\.\/)+lib\/core\.ts["']/);
     }
   });
 });

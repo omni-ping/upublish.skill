@@ -21,7 +21,7 @@ import type { Visibility } from "./types.ts";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 /** The two states this module can SET. */
-export type SettableVisibility = "public" | "passcode";
+type SettableVisibility = "public" | "passcode";
 
 export interface SetVisibilityArgs {
   slug: string;

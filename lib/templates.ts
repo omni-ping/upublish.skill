@@ -46,24 +46,24 @@ export interface TemplateDeps {
   fs?: TemplateFs;
 }
 
-export interface TemplatePlaceholder {
+interface TemplatePlaceholder {
   token: string;
   hint: string;
 }
 
-export interface TemplateInfo {
+interface TemplateInfo {
   name: string;
   title: string;
   description: string;
 }
 
 /** A link whose href is `#` until the user's address goes in; `hint` says what belongs there. */
-export interface PlaceholderHref {
+interface PlaceholderHref {
   file: string;
   hint: string;
 }
 
-export type TemplateErrorCode =
+type TemplateErrorCode =
   | "unknown_template"
   | "missing_directory"
   | "not_a_directory"
@@ -73,7 +73,7 @@ export type TemplateErrorCode =
   | "bad_template"
   | "io_error";
 
-export type TemplateFailure = { success: false; code: TemplateErrorCode; error: string };
+type TemplateFailure = { success: false; code: TemplateErrorCode; error: string };
 
 export type ListTemplatesResult = { success: true; templates: TemplateInfo[] } | TemplateFailure;
 

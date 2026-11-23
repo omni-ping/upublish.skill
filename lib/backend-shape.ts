@@ -39,7 +39,7 @@ export const BINDING_NAME_RE = new RegExp(`^[A-Za-z_][A-Za-z0-9_]{0,${BACKEND_LI
 export const BACKEND_ACCESS = ["site", "public"] as const;
 export type BackendAccess = (typeof BACKEND_ACCESS)[number];
 export type BillingInterval = "month" | "year";
-export type BackendTier = "pro" | "max";
+type BackendTier = "pro" | "max";
 
 /** Machine-readable `code` of every REST error body `{ error, code }` (contract section 10, REST + shared rows). */
 export type BackendErrorCode =
@@ -129,8 +129,8 @@ export interface BackendVersion {
 export interface RollbackResponse { version: number; deployed_at: string }
 export interface BackendSecret { name: string; set_at: string }
 
-export type LogLevel = "debug" | "log" | "info" | "warn" | "error";
-export interface BackendLogLine {
+type LogLevel = "debug" | "log" | "info" | "warn" | "error";
+interface BackendLogLine {
   timestamp: string;
   level: LogLevel;
   message: string;
