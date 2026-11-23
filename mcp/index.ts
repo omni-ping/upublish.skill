@@ -17,14 +17,6 @@ import { z } from "zod";
 import open from "open";
 import {
   checkBunRuntime,
-  list,
-  promote,
-  deleteOp,
-  listSiteVersions,
-  deleteSiteVersion,
-  restoreSiteVersion,
-  setSiteVersionsLimit,
-  analytics,
   login,
   status,
   logout,
@@ -40,9 +32,6 @@ import {
   revokePasscode,
   gate,
   members,
-  qrCode,
-  exportSite,
-  formatExportResult,
   rename,
   upgrade,
   adminUser,
@@ -78,17 +67,30 @@ import {
   createFromTemplate,
   setFileLogging,
 } from "../lib/core.ts";
-import { claimMatchers, namespaceField, siteNamespaceField, siteSlugField } from "./fields.ts";
+import { claimMatchers, namespaceField, siteNamespaceField } from "./fields.ts";
 import { errResponse, guarded, okResponse, wrapToolResults } from "./tool-response.ts";
 import { type ToolContext, LOCAL_ONLY_MESSAGE, hostOnly } from "./context.ts";
-import { formatBytes, formatSiteEntry, formatUsage, formatVersionEntry } from "./format.ts";
+import { formatBytes } from "./format.ts";
 import { createCallbackServer } from "./callback-server.ts";
 import { registerPublish } from "./tools/publish.ts";
+import {
+  registerAnalytics,
+  registerDelete,
+  registerExport,
+  registerList,
+  registerPromote,
+  registerQrcode,
+} from "./tools/sites.ts";
+import {
+  registerVersionsDelete,
+  registerVersionsLimit,
+  registerVersionsList,
+  registerVersionsRestore,
+} from "./tools/versions.ts";
 import type {
   CoreDeps,
   TokenProvider,
   Site,
-  SetVersionsLimitResult,
   NamespaceCreateResult,
   GateFieldType,
   GateSubmission,
@@ -277,250 +279,19 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
 
   registerPublish(ctx);
 
-  server.registerTool(
-    "list",
-    {
-      title: "List Sites",
-      description:
-        "Lists all static websites you have published to upubli.sh. " +
-        "Shows each site's name, URL, file count, and total size.",
-      inputSchema: {
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name to list sites from. When omitted, the default address is used.",
-          ),
-      },
-    },
-    guarded(async ({ namespace }) => {
-      const result = await list(namespace, coreDeps);
-      const { sites } = result;
+  registerList(ctx);
 
-      const ns = result.namespace;
-      // Show role marker for shared namespaces (admin/user). Owner is the
-      // default state — no marker keeps the output clean for most users.
-      const roleMarker = ns.role && ns.role !== "owner" ? ` [${ns.role}]` : "";
+  registerDelete(ctx);
 
-      if (sites.length === 0) {
-        return okResponse(
-          `No sites published yet in address "${ns.name}" (${ns.domain})${roleMarker}. ` +
-          "Use the `publish` tool to deploy your first site.",
-        );
-      }
-      const header = `Sites in address "${ns.name}" (${ns.domain})${roleMarker}`;
-      const lines = sites.map((site) => formatSiteEntry(site));
-      return okResponse(`${header}\n\n${lines.join("\n\n")}`);
-    }),
-  );
+  registerVersionsList(ctx);
 
-  server.registerTool(
-    "delete",
-    {
-      title: "Delete Site",
-      description:
-        "Permanently deletes a published site from upubli.sh. " +
-        "This action cannot be undone.",
-      inputSchema: {
-        slug: z
-          .string()
-          .describe(
-            "The URL-safe identifier of the site to delete. " +
-            "Use the `list` tool to find available slugs.",
-          ),
-        namespace: siteNamespaceField,
-      },
-    },
-    guarded(async ({ slug, namespace }) => {
-      const result = await deleteOp(slug, namespace, coreDeps);
-      return okResponse(result.message);
-    }),
-  );
+  registerVersionsDelete(ctx);
 
-  server.registerTool(
-    "versions_list",
-    {
-      title: "List Site Versions",
-      description:
-        "Lists all deploy versions of a published site on upubli.sh. " +
-        "Shows each version's number, status, and which one is currently live. " +
-        "Use `versions_delete` to remove an archived version and reclaim storage.",
-      inputSchema: {
-        slug: siteSlugField,
-        namespace: siteNamespaceField,
-      },
-    },
-    guarded(async ({ slug, namespace }) => {
-      const result = await listSiteVersions(
-        slug,
-        namespace,
-        coreDeps,
-      );
+  registerVersionsRestore(ctx);
 
-      if (result.versions.length === 0) {
-        return okResponse(`No versions found for site '${slug}'.`);
-      }
+  registerVersionsLimit(ctx);
 
-      const header = `Versions for '${slug}'`;
-      const lines = result.versions.map((version) => formatVersionEntry(version));
-      return okResponse(`${header}\n\n${lines.join("\n")}`);
-    }),
-  );
-
-  server.registerTool(
-    "versions_delete",
-    {
-      title: "Delete Site Version",
-      description:
-        "Deletes a single archived version of a published site on upubli.sh to " +
-        "reclaim storage. The currently live version cannot be deleted. " +
-        "Returns the space reclaimed and your updated storage usage.",
-      inputSchema: {
-        slug: siteSlugField,
-        versionNumber: z
-          .number()
-          .int()
-          .positive()
-          .describe(
-            "The version number to delete (a positive integer). " +
-            "Use `versions_list` to see available version numbers.",
-          ),
-        namespace: siteNamespaceField,
-      },
-    },
-    guarded(async ({ slug, versionNumber, namespace }) => {
-      const result = await deleteSiteVersion(
-        slug,
-        versionNumber as number,
-        namespace,
-        coreDeps,
-      );
-      return okResponse(
-        `Deleted version v${result.version_number} of '${slug}'.\n` +
-        `Reclaimed: ${formatBytes(result.freed_bytes)}\n` +
-        `Usage: ${formatUsage(result.usage)}`,
-      );
-    }),
-  );
-
-  server.registerTool(
-    "versions_restore",
-    {
-      title: "Restore Site Version",
-      description:
-        "Rolls a published site on upubli.sh back to a previous version, making " +
-        "that version live again. Use `versions_list` first to see version numbers " +
-        "and their dates/sizes. Returns the now-live version number and live URL. " +
-        "Restoring versions requires a paid plan.",
-      inputSchema: {
-        slug: siteSlugField,
-        version: z
-          .number()
-          .int()
-          .positive()
-          .describe(
-            "The version number to restore (a positive integer). " +
-            "Use `versions_list` to see available version numbers.",
-          ),
-        namespace: siteNamespaceField,
-      },
-    },
-    guarded(async ({ slug, version, namespace }) => {
-      const result = await restoreSiteVersion(
-        slug,
-        version as number,
-        namespace,
-        coreDeps,
-      );
-      return okResponse(
-        `Restored '${slug}' to version v${result.version_number}, now live.\n` +
-        `URL: ${result.url}`,
-      );
-    }),
-  );
-
-  server.registerTool(
-    "versions_limit",
-    {
-      title: "Set Version Retention Limit",
-      description:
-        "Sets or clears the version retention limit for a published site on upubli.sh. " +
-        "When a limit is set, the oldest archived versions beyond that count are pruned " +
-        "immediately, and future publishes will prune automatically. " +
-        "Omit or pass null for `limit` to clear the limit (unlimited retention). " +
-        "Returns the updated limit, pruned version numbers, and storage freed.",
-      inputSchema: {
-        slug: siteSlugField,
-        limit: z
-          .union([z.number().int().min(1), z.null()])
-          .optional()
-          .describe(
-            "Maximum number of non-staging versions to retain (integer ≥ 1). " +
-            "Omit or pass null to clear the limit (unlimited retention). " +
-            "The live version is always preserved regardless of the limit.",
-          ),
-        namespace: siteNamespaceField,
-      },
-    },
-    guarded(async ({ slug, limit, namespace }) => {
-      const resolvedLimit: number | null = (limit === undefined ? null : limit) as number | null;
-      const result: SetVersionsLimitResult = await setSiteVersionsLimit(
-        slug,
-        resolvedLimit,
-        namespace,
-        coreDeps,
-      );
-      const limitDisplay =
-        result.site.max_versions !== null
-          ? `Limit set to ${result.site.max_versions} version${result.site.max_versions === 1 ? "" : "s"}.`
-          : "Retention limit cleared (unlimited).";
-      const prunedDisplay =
-        result.pruned.length > 0
-          ? `Pruned versions: ${result.pruned.map((v) => `v${v}`).join(", ")}\n` +
-            `Reclaimed: ${formatBytes(result.freed_bytes)}\n` +
-            `Usage: ${formatUsage(result.usage)}`
-          : "No versions were pruned.";
-      return okResponse(`${limitDisplay}\n${prunedDisplay}`);
-    }),
-  );
-
-  server.registerTool(
-    "analytics",
-    {
-      title: "Toggle Site Analytics",
-      description:
-        "Turns the per-site analytics script on or off for an already-published " +
-        "site on upubli.sh — WITHOUT republishing. Use for requests like " +
-        "\"turn off analytics for my-portfolio\" or \"turn analytics back on for my-portfolio\". " +
-        "Analytics is on by default; to publish a new site with analytics off, use the " +
-        "publish tool's analytics_enabled option instead.",
-      inputSchema: {
-        slug: siteSlugField,
-        enabled: z
-          .boolean()
-          .describe(
-            "true to enable analytics (inject the script), false to disable it.",
-          ),
-        namespace: siteNamespaceField,
-      },
-    },
-    guarded(async ({ slug, enabled, namespace }) => {
-      const result = await analytics(
-        slug,
-        enabled as boolean,
-        namespace,
-        coreDeps,
-      );
-      const state = result.site.analytics_enabled === false ? "OFF" : "ON";
-      return okResponse(
-        `Analytics is now ${state} for "${result.site.slug}". ` +
-        (state === "OFF"
-          ? "New page views will no longer be tracked; the analytics script is no longer injected."
-          : "The analytics script will be injected on future page loads.") +
-        "\nNo republish was needed — this took effect immediately.",
-      );
-    }),
-  );
+  registerAnalytics(ctx);
 
   server.registerTool(
     "passcode_add",
@@ -1364,82 +1135,9 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
     }),
   );
 
-  server.registerTool(
-    "promote",
-    {
-      title: "Promote Preview",
-      description:
-        "Promotes a staging preview version of a site to live on upubli.sh. " +
-        "Use this after publishing with preview=true to make the staged version " +
-        "available at the site's public URL. " +
-        "Returns the live URL of the promoted site.",
-      inputSchema: {
-        slug: z
-          .string()
-          .describe(
-            "The URL-safe identifier of the site to promote. " +
-            "Use the list tool to find available slugs.",
-          ),
-        namespace: siteNamespaceField,
-      },
-    },
-    guarded(async ({ slug, namespace }) => {
-      const result = await promote(
-        slug,
-        namespace,
-        coreDeps,
-      );
-      return okResponse(
-        `Preview promoted to live!\n` +
-        `URL: ${result.url}`,
-      );
-    }),
-  );
+  registerPromote(ctx);
 
-  local.registerTool(
-    "qrcode",
-    {
-      title: "QR Code",
-      description:
-        "Generates a QR code for a published site on upubli.sh. " +
-        "Displays a scannable unicode QR in the agent output and writes " +
-        "qr.svg and qr.png files to the specified directory (defaults to cwd). " +
-        "The QR encodes the site's canonical URL + ?ref=qr for analytics tracking. " +
-        "Regenerating overwrites prior output — the QR is deterministic.",
-      inputSchema: {
-        slug: z
-          .string()
-          .describe(
-            "The URL-safe identifier of the site to generate a QR code for. " +
-            "Use the list tool to find available slugs.",
-          ),
-        namespace: siteNamespaceField,
-        outputDir: z
-          .string()
-          .optional()
-          .describe(
-            "Directory to write qr.svg and qr.png into. " +
-            "Defaults to the current working directory.",
-          ),
-      },
-    },
-    guarded(async ({ slug, namespace, outputDir }) => {
-      const result = await qrCode(
-        {
-          slug,
-          namespace,
-          outputDir,
-        },
-        coreDeps,
-      );
-      return okResponse(
-        `QR code for: ${result.siteUrl}\n\n` +
-        `${result.unicodeQr}\n` +
-        `SVG: ${result.svgPath}\n` +
-        `PNG: ${result.pngPath}`,
-      );
-    }),
-  );
+  registerQrcode(ctx);
 
   local.registerTool(
     "template",
@@ -1494,43 +1192,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
     },
   );
 
-  local.registerTool(
-    "export",
-    {
-      title: "Export Site",
-      description:
-        "Downloads a published site's original files from upubli.sh into a local directory and verifies each " +
-        "file's size and MD5. Local only. The live version by default; a specific version needs a paid plan. " +
-        "Refuses a non-empty directory unless `overwrite` is true, and refuses unsafe or colliding file paths " +
-        "before writing anything. Partial failures are listed in the report.",
-      inputSchema: {
-        slug: z.string().describe("The URL-safe identifier of the site to export. Use the `list` tool to find slugs."),
-        directory: z.string().describe("Directory to write the files into. Created if missing; must be empty unless `overwrite` is true."),
-        version: z
-          .number()
-          .int()
-          .positive()
-          .optional()
-          .describe("Version number to export (see `versions_list`). Defaults to the live version; non-live versions need a paid plan."),
-        namespace: siteNamespaceField,
-        overwrite: z.boolean().optional().describe("Export into a non-empty directory, replacing files with the same path. Never follows or replaces symlinks."),
-      },
-    },
-    guarded(async ({ slug, directory, version, namespace, overwrite }) => {
-      const result = await exportSite(
-        {
-          slug,
-          directory,
-          version: version as number | undefined,
-          namespace,
-          overwrite: overwrite === true,
-        },
-        coreDeps,
-      );
-      const response = okResponse(formatExportResult(result));
-      return result.failed.length > 0 ? { ...response, isError: true } : response;
-    }),
-  );
+  registerExport(ctx);
 
   local.registerTool(
     "logout",
