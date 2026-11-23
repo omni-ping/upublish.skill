@@ -13,13 +13,11 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import type { ProgressNotification } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import open from "open";
 import {
   checkBunRuntime,
   list,
-  publish,
   promote,
   deleteOp,
   listSiteVersions,
@@ -32,9 +30,6 @@ import {
   logout,
   namespaceCreate,
   OverageApprovalError,
-  StorageApprovalError,
-  storageChargeLine,
-  storageApprovalPriceLine,
   packChargeLine,
   packApprovalPriceLine,
   domain,
@@ -55,9 +50,6 @@ import {
   adminStats,
   adminStorage,
   adminDomains,
-  appendUpgradeHint,
-  renderFilenameWarning,
-  renderReplaceLine,
   formatGateFields,
   data,
   dataCollection,
@@ -84,7 +76,6 @@ import {
   formatUpdateNote,
   listTemplates,
   createFromTemplate,
-  log,
   setFileLogging,
 } from "../lib/core.ts";
 import { claimMatchers, namespaceField, siteNamespaceField, siteSlugField } from "./fields.ts";
@@ -92,16 +83,15 @@ import { errResponse, guarded, okResponse, wrapToolResults } from "./tool-respon
 import { type ToolContext, LOCAL_ONLY_MESSAGE, hostOnly } from "./context.ts";
 import { formatBytes, formatSiteEntry, formatUsage, formatVersionEntry } from "./format.ts";
 import { createCallbackServer } from "./callback-server.ts";
+import { registerPublish } from "./tools/publish.ts";
 import type {
   CoreDeps,
   TokenProvider,
   Site,
   SetVersionsLimitResult,
   NamespaceCreateResult,
-  HashProgress,
   GateFieldType,
   GateSubmission,
-  UploadProgress,
   Member,
   PendingInvite,
   AdminUserSummary,
@@ -285,370 +275,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
   if (opts?.updateCheck) installUpdateNote(server, callerDeps);
   if (opts?.runtimeCheck) installRuntimeNote(server, opts.runtimeCheck.version);
 
-  local.registerTool(
-    "publish",
-    {
-      title: "Publish Site",
-      description:
-        "Publishes a local directory as a static website to upubli.sh. " +
-        "Hashes files locally, uploads only changed files via presigned R2 URLs, " +
-        "automatically excluding .git, node_modules, .env, SSH/AWS keys, .npmrc and other credential files, " +
-        "source maps (*.map), .DS_Store, and other non-site files. " +
-        "Add a .upublishignore file to the directory for custom exclusions. " +
-        "Publish the BUILD OUTPUT folder (the one with index.html), not a repo root: a folder with no top-level " +
-        "index.html, or one that looks like a project (package.json, src/, lockfiles, Dockerfile, .git), is refused " +
-        "before anything is uploaded (override with allow_no_index / allow_project_files). " +
-        "A new site is live at its URL right after upload, with the visibility you set (public by default). " +
-        "Publishing to an existing slug REPLACES the live version immediately; the output reports the replaced and new " +
-        "version, and on paid plans the previous version can be restored with versions_restore (free plans cannot restore). " +
-        "visibility:\"public\" never removes protection from an existing passcode-protected site; use the visibility tool " +
-        "to change a site's access. For a single-page app pass spa:true on EVERY publish of it " +
-        "(a republish without spa that also sets a non-public visibility, such as a passcode, clears SPA mode).",
-      inputSchema: {
-        directory: z
-          .string()
-          .describe(
-            "Path to the directory containing the files to publish. " +
-            "Can be absolute or relative to the current working directory.",
-          ),
-        slug: z
-          .string()
-          .describe(
-            "URL-safe identifier for the site. Must be 1-255 characters: " +
-            "lowercase letters, numbers, and hyphens only, starting and ending " +
-            "with a letter or number. Use '_root' to publish at the " +
-            "address/domain root (e.g. vibeandscribe.xyz/).",
-          ),
-        path_prefix: z
-          .string()
-          .optional()
-          .describe(
-            "Optional nested path prefix so the site publishes at " +
-            "'{path_prefix}/{slug}' instead of the address root, e.g. " +
-            "'2026/q3/code-report'. Multiple slash-separated segments are " +
-            "allowed (lowercase letters, numbers, and hyphens per segment). " +
-            "Omit for a normal top-level site. The server rejects a prefix " +
-            "that collides with another site's address.",
-          ),
-        title: z
-          .string()
-          .optional()
-          .describe(
-            "Optional human-readable title for the site. Defaults to the slug " +
-            "— or, for the '_root' slug (address root), the site's existing " +
-            "title if it already has a meaningful one, else the address's name.",
-          ),
-        visibility: z
-          .enum(["public", "passcode"])
-          .optional()
-          .describe(
-            "Site visibility mode. 'public' (default) or 'passcode'.",
-          ),
-        passcode: z
-          .string()
-          .optional()
-          .describe(
-            "Passcode for passcode-protected sites. Required when visibility is 'passcode'.",
-          ),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name to publish into. When omitted, the default address is used.",
-          ),
-        preview: z
-          .boolean()
-          .optional()
-          .describe(
-            "When true, publishes as a staging preview instead of going live immediately. " +
-            "The response includes a preview_url where the staging version can be reviewed. " +
-            "Use the promote tool to promote the staging version to live.",
-          ),
-        force: z
-          .boolean()
-          .optional()
-          .describe(
-            "Re-checks every stored file and re-uploads any that are missing or corrupt; healthy files are never re-uploaded. " +
-            "Use this when a site is broken or out of sync.",
-          ),
-        spa: z
-          .boolean()
-          .optional()
-          .describe(
-            "Single-page app mode: unknown paths serve index.html. Pass true on EVERY publish of an SPA; " +
-            "a republish without it that also sets a non-public visibility (such as a passcode) turns SPA mode off.",
-          ),
-        allow_no_index: z
-          .boolean()
-          .optional()
-          .describe(
-            "Publish even though the directory has no top-level index.html. Only for folders that are intentionally not a web page (e.g. downloads).",
-          ),
-        allow_project_files: z
-          .boolean()
-          .optional()
-          .describe(
-            "Publish even though the directory looks like a project root (two or more of package.json, tsconfig.json, lockfiles, Dockerfile, src/, .git/). Usually you want the build output folder instead.",
-          ),
-        include_sourcemaps: z
-          .boolean()
-          .optional()
-          .describe("Include *.map source maps, which are excluded by default."),
-        analytics_enabled: z
-          .boolean()
-          .optional()
-          .describe(
-            "Per-site analytics. Defaults to on. Set false to publish WITHOUT the " +
-            "analytics script (e.g. \"publish ... with no analytics\"). To toggle " +
-            "analytics on an already-published site without republishing, use the " +
-            "analytics tool instead.",
-          ),
-      },
-    },
-    async ({ directory, slug, path_prefix, title, visibility, passcode, namespace, preview, force, analytics_enabled, spa, allow_no_index, allow_project_files, include_sourcemaps }, extra) => {
-      log(`[publish] tool entry slug=${slug} dir=${directory}`);
-
-      // Only emit MCP progress when the client supplied a progressToken in _meta.
-      // When absent (or extra is omitted, e.g. in tests), onProgress stays
-      // undefined so publish behaves exactly as before.
-      const progressToken = extra?._meta?.progressToken;
-
-      // Heartbeat state: tracks the last seen progress snapshot so the interval
-      // can re-emit it with a "still hashing…" / "still uploading…" suffix.
-      // lastHashProgress holds the hashing snapshot; lastProgress the upload one.
-      // Both are null before any progress fires for their respective phase.
-      let lastProgress: UploadProgress | null = null;
-      let lastHashProgress: HashProgress | null = null;
-      let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-
-      /** Sends a single best-effort MCP progress notification. Never throws. */
-      function sendProgress(
-        p: { completed: number; total: number; completedBytes: number; totalBytes: number },
-        message: string,
-      ): void {
-        const useBytes = p.totalBytes > 0;
-        const notification: ProgressNotification = {
-          method: "notifications/progress",
-          params: {
-            progressToken: progressToken as string | number,
-            progress: useBytes ? p.completedBytes : p.completed,
-            total: useBytes ? p.totalBytes : p.total,
-            // Human-readable detail; clients that render the optional
-            // message field show it next to the bar, others ignore it.
-            message,
-          },
-        };
-        // Best-effort: a dropped notification (e.g. client gone, transport
-        // closed) must never break the publish, so swallow the rejection.
-        extra
-          .sendNotification(notification)
-          .catch((err: unknown) =>
-            log(`[publish] progress notification failed: ${(err as Error).message}`),
-          );
-      }
-
-      // onHashProgress: wires the hashing phase into MCP notifications/progress.
-      // Mirrors onProgress: byte-weighted with file-count fallback when totalBytes===0.
-      // Starts the single heartbeat timer on the first hashing event so it fires
-      // during any long hash gap too.
-      const onHashProgress =
-        progressToken !== undefined
-          ? (p: HashProgress) => {
-              lastHashProgress = p;
-              const msg = `Hashing ${formatBytes(p.completedBytes)} / ${formatBytes(p.totalBytes)} (${p.completed}/${p.total} files)`;
-              sendProgress(p, msg);
-
-              // Start heartbeat on first hashing event (one timer for both phases).
-              if (heartbeatTimer === null) {
-                heartbeatTimer = setInterval(() => {
-                  if (lastProgress !== null) {
-                    const hbMsg =
-                      `${formatBytes(lastProgress.completedBytes)} / ${formatBytes(lastProgress.totalBytes)} ` +
-                      `(${lastProgress.completed}/${lastProgress.total} files) — still uploading…`;
-                    sendProgress(lastProgress, hbMsg);
-                  } else if (lastHashProgress !== null) {
-                    const hashDone = lastHashProgress.completed === lastHashProgress.total;
-                    const hbMsg = hashDone
-                      ? "preparing upload…"
-                      : `Hashing ${formatBytes(lastHashProgress.completedBytes)} / ${formatBytes(lastHashProgress.totalBytes)} ` +
-                        `(${lastHashProgress.completed}/${lastHashProgress.total} files) — still hashing…`;
-                    sendProgress(lastHashProgress, hbMsg);
-                  }
-                }, heartbeatIntervalMs);
-              }
-            }
-          : undefined;
-
-      const onProgress =
-        progressToken !== undefined
-          ? (p: UploadProgress) => {
-              // Reset lastHashProgress at the phase transition — the heartbeat
-              // switches to "still uploading…" as soon as the first upload fires.
-              lastHashProgress = null;
-              lastProgress = p;
-              // Drive the percentage off bytes when we have them — file counts
-              // mislead when sizes vary (one big asset vs many tiny files).
-              // Fall back to file counts if every needed file is zero-length
-              // (totalBytes === 0 would make the bar divide by zero).
-              const msg = `${formatBytes(p.completedBytes)} / ${formatBytes(p.totalBytes)} (${p.completed}/${p.total} files)`;
-              sendProgress(p, msg);
-
-              // Heartbeat may already be running from the hashing phase.
-              // Start it now only if hashing emitted nothing (no progressToken
-              // at hash time, or hashing was skipped entirely).
-              if (heartbeatTimer === null) {
-                heartbeatTimer = setInterval(() => {
-                  if (lastProgress !== null) {
-                    const hbMsg =
-                      `${formatBytes(lastProgress.completedBytes)} / ${formatBytes(lastProgress.totalBytes)} ` +
-                      `(${lastProgress.completed}/${lastProgress.total} files) — still uploading…`;
-                    sendProgress(lastProgress, hbMsg);
-                  }
-                }, heartbeatIntervalMs);
-              }
-            }
-          : undefined;
-
-      /** Stops the heartbeat timer. Safe to call multiple times. */
-      function stopHeartbeat(): void {
-        if (heartbeatTimer !== null) {
-          clearInterval(heartbeatTimer);
-          heartbeatTimer = null;
-        }
-      }
-
-      try {
-        const result = await publish(
-          {
-            directory,
-            slug,
-            pathPrefix: path_prefix,
-            title,
-            visibility: visibility as "public" | "passcode" | undefined,
-            passcode,
-            namespace,
-            preview: preview as boolean | undefined,
-            force: force as boolean | undefined,
-            analyticsEnabled: analytics_enabled as boolean | undefined,
-            spa: spa as boolean | undefined,
-            allowNoIndex: allow_no_index as boolean | undefined,
-            allowProjectFiles: allow_project_files as boolean | undefined,
-            includeSourcemaps: include_sourcemaps as boolean | undefined,
-            onProgress,
-            onHashProgress,
-          },
-          coreDeps,
-        );
-
-        const site = result.site;
-        const visibilityLine =
-          visibility && visibility !== "public"
-            ? `\nVisibility: ${visibility}`
-            : "";
-
-        const replaceLine = renderReplaceLine(result);
-
-        const excludedLine =
-          result.excluded.length > 0
-            ? `\nExcluded: ${result.excluded.length} file(s) (${result.excluded.join(", ")})`
-            : "";
-
-        const warningLine =
-          result.warnings.length > 0
-            ? `\nWarning: Included files that may not be site content: ${result.warnings.join(", ")}` +
-              `\n  Add them to .upublishignore in the publish directory to exclude.`
-            : "";
-
-        // Advisory, non-blocking note for URL-fragile (#/?/control) and
-        // spaces/non-ASCII filenames. Empty string when nothing qualifies.
-        const filenameWarningLine = renderFilenameWarning(result.filenameWarnings);
-
-        // Show uploaded vs skipped file counts
-        const incrementalLine =
-          result.forced && result.uploadedFiles !== undefined
-            ? `\nForce: verified ${result.uploadedFiles.length + (result.skippedFiles?.length ?? 0)} file(s), re-uploaded ${result.uploadedFiles.length}`
-            : result.uploadedFiles !== undefined && result.skippedFiles !== undefined
-            ? `\nUploaded: ${result.uploadedFiles.length} file(s), skipped ${result.skippedFiles.length} unchanged file(s)`
-            : "";
-
-        // Surface storage-pack block charge when the manifest response included one.
-        // Render interval-aware copy from server-returned values only — never hardcode.
-        const storageOverageLine = (() => {
-          const ov = result.storage_overage;
-          if (ov?.charged !== true) return "";
-          return `\n\n${storageChargeLine(ov)}`;
-        })();
-
-        if (result.preview_url) {
-          log(`[publish] tool done slug=${site.slug} preview_url=${result.preview_url}`);
-          return okResponse(
-            `Preview published!\n` +
-            `Preview URL: ${result.preview_url}\n` +
-            `Slug: ${site.slug}\n` +
-            `Files: ${site.file_count}\n` +
-            `Size: ${formatBytes(site.total_size)}` +
-            visibilityLine +
-            replaceLine +
-            excludedLine +
-            warningLine +
-            filenameWarningLine +
-            incrementalLine +
-            storageOverageLine +
-            `\nUse the promote tool to make this preview live.`,
-          );
-        }
-
-        log(`[publish] tool done slug=${site.slug} url=${result.url}`);
-        return okResponse(
-          `Site published successfully!\n` +
-          `URL: ${result.url}\n` +
-          `Slug: ${site.slug}\n` +
-          `Files: ${site.file_count}\n` +
-          `Size: ${formatBytes(site.total_size)}` +
-          visibilityLine +
-          replaceLine +
-          excludedLine +
-          warningLine +
-          filenameWarningLine +
-          incrementalLine +
-          storageOverageLine,
-        );
-      } catch (err) {
-        log(`[publish] tool error slug=${slug} err=${(err as Error).message}`);
-        // 402 needs_storage_approval: surface the approval URL and pack pricing.
-        // Never send accept_overage — that flag is reserved for explicit human
-        // consent on a surface we control. Agents must always forward the approval
-        // URL to the user and wait for them to authorize the charge manually.
-        if (err instanceof StorageApprovalError) {
-          // Interval-aware, total-first price copy from server values only (lib/billing-text.ts).
-          const priceLine = storageApprovalPriceLine(err);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: [
-                  `Storage pack approval required. ${priceLine}`,
-                  `To authorize this charge, open the approval page:`,
-                  `  ${err.approval_url}`,
-                  ``,
-                  `Once approved, retry the publish — no extra flag needed.`,
-                ].join("\n"),
-              },
-            ],
-            isError: true,
-          };
-        }
-        // Free-tier TIER-LIMIT 403 (body has limit+usage, no `code`): append a
-        // one-line hint to run the `upgrade` tool. hard_max / admin / auth 403s
-        // are excluded by the discriminator, so the hint never appears there.
-        const e = err as Error;
-        return errResponse(new Error(appendUpgradeHint(e.message, err)));
-      } finally {
-        // Always stop the heartbeat timer — no leak on success, error, or throw.
-        stopHeartbeat();
-      }
-    },
-  );
+  registerPublish(ctx);
 
   server.registerTool(
     "list",

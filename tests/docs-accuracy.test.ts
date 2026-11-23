@@ -21,6 +21,17 @@ function readDoc(relPath: string): string {
   return readFileSync(join(REPO_ROOT, relPath), "utf-8");
 }
 
+/** Every .ts file under mcp/ (recursive), concatenated, so a tool description is found wherever it lives. */
+function readMcpSources(dir = "mcp"): string {
+  return readdirSync(join(REPO_ROOT, dir), { withFileTypes: true })
+    .map((e) => {
+      const rel = `${dir}/${e.name}`;
+      if (e.isDirectory()) return readMcpSources(rel);
+      return e.name.endsWith(".ts") ? readDoc(rel) : "";
+    })
+    .join("\n");
+}
+
 // ─── DW-5.3: No "25 MB" claims remain ────────────────────────────────────────
 
 describe("DW-5.3: docs accuracy — no stale 25 MB claims", () => {
@@ -829,7 +840,7 @@ describe("Phase 5 fix-forward: docs match backend behaviour", () => {
   });
 
   test("publish_tool_descriptions_state_the_same_spa_rule", async () => {
-    const src = readDoc("mcp/index.ts");
+    const src = readMcpSources();
     expect(src).toContain("pass spa:true on EVERY publish of it");
     expect(src).toContain("that also sets a non-public visibility, such as a passcode, clears SPA mode");
     expect(src).toContain("that also sets a non-public visibility (such as a passcode) turns SPA mode off");
