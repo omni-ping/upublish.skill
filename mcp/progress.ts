@@ -10,7 +10,7 @@ export interface ProgressExtra {
 }
 
 /** Wires `publish()` progress callbacks to MCP `notifications/progress`, plus a heartbeat between file events. */
-export interface ProgressReporter {
+interface ProgressReporter {
   /** Undefined unless the client supplied a progressToken. */
   onHashProgress?: (p: HashProgress) => void;
   /** Undefined unless the client supplied a progressToken. */

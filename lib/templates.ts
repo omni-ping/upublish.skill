@@ -258,14 +258,10 @@ function findClashes(realTarget: string, entries: SourceEntry[], fs: TemplateFs)
 
 const HREF_HINT = /data-placeholder-href="([^"]*)"/g;
 
-/**
- * Copies `templates/<name>/` into `directory`, all or nothing. See the module comment for the safety rules.
- */
-export function createFromTemplate(args: CreateFromTemplateArgs, deps: TemplateDeps = {}): CreateFromTemplateResult {
-  const fs = deps.fs ?? nodeFs;
-  const root = deps.root ?? templatesRoot();
-  const { name, directory, allowNonEmpty = false } = args;
+type Loaded = { success: true; manifest: Manifest; entries: SourceEntry[] } | TemplateFailure;
 
+/** Finds the named template and reads its files. Matching is against the catalog, never a raw join. */
+function loadTemplate(name: string | undefined, directory: unknown, root: string, fs: TemplateFs): Loaded {
   let catalog: ReturnType<typeof readCatalog>;
   try {
     catalog = readCatalog(root, fs);
@@ -283,25 +279,23 @@ export function createFromTemplate(args: CreateFromTemplateArgs, deps: TemplateD
     return fail("missing_directory", "Give a directory to create the site in (a new or empty folder, e.g. ./my-site).");
   }
   if (directory.includes("\0")) return fail("missing_directory", "The directory path contains a NUL character.");
-
-  let entries: SourceEntry[];
   try {
-    entries = readTemplateFiles(path.join(root, manifest.name), fs);
+    return { success: true, manifest, entries: readTemplateFiles(path.join(root, manifest.name), fs) };
   } catch (err) {
     return fail("bad_template", `Cannot read the "${manifest.name}" template: ${errMessage(err)}`);
   }
+}
 
-  const abs = path.resolve(deps.cwd ?? process.cwd(), directory);
-  let realBase: string;
-  let realTarget: string;
-  let missing: string[];
-  let existingDirs = new Set<string>();
+type Checked = { success: true; realBase: string; realTarget: string; missing: string[]; existingDirs: Set<string> } | TemplateFailure;
+
+/** Resolves the target path safely and refuses a non-empty folder or any clash with what the template would write. */
+function checkTarget(abs: string, entries: SourceEntry[], allowNonEmpty: boolean, fs: TemplateFs): Checked {
   try {
     const resolved = resolveTarget(abs, fs);
     if (!resolved.success) return resolved;
-    realBase = resolved.realBase;
-    realTarget = path.join(realBase, ...resolved.missing);
-    missing = resolved.missing;
+    const { realBase, missing } = resolved;
+    const realTarget = path.join(realBase, ...missing);
+    let existingDirs = new Set<string>();
     if (resolved.targetExists) {
       const present = fs.readdirSync(realTarget);
       if (present.length > 0 && !allowNonEmpty) {
@@ -316,10 +310,20 @@ export function createFromTemplate(args: CreateFromTemplateArgs, deps: TemplateD
       }
       existingDirs = check.existingDirs;
     }
+    return { success: true, realBase, realTarget, missing, existingDirs };
   } catch (err) {
     return fail("io_error", `Cannot check ${abs}: ${errMessage(err)}`);
   }
+}
 
+/** Writes the template all-or-nothing; on failure removes exactly what this call created. Returns null on success. */
+function writeTemplate(
+  target: Extract<Checked, { success: true }>,
+  entries: SourceEntry[],
+  label: { name: string; abs: string },
+  fs: TemplateFs,
+): TemplateFailure | null {
+  const { realBase, realTarget, missing, existingDirs } = target;
   // Everything this call creates, in creation order, so a failure removes exactly these and nothing else.
   const created: Array<{ path: string; dir: boolean }> = [];
   try {
@@ -329,7 +333,7 @@ export function createFromTemplate(args: CreateFromTemplateArgs, deps: TemplateD
       fs.mkdirSync(dir); // not recursive: EEXIST from a racing creator fails the call
       created.push({ path: dir, dir: true });
     }
-    if (fs.realpathSync(realTarget) !== realTarget) throw new Error(`${abs} changed while the template was being created`);
+    if (fs.realpathSync(realTarget) !== realTarget) throw new Error(`${label.abs} changed while the template was being created`);
     for (const e of entries) {
       const dest = path.join(realTarget, ...e.rel.split("/"));
       if (e.dir) {
@@ -347,6 +351,7 @@ export function createFromTemplate(args: CreateFromTemplateArgs, deps: TemplateD
         fs.closeSync(fd);
       }
     }
+    return null;
   } catch (err) {
     const leftovers: string[] = [];
     for (const c of created.reverse()) {
@@ -360,8 +365,27 @@ export function createFromTemplate(args: CreateFromTemplateArgs, deps: TemplateD
     const tail = leftovers.length
       ? ` Could not remove: ${leftovers.join(", ")}.`
       : " Everything this call created was removed; nothing that was there before was touched.";
-    return fail("io_error", `Creating the "${manifest.name}" template in ${abs} failed: ${errMessage(err)}.${tail}`);
+    return fail("io_error", `Creating the "${label.name}" template in ${label.abs} failed: ${errMessage(err)}.${tail}`);
   }
+}
+
+/**
+ * Copies `templates/<name>/` into `directory`, all or nothing. See the module comment for the safety rules.
+ */
+export function createFromTemplate(args: CreateFromTemplateArgs, deps: TemplateDeps = {}): CreateFromTemplateResult {
+  const fs = deps.fs ?? nodeFs;
+  const { name, directory, allowNonEmpty = false } = args;
+
+  const loaded = loadTemplate(name, directory, deps.root ?? templatesRoot(), fs);
+  if (!loaded.success) return loaded;
+  const { manifest, entries } = loaded;
+
+  const abs = path.resolve(deps.cwd ?? process.cwd(), directory!);
+  const target = checkTarget(abs, entries, allowNonEmpty, fs);
+  if (!target.success) return target;
+
+  const failure = writeTemplate(target, entries, { name: manifest.name, abs }, fs);
+  if (failure) return failure;
 
   const files = entries.filter((e) => !e.dir);
   const placeholderHrefs = files
@@ -371,7 +395,7 @@ export function createFromTemplate(args: CreateFromTemplateArgs, deps: TemplateD
     success: true,
     name: manifest.name,
     directory: abs,
-    realDirectory: realTarget,
+    realDirectory: target.realTarget,
     files: files.map((e) => e.rel),
     placeholders: manifest.placeholders,
     placeholderHrefs,

@@ -1374,6 +1374,40 @@ describe("DW-3.1/5.5: publish() uses presigned-URL flow", () => {
     ).rejects.toThrow("passcode is required");
   });
 
+  it("D10: a passcode visibility without a passcode fails before any request or hashing", async () => {
+    writeFileSync(join(tmpDir, "index.html"), "<h1>Hi</h1>");
+    let calls = 0;
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, async () => {
+      calls++;
+      return new Response("{}", { status: 200 });
+    });
+    let hashed = 0;
+    await expect(
+      publish({
+        apiClient,
+        nsId: "ns-1",
+        directory: tmpDir,
+        slug: "my-site",
+        visibility: "passcode",
+        onHashProgress: () => void hashed++,
+      }),
+    ).rejects.toThrow("passcode is required");
+    expect(calls).toBe(0);
+    expect(hashed).toBe(0);
+  });
+
+  it("D10: a missing directory fails before any request", async () => {
+    let calls = 0;
+    const apiClient = new ApiClient(BASE_URL, staticTokenProvider, async () => {
+      calls++;
+      return new Response("{}", { status: 200 });
+    });
+    await expect(
+      publish({ apiClient, nsId: "ns-1", directory: join(tmpDir, "nope"), slug: "my-site" }),
+    ).rejects.toThrow(/does not exist/);
+    expect(calls).toBe(0);
+  });
+
   it("accepts _root as a slug (bypasses format validation)", async () => {
     writeFileSync(join(tmpDir, "index.html"), "<h1>Hello</h1>");
 

@@ -24,7 +24,7 @@ export const siteSlugField = z
   .describe("The URL-safe identifier of the site. Use the `list` tool to find available slugs.");
 
 // Mirrors the server's claim matcher (lib/site-data-types.ts ClaimMatcher).
-export const claimMatcher = z.object({
+const claimMatcher = z.object({
   kind: z.enum(["passcode", "jwt"]),
   claims: z
     .record(z.string().min(1).max(SITE_DATA_LIMITS.maxClaimKeyLength), z.union([z.string().min(1).max(128), z.boolean()]))

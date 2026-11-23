@@ -137,43 +137,8 @@ export function renderReplaceLine(
   return `${head} (restoring needs a paid plan)`;
 }
 
-/**
- * Publishes a directory via presigned-URL flow: hash files, diff against server
- * manifest, upload only changed files via presigned R2 URLs, then finalize.
- *
- * @param opts - Publish options including apiClient, directory, slug, etc.
- * @returns PublishResult with uploadedFiles and skippedFiles populated.
- * @throws Error on validation failure (bad directory, invalid slug, empty dir).
- * @throws Error if manifest call fails (propagated, no fallback).
- * @throws Error if presigned uploads fail after retries.
- * @throws Error if finalize fails (e.g., missing files).
- */
-export async function publish(opts: PublishOpts): Promise<PublishResult> {
-  const {
-    apiClient,
-    nsId,
-    directory,
-    slug,
-    pathPrefix,
-    title,
-    namespaceName,
-    existingTitle,
-    visibility,
-    passcode,
-    passcodeLabel,
-    preview,
-    force,
-    analyticsEnabled,
-    spa,
-    allowNoIndex,
-    allowProjectFiles,
-    includeSourcemaps,
-    namespaceRole,
-    fetchFn = fetch,
-    onProgress,
-    onHashProgress,
-  } = opts;
-
+/** Throws on a bad directory, slug or passcode combination. Runs before any file is read or request sent. */
+function validatePublishInput({ directory, slug, visibility, passcode }: Pick<PublishOpts, "directory" | "slug" | "visibility" | "passcode">): void {
   // Validate directory exists and is a directory
   try {
     const stat = statSync(directory);
@@ -199,35 +164,42 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   if (visibility === "passcode" && !passcode) {
     throw new Error("passcode is required when visibility is 'passcode'");
   }
+}
 
+/** Enumerates, guards and hashes the directory; the manifest entries are always real MD5s (the server rejects anything else). */
+async function buildManifest(opts: Pick<PublishOpts, "directory" | "includeSourcemaps" | "allowNoIndex" | "allowProjectFiles" | "onHashProgress">) {
   // Enumerate files (stat-only), then hash them on the async, event-loop-yielding
   // path so progress can fire from the first file during the multi-minute hash.
-  const { files: fileList, excluded, warnings } = listFiles(directory, { includeSourcemaps });
+  const { files: fileList, excluded, warnings } = listFiles(opts.directory, { includeSourcemaps: opts.includeSourcemaps });
 
   if (fileList.length === 0) {
     throw new Error("Directory is empty — no files to publish");
   }
 
   // Wrong-folder / project-root guard: runs before any byte is hashed or sent.
-  preflightCheck(fileList, excluded, { allowNoIndex, allowProjectFiles });
+  preflightCheck(fileList, excluded, { allowNoIndex: opts.allowNoIndex, allowProjectFiles: opts.allowProjectFiles });
 
-  const collectedFiles = await hashFiles(fileList, { onHashProgress });
-
-  // Build file manifest to send to server.
-  // Always real MD5s (the server rejects anything else). force=true is sent as an explicit
-  // manifest flag: the server re-checks every stored blob and presigns only the missing/corrupt ones.
+  const collectedFiles = await hashFiles(fileList, { onHashProgress: opts.onHashProgress });
   const files = Object.entries(collectedFiles).map(([path, file]) => ({
     path,
     hash: file.hash,
     size: file.size,
   }));
+  return { collectedFiles, files, excluded, warnings };
+}
 
+/**
+ * Sends the manifest — the server diffs against the previous version and returns presigned URLs.
+ * A 402 needs_storage_approval is enriched into a StorageApprovalError so the
+ * adapter can surface the approval URL and pack price without re-parsing the body.
+ * force=true is sent as an explicit manifest flag: the server re-checks every stored blob and presigns
+ * only the missing/corrupt ones.
+ */
+async function sendManifest(opts: PublishOpts, files: Array<{ path: string; hash: string; size: number }>) {
+  const { apiClient, nsId, slug, pathPrefix, title, namespaceName, existingTitle, visibility, passcode, passcodeLabel, preview, force, analyticsEnabled, spa } = opts;
   const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
   log(`[publish] slug=${slug} files=${files.length} totalBytes=${totalBytes}${force ? " FORCE" : ""}`);
 
-  // Send manifest — server diffs against previous version and returns presigned URLs.
-  // A 402 needs_storage_approval is enriched into a StorageApprovalError so the
-  // adapter can surface the approval URL and pack price without re-parsing the body.
   let manifestResult: Awaited<ReturnType<typeof apiClient.manifest>>;
   try {
     manifestResult = await apiClient.manifest(nsId, slug, {
@@ -253,15 +225,17 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   }
 
   log(`[manifest] version=${manifestResult.version} session_id=${manifestResult.session_id} base_version=${manifestResult.base_version} needed=${manifestResult.needed.length} total=${files.length}`);
+  return manifestResult;
+}
 
-  // Upload only the files the server says it needs.
-  // Presigned URLs are self-authenticating — no Bearer token required.
-  await uploadChangedFiles({
-    needed: manifestResult.needed,
-    files: collectedFiles,
-    fetchFn,
-    onProgress,
-  });
+/** Finalizes the session, then assembles the result (plan tier, overage, advisory filename warnings). */
+async function finalizeAndReport(
+  opts: PublishOpts,
+  manifestResult: Awaited<ReturnType<ApiClient["manifest"]>>,
+  files: Array<{ path: string }>,
+  scan: { excluded: PublishResult["excluded"]; warnings: PublishResult["warnings"] },
+): Promise<PublishResult> {
+  const { apiClient, nsId, slug, preview, force, namespaceRole } = opts;
 
   // Determine which files were uploaded vs skipped (server-side copied)
   const neededPaths = new Set(manifestResult.needed.map((f) => f.path));
@@ -288,8 +262,8 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
       replacesLive: manifestResult.base_version != null && !preview,
       namespaceRole,
     }),
-    warnings,
-    excluded,
+    warnings: scan.warnings,
+    excluded: scan.excluded,
     uploadedFiles,
     skippedFiles,
     ...(force === true ? { forced: true } : {}),
@@ -312,3 +286,30 @@ export async function publish(opts: PublishOpts): Promise<PublishResult> {
   return result;
 }
 
+/**
+ * Publishes a directory via presigned-URL flow: hash files, diff against server
+ * manifest, upload only changed files via presigned R2 URLs, then finalize.
+ *
+ * @param opts - Publish options including apiClient, directory, slug, etc.
+ * @returns PublishResult with uploadedFiles and skippedFiles populated.
+ * @throws Error on validation failure (bad directory, invalid slug, empty dir).
+ * @throws Error if manifest call fails (propagated, no fallback).
+ * @throws Error if presigned uploads fail after retries.
+ * @throws Error if finalize fails (e.g., missing files).
+ */
+export async function publish(opts: PublishOpts): Promise<PublishResult> {
+  validatePublishInput(opts);
+  const { collectedFiles, files, excluded, warnings } = await buildManifest(opts);
+  const manifestResult = await sendManifest(opts, files);
+
+  // Upload only the files the server says it needs.
+  // Presigned URLs are self-authenticating — no Bearer token required.
+  await uploadChangedFiles({
+    needed: manifestResult.needed,
+    files: collectedFiles,
+    fetchFn: opts.fetchFn ?? fetch,
+    onProgress: opts.onProgress,
+  });
+
+  return finalizeAndReport(opts, manifestResult, files, { excluded, warnings });
+}

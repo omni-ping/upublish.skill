@@ -845,3 +845,19 @@ describe("formatExportResult", () => {
     expect(formatExportResult({ ...base, bytes: 5 * 1024 * 1024, failed: [] })).toContain("(5.0 MB)");
   });
 });
+
+describe("D10: runSiteExport rejects bad arguments before any request or write", () => {
+  test.each([
+    [{ slug: "" }, /slug is required/],
+    [{ version: 0 }, /version must be a positive integer/],
+    [{ version: 1.5 }, /version must be a positive integer/],
+    [{ directory: "  " }, /directory is required/],
+    [{ directory: "a\0b" }, /directory is required/],
+  ] as Array<[Partial<ExportArgs>, RegExp]>)("%j", async (bad, msg) => {
+    const h = harness([{ path: "index.html", body: "x" }]);
+    const dir = path.join(tmp(), "out");
+    await expect(run(h, dir, bad)).rejects.toThrow(msg);
+    expect(h.pageRequests).toEqual([]);
+    expect(fs.existsSync(dir)).toBe(false);
+  });
+});
