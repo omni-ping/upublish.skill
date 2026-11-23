@@ -17,17 +17,12 @@ import { z } from "zod";
 import open from "open";
 import {
   checkBunRuntime,
-  login,
-  status,
-  logout,
   namespaceCreate,
   OverageApprovalError,
   packChargeLine,
   packApprovalPriceLine,
   domain,
-  members,
   rename,
-  upgrade,
   adminUser,
   adminSite,
   adminStats,
@@ -35,14 +30,13 @@ import {
   adminDomains,
   checkForUpdate,
   formatUpdateNote,
-  listTemplates,
-  createFromTemplate,
   setFileLogging,
 } from "../lib/core.ts";
 import { errResponse, guarded, okResponse, wrapToolResults } from "./tool-response.ts";
 import { type ToolContext, LOCAL_ONLY_MESSAGE, hostOnly } from "./context.ts";
 import { formatBytes } from "./format.ts";
-import { createCallbackServer } from "./callback-server.ts";
+import { registerLogin, registerLogout, registerStatus, registerTemplate, registerUpgrade } from "./tools/account.ts";
+import { registerMembers } from "./tools/members.ts";
 import {
   registerGate,
   registerPasscodeAdd,
@@ -72,8 +66,6 @@ import type {
   TokenProvider,
   Site,
   NamespaceCreateResult,
-  Member,
-  PendingInvite,
   AdminUserSummary,
   AdminUserInspect,
   AdminStatusResult,
@@ -250,7 +242,7 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
     openBrowser,
     heartbeatIntervalMs,
   };
-  const { local, admin } = ctx;
+  const { admin } = ctx;
 
   if (opts?.updateCheck) installUpdateNote(server, callerDeps);
   if (opts?.runtimeCheck) installRuntimeNote(server, opts.runtimeCheck.version);
@@ -297,413 +289,23 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
 
   registerBackendLogs(ctx);
 
-  server.registerTool(
-    "members",
-    {
-      title: "Address Members",
-      description:
-        "Manages members of a shared address on upubli.sh. " +
-        "Owners and admins can add, remove, and change member roles, and create, list and revoke invite links. " +
-        "Any member can list the current member roster.\n\n" +
-        "Actions:\n" +
-        "  list   — List all members and their roles\n" +
-        "  add    — Add a user by username with a given role (admin|user)\n" +
-        "  remove — Remove a member by username\n" +
-        "  role   — Change a member's role (admin|user)\n" +
-        "  leave  — Leave the address yourself (any non-owner member; no username needed)\n" +
-        "  invite — Create a single-use invite link (role user by default, or admin) for someone without an account on this address; " +
-        "it works once and expires in 7 days. The person opens it in a browser and signs in to join (there is no claim action here)\n" +
-        "  invites — List pending invite links (id, role, who created them, expiry). Links themselves are shown only once, at creation\n" +
-        "  revoke — Revoke a pending invite link by its invite_id",
-      inputSchema: {
-        action: z
-          .enum(["list", "add", "remove", "role", "leave", "invite", "invites", "revoke"])
-          .describe(
-            "The member operation to perform: " +
-            "'list' to show all members, 'add' to grant access, " +
-            "'remove' to revoke access, 'role' to change a member's role, " +
-            "'leave' to leave the address yourself, 'invite' to create an invite link, " +
-            "'invites' to list pending invite links, 'revoke' to revoke one by invite_id.",
-          ),
-        username: z
-          .string()
-          .optional()
-          .describe(
-            "The username to add, remove, or change role for. " +
-            "Required for add, remove, and role actions.",
-          ),
-        role: z
-          .enum(["admin", "user"])
-          .optional()
-          .describe(
-            "The role to assign. Required for add and role actions; optional for invite (defaults to 'user'). " +
-            "'admin' can manage members; 'user' can publish and gate only. Invite links can never grant owner.",
-          ),
-        invite_id: z
-          .string()
-          .optional()
-          .describe("The id of the pending invite to revoke (from action 'invites'). Required for the revoke action."),
-        namespace: z
-          .string()
-          .optional()
-          .describe(
-            "Address name to manage members for. When omitted, the default address is used. " +
-            "Required for the leave action.",
-          ),
-      },
-    },
-    guarded(async ({ action, username, role, namespace, invite_id }) => {
-      const actionStr = action as "list" | "add" | "remove" | "role" | "leave" | "invite" | "invites" | "revoke";
-      const nsStr = namespace;
-
-      if (actionStr === "list") {
-        const result = await members({ action: "list", namespace: nsStr }, coreDeps);
-        if (result.action !== "list") return errResponse(new Error("Unexpected result"));
-        if (result.members.length === 0) {
-          return okResponse("No members found. The address owner has sole access.");
-        }
-        const lines = result.members.map(
-          (m: Member) => `  ${m.username} — ${m.role}`,
-        );
-        return okResponse(`Members:\n${lines.join("\n")}`);
-      }
-
-      if (actionStr === "add") {
-        const usernameStr = username;
-        const roleStr = role as "admin" | "user" | undefined;
-        if (!usernameStr) {
-          return errResponse(new Error("username is required for the add action"));
-        }
-        if (!roleStr) {
-          return errResponse(new Error("role is required for the add action"));
-        }
-        const result = await members(
-          { action: "add", username: usernameStr, role: roleStr, namespace: nsStr },
-          coreDeps,
-        );
-        if (result.action !== "add") return errResponse(new Error("Unexpected result"));
-        return okResponse(
-          `Added ${result.member.username} as ${result.member.role}`,
-        );
-      }
-
-      if (actionStr === "remove") {
-        const usernameStr = username;
-        if (!usernameStr) {
-          return errResponse(new Error("username is required for the remove action"));
-        }
-        const result = await members(
-          { action: "remove", username: usernameStr, namespace: nsStr },
-          coreDeps,
-        );
-        if (result.action !== "remove") return errResponse(new Error("Unexpected result"));
-        return okResponse(`Removed ${usernameStr} from address`);
-      }
-
-      if (actionStr === "leave") {
-        if (!nsStr) {
-          return errResponse(new Error("namespace is required for the leave action (name the address to leave)"));
-        }
-        const result = await members({ action: "leave", namespace: nsStr }, coreDeps);
-        if (result.action !== "leave") return errResponse(new Error("Unexpected result"));
-        return okResponse(`You left ${result.address}. You no longer have access to it.`);
-      }
-
-      if (actionStr === "invite") {
-        const roleStr = role ?? "user";
-        if (roleStr !== "user" && roleStr !== "admin") {
-          return errResponse(new Error("An invite link can make someone a member ('user') or an 'admin', never an owner."));
-        }
-        const result = await members({ action: "invite", role: roleStr, namespace: nsStr }, coreDeps);
-        if (result.action !== "invite") return errResponse(new Error("Unexpected result"));
-        const isAdmin = result.invite.role === "admin";
-        const lines = [
-          `Invite link for ${result.address} (${isAdmin ? "Admin" : "Member"}):`,
-          result.url,
-          "",
-          "This link works once and expires in 7 days.",
-        ];
-        if (isAdmin) {
-          lines.push("Admin links give full control of this address's team to whoever opens them first.");
-        }
-        lines.push(
-          "Share it only with the person you are inviting. They open it in a browser and sign in to join.",
-          `Invite id: ${result.invite.id} (use action 'revoke' with this invite_id to cancel it).`,
-        );
-        return okResponse(lines.join("\n"));
-      }
-
-      if (actionStr === "invites") {
-        const result = await members({ action: "invites", namespace: nsStr }, coreDeps);
-        if (result.action !== "invites") return errResponse(new Error("Unexpected result"));
-        if (result.invites.length === 0) {
-          return okResponse(`No pending invite links for ${result.address}.`);
-        }
-        // Whitelisted fields only: a listing never shows a link or token (they exist only at creation).
-        const lines = result.invites.map((i: PendingInvite) => {
-          const roleLabel = i.role === "admin" ? "Admin" : "Member";
-          const by = i.created_by_username ?? "a deleted account";
-          const paused = i.paused ? " — paused until the owner is on Max" : "";
-          return `  ${i.id} — ${roleLabel}, created by ${by}, expires ${i.expires_at}${paused}`;
-        });
-        return okResponse(
-          `Pending invite links for ${result.address}:\n${lines.join("\n")}\n` +
-          "Links are shown only once, when created. To replace one, revoke it and create a new invite.",
-        );
-      }
-
-      if (actionStr === "revoke") {
-        const idStr = invite_id;
-        if (!idStr || idStr.trim() === "") {
-          return errResponse(new Error("invite_id is required for the revoke action (use action 'invites' to see the pending ones)"));
-        }
-        const result = await members({ action: "revoke", invite_id: idStr, namespace: nsStr }, coreDeps);
-        if (result.action !== "revoke") return errResponse(new Error("Unexpected result"));
-        return okResponse(`Revoked invite ${idStr.trim()} on ${result.address}. That link no longer works.`);
-      }
-
-      // action === "role"
-      const usernameStr = username;
-      const roleStr = role as "admin" | "user" | undefined;
-      if (!usernameStr) {
-        return errResponse(new Error("username is required for the role action"));
-      }
-      if (!roleStr) {
-        return errResponse(new Error("role is required for the role action"));
-      }
-      const result = await members(
-        { action: "role", username: usernameStr, role: roleStr, namespace: nsStr },
-        coreDeps,
-      );
-      if (result.action !== "role") return errResponse(new Error("Unexpected result"));
-      return okResponse(
-        `Changed ${usernameStr} role to ${result.member.role}`,
-      );
-    }),
-  );
+  registerMembers(ctx);
 
   registerPromote(ctx);
 
   registerQrcode(ctx);
 
-  local.registerTool(
-    "template",
-    {
-      title: "Starter Template",
-      description:
-        "Starts a site from a starter template, written to a local folder for you to fill in and then publish. " +
-        "action \"list\" shows the templates (portfolio, landing page, resume, docs, coming soon, link in bio). " +
-        "action \"create\" copies one into `directory` (a new or empty folder); it never overwrites: a non-empty " +
-        "folder is refused unless allow_non_empty is true, and even then any name clash fails before anything is " +
-        "written. The result lists every [[...]] placeholder and every link whose href is # (data-placeholder-href " +
-        "says what goes there). Replace them all with the user's content, show the user, then publish the folder.",
-      inputSchema: {
-        action: z.enum(["list", "create"]).describe("list the templates, or create one in a folder."),
-        name: z.string().optional().describe("Template name from list (required for create), e.g. \"portfolio\"."),
-        directory: z
-          .string()
-          .optional()
-          .describe("Folder to create the site in (required for create). Absolute or relative to the current working directory; created if missing."),
-        allow_non_empty: z
-          .boolean()
-          .optional()
-          .describe("Add the template to a folder that already has files. Any file name clash is still refused, with nothing written."),
-      },
-    },
-    async ({ action, name, directory, allow_non_empty }) => {
-      if (action === "list") {
-        const r = listTemplates();
-        if (!r.success) return errResponse(new Error(r.error));
-        return okResponse(
-          `Starter templates (create one with template action:"create", name, directory):\n` +
-            r.templates.map((t) => `- ${t.name}: ${t.title}. ${t.description}`).join("\n"),
-        );
-      }
-      const r = createFromTemplate({
-        name,
-        directory,
-        allowNonEmpty: allow_non_empty === true,
-      });
-      if (!r.success) return errResponse(new Error(r.error));
-      const hrefs = r.placeholderHrefs.length
-        ? r.placeholderHrefs.map((h) => `- ${h.file}: ${h.hint}`).join("\n")
-        : "- none";
-      return okResponse(
-        `Created the "${r.name}" template in ${r.directory}` +
-          (r.realDirectory !== r.directory ? ` (really ${r.realDirectory})` : "") +
-          `\nFiles: ${r.files.join(", ")}\n\n` +
-          `Placeholders to replace:\n${r.placeholders.map((p) => `- ${p.token}: ${p.hint}`).join("\n")}\n\n` +
-          `Links with href "#" to point at a real address (data-placeholder-href says what goes there):\n${hrefs}\n\n` +
-          `Next: replace every [[...]] and every data-placeholder-href \`#\`, show the user, then publish this folder (${r.directory}).`,
-      );
-    },
-  );
+  registerTemplate(ctx);
 
   registerExport(ctx);
 
-  local.registerTool(
-    "logout",
-    {
-      title: "Logout",
-      description:
-        "Signs out of upubli.sh by revoking the refresh token server-side and " +
-        "deleting local credentials. Safe to call even when not logged in or " +
-        "when the server is unreachable (local credentials are always cleared).",
-      inputSchema: {},
-    },
-    async () => {
-      const result = await logout(coreDeps);
-      if (result.loggedOut) {
-        return okResponse("Logged out successfully. Local credentials have been removed.");
-      }
-      return {
-        content: [{ type: "text" as const, text: `Logout failed: ${result.error}` }],
-        isError: true,
-      };
-    },
-  );
+  registerLogout(ctx);
 
-  local.registerTool(
-    "login",
-    {
-      title: "Login",
-      description:
-        "Authenticates with upubli.sh. " +
-        "Opens a browser sign-in page where you choose a provider and waits for the OAuth callback. " +
-        "The auth URL is always included in the response so you can open " +
-        "it in a different browser profile if needed.",
-      inputSchema: {},
-    },
-    async () => {
-      let capturedAuthUrl = "";
+  registerLogin(ctx);
 
-      try {
-        const result = await login(
-          {
-            apiBaseUrl: process.env.UPUBLISH_API_URL ?? "https://api.upubli.sh",
-            siteBaseUrl: (process.env.UPUBLISH_SITE_URL ?? "https://upubli.sh").replace(/\/$/, ""),
-            openBrowser: async (url: string) => {
-              capturedAuthUrl = url;
-              await openBrowser(url);
-            },
-            startCallbackServer: createCallbackServer,
-            log: () => {},
-          },
-          coreDeps,
-        );
+  registerUpgrade(ctx);
 
-        const lines = [
-          `Authenticated as: ${result.username}`,
-          `Credentials stored at: ${result.credentialsFilePath}`,
-        ];
-        if (capturedAuthUrl) {
-          lines.push("", `Auth URL: ${capturedAuthUrl}`);
-        }
-        return okResponse(lines.join("\n"));
-      } catch (err) {
-        const lines = [(err as Error).message];
-        if (capturedAuthUrl) {
-          lines.push("", `Auth URL (open manually if needed): ${capturedAuthUrl}`);
-        }
-        return errResponse(new Error(lines.join("\n")));
-      }
-    },
-  );
-
-  local.registerTool(
-    "upgrade",
-    {
-      title: "Upgrade Plan",
-      description:
-        "Opens the Stripe Checkout page for a paid plan (pro or max) in your browser " +
-        "so the user can enter payment and upgrade their upubli.sh account. " +
-        "Use this when an agent hits a free-tier wall (file-size or storage tier limit) " +
-        "and the user wants more capacity. Card entry is browser-only by design — this " +
-        "tool only opens the right page, it cannot complete payment. The checkout URL is " +
-        "always included in the response so it can be opened manually (e.g. headless envs). " +
-        "Defaults to the pro plan billed monthly.",
-      inputSchema: {
-        plan: z
-          .enum(["pro", "max"])
-          .optional()
-          .describe("Which paid plan to check out. Defaults to 'pro'."),
-        interval: z
-          .enum(["month", "year"])
-          .optional()
-          .describe("Billing interval. Defaults to 'month'."),
-      },
-    },
-    async (args: { plan?: "pro" | "max"; interval?: "month" | "year" }) => {
-      // Mirror the login tool: capture the URL the moment the opener is invoked
-      // so it survives an open() rejection (headless / no DISPLAY) — DW-2.3.
-      let capturedUrl = "";
-
-      const result = await upgrade(
-        async (url: string) => {
-          capturedUrl = url;
-          await openBrowser(url);
-        },
-        { plan: args.plan, interval: args.interval },
-        coreDeps,
-      );
-
-      if (result.ok) {
-        return okResponse(
-          [
-            `Opening the checkout page in your browser to upgrade.`,
-            `Enter your payment details there to complete the upgrade.`,
-            ``,
-            `Checkout URL: ${result.url}`,
-          ].join("\n"),
-        );
-      }
-
-      // Failure: always echo the URL when we have one (browser failed to open
-      // after a successful checkout) so headless users can open it manually.
-      const url = result.url ?? capturedUrl;
-      const lines = [result.error];
-      if (url) {
-        lines.push("", `Checkout URL (open manually if needed): ${url}`);
-      }
-      return errResponse(new Error(lines.join("\n")));
-    },
-  );
-
-  server.registerTool(
-    "status",
-    {
-      title: "Auth Status",
-      description:
-        "Checks whether you are currently authenticated with upubli.sh. " +
-        "Returns your username and available addresses (with domains) if authenticated, " +
-        "or a not-authenticated message.",
-      inputSchema: {},
-    },
-    async () => {
-      const result = await status(coreDeps);
-
-      if (result.authenticated) {
-        const lines = [`Authenticated as: ${result.username}`];
-
-        if (result.namespaces.length > 0) {
-          lines.push("", "Addresses:");
-          for (const ns of result.namespaces) {
-            // Show role marker for shared namespaces (admin/user). Owner is the
-            // default state — no marker for clean output.
-            const roleMarker = ns.role && ns.role !== "owner" ? ` [${ns.role}]` : "";
-            lines.push(`  ${ns.name} (${ns.domain})${roleMarker}`);
-          }
-        }
-
-        return okResponse(lines.join("\n"));
-      }
-
-      const msg = result.error
-        ? `Not authenticated. ${result.error}`
-        : "Not authenticated. Use the login tool to sign in.";
-      return okResponse(msg);
-    },
-  );
+  registerStatus(ctx);
 
   server.registerTool(
     "namespace_create",

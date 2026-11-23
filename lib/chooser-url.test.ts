@@ -169,12 +169,15 @@ describe("DW-5.3: login and MCP copy is provider-neutral", () => {
   });
 
   it("test_DW_5_3_mcp_login_description_is_provider_neutral", () => {
-    // Read mcp/index.ts as text (no import — preserves hexagonal boundary)
-    const mcpSrc = fs.readFileSync(path.join(REPO_ROOT, "mcp", "index.ts"), "utf-8");
-    // Locate the login tool registration block
-    const loginDescStart = mcpSrc.indexOf('"login"');
-    const loginDescEnd = mcpSrc.indexOf("inputSchema", loginDescStart);
-    const loginBlock = mcpSrc.slice(loginDescStart, loginDescEnd);
+    // Read the account tool module as text (no import — preserves hexagonal boundary)
+    const src = fs.readFileSync(path.join(REPO_ROOT, "mcp", "tools", "account.ts"), "utf-8");
+    // Locate the login tool registration block: from its registerTool name to its inputSchema
+    const loginDescStart = src.indexOf('"login",');
+    const loginDescEnd = src.indexOf("inputSchema", loginDescStart);
+    expect(loginDescStart).toBeGreaterThan(-1);
+    const loginBlock = src.slice(loginDescStart, loginDescEnd);
+    // Guard against a vacuous slice: it must actually hold the login description
+    expect(loginBlock).toContain("Authenticates with upubli.sh");
     // The description must not mention "Google" (provider-neutral)
     expect(loginBlock).not.toMatch(/google oauth/i);
   });
