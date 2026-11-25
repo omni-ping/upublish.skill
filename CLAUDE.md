@@ -19,7 +19,7 @@ There is no build step for development — Bun runs TypeScript directly. The `di
 ## Architecture
 
 ```
-mcp/index.ts       MCP server entry (createServer, createHostedServer, main): builds a ToolContext, calls the register* functions in
+mcp/index.ts       MCP server entry (createServer, main): builds a ToolContext, calls the register* functions in
                    tool order; registers 33 always-on tools plus 5 env-gated admin tools:
                    • auth/account: login, status, logout, namespace_create, domain, rename, upgrade
                    • sites: publish, list, delete, promote, qrcode, analytics
@@ -31,7 +31,7 @@ mcp/index.ts       MCP server entry (createServer, createHostedServer, main): bu
                    • user backends (paid add-on; server-side handler at {site}/_api/*): publish_backend (bundles an entry file
                      or inline code locally with Bun.build, deploys it), backend (status/versions/rollback/enable/disable/access/
                      delete/addon_status/addon_enable/addon_disable), backend_secret (set/list/delete), backend_logs
-                   • local-only helpers (never on the hosted server): template (list/create starter sites in a local folder), export (download a
+                   • local-only helpers (only on the local stdio server): template (list/create starter sites in a local folder), export (download a
                      site version's files, verified, into a local folder)
                    • admin (only when UPUBLISH_ADMIN=1): admin_user, admin_site, admin_stats, admin_storage, admin_domains
 mcp/tools/*.ts     One tool module per job (publish, sites, versions, access, data, backend, members, account, namespace, admin):
@@ -41,19 +41,46 @@ mcp/tool-response.ts  okResponse/errResponse, guarded(), wrapToolResults    mcp/
 mcp/format.ts      text formatting helpers    mcp/progress.ts  publish progress + heartbeat
 mcp/callback-server.ts  loopback OAuth callback server for login
 lib/core.ts        Facade — all user-facing operations, wires credentials + ApiClient per call
+lib/core-*.ts      Operation files behind the facade: -access (passcodes, visibility, gate, members), -account (login, status,
+                   logout, namespace creation, domains, upgrade, admin), -sites (list, publish, delete, promote, versions,
+                   analytics, QR code, export, rename), -addons (site data and user backends), -deps (CoreDeps bag, API base
+                   URL, client builders)
 lib/auth.ts        Unified OAuth login (PKCE auth-code + token exchange), token refresh, credential read/write (~/.upublish/credentials)
 lib/api-client.ts  Thin HTTP client — Bearer token injection via async TokenProvider
 lib/namespace.ts   Namespace resolve + create (POST /api/ns)
-lib/publish.ts     Hash files, diff against server manifest, upload only changed files to presigned R2 URLs, then finalize
+lib/publish.ts     Core publish: diff against the server manifest, upload only changed files to presigned R2 URLs, then finalize
+lib/publish-*.ts   Publish internals: -files (enumeration, exclusions, wrong-folder preflight), -hash (MD5 hashing), -upload
+                   (batched presigned PUTs with retry), -errors (manifest/finalize error enrichment), -types (publish() options and result)
 lib/list.ts        GET /api/sites
 lib/delete.ts      DELETE /api/sites/:slug
 lib/types.ts       Shared types (Site, Visibility, FetchFn, TokenProvider)
-lib/site-data*.ts  Site data add-on: -types (wire mirrors of the frozen contract), -errors (code -> actionable
-                   message), -sites (slug <-> site_id), site-data.ts (status/enable consent/disable/wipe/jwt),
-                   -collections, -rows (incl. streamed NDJSON export), -format (result -> text)
+lib/site-data*.ts  Site data add-on: -types (wire mirrors of the frozen contract), -shape (validating parsers of the same
+                   contract), -errors (code -> actionable message), -sites (slug <-> site_id), site-data.ts (status/enable
+                   consent/disable/wipe/jwt), -collections, -rows (incl. streamed NDJSON export), -format (result -> text),
+                   -text (escapes visitor and server text so it stays on one line)
+lib/site-export*.ts Site export into a local folder: site-export.ts (page through the file list, download, verify size + MD5),
+                   -page (listing-page parsing), -paths (path-safety and collision checks on the server's file list)
 lib/backend*.ts    User backends: -shape (wire mirrors + validating parsers of the frozen contract), -errors (code -> actionable
                    message, secret redaction), -bundle (Bun.build, 1 MB / default-export / compiler-error preflight), backend.ts
                    (publish, status/versions/rollback/access, add-on consent flow, secrets, logs), -format (result -> text)
+lib/admin.ts       Operator admin: user lookup and suspend/ban, site block, platform stats, storage sweep, domains
+lib/analytics.ts   Per-site analytics opt-out, toggled without a republish
+lib/billing-text.ts Money wording for publish and address tools; prices come from the server, never literals
+lib/display-msg.ts Rewrites backend "namespace" wording to "address" at the display boundary
+lib/domain.ts      Custom domains: connect, check, list, remove (space-level /api/domains endpoints)
+lib/gate.ts        Form gate management; formatGateFields renders gate fields as readable text
+lib/log.ts         Appends a timestamped line to ~/.upublish/publish.log; never throws
+lib/members.ts     Member management; resolves usernames to user ids
+lib/passcode.ts    Passcode management
+lib/promote.ts     Promotes a staging version of a site to live
+lib/qrcode.ts      QR code for a site URL (?ref=qr): terminal output plus SVG and PNG files
+lib/rename.ts      Renames sites and namespaces
+lib/runtime-check.ts Warns when the running Bun is older than the supported minimum
+lib/templates.ts   Starter templates: list the bundled ones, copy one into a local folder, all or nothing
+lib/update-check.ts Out-of-date check against plugin.json on GitHub main, fetched at most once per 24 h; never throws
+lib/upgrade.ts     Opens the Stripe Checkout page for a chosen plan (card entry stays in the browser)
+lib/versions.ts    Lists a site's versions and deletes an archived one
+lib/visibility.ts  Public <-> passcode switching; reads the current visibility before changing it
 ```
 
 **Sign-in is one unified flow.** `login` opens `{SITE}/login?flow=local` — the

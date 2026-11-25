@@ -2,8 +2,8 @@
  * Hosted /mcp must never touch the machine the server runs on.
  *
  * DW-1.1 tool lists, DW-1.2 call-time refusal with no side effects, DW-1.3 data_rows export,
- * DW-1.4 status() with an injected tokenProvider, DW-1.5 inline publish_backend sandbox,
- * DW-1.7 createHostedServer self-verification. Nothing here reaches the network: every fetch is a stub.
+ * DW-1.4 status() with an injected tokenProvider, DW-1.5 inline publish_backend sandbox.
+ * All through the default createServer() (localFiles off). Nothing here reaches the network: every fetch is a stub.
  */
 
 import { describe, test, expect, afterEach, spyOn } from "bun:test";
@@ -15,16 +15,13 @@ import * as path from "node:path";
 import {
   ADMIN_TOOLS,
   LOCAL_ONLY_TOOLS,
-  HostedServerUnsafeError,
-  assertHostedServerSafe,
-  createHostedServer,
   createServer,
   openUrlIfLocal,
   stdioServerOptions,
 } from "../mcp/index.ts";
-import type { CoreDeps, CreateServerOpts } from "../mcp/index.ts";
+import type { CreateServerOpts } from "../mcp/index.ts";
+import type { CoreDeps } from "../lib/core.ts";
 import * as auth from "../lib/auth.ts";
-import { log, setFileLogging } from "../lib/log.ts";
 import { status } from "../lib/core.ts";
 
 type McpServerT = ReturnType<typeof createServer>;
@@ -44,7 +41,6 @@ const open: Array<{ client: Client; server: McpServerT }> = [];
 const savedAdmin = process.env.UPUBLISH_ADMIN;
 
 afterEach(async () => {
-  setFileLogging(true); // createHostedServer flips this process-wide; other test files rely on the default
   for (const { client, server } of open) {
     await client.close().catch(() => undefined);
     await server.close().catch(() => undefined);
@@ -111,7 +107,6 @@ describe("DW-1.1: hosted tool list has no local-only or admin tool", () => {
     ["createServer() with no args", () => createServer()],
     ["createServer(deps, { localFiles: false })", () => createServer({}, { localFiles: false })],
     ["createServer(deps, {})", () => createServer({}, {})],
-    ["createHostedServer(deps)", () => createHostedServer(HOSTED)],
   ])("%s lists none of them, even with UPUBLISH_ADMIN=1 (registry and tools/list)", async (_label, make) => {
     process.env.UPUBLISH_ADMIN = "1";
     const server = make();
@@ -125,7 +120,7 @@ describe("DW-1.1: hosted tool list has no local-only or admin tool", () => {
 
   test("the hosted set is exactly the stdio set minus the local-only tools", () => {
     delete process.env.UPUBLISH_ADMIN;
-    const hosted = names(createHostedServer(HOSTED));
+    const hosted = names(createServer(HOSTED, { localFiles: false }));
     expect(hosted.sort()).toEqual(STDIO_TOOLS.filter((n) => !(LOCAL_ONLY_TOOLS as readonly string[]).includes(n)).sort());
   });
 
@@ -216,7 +211,7 @@ describe("DW-1.2: a local-only call is refused with no side effect", () => {
   });
 
   test("unknown tool name is an SDK error, not executed", async () => {
-    const client = await connect(createHostedServer(HOSTED));
+    const client = await connect(createServer(HOSTED, { localFiles: false }));
     const r = await call(client, "definitely_not_a_tool");
     expect(r.isError).toBe(true);
   });
@@ -278,7 +273,7 @@ describe("DW-1.3: hosted data_rows has no file export", () => {
     const seen: string[] = [];
     const dir = tmp();
     const target = path.join(dir, "rows.ndjson");
-    const client = await connect(createHostedServer({ fetchFn: recordingFetch(seen), tokenProvider: async () => "t" }));
+    const client = await connect(createServer({ fetchFn: recordingFetch(seen), tokenProvider: async () => "t" }, { localFiles: false }));
     for (const extra of [{}, { path: target, overwrite: true }]) {
       const r = await call(client, "data_rows", { action: "export", collection: "votes", ...extra });
       expect(r.isError).toBe(true);
@@ -290,7 +285,7 @@ describe("DW-1.3: hosted data_rows has no file export", () => {
 
   test("hosted list still works", async () => {
     const seen: string[] = [];
-    const client = await connect(createHostedServer({ fetchFn: recordingFetch(seen), tokenProvider: async () => "t" }));
+    const client = await connect(createServer({ fetchFn: recordingFetch(seen), tokenProvider: async () => "t" }, { localFiles: false }));
     const r = await call(client, "data_rows", { action: "list", collection: "votes" });
     expect(r.isError).toBeUndefined();
     expect(seen.some((u) => u.includes("/rows"))).toBe(true);
@@ -348,7 +343,7 @@ describe("DW-1.4: status() with an injected tokenProvider ignores the host crede
     const credFile = path.join(tmp(), "credentials");
     fs.writeFileSync(credFile, "HOST-refresh-token");
     const urls: string[] = [];
-    const client = await connect(createHostedServer({ credentialsPath: credFile, tokenProvider: async () => "caller", fetchFn: recordingFetch(urls) }));
+    const client = await connect(createServer({ credentialsPath: credFile, tokenProvider: async () => "caller", fetchFn: recordingFetch(urls) }, { localFiles: false }));
     const r = await call(client, "status");
     expect(text(r)).toContain("Authenticated as: caller@example.com");
     expect(urls.some((u) => u.includes("/auth/token/refresh"))).toBe(false);
@@ -361,7 +356,7 @@ describe("DW-1.5: inline publish_backend code cannot read files outside the virt
     ["parent path", `import "../x"; export default { fetch() { return new Response("x"); } };`],
   ])("hosted: %s import is refused before anything is sent", async (_l, code) => {
     const seen: string[] = [];
-    const client = await connect(createHostedServer({ fetchFn: recordingFetch(seen), tokenProvider: async () => "t" }));
+    const client = await connect(createServer({ fetchFn: recordingFetch(seen), tokenProvider: async () => "t" }, { localFiles: false }));
     const r = await call(client, "publish_backend", { site: "s", code });
     expect(r.isError).toBe(true);
     expect(text(r)).not.toContain("root:");
@@ -369,123 +364,17 @@ describe("DW-1.5: inline publish_backend code cannot read files outside the virt
   });
 
   test("hosted: entry is refused", async () => {
-    const client = await connect(createHostedServer({ fetchFn: recordingFetch([]), tokenProvider: async () => "t" }));
+    const client = await connect(createServer({ fetchFn: recordingFetch([]), tokenProvider: async () => "t" }, { localFiles: false }));
     const r = await call(client, "publish_backend", { site: "s", entry: "/etc/passwd" });
     expect(r.isError).toBe(true);
-  });
-});
-
-describe("DW-1.7: createHostedServer verifies what it registered", () => {
-  test("returns a normal server when nothing unsafe is registered, and forces localFiles off", () => {
-    let seenOpts: CreateServerOpts | undefined;
-    const server = createHostedServer(HOSTED, (d, o) => { seenOpts = o; return createServer(d, o); });
-    expect(seenOpts).toEqual({ localFiles: false, updateCheck: false });
-    expect(names(server)).toContain("list");
-  });
-
-  test("a forced build registering a local-only tool throws HostedServerUnsafeError naming it", () => {
-    for (const bad of LOCAL_ONLY_TOOLS) {
-      let err: unknown;
-      try {
-        createHostedServer(HOSTED, (d) => {
-          const s = createServer(d, { localFiles: false });
-          s.registerTool(bad, { description: "x" }, async () => ({ content: [] }));
-          return s;
-        });
-      } catch (e) {
-        err = e;
-      }
-      expect(err).toBeInstanceOf(HostedServerUnsafeError);
-      expect((err as HostedServerUnsafeError).tools).toEqual([bad]);
-      expect((err as Error).message).toContain(bad);
-    }
-  });
-
-  test("a forced build registering an admin tool throws, listing every offender", () => {
-    expect(() =>
-      createHostedServer(HOSTED, (d) => {
-        const s = createServer(d, { localFiles: false });
-        s.registerTool("admin_user", { description: "x" }, async () => ({ content: [] }));
-        s.registerTool("logout", { description: "x" }, async () => ({ content: [] }));
-        return s;
-      }),
-    ).toThrow(/admin_user, logout/);
-  });
-
-  test("assertHostedServerSafe reads the real SDK registry: a full stdio server trips on all five local tools", () => {
-    delete process.env.UPUBLISH_ADMIN;
-    try {
-      assertHostedServerSafe(createServer({}, stdioServerOptions()));
-      throw new Error("expected HostedServerUnsafeError");
-    } catch (e) {
-      expect(e).toBeInstanceOf(HostedServerUnsafeError);
-      expect([...(e as HostedServerUnsafeError).tools].sort()).toEqual([...LOCAL_ONLY_TOOLS].sort());
-    }
-  });
-
-  test("requires a tokenProvider: without one API tools would use the host credentials", () => {
-    for (const deps of [undefined, {}, { credentialsPath: "/host/creds" }, { tokenProvider: undefined }]) {
-      expect(() => createHostedServer(deps as CoreDeps | undefined)).toThrow(HostedServerUnsafeError);
-      expect(() => createHostedServer(deps as CoreDeps | undefined)).toThrow(/tokenProvider/);
-    }
-  });
-
-  test("forces updateCheck and localFiles off whatever the build would otherwise get", () => {
-    let seen: CreateServerOpts | undefined;
-    createHostedServer(HOSTED, (d, o) => { seen = o; return createServer(d, o); });
-    expect(seen?.updateCheck).toBe(false);
-    expect(seen?.localFiles).toBe(false);
-    expect(seen?.runtimeCheck).toBeUndefined();
-  });
-
-  test("switches host file logging off: log() writes nothing after createHostedServer", () => {
-    const home = tmp();
-    const savedHome = process.env.HOME;
-    process.env.HOME = home;
-    try {
-      log("before");
-      expect(fs.existsSync(path.join(home, ".upublish", "publish.log"))).toBe(true);
-      fs.rmSync(path.join(home, ".upublish"), { recursive: true });
-      createHostedServer(HOSTED);
-      log("after hosted server");
-      expect(fs.existsSync(path.join(home, ".upublish"))).toBe(false);
-      setFileLogging(true);
-      log("restored");
-      expect(fs.readFileSync(path.join(home, ".upublish", "publish.log"), "utf8")).toContain("restored");
-    } finally {
-      if (savedHome === undefined) delete process.env.HOME;
-      else process.env.HOME = savedHome;
-    }
-  });
-
-  test("a Map registry is read by its keys; a Map holding publish throws", () => {
-    expect(() => assertHostedServerSafe({ _registeredTools: new Map([["list", {}], ["publish", {}]]) } as unknown as McpServerT)).toThrow(/publish/);
-    expect(() => assertHostedServerSafe({ _registeredTools: new Map([["list", {}]]) } as unknown as McpServerT)).not.toThrow();
-  });
-
-  test("any unrecognised or empty registry shape fails closed", () => {
-    for (const reg of [null, undefined, 42, "publish", new Map(), {}, []]) {
-      expect(() => assertHostedServerSafe({ _registeredTools: reg } as unknown as McpServerT), String(reg)).toThrow(HostedServerUnsafeError);
-    }
-  });
-
-  test("fails closed when the SDK registry cannot be read", () => {
-    const fake = {} as unknown as McpServerT;
-    expect(() => assertHostedServerSafe(fake)).toThrow(HostedServerUnsafeError);
-  });
-
-  test("an array-shaped registry is also read", () => {
-    const fake = { _registeredTools: ["list", "publish"] } as unknown as McpServerT;
-    expect(() => assertHostedServerSafe(fake)).toThrow(/publish/);
-    expect(() => assertHostedServerSafe({ _registeredTools: ["list"] } as unknown as McpServerT)).not.toThrow();
   });
 });
 
 describe("DW-2.6 (starter templates): template is wholly local-only", () => {
   test("test_DW_2_6_hosted_tool_list_excludes_template_and_stdio_includes_it", async () => {
     delete process.env.UPUBLISH_ADMIN;
-    expect(names(createHostedServer(HOSTED))).not.toContain("template");
-    const listed = (await (await connect(createHostedServer(HOSTED))).listTools()).tools.map((t) => t.name);
+    expect(names(createServer(HOSTED, { localFiles: false }))).not.toContain("template");
+    const listed = (await (await connect(createServer(HOSTED, { localFiles: false }))).listTools()).tools.map((t) => t.name);
     expect(listed).not.toContain("template");
     expect(names(createServer({}, stdioServerOptions()))).toContain("template");
   });
@@ -493,7 +382,7 @@ describe("DW-2.6 (starter templates): template is wholly local-only", () => {
   test("test_DW_2_6_forced_hosted_template_create_is_refused_and_writes_nothing", async () => {
     const parent = tmp();
     const target = path.join(parent, "site");
-    const client = await connect(createHostedServer(HOSTED));
+    const client = await connect(createServer(HOSTED, { localFiles: false }));
     for (const args of [{ action: "create", name: "links", directory: target }, { action: "list" }]) {
       const r = await call(client, "template", args);
       expect(r.isError).toBe(true);
@@ -505,15 +394,5 @@ describe("DW-2.6 (starter templates): template is wholly local-only", () => {
     expect(r.isError).toBe(true);
     expect(text(r)).toContain("only available in the local upublish plugin");
     expect(fs.readdirSync(parent)).toEqual([]);
-  });
-
-  test("test_DW_2_6_hosted_self_check_throws_if_template_is_ever_registered", () => {
-    expect(() =>
-      createHostedServer(HOSTED, (d) => {
-        const s = createServer(d, { localFiles: false });
-        s.registerTool("template", { description: "x" }, async () => ({ content: [] }));
-        return s;
-      }),
-    ).toThrow(/template/);
   });
 });

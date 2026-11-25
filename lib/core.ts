@@ -26,7 +26,7 @@
 export { checkForUpdate, formatUpdateNote } from "./update-check.ts";
 export { checkBunRuntime, MIN_BUN_VERSION } from "./runtime-check.ts";
 export { listTemplates, createFromTemplate } from "./templates.ts";
-export { log, setFileLogging } from "./log.ts";
+export { log } from "./log.ts";
 
 // ─── Re-exports for adapters ──────────────────────────────────────────────────
 

@@ -14,7 +14,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import open from "open";
-import { checkBunRuntime, checkForUpdate, formatUpdateNote, setFileLogging } from "../lib/core.ts";
+import { checkBunRuntime, checkForUpdate, formatUpdateNote } from "../lib/core.ts";
 import { wrapToolResults } from "./tool-response.ts";
 import { type ToolContext, LOCAL_ONLY_MESSAGE, hostOnly } from "./context.ts";
 import { registerLogin, registerLogout, registerStatus, registerTemplate, registerUpgrade } from "./tools/account.ts";
@@ -51,24 +51,19 @@ import {
   registerVersionsList,
   registerVersionsRestore,
 } from "./tools/versions.ts";
-import type { CoreDeps, TokenProvider } from "../lib/core.ts";
-
-// ─── Public package API ───────────────────────────────────────────────────────
-// Re-export types that external consumers (e.g. the backend MCP router) need
-// to import from the package entry without reaching into internal submodules.
-export type { CoreDeps, TokenProvider };
+import type { CoreDeps } from "../lib/core.ts";
 
 /**
  * Tools that read or write the machine the server runs on, spawn a browser or bind a port. They exist only on a
- * LOCAL server (`opts.localFiles === true`, i.e. stdio). A hosted server must never register or run them.
+ * LOCAL server (`opts.localFiles === true`, i.e. stdio); the default createServer() (localFiles off) never registers or runs them.
  */
 export const LOCAL_ONLY_TOOLS = ["publish", "qrcode", "login", "logout", "upgrade", "template", "export"] as const;
 /** The env-gated admin tools: registered only on a local server with UPUBLISH_ADMIN=1. */
 export const ADMIN_TOOLS = ["admin_user", "admin_site", "admin_stats", "admin_storage", "admin_domains"] as const;
 
 /**
- * The default browser opener: launches the system browser only on a local server. On a hosted server it
- * rejects, because the "system" would be the backend host. `opener` is a test seam.
+ * The default browser opener: launches the system browser only when `localFiles` is on. Otherwise it
+ * rejects, because the "system" would be the host running the server. `opener` is a test seam.
  */
 export async function openUrlIfLocal(
   url: string,
@@ -159,24 +154,22 @@ export interface CreateServerOpts {
   /**
    * Opt in to the old-Bun warning: every tool response gets a leading note when
    * `version` is older than the supported Bun (see checkBunRuntime). Defaults to
-   * OFF; the hosted /mcp router runs on the backend's own runtime, so the note
-   * would be wrong there. Only stdioServerOptions() sets it, from `Bun.version`.
+   * OFF: a server not run by the user's own stdio entrypoint may run on another
+   * runtime, so the note would be wrong there. Only stdioServerOptions() sets it, from `Bun.version`.
    */
   runtimeCheck?: { version: string | undefined };
   /**
    * Opt in to the out-of-date check (GitHub fetch, 24 h cache file, one-time
-   * note on a tool response). Defaults to OFF: the backend's hosted /mcp router
-   * calls createServer() per request and its users cannot /plugin update. Only
+   * note on a tool response). Defaults to OFF: an embedded server's users cannot /plugin update. Only
    * the stdio entrypoint turns this on (see stdioServerOptions()).
    */
   updateCheck?: boolean;
   /**
-   * Opt in to every tool that touches the machine the server runs on. Defaults to OFF: the hosted /mcp router
-   * runs createServer() on the backend's own host, where a path, a browser or a loopback port would be the
-   * SERVER's. When off, `publish`, `qrcode`, `login`, `logout`, `upgrade` and the `admin_*` tools are not
+   * Opt in to every tool that touches the machine the server runs on. Defaults to OFF: on a server that is not the
+   * user's own machine, a path, a browser or a loopback port would be the SERVER's. When off, `publish`, `qrcode`, `login`, `logout`, `upgrade` and the `admin_*` tools are not
    * registered (and refuse if called anyway), `data_rows` drops `path`/`overwrite` and refuses `export`, and
    * `publish_backend` refuses `entry`. Only the stdio entrypoint turns this on (see stdioServerOptions());
-   * hosted use passes inline `code`. Use createHostedServer() for a hosted server.
+   * inline `code` is the alternative.
    */
   localFiles?: boolean;
 }
@@ -260,63 +253,6 @@ export function createServer(callerDeps?: CoreDeps, opts?: CreateServerOpts): Mc
   registerAdminStorage(ctx);
   registerAdminDomains(ctx);
 
-  return server;
-}
-
-// ─── Hosted factory ───────────────────────────────────────────────────────────
-
-/** Thrown by createHostedServer when a host-touching tool is registered on what must be a hosted server. */
-export class HostedServerUnsafeError extends Error {
-  readonly tools: string[];
-  constructor(tools: string[]) {
-    super(`Hosted MCP server exposes host-only tools: ${tools.join(", ")}`);
-    this.name = "HostedServerUnsafeError";
-    this.tools = tools;
-  }
-}
-
-/**
- * Names registered on `server`, read from the SDK's private registry. This is the ONLY place that reaches into
- * it (covered by tests); if the SDK renames it, fail closed rather than report an empty list.
- */
-function registeredToolNames(server: McpServer): string[] {
-  const registry = (server as unknown as { _registeredTools?: unknown })._registeredTools;
-  let found: string[] | null = null;
-  if (registry instanceof Map) found = [...registry.keys()].map(String);
-  else if (Array.isArray(registry)) found = registry.map(String);
-  else if (registry !== null && typeof registry === "object") found = Object.keys(registry);
-  // Any unrecognised shape, or an empty registry (a hosted server always has tools), is unverifiable: fail closed.
-  if (found === null || found.length === 0) {
-    throw new HostedServerUnsafeError(["<cannot read the MCP SDK tool registry>"]);
-  }
-  return found;
-}
-
-/** Throws HostedServerUnsafeError naming every local-only or admin tool registered on `server`. */
-export function assertHostedServerSafe(server: McpServer): void {
-  const forbidden = new Set<string>([...LOCAL_ONLY_TOOLS, ...ADMIN_TOOLS]);
-  const found = registeredToolNames(server).filter((n) => forbidden.has(n));
-  if (found.length > 0) throw new HostedServerUnsafeError(found);
-}
-
-/**
- * Builds the MCP server for a hosted (remote) router: `localFiles` is forced off, update checks are forced off,
- * host file logging is switched off for the process, and the registered tool names are verified, so a
- * registration regression fails closed instead of exposing a host-touching tool.
- *
- * `coreDeps.tokenProvider` is REQUIRED: without it every API tool would fall back to the HOST's credentials file
- * and act as the host's user. `build` is a test seam; production callers pass only `coreDeps`.
- */
-export function createHostedServer(
-  coreDeps?: CoreDeps,
-  build: (deps?: CoreDeps, opts?: CreateServerOpts) => McpServer = createServer,
-): McpServer {
-  if (typeof coreDeps?.tokenProvider !== "function") {
-    throw new HostedServerUnsafeError(["<coreDeps.tokenProvider is required: without it API tools use the host's credentials>"]);
-  }
-  setFileLogging(false);
-  const server = build(coreDeps, { localFiles: false, updateCheck: false });
-  assertHostedServerSafe(server);
   return server;
 }
 

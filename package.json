@@ -15,9 +15,6 @@
   "private": false,
   "license": "MIT",
   "type": "module",
-  "exports": {
-    ".": "./mcp/index.ts"
-  },
   "scripts": {
     "test": "bun test lib/",
     "test:all": "bun test",

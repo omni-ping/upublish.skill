@@ -22,10 +22,10 @@ export interface CoreDeps {
   /** HTTP fetch function. Defaults to global fetch. */
   fetchFn?: FetchFn;
   /**
-   * Injected token provider for hosted/remote use.
+   * Injected token provider (tests / a future host).
    *
    * When supplied, this provider is used AS-IS instead of the disk-backed
-   * refresh flow — the host (e.g. the backend's /mcp router) supplies a
+   * refresh flow — the caller supplies a
    * closure that returns the validated per-request bearer token.
    *
    * Invoked on every API call (no caching) so per-request injection holds.
@@ -48,7 +48,7 @@ export interface CoreDeps {
  *
  * Two paths:
  *
- * 1. Injected provider (hosted/remote use): when `deps.tokenProvider` is
+ * 1. Injected provider (tests / a future host): when `deps.tokenProvider` is
  *    supplied, it is used directly — no credential file is read. The caller
  *    is responsible for supplying a provider that returns a valid bearer on
  *    every invocation. Takes precedence over `credentialsPath`.

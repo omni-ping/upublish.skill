@@ -4,7 +4,7 @@
  * DW-2.1 note once, on the first response after the check resolves (ok + error)
  * DW-2.2 no note for equal / older / malformed / failed checks; tools never fail
  * DW-2.5 a hanging check never delays or fails a tool call
- * DW-2.6 default createServer() (hosted router shape) never checks, caches or notes;
+ * DW-2.6 default createServer() never checks, caches or notes;
  *        stdioServerOptions() opts in
  * DW-2.4 header on API requests only (not on presigned R2 PUTs or GitHub)
  *
@@ -210,7 +210,7 @@ describe("opt-in only (DW-2.6)", () => {
     expect(stub.github).toBe(0);
   });
 
-  test("hosted router shape: header on API calls, no GitHub fetch, no note", async () => {
+  test("default createServer() shape: header on API calls, no GitHub fetch, no note", async () => {
     const stub = makeStub(remoteVersion("99.0.0"));
     const tools = toolsOf(createServer({ fetchFn: stub.fetchFn, tokenProvider: async () => "hosted" }));
     await Bun.sleep(30);
