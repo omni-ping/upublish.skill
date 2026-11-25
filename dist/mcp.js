@@ -26704,13 +26704,7 @@ function createFromTemplate(args, deps = {}) {
 import { appendFileSync, mkdirSync as mkdirSync2 } from "fs";
 import { homedir as homedir2 } from "os";
 import { join as join3 } from "path";
-var fileLogging = true;
-function setFileLogging(enabled) {
-  fileLogging = enabled;
-}
 function log(msg) {
-  if (!fileLogging)
-    return;
   const line = `${new Date().toISOString()} ${msg}
 `;
   try {
@@ -31035,9 +31029,22 @@ async function logout(deps) {
 function okResponse(text) {
   return { content: [{ type: "text", text }] };
 }
+var UNEXPECTED_ERROR = "Unexpected error.";
+function thrownMessage(err) {
+  try {
+    if (typeof err === "string")
+      return err;
+    if (typeof err === "object" && err !== null) {
+      const message = err.message;
+      if (typeof message === "string")
+        return message;
+    }
+  } catch {}
+  return UNEXPECTED_ERROR;
+}
 function errResponse(err) {
   return {
-    content: [{ type: "text", text: displayMsg(err.message) }],
+    content: [{ type: "text", text: displayMsg(thrownMessage(err)) }],
     isError: true
   };
 }
@@ -32621,7 +32628,7 @@ async function openUrlIfLocal(url, localFiles, opener = open_default) {
   await opener(url);
 }
 var PACKAGE_NAME = "@omniping/upublish";
-var PACKAGE_VERSION = "0.12.52";
+var PACKAGE_VERSION = "0.12.53";
 var DEFAULT_HEARTBEAT_INTERVAL_MS = 15000;
 function installUpdateNote(server, callerDeps) {
   let pendingNote = null;
@@ -32716,44 +32723,6 @@ function createServer(callerDeps, opts) {
   registerAdminDomains(ctx);
   return server;
 }
-
-class HostedServerUnsafeError extends Error {
-  tools;
-  constructor(tools) {
-    super(`Hosted MCP server exposes host-only tools: ${tools.join(", ")}`);
-    this.name = "HostedServerUnsafeError";
-    this.tools = tools;
-  }
-}
-function registeredToolNames(server) {
-  const registry = server._registeredTools;
-  let found = null;
-  if (registry instanceof Map)
-    found = [...registry.keys()].map(String);
-  else if (Array.isArray(registry))
-    found = registry.map(String);
-  else if (registry !== null && typeof registry === "object")
-    found = Object.keys(registry);
-  if (found === null || found.length === 0) {
-    throw new HostedServerUnsafeError(["<cannot read the MCP SDK tool registry>"]);
-  }
-  return found;
-}
-function assertHostedServerSafe(server) {
-  const forbidden = new Set([...LOCAL_ONLY_TOOLS, ...ADMIN_TOOLS]);
-  const found = registeredToolNames(server).filter((n) => forbidden.has(n));
-  if (found.length > 0)
-    throw new HostedServerUnsafeError(found);
-}
-function createHostedServer(coreDeps, build = createServer) {
-  if (typeof coreDeps?.tokenProvider !== "function") {
-    throw new HostedServerUnsafeError(["<coreDeps.tokenProvider is required: without it API tools use the host's credentials>"]);
-  }
-  setFileLogging(false);
-  const server = build(coreDeps, { localFiles: false, updateCheck: false });
-  assertHostedServerSafe(server);
-  return server;
-}
 async function main() {
   const server = createServer(undefined, stdioServerOptions());
   const transport = new StdioServerTransport;
@@ -32768,12 +32737,9 @@ if (import.meta.main) {
 }
 export {
   ADMIN_TOOLS,
-  HostedServerUnsafeError,
   LOCAL_ONLY_TOOLS,
   PACKAGE_NAME,
   PACKAGE_VERSION,
-  assertHostedServerSafe,
-  createHostedServer,
   createServer,
   openUrlIfLocal,
   stdioServerOptions
