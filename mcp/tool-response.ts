@@ -17,12 +17,33 @@ export function okResponse(text: string): ToolResponse {
   return { content: [{ type: "text" as const, text }] };
 }
 
+const UNEXPECTED_ERROR = "Unexpected error.";
+
+/**
+ * Barricade for thrown values: anything can be thrown, so never trust its shape.
+ * Strings pass through, objects (incl. Errors) yield a string `message`, and
+ * everything else (or a hostile getter/Proxy) yields a fixed text — never a JSON
+ * dump, which could leak secrets.
+ */
+function thrownMessage(err: unknown): string {
+  try {
+    if (typeof err === "string") return err;
+    if (typeof err === "object" && err !== null) {
+      const message: unknown = (err as { message?: unknown }).message;
+      if (typeof message === "string") return message;
+    }
+  } catch {
+    // A throwing getter or Proxy trap falls through to the fixed text.
+  }
+  return UNEXPECTED_ERROR;
+}
+
 export function errResponse(err: unknown): ToolResponse {
   // Apply displayMsg at the single MCP error-display boundary so backend-originated
   // "namespace" error text (from lib/*.ts) is translated to "address" for users.
   // lib/* functions stay raw (for testability and correctness); translation happens here.
   return {
-    content: [{ type: "text" as const, text: displayMsg((err as Error).message) }],
+    content: [{ type: "text" as const, text: displayMsg(thrownMessage(err)) }],
     isError: true,
   };
 }

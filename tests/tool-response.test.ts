@@ -20,13 +20,70 @@ describe("okResponse / errResponse", () => {
   test("okResponse wraps text without isError", () => {
     expect(okResponse("hi")).toEqual({ content: [{ type: "text", text: "hi" }] });
   });
-  test("errResponse applies displayMsg to the message", () => {
+  test("DW_1_3 errResponse applies displayMsg to the message", () => {
     expect(errResponse(new Error(MSG))).toEqual(expectedErr);
     expect(displayMsg(MSG)).not.toBe(MSG);
   });
 });
 
+const FALLBACK: ToolResponse = {
+  isError: true,
+  content: [{ type: "text", text: "Unexpected error." }],
+};
+
+describe("errResponse with non-Error thrown values", () => {
+  test("DW_1_1 thrown string passes through displayMsg", () => {
+    expect(errResponse(MSG)).toEqual(expectedErr);
+  });
+  test("DW_1_1 object with string message uses that text", () => {
+    expect(errResponse({ message: "plain text" })).toEqual({
+      isError: true,
+      content: [{ type: "text", text: "plain text" }],
+    });
+  });
+  test("DW_1_1 fallback cases render exactly 'Unexpected error.' and never throw", () => {
+    const throwingGetter = {
+      get message(): string {
+        throw new Error("boom");
+      },
+    };
+    const cases: unknown[] = [
+      {},
+      { code: 1 },
+      undefined,
+      null,
+      42,
+      Symbol("s"),
+      throwingGetter,
+      Object.assign(new Error("x"), { message: 123 }),
+      Object.assign(new Error("x"), { message: undefined }),
+    ];
+    for (const c of cases) expect(errResponse(c)).toEqual(FALLBACK);
+  });
+  test("a Proxy that throws on every trap falls back", () => {
+    const hostile = new Proxy({}, {
+      get() { throw new Error("get"); },
+      getPrototypeOf() { throw new Error("proto"); },
+    });
+    expect(errResponse(hostile)).toEqual(FALLBACK);
+  });
+  test("an Error with an empty message keeps empty text", () => {
+    expect(errResponse(new Error(""))).toEqual({
+      isError: true,
+      content: [{ type: "text", text: "" }],
+    });
+  });
+});
+
 describe("guarded", () => {
+  test("DW_1_2 handler throwing a string returns the structured error", async () => {
+    const h = guarded((() => {
+      throw MSG;
+    }) as () => Promise<ToolResponse>);
+    expect(await h()).toEqual(expectedErr);
+    const r = guarded(async () => Promise.reject(undefined));
+    expect(await r()).toEqual(FALLBACK);
+  });
   test("DW_C1_5 async rejection becomes an error response", async () => {
     const h = guarded(async () => {
       await Promise.resolve();
