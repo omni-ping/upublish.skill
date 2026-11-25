@@ -2,9 +2,9 @@
  * Tool-surface snapshot: the frozen MCP contract of the upublish server.
  *
  * Pins, as committed JSON under tests/fixtures/tool-surface/:
- *  - {local,local-admin,hosted}.list.json: every listed tool's full definition, in registration order;
+ *  - {local,local-admin,hosted}.list.json (hosted = the default localFiles-off surface): every listed tool's full definition, in registration order;
  *  - calls.json: the error-path result of calling every tool once unauthenticated (config b);
- *  - hosted refusal: the text a hosted server answers for a local-only tool name.
+ *  - hosted refusal: the text a default (localFiles off) server answers for a local-only tool name.
  *
  * Refactors must leave these files byte-identical. Regenerate deliberately with
  * `UPDATE_TOOL_SURFACE=1 bun test tests/tool-surface.test.ts` and review the diff.
@@ -20,9 +20,8 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { LOCAL_ONLY_TOOLS, PACKAGE_VERSION, createHostedServer, createServer } from "../mcp/index.ts";
-import type { CoreDeps } from "../mcp/index.ts";
-import { setFileLogging } from "../lib/log.ts";
+import { LOCAL_ONLY_TOOLS, PACKAGE_VERSION, createServer } from "../mcp/index.ts";
+import type { CoreDeps } from "../lib/core.ts";
 
 type McpServerT = ReturnType<typeof createServer>;
 type Json = Record<string, unknown>;
@@ -94,7 +93,6 @@ beforeAll(() => {
 const open: Array<{ client: Client; server: McpServerT }> = [];
 
 afterEach(async () => {
-  setFileLogging(true); // createHostedServer flips this process-wide; other files rely on the default
   for (const { client, server } of open.splice(0)) {
     await client.close().catch(() => undefined);
     await server.close().catch(() => undefined);
@@ -204,7 +202,7 @@ function expectedFixture<T>(file: string, actual: T): T {
 }
 
 const localServer = () => createServer(NO_NETWORK, { localFiles: true, openBrowser: async () => undefined }) // `upgrade` must never launch a browser;
-const hostedServer = () => createHostedServer({ ...NO_NETWORK, tokenProvider: async () => "t" });
+const hostedServer = () => createServer(NO_NETWORK, { localFiles: false }); // the default createServer() surface
 
 // ─── Listing snapshots ───────────────────────────────────────────────────────
 
@@ -227,8 +225,8 @@ describe("tools/list snapshot", () => {
     expect(diffTools(actual, expected)).toEqual([]);
   });
 
-  test("DW_0_1_hosted: hosted server lists 33 minus the 7 LOCAL_ONLY tools (26), as committed", async () => {
-    process.env.UPUBLISH_ADMIN = "1"; // a hosted server must ignore it
+  test("DW_0_1_hosted: default (localFiles off) server lists 33 minus the 7 LOCAL_ONLY tools (26), as committed", async () => {
+    process.env.UPUBLISH_ADMIN = "1"; // a localFiles-off server must ignore it
     const actual = await listTools(hostedServer());
     expect(actual).toHaveLength(33 - LOCAL_ONLY_TOOLS.length);
     expect(actual).toHaveLength(26);
@@ -297,7 +295,7 @@ describe("unauthenticated call snapshot", () => {
     expect(ok.sort()).toEqual(["logout", "status", "template"].filter((n) => ok.includes(n)));
   });
 
-  test("DW_0_3_hosted_refusal: a hosted server refuses a local-only tool name with a stable message", async () => {
+  test("DW_0_3_hosted_refusal: a localFiles-off server refuses a local-only tool name with a stable message", async () => {
     const client = await connect(hostedServer());
     const actual = scrub(await callTool(client, "publish", CALL_ARGS.publish!));
     const expected = expectedFixture("hosted-refusal.json", actual);

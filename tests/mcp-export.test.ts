@@ -1,6 +1,6 @@
 /**
  * The local-only `export` MCP tool end to end through createServer (stubbed fetch, real temp directory).
- * DW-2.5 (registration side): present on stdio (localFiles), absent and refused hosted.
+ * DW-2.5 (registration side): present on stdio (localFiles), absent when localFiles is off.
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -8,9 +8,8 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { LOCAL_ONLY_TOOLS, createHostedServer, createServer } from "../mcp/index.ts";
+import { LOCAL_ONLY_TOOLS, createServer } from "../mcp/index.ts";
 import type { CoreDeps } from "../lib/core.ts";
-import { setFileLogging } from "../lib/log.ts";
 
 type Result = { content: Array<{ type: string; text: string }>; isError?: boolean };
 type Tools = Record<string, { handler: (a: Record<string, unknown>) => Promise<Result>; inputSchema?: unknown }>;
@@ -19,7 +18,6 @@ const tools = (s: unknown): Tools => (s as { _registeredTools: Tools })._registe
 const md5 = (s: string) => createHash("md5").update(s).digest("hex");
 const dirs: string[] = [];
 afterEach(() => {
-  setFileLogging(true); // createHostedServer flips this process-wide; leaking it silences the log for later files
   for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
 });
 const tmp = () => {
@@ -58,17 +56,10 @@ describe("export tool registration (DW-2.5)", () => {
     expect([...LOCAL_ONLY_TOOLS]).toContain("export");
   });
 
-  test("the stdio server lists export; the hosted server does not and refuses a forced registration", () => {
+  test("the stdio server lists export; a localFiles-off server does not", () => {
     expect("export" in tools(createServer({}, { localFiles: true }))).toBe(true);
     expect("export" in tools(createServer({}))).toBe(false);
-    expect("export" in tools(createHostedServer({ tokenProvider: async () => "t" }))).toBe(false);
-    expect(() =>
-      createHostedServer({ tokenProvider: async () => "t" }, (d) => {
-        const s = createServer(d, { localFiles: false });
-        s.registerTool("export", { description: "x" }, async () => ({ content: [] }));
-        return s;
-      }),
-    ).toThrow(/export/);
+    expect("export" in tools(createServer({}, { localFiles: false }))).toBe(false);
   });
 });
 

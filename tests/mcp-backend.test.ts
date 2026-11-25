@@ -175,7 +175,7 @@ describe("DW-6.1: publish_backend through the handler", () => {
     tmp.push(dir);
     const entry = path.join(dir, "h.ts");
     fs.writeFileSync(entry, CODE);
-    // createServer() without opts is what the hosted router calls: no local files.
+    // createServer() without opts: localFiles off, no local files.
     const hosted = setup(deploy);
     const refused = await hosted.call("publish_backend", { site: SLUG, entry });
     expect(refused.isError).toBe(true);
